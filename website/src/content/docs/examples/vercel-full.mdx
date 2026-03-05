@@ -1,0 +1,110 @@
+---
+title: Vercel Edge Full Example
+description: Complete Vercel Edge Function with all ChatCops features.
+---
+
+A production-ready Vercel Edge Function with lead capture, knowledge base, and analytics.
+
+## API Route (`api/chat.ts`)
+
+```typescript
+import { chatcopsVercelHandler } from '@chatcops/server';
+import { LeadCaptureTool } from '@chatcops/core/tools';
+import { FAQKnowledgeSource } from '@chatcops/core/knowledge';
+
+export const config = { runtime: 'edge' };
+
+export default chatcopsVercelHandler({
+  provider: {
+    type: 'claude',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+    model: 'claude-haiku-4-5-20251001',
+  },
+
+  systemPrompt: `You are a helpful AI assistant for our SaaS product.
+    Answer questions about features, pricing, and getting started.
+    If a user shares contact info, capture it with the lead tool.`,
+
+  tools: [
+    new LeadCaptureTool({
+      onCapture: async (lead) => {
+        // Send to webhook (e.g., Zapier, Make, n8n)
+        await fetch(process.env.WEBHOOK_URL!, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'lead_captured',
+            lead,
+            timestamp: new Date().toISOString(),
+          }),
+        });
+      },
+    }),
+  ],
+
+  knowledge: [
+    new FAQKnowledgeSource([
+      { question: 'What is your pricing?', answer: 'Starter: Free, Pro: $29/mo, Enterprise: Custom.' },
+      { question: 'Is there a free trial?', answer: 'Yes, 14-day free trial on all paid plans.' },
+      { question: 'What integrations do you support?', answer: 'Slack, Discord, Zapier, webhooks, and REST API.' },
+    ]),
+  ],
+
+  cors: '*',
+  analytics: true,
+});
+```
+
+## Next.js Integration
+
+If using Next.js, place the file at `app/api/chat/route.ts`:
+
+```typescript
+import { chatcopsVercelHandler } from '@chatcops/server';
+
+export const runtime = 'edge';
+
+const handler = chatcopsVercelHandler({
+  provider: {
+    type: 'openai',
+    apiKey: process.env.OPENAI_API_KEY!,
+  },
+  systemPrompt: 'You are a helpful assistant.',
+  cors: '*',
+});
+
+export const POST = handler;
+```
+
+## Widget in Next.js Layout
+
+```tsx
+// app/layout.tsx
+import Script from 'next/script';
+
+export default function RootLayout({ children }) {
+  return (
+    <html>
+      <body>
+        {children}
+        <Script
+          src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+          data-api-url="/api/chat"
+          data-accent="#6366f1"
+          data-brand-name="Support"
+          strategy="lazyOnload"
+        />
+      </body>
+    </html>
+  );
+}
+```
+
+## Environment Variables
+
+Set in Vercel dashboard → Settings → Environment Variables:
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-...
+WEBHOOK_URL=https://hooks.zapier.com/...
+```

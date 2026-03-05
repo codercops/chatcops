@@ -1,0 +1,92 @@
+---
+title: Knowledge Base
+description: Provide context-aware responses with text and FAQ knowledge sources.
+---
+
+Knowledge sources give the AI relevant context for each query, grounding responses in your actual content.
+
+## FAQ Knowledge Source
+
+Best for structured question-answer pairs:
+
+```typescript
+import { FAQKnowledgeSource } from '@chatcops/core/knowledge';
+
+const faq = new FAQKnowledgeSource([
+  { question: 'What are your business hours?', answer: '9am-5pm EST, Monday to Friday.' },
+  { question: 'Do you offer refunds?', answer: 'Yes, full refunds within 30 days.' },
+  { question: 'How do I contact support?', answer: 'Email support@example.com or use this chat!' },
+  { question: 'What payment methods do you accept?', answer: 'Visa, Mastercard, PayPal, and wire transfer.' },
+]);
+```
+
+### How FAQ Matching Works
+
+1. User's query is tokenized into words
+2. Each FAQ pair is scored by word frequency overlap (question + answer)
+3. Top 5 matching FAQs are returned as context
+4. Context is formatted as `Q: ...\nA: ...` and injected into the AI prompt
+
+## Text Knowledge Source
+
+Best for unstructured content (documentation, product descriptions, policies):
+
+```typescript
+import { TextKnowledgeSource } from '@chatcops/core/knowledge';
+
+const docs = new TextKnowledgeSource(
+  `Our company was founded in 2020 by Jane Doe.
+  We specialize in AI-powered customer support solutions.
+  Our flagship product is ChatCops, an embeddable chatbot widget.
+  We serve over 500 businesses worldwide.
+  Our headquarters is in San Francisco, CA.`,
+  { chunkSize: 500 }  // Optional: characters per chunk
+);
+```
+
+### How Text Matching Works
+
+1. Source text is split into chunks at initialization
+2. User's query words are matched against each chunk
+3. Top 3 relevant chunks are returned
+4. Context is prefixed with `"Relevant context:\n"`
+
+## KnowledgeSource Interface
+
+```typescript
+interface KnowledgeSource {
+  type: string;
+  getContext(query: string): Promise<string>;
+}
+```
+
+## Multiple Sources
+
+Combine multiple knowledge sources — all contexts are concatenated:
+
+```typescript
+chatcopsMiddleware({
+  provider: { type: 'claude', apiKey: '...' },
+  systemPrompt: 'Answer using the provided context. If unsure, say so.',
+  knowledge: [
+    new FAQKnowledgeSource(faqs),
+    new TextKnowledgeSource(productDocs),
+    new TextKnowledgeSource(policyDocs),
+  ],
+});
+```
+
+## Custom Knowledge Source
+
+Implement `KnowledgeSource` for database-backed or vector search:
+
+```typescript
+class VectorKnowledgeSource implements KnowledgeSource {
+  type = 'vector';
+
+  async getContext(query: string): Promise<string> {
+    const results = await vectorDB.search(query, { topK: 5 });
+    return results.map(r => r.text).join('\n\n');
+  }
+}
+```

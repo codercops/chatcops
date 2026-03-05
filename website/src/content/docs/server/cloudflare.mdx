@@ -1,0 +1,99 @@
+---
+title: Cloudflare Workers Adapter
+description: Deploy ChatCops as a Cloudflare Worker.
+---
+
+The Cloudflare adapter creates a handler compatible with the Workers runtime.
+
+## Setup
+
+Create a Worker at `src/index.ts`:
+
+```typescript
+import { chatcopsCloudflareHandler } from '@chatcops/server';
+
+export default {
+  async fetch(
+    request: Request,
+    env: Record<string, string>
+  ): Promise<Response> {
+    const handler = chatcopsCloudflareHandler({
+      provider: {
+        type: 'claude',
+        apiKey: env.ANTHROPIC_API_KEY,
+      },
+      systemPrompt: 'You are a helpful assistant.',
+      cors: '*',
+    });
+
+    return handler(request);
+  },
+};
+```
+
+## Environment Variables
+
+Set secrets using Wrangler:
+
+```bash
+npx wrangler secret put ANTHROPIC_API_KEY
+```
+
+Or in `wrangler.toml` for non-secret values:
+
+```toml
+[vars]
+SYSTEM_PROMPT = "You are a helpful assistant."
+```
+
+## Widget Configuration
+
+```html
+<script
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  data-api-url="https://chatcops.your-domain.workers.dev"
+></script>
+```
+
+## Full Example
+
+```typescript
+import { chatcopsCloudflareHandler } from '@chatcops/server';
+import { LeadCaptureTool } from '@chatcops/core/tools';
+
+export default {
+  async fetch(request: Request, env: Record<string, string>): Promise<Response> {
+    const handler = chatcopsCloudflareHandler({
+      provider: {
+        type: 'gemini',
+        apiKey: env.GOOGLE_AI_API_KEY,
+        model: 'gemini-2.0-flash',
+      },
+      systemPrompt: env.SYSTEM_PROMPT || 'You are a helpful assistant.',
+      tools: [
+        new LeadCaptureTool({
+          onCapture: async (lead) => {
+            // Use Cloudflare KV, D1, or external webhook
+            await fetch(env.WEBHOOK_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(lead),
+            });
+          },
+        }),
+      ],
+      cors: '*',
+      rateLimit: { maxRequests: 20, windowMs: 60_000 },
+    });
+
+    return handler(request);
+  },
+};
+```
+
+## Notes
+
+- Cloudflare Workers have a 30-second CPU time limit (Bundled plan) or 15 minutes (Unbound)
+- SSE streaming works natively on Workers
+- Use Cloudflare KV or D1 for persistent storage (conversation history, analytics)
+- The `env` object provides access to secrets and bindings

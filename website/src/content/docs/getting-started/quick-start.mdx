@@ -1,0 +1,75 @@
+---
+title: Quick Start
+description: Add an AI chatbot to your website in under 5 minutes.
+---
+
+Get ChatCops running in three steps: add the widget, set up a server, and start chatting.
+
+## 1. Add the Widget
+
+Drop a single `<script>` tag into your HTML. The widget auto-initializes and appears as a floating button in the bottom-right corner.
+
+```html
+<script
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  data-api-url="https://your-api.com/chat"
+  data-accent="#6366f1"
+></script>
+```
+
+The widget accepts configuration via `data-*` attributes:
+
+| Attribute | Description | Default |
+|-----------|-------------|---------|
+| `data-api-url` | Your server endpoint (required) | — |
+| `data-accent` | Primary accent color | `#6366f1` |
+| `data-brand-name` | Name shown in chat header | `"AI Assistant"` |
+| `data-welcome-message` | First message from the bot | — |
+| `data-position` | `bottom-right` or `bottom-left` | `bottom-right` |
+
+## 2. Set Up the Server
+
+Install the server package:
+
+```bash
+npm install @chatcops/server express
+```
+
+Create a minimal Express server:
+
+```typescript
+import express from 'express';
+import { chatcopsMiddleware } from '@chatcops/server';
+
+const app = express();
+app.use(express.json());
+
+app.post('/chat', chatcopsMiddleware({
+  provider: {
+    type: 'claude',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+    model: 'claude-haiku-4-5-20251001',
+  },
+  systemPrompt: `You are a helpful customer support assistant for our website.
+    Be friendly, concise, and helpful.`,
+  cors: '*',
+  rateLimit: { maxRequests: 30, windowMs: 60_000 },
+}));
+
+app.listen(3001, () => {
+  console.log('ChatCops server running on http://localhost:3001');
+});
+```
+
+## 3. Test It
+
+1. Start your server: `node server.js`
+2. Open your HTML page in a browser
+3. Click the chat bubble — you're live!
+
+## Next Steps
+
+- [Widget Configuration](/widget/configuration) — customize appearance and behavior
+- [Server Setup](/server/setup) — advanced server configuration
+- [AI Providers](/core/providers) — switch between Claude, OpenAI, and Gemini
+- [Theming](/widget/theming) — match the widget to your brand

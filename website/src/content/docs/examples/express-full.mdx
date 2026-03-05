@@ -1,0 +1,121 @@
+---
+title: Express Full Example
+description: Complete Express.js server with all ChatCops features.
+---
+
+A production-ready Express server with lead capture, knowledge base, webhooks, and analytics.
+
+## Complete Server
+
+```typescript
+import express from 'express';
+import { chatcopsMiddleware } from '@chatcops/server';
+import { LeadCaptureTool } from '@chatcops/core/tools';
+import { FAQKnowledgeSource, TextKnowledgeSource } from '@chatcops/core/knowledge';
+
+const app = express();
+app.use(express.json());
+
+// Health check
+app.get('/health', (req, res) => res.json({ status: 'ok' }));
+
+// ChatCops endpoint
+app.post('/chat', chatcopsMiddleware({
+  provider: {
+    type: 'claude',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+    model: 'claude-haiku-4-5-20251001',
+  },
+
+  systemPrompt: `You are a helpful customer support assistant for Acme Corp.
+    Be friendly, concise, and professional.
+    If someone asks about pricing, refer to our plans: Starter ($0), Pro ($29/mo), Enterprise (custom).
+    If someone shares their contact information or wants to be contacted,
+    use the capture_lead tool to save their details.
+    Always be transparent about being an AI assistant.`,
+
+  tools: [
+    new LeadCaptureTool({
+      onCapture: async (lead) => {
+        console.log('New lead captured:', lead.email);
+        // Save to database
+        // await db.leads.create(lead);
+
+        // Send to webhook/CRM
+        // await fetch('https://hooks.zapier.com/...', {
+        //   method: 'POST',
+        //   body: JSON.stringify(lead),
+        // });
+      },
+    }),
+  ],
+
+  knowledge: [
+    new FAQKnowledgeSource([
+      { question: 'What are your business hours?', answer: '9am-5pm EST, Monday to Friday.' },
+      { question: 'Do you offer refunds?', answer: 'Full refunds within 30 days of purchase.' },
+      { question: 'How do I contact support?', answer: 'Email support@acme.com or use this chat.' },
+      { question: 'What payment methods do you accept?', answer: 'Visa, Mastercard, PayPal, wire transfer.' },
+      { question: 'Do you have an API?', answer: 'Yes! Check docs.acme.com for our REST API.' },
+    ]),
+    new TextKnowledgeSource(
+      `Acme Corp was founded in 2020. We build AI-powered customer support tools.
+      Our flagship product helps businesses add intelligent chat to their websites.
+      We serve over 500 businesses across 30 countries.
+      Our team is based in San Francisco, CA with remote employees worldwide.`
+    ),
+  ],
+
+  webhooks: [
+    {
+      url: process.env.WEBHOOK_URL || 'https://hooks.example.com/chatcops',
+      events: ['message:received', 'lead:captured'],
+      secret: process.env.WEBHOOK_SECRET,
+    },
+  ],
+
+  rateLimit: { maxRequests: 30, windowMs: 60_000 },
+  analytics: true,
+  cors: process.env.CORS_ORIGIN || '*',
+}));
+
+const PORT = process.env.PORT ?? 3001;
+app.listen(PORT, () => {
+  console.log(`ChatCops server running on http://localhost:${PORT}`);
+});
+```
+
+## Widget HTML
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Acme Corp</title>
+</head>
+<body>
+  <h1>Welcome to Acme Corp</h1>
+
+  <script
+    src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+    data-api-url="http://localhost:3001/chat"
+    data-accent="#6366f1"
+    data-brand-name="Acme Support"
+    data-brand-subtitle="Usually replies instantly"
+    data-welcome-message="Hi! I'm Acme's AI assistant. How can I help you today?"
+    data-welcome-bubble="Need help? Chat with us!"
+    data-welcome-bubble-delay="5000"
+  ></script>
+</body>
+</html>
+```
+
+## Environment Variables
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-...
+WEBHOOK_URL=https://hooks.example.com/chatcops
+WEBHOOK_SECRET=your-webhook-secret
+CORS_ORIGIN=https://your-website.com
+PORT=3001
+```

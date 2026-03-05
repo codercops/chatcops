@@ -1,0 +1,23 @@
+{
+  "name": "@chatcops/website",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.34.0",
+    "astro": "^5.7.0",
+    "sharp": "^0.33.0"
+  },
+  "devDependencies": {
+    "@fontsource/inter": "^5.1.0",
+    "@fontsource/jetbrains-mono": "^5.1.0",
+    "@fontsource/playfair-display": "^5.1.0",
+    "typescript": "^5.7.0"
+  }
+}

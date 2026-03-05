@@ -1,0 +1,127 @@
+---
+title: Cloudflare Worker Full Example
+description: Complete Cloudflare Worker with all ChatCops features.
+---
+
+A production-ready Cloudflare Worker with lead capture, knowledge base, and rate limiting.
+
+## Worker (`src/index.ts`)
+
+```typescript
+import { chatcopsCloudflareHandler } from '@chatcops/server';
+import { LeadCaptureTool } from '@chatcops/core/tools';
+import { FAQKnowledgeSource, TextKnowledgeSource } from '@chatcops/core/knowledge';
+
+interface Env {
+  ANTHROPIC_API_KEY: string;
+  WEBHOOK_URL: string;
+  SYSTEM_PROMPT: string;
+}
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    // Health check
+    if (new URL(request.url).pathname === '/health') {
+      return new Response(JSON.stringify({ status: 'ok' }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const handler = chatcopsCloudflareHandler({
+      provider: {
+        type: 'claude',
+        apiKey: env.ANTHROPIC_API_KEY,
+        model: 'claude-haiku-4-5-20251001',
+      },
+
+      systemPrompt: env.SYSTEM_PROMPT || `You are a helpful customer support assistant.
+        Be friendly and concise. Capture leads when users share contact info.`,
+
+      tools: [
+        new LeadCaptureTool({
+          onCapture: async (lead) => {
+            // Forward to webhook
+            if (env.WEBHOOK_URL) {
+              await fetch(env.WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'lead', ...lead }),
+              });
+            }
+          },
+        }),
+      ],
+
+      knowledge: [
+        new FAQKnowledgeSource([
+          { question: 'Pricing?', answer: 'Free tier available. Pro starts at $29/mo.' },
+          { question: 'Support hours?', answer: '24/7 via chat, email support 9am-5pm EST.' },
+          { question: 'Refund policy?', answer: '30-day money-back guarantee on all plans.' },
+        ]),
+        new TextKnowledgeSource(
+          `We are a SaaS company specializing in developer tools.
+          Founded in 2023. Based in San Francisco.
+          Used by 1000+ developers worldwide.`
+        ),
+      ],
+
+      cors: '*',
+      rateLimit: { maxRequests: 20, windowMs: 60_000 },
+      analytics: true,
+    });
+
+    return handler(request);
+  },
+};
+```
+
+## `wrangler.toml`
+
+```toml
+name = "chatcops-worker"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+SYSTEM_PROMPT = "You are a helpful AI assistant."
+```
+
+## Secrets
+
+```bash
+npx wrangler secret put ANTHROPIC_API_KEY
+npx wrangler secret put WEBHOOK_URL
+```
+
+## Deploy
+
+```bash
+npx wrangler deploy
+```
+
+## Widget HTML
+
+```html
+<script
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  data-api-url="https://chatcops-worker.your-subdomain.workers.dev"
+  data-accent="#6366f1"
+  data-brand-name="AI Support"
+  data-welcome-message="Hi! How can I help?"
+></script>
+```
+
+## With Cloudflare KV (Conversation Storage)
+
+```typescript
+interface Env {
+  ANTHROPIC_API_KEY: string;
+  CONVERSATIONS: KVNamespace;  // Bind in wrangler.toml
+}
+
+// Store conversation history in KV
+const conversation = await env.CONVERSATIONS.get(conversationId, 'json');
+await env.CONVERSATIONS.put(conversationId, JSON.stringify(updated), {
+  expirationTtl: 86400, // 24 hours
+});
+```

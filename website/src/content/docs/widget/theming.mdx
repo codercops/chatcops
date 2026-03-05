@@ -1,0 +1,95 @@
+---
+title: Theming
+description: Customize the ChatCops widget appearance to match your brand.
+---
+
+ChatCops uses a theme engine that applies CSS custom properties to the Shadow DOM host element.
+
+## Theme Configuration
+
+```typescript
+ChatCops.init({
+  apiUrl: '/api/chat',
+  theme: {
+    accent: '#6366f1',           // Primary color for buttons, user messages
+    textColor: '#FAFAF9',        // Main text color
+    bgColor: '#0A0A0A',          // Widget background
+    fontFamily: 'Inter, sans-serif',
+    borderRadius: 12,            // px
+    position: 'bottom-right',    // or 'bottom-left'
+  },
+});
+```
+
+## Color Manipulation
+
+The theme engine automatically generates hover and surface colors from your accent:
+
+- **Accent hover:** Darkened by 15% from your accent
+- **Accent light:** Lightened by 40% for subtle backgrounds
+- **Surface colors:** Derived from `bgColor`
+
+## Built-in Dark Theme
+
+The default theme is optimized for dark mode:
+
+| Element | Color |
+|---------|-------|
+| Background | `#0A0A0A` |
+| Surface | `#111111` |
+| Input area | `#171717` |
+| Border | `#262626` |
+| Text | `#FAFAF9` |
+| Secondary text | `#A8A29E` |
+| Accent | `#6366f1` (indigo) |
+
+## Light Theme Example
+
+```typescript
+ChatCops.init({
+  apiUrl: '/api/chat',
+  theme: {
+    accent: '#4f46e5',
+    textColor: '#1a1a1a',
+    bgColor: '#ffffff',
+    borderRadius: 16,
+  },
+});
+```
+
+## CSS Override (Advanced)
+
+You can override widget styles by targeting the custom element:
+
+```css
+chatcops-widget {
+  --cc-accent: #e11d48;
+  --cc-bg: #ffffff;
+  --cc-text: #111111;
+  --cc-panel-width: 450px;
+  --cc-panel-height: 600px;
+  --cc-fab-size: 64px;
+}
+```
+
+## ThemeConfig Interface
+
+```typescript
+interface ThemeConfig {
+  accent?: string;          // Hex color
+  textColor?: string;       // Hex color
+  bgColor?: string;         // Hex color
+  fontFamily?: string;      // CSS font-family string
+  borderRadius?: number;    // Pixels
+  position?: 'bottom-right' | 'bottom-left';
+}
+```
+
+## Position
+
+The widget supports two positions:
+
+- `bottom-right` (default) — FAB and panel anchored to bottom-right
+- `bottom-left` — FAB and panel anchored to bottom-left
+
+On mobile screens, the chat panel always goes full-screen regardless of position.

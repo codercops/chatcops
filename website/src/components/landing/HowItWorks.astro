@@ -1,0 +1,73 @@
+---
+const step1Code = `<span style="color:#f87171">&lt;script</span>
+  <span style="color:#818cf8">src</span>=<span style="color:#34d399">".../@chatcops/widget"</span>
+  <span style="color:#818cf8">data-api-url</span>=<span style="color:#34d399">"https://api.example.com/chat"</span>
+<span style="color:#f87171">&gt;&lt;/script&gt;</span>`;
+
+const step2Code = `<span style="color:#c084fc">import</span> { chatcopsMiddleware }
+  <span style="color:#c084fc">from</span> <span style="color:#34d399">'@chatcops/server'</span>;
+
+app.<span style="color:#60a5fa">post</span>(<span style="color:#34d399">'/chat'</span>, <span style="color:#60a5fa">chatcopsMiddleware</span>({
+  provider: { type: <span style="color:#34d399">'claude'</span> },
+  systemPrompt: <span style="color:#34d399">'...'</span>,
+}));`;
+---
+<section class="section">
+  <div class="container">
+    <div class="section-header" data-animate="fade">
+      <span class="section-label">Setup</span>
+      <h2 class="section-title">Three Steps to Launch</h2>
+      <p class="section-subtitle">
+        From zero to AI chatbot in under 5 minutes.
+      </p>
+    </div>
+
+    <div class="steps-grid">
+      <div class="card-premium-simple step-card" data-animate="slide-up" data-animate-delay="1">
+        <span class="step-number">1</span>
+        <h3>Add the Script Tag</h3>
+        <p>Drop a single &lt;script&gt; tag into your HTML. The widget auto-initializes.</p>
+        <div class="step-code">
+          <pre set:html={step1Code} />
+        </div>
+      </div>
+
+      <div class="card-premium-simple step-card" data-animate="slide-up" data-animate-delay="2">
+        <span class="step-number">2</span>
+        <h3>Configure Your Server</h3>
+        <p>Set up a server endpoint with your AI provider of choice.</p>
+        <div class="step-code">
+          <pre set:html={step2Code} />
+        </div>
+      </div>
+
+      <div class="card-premium-simple step-card" data-animate="slide-up" data-animate-delay="3">
+        <span class="step-number">3</span>
+        <h3>Chat with Customers</h3>
+        <p>Your AI assistant is live. Capture leads, answer questions, and delight users.</p>
+        <div class="step-icon-wrap">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" class="step-icon-svg">
+            <circle cx="24" cy="24" r="23" stroke="currentColor" stroke-width="2" stroke-dasharray="4 4"/>
+            <path d="M14 20a8 8 0 018-8h4a8 8 0 018 8v2a8 8 0 01-8 8h-2l-5 5v-5a8 8 0 01-5-8v-2z" fill="currentColor" opacity="0.15"/>
+            <path d="M16 20a6 6 0 016-6h4a6 6 0 016 6v2a6 6 0 01-6 6h-1l-4 4v-4a6 6 0 01-5-6v-2z" stroke="currentColor" stroke-width="1.5"/>
+            <circle cx="21" cy="21" r="1.5" fill="currentColor"/>
+            <circle cx="27" cy="21" r="1.5" fill="currentColor"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .step-icon-wrap {
+    margin-top: var(--space-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100px;
+  }
+  .step-icon-svg {
+    color: var(--accent-primary);
+  }
+</style>

@@ -1,0 +1,91 @@
+---
+title: Internationalization
+description: Localize the ChatCops widget for different languages.
+---
+
+ChatCops includes 8 built-in locales with full UI string translations.
+
+## Setting a Locale
+
+### Via script tag
+
+```html
+<script
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  data-api-url="/api/chat"
+  data-locale="es"
+></script>
+```
+
+### Programmatically
+
+```typescript
+ChatCops.init({
+  apiUrl: '/api/chat',
+  locale: 'fr',
+});
+```
+
+## Available Locales
+
+| Code | Language |
+|------|----------|
+| `en` | English (default) |
+| `es` | Spanish |
+| `hi` | Hindi |
+| `fr` | French |
+| `de` | German |
+| `ja` | Japanese |
+| `zh` | Chinese |
+| `ar` | Arabic |
+
+## Locale Strings
+
+Each locale provides translations for:
+
+```typescript
+interface LocaleStrings {
+  welcomeMessage: string;
+  inputPlaceholder: string;
+  sendButton: string;
+  closeButton: string;
+  errorGeneric: string;
+  errorNetwork: string;
+  errorRateLimit: string;
+  typingIndicator: string;
+  poweredBy: string;
+  newConversation: string;
+  welcomeBubbleDefault: string;
+}
+```
+
+## Server-Side i18n
+
+The server also supports i18n for error messages and system prompts:
+
+```typescript
+chatcopsMiddleware({
+  provider: { type: 'claude', apiKey: '...' },
+  systemPrompt: '...',
+  i18n: {
+    defaultLocale: 'en',
+    locales: {
+      es: {
+        welcomeMessage: 'Hola! Como puedo ayudarte?',
+        inputPlaceholder: 'Escribe un mensaje...',
+        sendButton: 'Enviar',
+        closeButton: 'Cerrar',
+        errorGeneric: 'Algo salio mal. Intentalo de nuevo.',
+        errorNetwork: 'Error de conexion.',
+        errorRateLimit: 'Demasiados mensajes. Espera un momento.',
+        typingIndicator: 'Escribiendo...',
+        poweredBy: 'Desarrollado por',
+        newConversation: 'Nueva conversacion',
+        welcomeBubbleDefault: 'Necesitas ayuda?',
+      },
+    },
+  },
+});
+```
+
+The widget sends its current `locale` with each request, and the server uses it to select the appropriate strings.

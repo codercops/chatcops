@@ -1,0 +1,105 @@
+---
+title: Events
+description: Subscribe to widget lifecycle and messaging events.
+---
+
+The ChatCops widget emits events you can listen to for analytics, custom behavior, or integration with your app.
+
+## Subscribing to Events
+
+```typescript
+// Using .on()
+ChatCops.on('open', () => {
+  console.log('Chat opened');
+});
+
+// Returns unsubscribe function
+const unsub = ChatCops.on('message', (data) => {
+  console.log('Message:', data);
+});
+
+// Unsubscribe later
+unsub();
+```
+
+## Event Types
+
+### `open`
+
+Fired when the chat panel opens.
+
+```typescript
+ChatCops.on('open', () => {
+  analytics.track('chat_opened');
+});
+```
+
+### `close`
+
+Fired when the chat panel closes.
+
+```typescript
+ChatCops.on('close', () => {
+  analytics.track('chat_closed');
+});
+```
+
+### `message`
+
+Fired when a message is sent or received.
+
+```typescript
+ChatCops.on('message', (data) => {
+  // data.role: 'user' | 'assistant'
+  // data.content: string
+  // data.timestamp: number
+  console.log(`${data.role}: ${data.content}`);
+});
+```
+
+### `error`
+
+Fired when an error occurs (network failure, rate limit, etc.).
+
+```typescript
+ChatCops.on('error', (error) => {
+  // error.type: 'network' | 'rate_limit' | 'generic'
+  // error.message: string
+  console.error('Chat error:', error.message);
+});
+```
+
+## Use Cases
+
+### Analytics Integration
+
+```typescript
+ChatCops.on('open', () => {
+  gtag('event', 'chat_widget_open');
+});
+
+ChatCops.on('message', (data) => {
+  if (data.role === 'user') {
+    gtag('event', 'chat_message_sent');
+  }
+});
+```
+
+### Custom Triggers
+
+Open the chat when a user clicks a help button:
+
+```typescript
+document.querySelector('#help-btn').addEventListener('click', () => {
+  ChatCops.open();
+});
+```
+
+### Conditional Display
+
+```typescript
+// Only show chat on certain pages
+if (window.location.pathname.startsWith('/support')) {
+  ChatCops.init({ apiUrl: '/api/chat' });
+}
+```

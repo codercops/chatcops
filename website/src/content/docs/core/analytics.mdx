@@ -1,0 +1,105 @@
+---
+title: Analytics
+description: Track conversations, messages, and lead captures with the built-in analytics collector.
+---
+
+ChatCops includes a lightweight analytics collector that tracks conversation metrics server-side.
+
+## Enabling Analytics
+
+```typescript
+chatcopsMiddleware({
+  provider: { type: 'claude', apiKey: '...' },
+  systemPrompt: '...',
+  analytics: true,  // Enable analytics tracking
+});
+```
+
+## Tracked Events
+
+When `analytics: true`, the server automatically tracks:
+
+| Event | When |
+|-------|------|
+| `conversation:started` | New conversation ID first seen |
+| `message:sent` | User sends a message |
+| `message:received` | AI responds |
+| `lead:captured` | Lead capture tool fires |
+
+## AnalyticsCollector API
+
+```typescript
+import { AnalyticsCollector } from '@chatcops/core/analytics';
+
+const analytics = new AnalyticsCollector();
+
+// Track custom events
+analytics.track('custom:event', { key: 'value' });
+
+// Get aggregated stats
+const stats = analytics.getStats();
+// {
+//   totalConversations: 150,
+//   totalMessages: 2340,
+//   leadsCaptured: 23,
+//   averageMessagesPerConversation: 15.6,
+//   eventCounts: { 'conversation:started': 150, ... }
+// }
+
+// Get raw events (optionally filter by type)
+const allEvents = analytics.getEvents();
+const leads = analytics.getEvents('lead:captured');
+
+// Clear all events
+analytics.clear();
+```
+
+## AnalyticsStats Interface
+
+```typescript
+interface AnalyticsStats {
+  totalConversations: number;
+  totalMessages: number;
+  leadsCaptured: number;
+  averageMessagesPerConversation: number;
+  eventCounts: Record<string, number>;
+}
+
+interface AnalyticsEvent {
+  type: string;
+  data?: Record<string, unknown>;
+  timestamp: number;
+}
+```
+
+## Storage
+
+The built-in collector stores events in memory (max 1000 events). For production use, export events to your analytics platform:
+
+```typescript
+const collector = new AnalyticsCollector();
+
+// Periodically flush to your analytics service
+setInterval(() => {
+  const events = collector.getEvents();
+  if (events.length > 0) {
+    sendToAnalytics(events);
+    collector.clear();
+  }
+}, 60_000); // Every minute
+```
+
+## Client-Side Events
+
+Combine with widget events for full-stack analytics:
+
+```typescript
+// Client-side
+ChatCops.on('open', () => gtag('event', 'chat_opened'));
+ChatCops.on('message', (m) => {
+  if (m.role === 'user') gtag('event', 'chat_message_sent');
+});
+
+// Server-side (automatic with analytics: true)
+// conversation:started, message:sent, message:received, lead:captured
+```

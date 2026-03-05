@@ -1,0 +1,29 @@
+---
+import Landing from '../layouts/Landing.astro';
+import Header from '../components/landing/Header.astro';
+import Hero from '../components/landing/Hero.astro';
+import LiveDemo from '../components/landing/LiveDemo.astro';
+import Features from '../components/landing/Features.astro';
+import HowItWorks from '../components/landing/HowItWorks.astro';
+import CodeExamples from '../components/landing/CodeExamples.astro';
+import Providers from '../components/landing/Providers.astro';
+import OpenSourceCTA from '../components/landing/OpenSourceCTA.astro';
+import Footer from '../components/landing/Footer.astro';
+---
+
+<Landing
+  title="ChatCops - AI Chat Widget for Any Website"
+  description="Universal embeddable AI chatbot widget. Add an AI assistant to any website with a single script tag. Multi-provider, zero dependencies, MIT licensed."
+>
+  <Header />
+  <main>
+    <Hero />
+    <LiveDemo />
+    <Features />
+    <HowItWorks />
+    <CodeExamples />
+    <Providers />
+    <OpenSourceCTA />
+  </main>
+  <Footer />
+</Landing>

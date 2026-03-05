@@ -1,0 +1,90 @@
+---
+title: Vercel Adapter
+description: Deploy ChatCops as a Vercel Edge Function.
+---
+
+The Vercel adapter creates an edge function handler for Vercel's serverless platform.
+
+## Setup
+
+Create an API route at `api/chat.ts`:
+
+```typescript
+import { chatcopsVercelHandler } from '@chatcops/server';
+
+export const config = { runtime: 'edge' };
+
+export default chatcopsVercelHandler({
+  provider: {
+    type: 'claude',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  },
+  systemPrompt: 'You are a helpful assistant.',
+  cors: '*',
+});
+```
+
+## Environment Variables
+
+Set these in your Vercel dashboard or `.env.local`:
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-...
+# or
+OPENAI_API_KEY=sk-...
+# or
+GOOGLE_AI_API_KEY=...
+```
+
+## Widget Configuration
+
+Point the widget to your Vercel deployment:
+
+```html
+<script
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  data-api-url="https://your-app.vercel.app/api/chat"
+></script>
+```
+
+## Full Example with Tools
+
+```typescript
+import { chatcopsVercelHandler } from '@chatcops/server';
+import { LeadCaptureTool } from '@chatcops/core/tools';
+import { FAQKnowledgeSource } from '@chatcops/core/knowledge';
+
+export const config = { runtime: 'edge' };
+
+export default chatcopsVercelHandler({
+  provider: {
+    type: 'claude',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+    model: 'claude-haiku-4-5-20251001',
+  },
+  systemPrompt: `You are the AI assistant for Acme Corp.
+    Help users with product questions and capture leads.`,
+  tools: [
+    new LeadCaptureTool({
+      onCapture: async (lead) => {
+        await fetch('https://hooks.zapier.com/...', {
+          method: 'POST',
+          body: JSON.stringify(lead),
+        });
+      },
+    }),
+  ],
+  knowledge: [
+    new FAQKnowledgeSource([
+      { question: 'Pricing?', answer: 'Plans start at $29/mo.' },
+    ]),
+  ],
+  cors: '*',
+});
+```
+
+## Notes
+
+- Edge functions have a 25-second timeout on Vercel's Hobby plan
+- Streaming (SSE) works out of the box on Vercel Edge
+- For longer conversations, consider upgrading to Vercel Pro for extended timeouts

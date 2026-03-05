@@ -1,0 +1,87 @@
+---
+title: Express Adapter
+description: Set up ChatCops with Express.js.
+---
+
+The Express adapter wraps the ChatCops handler as Express middleware.
+
+## Basic Setup
+
+```typescript
+import express from 'express';
+import { chatcopsMiddleware } from '@chatcops/server';
+
+const app = express();
+app.use(express.json());
+
+app.post('/chat', chatcopsMiddleware({
+  provider: {
+    type: 'claude',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+    model: 'claude-haiku-4-5-20251001',
+  },
+  systemPrompt: `You are a helpful customer support assistant for our website.
+    Be concise, friendly, and helpful. If the user wants to contact us,
+    use the lead capture tool to collect their information.`,
+  cors: '*',
+  rateLimit: { maxRequests: 30, windowMs: 60_000 },
+  analytics: true,
+}));
+
+const PORT = process.env.PORT ?? 3001;
+app.listen(PORT, () => {
+  console.log(`ChatCops server running on http://localhost:${PORT}`);
+});
+```
+
+## With Lead Capture
+
+```typescript
+import { LeadCaptureTool } from '@chatcops/core/tools';
+
+app.post('/chat', chatcopsMiddleware({
+  provider: {
+    type: 'claude',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  },
+  systemPrompt: 'You are a helpful assistant. Capture leads when users share contact info.',
+  tools: [
+    new LeadCaptureTool({
+      onCapture: async (lead) => {
+        // Save to your database, CRM, etc.
+        await db.leads.create(lead);
+        console.log('Lead captured:', lead.email);
+      },
+    }),
+  ],
+}));
+```
+
+## With Knowledge Base
+
+```typescript
+import { FAQKnowledgeSource, TextKnowledgeSource } from '@chatcops/core/knowledge';
+
+app.post('/chat', chatcopsMiddleware({
+  provider: { type: 'openai', apiKey: process.env.OPENAI_API_KEY! },
+  systemPrompt: 'Answer questions using the provided context.',
+  knowledge: [
+    new FAQKnowledgeSource([
+      { question: 'What are your hours?', answer: '9am-5pm EST, Monday-Friday.' },
+      { question: 'Do you offer refunds?', answer: 'Yes, within 30 days of purchase.' },
+    ]),
+    new TextKnowledgeSource(
+      'Our company was founded in 2020. We specialize in AI solutions...',
+      { chunkSize: 500 }
+    ),
+  ],
+}));
+```
+
+## Express Compatibility
+
+The adapter works with both Express 4.x and 5.x. Express is listed as an optional peer dependency — install it separately:
+
+```bash
+npm install express @chatcops/server
+```

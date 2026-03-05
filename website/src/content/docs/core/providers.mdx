@@ -1,0 +1,103 @@
+---
+title: AI Providers
+description: Connect to Claude, OpenAI, or Gemini with a unified interface.
+---
+
+ChatCops abstracts AI providers behind a unified `AIProvider` interface. Switch between Claude, OpenAI, and Gemini by changing one config value.
+
+## Provider Configuration
+
+```typescript
+// Claude (Anthropic)
+provider: {
+  type: 'claude',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
+  model: 'claude-haiku-4-5-20251001',  // Default
+}
+
+// OpenAI
+provider: {
+  type: 'openai',
+  apiKey: process.env.OPENAI_API_KEY!,
+  model: 'gpt-4o-mini',  // Default
+}
+
+// Google Gemini
+provider: {
+  type: 'gemini',
+  apiKey: process.env.GOOGLE_AI_API_KEY!,
+  model: 'gemini-2.0-flash',  // Default
+}
+```
+
+## Default Models
+
+| Provider | Default Model | Streaming |
+|----------|--------------|-----------|
+| Claude | `claude-haiku-4-5-20251001` | SSE via `messages.stream()` |
+| OpenAI | `gpt-4o-mini` | SSE via `chat.completions.create({ stream: true })` |
+| Gemini | `gemini-2.0-flash` | SSE via `generateContentStream()` |
+
+## AIProvider Interface
+
+```typescript
+interface AIProvider {
+  name: string;
+  chat(params: ProviderChatParams): AsyncGenerator<string>;
+  chatSync(params: ProviderChatParams): Promise<string>;
+}
+
+interface ProviderChatParams {
+  messages: ChatMessage[];
+  systemPrompt: string;
+  tools?: ToolDefinition[];
+  maxTokens?: number;      // Default: 1024
+  temperature?: number;    // Default: provider-specific
+}
+```
+
+## Direct Provider Usage
+
+For advanced use cases, you can use providers directly:
+
+```typescript
+import { createProvider } from '@chatcops/core';
+
+const provider = await createProvider({
+  type: 'claude',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
+});
+
+// Streaming
+for await (const token of provider.chat({
+  messages: [{ id: '1', role: 'user', content: 'Hello!', timestamp: Date.now() }],
+  systemPrompt: 'You are helpful.',
+})) {
+  process.stdout.write(token);
+}
+
+// Non-streaming
+const response = await provider.chatSync({
+  messages: [{ id: '1', role: 'user', content: 'Hello!', timestamp: Date.now() }],
+  systemPrompt: 'You are helpful.',
+});
+console.log(response);
+```
+
+## Tool Support
+
+All providers support tool calling with a unified format. ChatCops automatically converts tool definitions to each provider's native format:
+
+- Claude: `tools` array with `input_schema`
+- OpenAI: `tools` array with `function.parameters`
+- Gemini: `functionDeclarations` in `tools`
+
+```typescript
+chatcopsMiddleware({
+  provider: { type: 'claude', apiKey: '...' },
+  systemPrompt: '...',
+  tools: [new LeadCaptureTool({ onCapture: saveLead })],
+});
+```
+
+The same tool definition works across all providers without changes.

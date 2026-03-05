@@ -1,0 +1,112 @@
+---
+title: Widget Configuration
+description: All configuration options for the ChatCops widget.
+---
+
+The widget can be configured via `data-*` attributes on the script tag or programmatically via `ChatCops.init()`.
+
+## Script Tag Attributes
+
+```html
+<script
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  data-api-url="https://your-api.com/chat"
+  data-accent="#6366f1"
+  data-text-color="#FAFAF9"
+  data-bg-color="#0A0A0A"
+  data-font-family="Inter, sans-serif"
+  data-border-radius="12"
+  data-position="bottom-right"
+  data-brand-name="Support Bot"
+  data-brand-avatar="https://example.com/avatar.png"
+  data-brand-subtitle="Usually replies instantly"
+  data-welcome-message="Hi! How can I help you today?"
+  data-welcome-bubble="Need help? Chat with us!"
+  data-welcome-bubble-delay="3000"
+  data-placeholder="Type a message..."
+  data-locale="en"
+></script>
+```
+
+## Programmatic Configuration
+
+```typescript
+import { ChatCops } from '@chatcops/widget';
+
+ChatCops.init({
+  apiUrl: 'https://your-api.com/chat',
+
+  // Theme
+  theme: {
+    accent: '#6366f1',
+    textColor: '#FAFAF9',
+    bgColor: '#0A0A0A',
+    fontFamily: 'Inter, sans-serif',
+    borderRadius: 12,
+    position: 'bottom-right',   // 'bottom-right' | 'bottom-left'
+  },
+
+  // Branding
+  branding: {
+    name: 'Support Bot',
+    avatar: 'https://example.com/avatar.png',
+    subtitle: 'Usually replies instantly',
+  },
+
+  // Behavior
+  welcomeMessage: 'Hi! How can I help you today?',
+  welcomeBubble: 'Need help? Chat with us!',
+  welcomeBubbleDelay: 3000,    // ms before showing bubble
+  placeholder: 'Type a message...',
+  locale: 'en',
+});
+```
+
+## WidgetConfig Interface
+
+```typescript
+interface WidgetConfig {
+  apiUrl: string;
+
+  theme?: {
+    accent?: string;          // Hex color, default: '#6366f1'
+    textColor?: string;       // Hex color, default: '#FAFAF9'
+    bgColor?: string;         // Hex color, default: '#0A0A0A'
+    fontFamily?: string;      // CSS font-family
+    borderRadius?: number;    // px, default: 12
+    position?: 'bottom-right' | 'bottom-left';
+  };
+
+  branding?: {
+    name?: string;            // Header title
+    avatar?: string;          // URL or data URI
+    subtitle?: string;        // Below title in header
+  };
+
+  welcomeMessage?: string;    // First assistant message
+  welcomeBubble?: string;     // Text shown on hover bubble
+  welcomeBubbleDelay?: number;// ms before bubble appears
+  placeholder?: string;       // Input placeholder text
+  locale?: string;            // 'en' | 'es' | 'hi' | 'fr' | 'de' | 'ja' | 'zh' | 'ar'
+}
+```
+
+## CSS Custom Properties
+
+The widget uses Shadow DOM and exposes these CSS custom properties on its host element:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `--cc-accent` | Primary accent color | `#6366f1` |
+| `--cc-accent-hover` | Hover state of accent | Darkened accent |
+| `--cc-text` | Primary text color | `#FAFAF9` |
+| `--cc-bg` | Background color | `#0A0A0A` |
+| `--cc-bg-surface` | Surface background | `#111111` |
+| `--cc-bg-input` | Input area background | `#171717` |
+| `--cc-border` | Border color | `#262626` |
+| `--cc-text-secondary` | Secondary text | `#A8A29E` |
+| `--cc-font` | Font family | `system-ui` |
+| `--cc-radius` | Border radius | `12px` |
+| `--cc-fab-size` | FAB button size | `56px` |
+| `--cc-panel-width` | Chat panel width | `400px` |
+| `--cc-panel-height` | Chat panel height | `560px` |

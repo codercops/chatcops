@@ -1,0 +1,112 @@
+---
+title: Tools
+description: Built-in tools and how to create custom tools for ChatCops.
+---
+
+Tools extend the AI's capabilities by letting it perform actions like capturing leads, querying databases, or calling APIs.
+
+## Built-in: Lead Capture
+
+The `LeadCaptureTool` lets the AI collect contact information from conversations:
+
+```typescript
+import { LeadCaptureTool } from '@chatcops/core/tools';
+
+const leadTool = new LeadCaptureTool({
+  onCapture: async (lead) => {
+    console.log('New lead:', lead);
+    // Save to database, CRM, send webhook, etc.
+  },
+});
+```
+
+### LeadData Shape
+
+```typescript
+interface LeadData {
+  name: string;
+  email: string;
+  company?: string;
+  phone?: string;
+  projectDetails: string;
+  source: string;
+  metadata?: Record<string, unknown>;
+}
+```
+
+The tool has these parameters:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Full name |
+| `email` | string | Yes | Email address |
+| `company` | string | No | Company name |
+| `phone` | string | No | Phone number |
+| `projectDetails` | string | Yes | Summary of needs |
+
+## ChatTool Interface
+
+Create custom tools by implementing the `ChatTool` interface:
+
+```typescript
+interface ChatTool {
+  name: string;
+  description: string;
+  parameters: Record<string, ToolParameter>;
+  required: string[];
+  execute(input: Record<string, unknown>): Promise<ToolResult>;
+}
+
+interface ToolParameter {
+  type: 'string' | 'number' | 'boolean';
+  description: string;
+  enum?: string[];
+}
+
+interface ToolResult {
+  success: boolean;
+  data?: unknown;
+  message?: string;
+}
+```
+
+## Custom Tool Example
+
+```typescript
+const weatherTool: ChatTool = {
+  name: 'get_weather',
+  description: 'Get current weather for a city',
+  parameters: {
+    city: { type: 'string', description: 'City name' },
+    unit: { type: 'string', description: 'Temperature unit', enum: ['celsius', 'fahrenheit'] },
+  },
+  required: ['city'],
+
+  async execute(input) {
+    const response = await fetch(
+      `https://api.weather.example.com/${input.city}`
+    );
+    const data = await response.json();
+    return {
+      success: true,
+      data,
+      message: `It's ${data.temp}° in ${input.city}`,
+    };
+  },
+};
+
+// Use in server config
+chatcopsMiddleware({
+  provider: { type: 'claude', apiKey: '...' },
+  systemPrompt: 'Help users with weather queries.',
+  tools: [weatherTool],
+});
+```
+
+## How Tools Work
+
+1. The AI decides when to call a tool based on conversation context
+2. ChatCops converts tool definitions to the provider's native format
+3. When the AI invokes a tool, `execute()` runs server-side
+4. The result is fed back to the AI, which formulates a response
+5. Tool calls are transparent to the user — they only see the final message

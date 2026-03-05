@@ -1,0 +1,56 @@
+---
+title: ChatCops Documentation
+description: Learn how to add an AI chatbot to any website with ChatCops.
+template: splash
+hero:
+  tagline: Universal embeddable AI chatbot widget. Multi-provider, zero dependencies, fully customizable.
+  actions:
+    - text: Quick Start
+      link: /getting-started/quick-start
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/codercops/chatcops
+      icon: external
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Get Started
+
+<CardGrid>
+  <Card title="Quick Start" icon="rocket">
+    Add a chatbot to your website in under 5 minutes. [Get started →](/getting-started/quick-start)
+  </Card>
+  <Card title="Widget Config" icon="setting">
+    Customize appearance, branding, and behavior. [Configure →](/widget/configuration)
+  </Card>
+  <Card title="Server Setup" icon="laptop">
+    Set up your backend with Express, Vercel, or Cloudflare. [Setup →](/server/setup)
+  </Card>
+  <Card title="AI Providers" icon="puzzle">
+    Connect to Claude, OpenAI, or Gemini. [Providers →](/core/providers)
+  </Card>
+</CardGrid>
+
+## Packages
+
+| Package | Description |
+|---------|-------------|
+| `@chatcops/widget` | Embeddable chat widget (IIFE + ESM), Shadow DOM isolated, ~7KB gzipped |
+| `@chatcops/server` | Server handler + Express, Vercel, Cloudflare adapters |
+| `@chatcops/core` | AI provider abstraction, tools, knowledge base, i18n, analytics |
+
+## Architecture
+
+```
+┌──────────────────┐         ┌──────────────────┐
+│   Your Website   │  SSE    │   Your Server    │
+│                  │ ──────► │                  │
+│  <script> tag    │ ◄────── │  @chatcops/server│
+│  @chatcops/widget│ stream  │  ├─ Provider     │
+│  Shadow DOM      │         │  ├─ Knowledge    │
+│  Chat Panel      │         │  ├─ Tools        │
+└──────────────────┘         │  └─ Analytics    │
+                             └──────────────────┘
+```

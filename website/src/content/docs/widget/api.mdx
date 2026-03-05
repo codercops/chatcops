@@ -1,0 +1,98 @@
+---
+title: API Reference
+description: The ChatCops global singleton API for programmatic control.
+---
+
+The `ChatCops` singleton is exposed on `window.ChatCops` when using the IIFE bundle, or importable from the ESM bundle.
+
+## Methods
+
+### `ChatCops.init(config)`
+
+Initialize the widget with a configuration object. Must be called before any other method if not using script tag auto-init.
+
+```typescript
+ChatCops.init({
+  apiUrl: 'https://your-api.com/chat',
+  theme: { accent: '#6366f1' },
+  branding: { name: 'My Bot' },
+  welcomeMessage: 'Hello! How can I help?',
+});
+```
+
+### `ChatCops.open()`
+
+Programmatically open the chat panel.
+
+```typescript
+document.querySelector('#help-btn').addEventListener('click', () => {
+  ChatCops.open();
+});
+```
+
+### `ChatCops.close()`
+
+Close the chat panel.
+
+```typescript
+ChatCops.close();
+```
+
+### `ChatCops.destroy()`
+
+Completely remove the widget from the DOM and clean up all event listeners.
+
+```typescript
+ChatCops.destroy();
+```
+
+### `ChatCops.on(event, callback)`
+
+Subscribe to widget events. Returns an unsubscribe function.
+
+```typescript
+const unsub = ChatCops.on('message', (data) => {
+  console.log('New message:', data);
+});
+
+// Later: unsubscribe
+unsub();
+```
+
+### `ChatCops.off(event, callback)`
+
+Remove a specific event listener.
+
+```typescript
+function onOpen() {
+  console.log('Widget opened');
+}
+
+ChatCops.on('open', onOpen);
+ChatCops.off('open', onOpen);
+```
+
+## Auto-Initialization
+
+When using the CDN script tag, the widget auto-initializes by reading `data-*` attributes:
+
+```html
+<script
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  data-api-url="https://your-api.com/chat"
+  data-accent="#6366f1"
+></script>
+```
+
+The script tag approach is equivalent to calling `ChatCops.init()` with the corresponding config. You can still use the programmatic API after auto-init (e.g., `ChatCops.open()`).
+
+## ESM Usage
+
+```typescript
+import { ChatCops } from '@chatcops/widget';
+
+ChatCops.init({ apiUrl: '/api/chat' });
+
+// Use methods as needed
+ChatCops.on('message', (msg) => console.log(msg));
+```

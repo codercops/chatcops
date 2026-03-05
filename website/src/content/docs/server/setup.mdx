@@ -1,0 +1,128 @@
+---
+title: Server Setup
+description: Configure the ChatCops server handler with providers, tools, and rate limiting.
+---
+
+The `@chatcops/server` package provides a universal chat handler that works with any HTTP framework via adapters.
+
+## Installation
+
+```bash
+npm install @chatcops/server
+```
+
+## Configuration
+
+```typescript
+import { chatcopsMiddleware } from '@chatcops/server';
+
+const handler = chatcopsMiddleware({
+  // Required: AI provider
+  provider: {
+    type: 'claude',                      // 'claude' | 'openai' | 'gemini'
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+    model: 'claude-haiku-4-5-20251001',  // Optional, each provider has defaults
+  },
+
+  // Required: System prompt
+  systemPrompt: `You are a helpful customer support assistant.
+    Be friendly, concise, and helpful.
+    If the user provides contact info, use the lead capture tool.`,
+
+  // Optional: Tools
+  tools: [
+    new LeadCaptureTool({ onCapture: (lead) => saveLead(lead) }),
+  ],
+
+  // Optional: Knowledge base
+  knowledge: [
+    new FAQKnowledgeSource([
+      { question: 'What are your hours?', answer: 'We are open 9am-5pm EST.' },
+    ]),
+  ],
+
+  // Optional: Rate limiting
+  rateLimit: {
+    maxRequests: 30,     // Max requests per window
+    windowMs: 60_000,    // Window duration in ms
+  },
+
+  // Optional: Webhooks
+  webhooks: [
+    {
+      url: 'https://hooks.example.com/chatcops',
+      events: ['message:received', 'lead:captured'],
+      secret: process.env.WEBHOOK_SECRET,
+    },
+  ],
+
+  // Optional: Analytics
+  analytics: true,
+
+  // Optional: CORS origin
+  cors: '*',
+
+  // Optional: i18n
+  i18n: {
+    defaultLocale: 'en',
+    locales: { /* custom strings */ },
+  },
+});
+```
+
+## ChatCopsServerConfig
+
+```typescript
+interface ChatCopsServerConfig {
+  provider: {
+    type: 'claude' | 'openai' | 'gemini';
+    apiKey: string;
+    model?: string;
+  };
+  systemPrompt: string;
+  tools?: ChatTool[];
+  knowledge?: KnowledgeSource[];
+  rateLimit?: {
+    maxRequests: number;
+    windowMs: number;
+  };
+  webhooks?: WebhookConfig[];
+  analytics?: boolean;
+  cors?: string;
+  i18n?: {
+    defaultLocale: string;
+    locales: Record<string, LocaleStrings>;
+  };
+}
+```
+
+## Request Schema
+
+The server validates incoming requests with Zod:
+
+```typescript
+{
+  conversationId: string,  // 1-128 chars
+  message: string,         // 1-10000 chars
+  pageContext?: {           // Optional page context
+    url: string,           // Valid URL
+    title: string,         // Max 500 chars
+    description?: string,  // Max 1000 chars
+    contentSnippet?: string, // Max 2000 chars
+  },
+  locale?: string,         // Max 10 chars
+}
+```
+
+## Response Format
+
+The server responds with SSE (Server-Sent Events) for streaming:
+
+```
+Content-Type: text/event-stream
+
+data: {"type":"token","content":"Hello"}
+data: {"type":"token","content":" there"}
+data: {"type":"token","content":"!"}
+data: {"type":"done"}
+```

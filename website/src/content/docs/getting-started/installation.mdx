@@ -1,0 +1,78 @@
+---
+title: Installation
+description: Install ChatCops packages via npm, CDN, or ESM imports.
+---
+
+ChatCops consists of three packages. Install only what you need.
+
+## Widget (Client-Side)
+
+### CDN (Recommended)
+
+The simplest way — no build step required:
+
+```html
+<script
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  data-api-url="https://your-api.com/chat"
+></script>
+```
+
+### npm
+
+For bundler-based projects (Vite, webpack, Next.js):
+
+```bash
+npm install @chatcops/widget
+```
+
+```typescript
+import { ChatCops } from '@chatcops/widget';
+
+ChatCops.init({
+  apiUrl: 'https://your-api.com/chat',
+  theme: { accent: '#6366f1' },
+  branding: { name: 'My Assistant' },
+});
+```
+
+## Server
+
+```bash
+npm install @chatcops/server
+```
+
+The server package includes adapters for Express, Vercel, and Cloudflare Workers:
+
+```typescript
+// Express
+import { chatcopsMiddleware } from '@chatcops/server';
+
+// Vercel Edge
+import { chatcopsVercelHandler } from '@chatcops/server';
+
+// Cloudflare Workers
+import { chatcopsCloudflareHandler } from '@chatcops/server';
+```
+
+## Core (Optional)
+
+Only needed if building custom integrations:
+
+```bash
+npm install @chatcops/core
+```
+
+Provides direct access to providers, tools, knowledge base, and i18n:
+
+```typescript
+import { createProvider } from '@chatcops/core';
+import { LeadCaptureTool } from '@chatcops/core/tools';
+import { FAQKnowledgeSource } from '@chatcops/core/knowledge';
+```
+
+## Requirements
+
+- **Widget:** Any modern browser (Chrome, Firefox, Safari, Edge)
+- **Server:** Node.js 22+ (Express), or edge runtime (Vercel/Cloudflare)
+- **TypeScript:** Full type definitions included in all packages

@@ -1,0 +1,64 @@
+/* ===== Starlight Dark Theme Overrides ===== */
+:root {
+  --sl-color-accent-low: rgba(99, 102, 241, 0.15);
+  --sl-color-accent: 99, 102, 241;
+  --sl-color-accent-high: #c7d2fe;
+
+  --sl-color-bg: #0A0A0A;
+  --sl-color-bg-sidebar: #111111;
+  --sl-color-bg-nav: rgba(10, 10, 10, 0.85);
+  --sl-color-bg-inline-code: #1A1A1A;
+
+  --sl-color-hairline-light: #1C1C1C;
+  --sl-color-hairline: #262626;
+  --sl-color-hairline-shade: #333333;
+
+  --sl-color-white: #FAFAF9;
+  --sl-color-gray-1: #E7E5E4;
+  --sl-color-gray-2: #A8A29E;
+  --sl-color-gray-3: #57534E;
+  --sl-color-gray-4: #333333;
+  --sl-color-gray-5: #262626;
+  --sl-color-gray-6: #171717;
+  --sl-color-gray-7: #0A0A0A;
+  --sl-color-black: #000000;
+
+  --sl-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --sl-font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+
+  --sl-text-xs: 0.75rem;
+  --sl-text-sm: 0.875rem;
+  --sl-text-base: 1rem;
+  --sl-text-lg: 1.125rem;
+  --sl-text-xl: 1.25rem;
+  --sl-text-2xl: 1.5rem;
+  --sl-text-3xl: 2rem;
+  --sl-text-4xl: 2.75rem;
+
+  --sl-nav-height: 3.5rem;
+
+  --sl-sidebar-width: 18rem;
+  --sl-content-width: 45rem;
+}
+
+/* Smooth scrollbar */
+.sidebar-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-content::-webkit-scrollbar-thumb {
+  background: #333333;
+  border-radius: 9999px;
+}
+
+/* Code blocks */
+.expressive-code pre {
+  border: 1px solid #262626 !important;
+  background: #111111 !important;
+}
+
+/* Nav glass effect */
+header.header {
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+}
