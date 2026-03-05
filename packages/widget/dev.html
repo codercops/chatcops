@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChatCops Widget - Dev</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      background: #f5f5f5;
+      color: #333;
+    }
+    h1 { font-size: 24px; }
+    p { line-height: 1.6; color: #666; }
+    code { background: #e5e5e5; padding: 2px 6px; border-radius: 4px; font-size: 14px; }
+    .card {
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>ChatCops Widget - Development</h1>
+
+  <div class="card">
+    <h2>Test Page</h2>
+    <p>
+      This is a test page for the ChatCops widget. The widget should appear
+      in the bottom-right corner as a floating action button.
+    </p>
+    <p>
+      Click the button to open the chat panel. Try sending messages
+      to test the streaming UI.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Configuration</h2>
+    <p>API URL: <code>http://localhost:3001/chat</code></p>
+    <p>Theme: Dark with indigo accent</p>
+    <p>To test with a real backend, run the Express example server.</p>
+  </div>
+
+  <script type="module">
+    import ChatCops from './dist/chatcops.esm.js';
+
+    ChatCops.init({
+      apiUrl: 'http://localhost:3001/chat',
+      theme: {
+        accent: '#6366f1',
+      },
+      branding: {
+        name: 'ChatCops Dev',
+        subtitle: 'Development Mode',
+      },
+      welcomeMessage: 'Welcome! This is a development test. Send a message to test the widget.',
+      welcomeBubble: {
+        text: 'Need help? Try the chat widget!',
+        delay: 2000,
+      },
+    });
+
+    // Log events
+    ChatCops.on('open', () => console.log('[ChatCops] opened'));
+    ChatCops.on('close', () => console.log('[ChatCops] closed'));
+    ChatCops.on('message', (msg) => console.log('[ChatCops] message:', msg));
+    ChatCops.on('error', (err) => console.log('[ChatCops] error:', err));
+  </script>
+</body>
+</html>
