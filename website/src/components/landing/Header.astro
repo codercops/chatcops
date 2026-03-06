@@ -1,28 +1,55 @@
 ---
 ---
-<header class="site-header">
-  <nav class="nav-pill">
-    <a href="/" class="nav-logo">
-      <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="32" height="32" rx="8" fill="#6366f1"/>
-        <path d="M8 12a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v2a6 6 0 0 1-6 6h-1l-4 4v-4a6 6 0 0 1-5-6v-2z" fill="#fff" opacity="0.9"/>
-        <circle cx="13" cy="13" r="1.5" fill="#6366f1"/>
-        <circle cx="19" cy="13" r="1.5" fill="#6366f1"/>
-      </svg>
-      ChatCops
-    </a>
-    <div class="nav-links">
-      <a href="/getting-started/quick-start" class="nav-link">Docs</a>
-      <a href="https://github.com/codercops/chatcops" class="nav-link" target="_blank" rel="noopener">GitHub</a>
+<header class="fixed top-0 left-0 right-0 z-50">
+  <div class="mx-auto max-w-6xl px-4 pt-4">
+    <nav class="flex items-center justify-between rounded-2xl border border-border bg-bg/80 px-5 py-2.5 backdrop-blur-xl">
+      <a href="/" class="flex items-center gap-2.5 text-text transition-opacity hover:opacity-80">
+        <svg viewBox="0 0 32 32" fill="none" class="h-7 w-7">
+          <defs>
+            <linearGradient id="logo-grad" x1="4" y1="4" x2="28" y2="28">
+              <stop offset="0%" stop-color="#818cf8"/>
+              <stop offset="100%" stop-color="#06b6d4"/>
+            </linearGradient>
+          </defs>
+          <path d="M4 11a7 7 0 017-7h10a7 7 0 017 7v4a7 7 0 01-7 7h-3l-5 6v-6h-2a7 7 0 01-7-7v-4z" fill="url(#logo-grad)"/>
+          <path d="M16 9l1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1z" fill="white" opacity="0.9"/>
+        </svg>
+        <span class="text-[15px] font-semibold tracking-tight">ChatCops</span>
+      </a>
+
+      <div class="hidden items-center gap-1 sm:flex">
+        <a href="/getting-started/quick-start" class="rounded-lg px-3 py-1.5 text-sm text-text-secondary transition-colors hover:text-text">
+          Docs
+        </a>
+        <a href="https://github.com/codercops/chatcops" class="rounded-lg px-3 py-1.5 text-sm text-text-secondary transition-colors hover:text-text" target="_blank" rel="noopener">
+          GitHub
+        </a>
+        <div class="ml-2 h-4 w-px bg-border"></div>
+        <a href="/getting-started/quick-start" class="ml-2 rounded-lg bg-primary px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-primary-dark">
+          Get Started
+        </a>
+      </div>
+
+      <button class="rounded-lg p-2 text-text-secondary hover:text-text sm:hidden" aria-label="Menu" id="mobile-toggle">
+        <svg viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5">
+          <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/>
+        </svg>
+      </button>
+    </nav>
+
+    <div id="mobile-menu" class="mt-2 hidden rounded-2xl border border-border bg-bg-surface/95 p-4 backdrop-blur-xl sm:hidden">
+      <div class="flex flex-col gap-1">
+        <a href="/getting-started/quick-start" class="rounded-lg px-3 py-2.5 text-sm text-text-secondary hover:text-text">Documentation</a>
+        <a href="https://github.com/codercops/chatcops" class="rounded-lg px-3 py-2.5 text-sm text-text-secondary hover:text-text" target="_blank" rel="noopener">GitHub</a>
+        <a href="/getting-started/quick-start" class="mt-2 rounded-lg bg-primary px-3 py-2.5 text-center text-sm font-medium text-white">Get Started</a>
+      </div>
     </div>
-    <a href="/getting-started/quick-start" class="nav-cta desktop-only">Get Started</a>
-    <button class="nav-hamburger" aria-label="Toggle menu">
-      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
-    </button>
-  </nav>
-  <div class="mobile-menu">
-    <a href="/getting-started/quick-start">Documentation</a>
-    <a href="https://github.com/codercops/chatcops" target="_blank" rel="noopener">GitHub</a>
-    <a href="/getting-started/quick-start">Get Started</a>
   </div>
 </header>
+
+<script>
+  const toggle = document.getElementById('mobile-toggle');
+  const menu = document.getElementById('mobile-menu');
+  toggle?.addEventListener('click', () => menu?.classList.toggle('hidden'));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') menu?.classList.add('hidden'); });
+</script>

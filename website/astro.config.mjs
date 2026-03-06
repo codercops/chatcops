@@ -1,10 +1,16 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import react from '@astrojs/react';
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   output: 'static',
   site: 'https://chatcops.codercops.com',
+  vite: {
+    plugins: [tailwindcss()],
+  },
   integrations: [
+    react(),
     starlight({
       title: 'ChatCops',
       description: 'Universal embeddable AI chatbot widget documentation',

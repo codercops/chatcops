@@ -1,61 +1,121 @@
 ---
 ---
-<section class="hero section">
-  <div class="container">
-    <div data-animate="fade">
-      <span class="hero-label">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-        Open Source
-      </span>
+<section class="relative min-h-screen overflow-hidden pt-32 pb-20">
+  <!-- Dot grid background -->
+  <div
+    class="pointer-events-none absolute inset-0"
+    style="background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.04) 1px, transparent 0); background-size: 32px 32px; mask-image: radial-gradient(ellipse 70% 50% at 50% 30%, black, transparent 70%); -webkit-mask-image: radial-gradient(ellipse 70% 50% at 50% 30%, black, transparent 70%);"
+  ></div>
+
+  <!-- Subtle top glow -->
+  <div class="pointer-events-none absolute -top-[200px] left-1/2 h-[500px] w-[800px] -translate-x-1/2 rounded-full opacity-30" style="background: radial-gradient(ellipse, rgba(99,102,241,0.15), transparent 70%);"></div>
+
+  <div class="relative mx-auto max-w-4xl px-6">
+    <!-- Badge -->
+    <div class="flex justify-center mb-8" data-animate>
+      <a
+        href="https://github.com/codercops/chatcops"
+        target="_blank"
+        rel="noopener"
+        class="inline-flex items-center gap-2 rounded-full border border-border bg-bg-surface px-4 py-1.5 text-xs text-text-secondary transition-colors hover:border-border-hover"
+      >
+        <span class="h-1.5 w-1.5 rounded-full bg-success animate-pulse"></span>
+        Open Source &mdash; MIT Licensed
+        <svg viewBox="0 0 20 20" fill="currentColor" class="h-3 w-3 opacity-40">
+          <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd"/>
+        </svg>
+      </a>
     </div>
 
-    <h1 data-animate="slide-up">
-      AI Chat Widget for <span class="text-gradient-accent">Any Website</span>
+    <!-- Heading -->
+    <h1 class="text-center text-5xl font-bold leading-[1.08] tracking-tight sm:text-6xl lg:text-7xl" data-animate data-animate-delay="1">
+      AI Chat Widget
+      <br />
+      for <span class="text-gradient">Any Website</span>
     </h1>
 
-    <p class="hero-subtitle" data-animate="slide-up" data-animate-delay="1">
+    <!-- Subtitle -->
+    <p class="mx-auto mt-6 max-w-xl text-center text-lg leading-relaxed text-text-secondary" data-animate data-animate-delay="2">
       Drop-in AI chatbot that connects to Claude, OpenAI, or Gemini.
+      <br class="hidden sm:block" />
       One script tag. Zero dependencies. Full control.
     </p>
 
-    <div class="hero-code" data-animate="scale" data-animate-delay="2">
-      <div class="hero-code-header">
-        <span class="hero-code-dot"></span>
-        <span class="hero-code-dot"></span>
-        <span class="hero-code-dot"></span>
-        <span class="hero-code-title">index.html</span>
-      </div>
-      <pre><span class="punct">&lt;</span><span class="tag">script</span>
-  <span class="attr">src</span><span class="punct">="</span><span class="string">https://cdn.jsdelivr.net/npm/@chatcops/widget</span><span class="punct">"</span>
-  <span class="attr">data-api-url</span><span class="punct">="</span><span class="string">https://your-api.com/chat</span><span class="punct">"</span>
-  <span class="attr">data-accent</span><span class="punct">="</span><span class="string">#6366f1</span><span class="punct">"</span>
-<span class="punct">&gt;&lt;/</span><span class="tag">script</span><span class="punct">&gt;</span></pre>
-    </div>
-
-    <div class="hero-ctas" data-animate="slide-up" data-animate-delay="3">
-      <a href="/getting-started/quick-start" class="btn btn-primary btn-lg">
+    <!-- CTAs -->
+    <div class="mt-10 flex flex-wrap items-center justify-center gap-4" data-animate data-animate-delay="3">
+      <a
+        href="/getting-started/quick-start"
+        class="inline-flex items-center gap-2 rounded-xl bg-primary px-7 py-3 text-sm font-medium text-white transition-all hover:bg-primary-dark active:scale-[0.98]"
+      >
         Get Started
-        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+        <svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4">
+          <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd"/>
+        </svg>
       </a>
-      <a href="https://github.com/codercops/chatcops" class="btn btn-outline btn-lg" target="_blank" rel="noopener">
-        <svg viewBox="0 0 16 16" fill="currentColor" style="width:1em;height:1em"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-        View on GitHub
+      <a
+        href="https://github.com/codercops/chatcops"
+        target="_blank"
+        rel="noopener"
+        class="inline-flex items-center gap-2 rounded-xl border border-border px-7 py-3 text-sm font-medium text-text-secondary transition-colors hover:border-border-hover hover:text-text"
+      >
+        <svg viewBox="0 0 16 16" fill="currentColor" class="h-4 w-4">
+          <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+        </svg>
+        Star on GitHub
       </a>
     </div>
 
-    <div class="hero-badges" data-animate="fade" data-animate-delay="4">
-      <span class="hero-badge">
-        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 2a2 2 0 00-2 2v14l3.5-2 3.5 2 3.5-2 3.5 2V4a2 2 0 00-2-2H5zm4.707 3.707a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L8.414 9H10a3 3 0 013 3v1a1 1 0 102 0v-1a5 5 0 00-5-5H8.414l1.293-1.293z" clip-rule="evenodd"/></svg>
+    <!-- Code Block -->
+    <div class="mx-auto mt-16 max-w-lg" data-animate data-animate-delay="4">
+      <div class="rounded-2xl border border-border bg-bg-surface overflow-hidden">
+        <!-- Window chrome -->
+        <div class="flex items-center gap-2 px-4 py-3 border-b border-border">
+          <div class="flex gap-1.5">
+            <div class="w-2.5 h-2.5 rounded-full bg-[#ef4444]/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-[#f59e0b]/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-[#22c55e]/60"></div>
+          </div>
+          <span class="text-[11px] text-text-muted font-mono ml-2">index.html</span>
+        </div>
+
+        <!-- Code -->
+        <div class="p-5 font-mono text-[13px] leading-[1.9]">
+          <div class="flex">
+            <span class="w-6 text-right text-text-muted/40 select-none mr-5 shrink-0 text-xs">1</span>
+            <span><span class="text-[#f472b6]">&lt;script</span></span>
+          </div>
+          <div class="flex">
+            <span class="w-6 text-right text-text-muted/40 select-none mr-5 shrink-0 text-xs">2</span>
+            <span>&nbsp;&nbsp;<span class="text-[#c4b5fd]">src</span>=<span class="text-[#6ee7b7]">"https://cdn.jsdelivr.net/npm/@chatcops/widget"</span></span>
+          </div>
+          <div class="flex">
+            <span class="w-6 text-right text-text-muted/40 select-none mr-5 shrink-0 text-xs">3</span>
+            <span>&nbsp;&nbsp;<span class="text-[#c4b5fd]">data-api-url</span>=<span class="text-[#6ee7b7]">"https://your-api.com/chat"</span></span>
+          </div>
+          <div class="flex">
+            <span class="w-6 text-right text-text-muted/40 select-none mr-5 shrink-0 text-xs">4</span>
+            <span>&nbsp;&nbsp;<span class="text-[#c4b5fd]">data-accent</span>=<span class="text-[#6ee7b7]">"#6366f1"</span></span>
+          </div>
+          <div class="flex">
+            <span class="w-6 text-right text-text-muted/40 select-none mr-5 shrink-0 text-xs">5</span>
+            <span><span class="text-[#f472b6]">&gt;&lt;/script&gt;</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="mt-14 flex flex-wrap items-center justify-center gap-x-10 gap-y-4 text-sm text-text-muted" data-animate data-animate-delay="5">
+      <span class="flex items-center gap-2">
+        <span class="h-1.5 w-1.5 rounded-full bg-[#22d3ee]"></span>
         ~7KB gzipped
       </span>
-      <span class="hero-badge-divider"></span>
-      <span class="hero-badge">
-        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+      <span class="flex items-center gap-2">
+        <span class="h-1.5 w-1.5 rounded-full bg-success"></span>
         Zero Dependencies
       </span>
-      <span class="hero-badge-divider"></span>
-      <span class="hero-badge">
-        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z" clip-rule="evenodd"/></svg>
+      <span class="flex items-center gap-2">
+        <span class="h-1.5 w-1.5 rounded-full bg-primary-light"></span>
         MIT License
       </span>
     </div>

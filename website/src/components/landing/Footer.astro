@@ -2,50 +2,65 @@
 const year = new Date().getFullYear();
 ---
 
-<footer class="site-footer">
-  <div class="container">
-    <div class="footer-grid">
-      <div class="footer-brand">
-        <a href="/" style="display:inline-flex;align-items:center;gap:0.5rem;font-weight:600;font-size:1.125rem;">
-          <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
-            <rect width="32" height="32" rx="8" fill="#6366f1"/>
-            <path d="M8 12a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v2a6 6 0 0 1-6 6h-1l-4 4v-4a6 6 0 0 1-5-6v-2z" fill="#fff" opacity="0.9"/>
-            <circle cx="13" cy="13" r="1.5" fill="#6366f1"/>
-            <circle cx="19" cy="13" r="1.5" fill="#6366f1"/>
+<footer class="border-t border-border py-16">
+  <div class="mx-auto max-w-5xl px-6">
+    <div class="grid grid-cols-2 gap-10 sm:grid-cols-4">
+      <!-- Brand -->
+      <div class="col-span-2 sm:col-span-1">
+        <a href="/" class="inline-flex items-center gap-2 text-text">
+          <svg viewBox="0 0 32 32" fill="none" class="h-6 w-6">
+            <defs>
+              <linearGradient id="flogo" x1="4" y1="4" x2="28" y2="28">
+                <stop offset="0%" stop-color="#818cf8"/>
+                <stop offset="100%" stop-color="#06b6d4"/>
+              </linearGradient>
+            </defs>
+            <path d="M4 11a7 7 0 017-7h10a7 7 0 017 7v4a7 7 0 01-7 7h-3l-5 6v-6h-2a7 7 0 01-7-7v-4z" fill="url(#flogo)"/>
+            <path d="M16 9l1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1z" fill="white" opacity="0.9"/>
           </svg>
-          ChatCops
+          <span class="text-sm font-semibold">ChatCops</span>
         </a>
-        <p>Universal embeddable AI chatbot widget. Add intelligent chat to any website with a single script tag.</p>
+        <p class="mt-3 text-sm leading-relaxed text-text-muted max-w-[200px]">
+          Universal embeddable AI chatbot widget.
+        </p>
       </div>
 
-      <div class="footer-col">
-        <h4>Quick Links</h4>
-        <a href="/getting-started/quick-start">Quick Start</a>
-        <a href="/getting-started/installation">Installation</a>
-        <a href="/widget/configuration">Widget Config</a>
-        <a href="/server/setup">Server Setup</a>
+      <div>
+        <h4 class="mb-3 text-[11px] font-semibold uppercase tracking-widest text-text-muted">Product</h4>
+        <div class="flex flex-col gap-2.5">
+          <a href="/getting-started/quick-start" class="text-sm text-text-secondary transition-colors hover:text-text">Quick Start</a>
+          <a href="/getting-started/installation" class="text-sm text-text-secondary transition-colors hover:text-text">Installation</a>
+          <a href="/widget/configuration" class="text-sm text-text-secondary transition-colors hover:text-text">Configuration</a>
+          <a href="/server/setup" class="text-sm text-text-secondary transition-colors hover:text-text">Server Setup</a>
+        </div>
       </div>
 
-      <div class="footer-col">
-        <h4>Resources</h4>
-        <a href="/getting-started/quick-start">Documentation</a>
-        <a href="/examples/express-full">Examples</a>
-        <a href="/core/providers">Providers</a>
-        <a href="/widget/api">API Reference</a>
+      <div>
+        <h4 class="mb-3 text-[11px] font-semibold uppercase tracking-widest text-text-muted">Docs</h4>
+        <div class="flex flex-col gap-2.5">
+          <a href="/core/providers" class="text-sm text-text-secondary transition-colors hover:text-text">Providers</a>
+          <a href="/examples/express-full" class="text-sm text-text-secondary transition-colors hover:text-text">Examples</a>
+          <a href="/widget/api" class="text-sm text-text-secondary transition-colors hover:text-text">API Reference</a>
+          <a href="/widget/theming" class="text-sm text-text-secondary transition-colors hover:text-text">Theming</a>
+        </div>
       </div>
 
-      <div class="footer-col">
-        <h4>Community</h4>
-        <a href="https://github.com/codercops/chatcops" target="_blank" rel="noopener">GitHub</a>
-        <a href="https://github.com/codercops/chatcops/issues" target="_blank" rel="noopener">Issues</a>
-        <a href="https://github.com/codercops/chatcops/discussions" target="_blank" rel="noopener">Discussions</a>
-        <a href="https://codercops.com" target="_blank" rel="noopener">CODERCOPS</a>
+      <div>
+        <h4 class="mb-3 text-[11px] font-semibold uppercase tracking-widest text-text-muted">Community</h4>
+        <div class="flex flex-col gap-2.5">
+          <a href="https://github.com/codercops/chatcops" target="_blank" rel="noopener" class="text-sm text-text-secondary transition-colors hover:text-text">GitHub</a>
+          <a href="https://github.com/codercops/chatcops/issues" target="_blank" rel="noopener" class="text-sm text-text-secondary transition-colors hover:text-text">Issues</a>
+          <a href="https://github.com/codercops/chatcops/discussions" target="_blank" rel="noopener" class="text-sm text-text-secondary transition-colors hover:text-text">Discussions</a>
+          <a href="https://codercops.com" target="_blank" rel="noopener" class="text-sm text-text-secondary transition-colors hover:text-text">CODERCOPS</a>
+        </div>
       </div>
     </div>
 
-    <div class="footer-bottom">
-      <span>Made by <a href="https://codercops.com" target="_blank" rel="noopener">CODERCOPS</a></span>
-      <span>MIT License &middot; {year}</span>
+    <div class="mt-14 flex flex-col items-center justify-between gap-4 border-t border-border pt-8 sm:flex-row">
+      <span class="text-xs text-text-muted">
+        Built by <a href="https://codercops.com" target="_blank" rel="noopener" class="text-text-secondary hover:text-text transition-colors">CODERCOPS</a>
+      </span>
+      <span class="text-xs text-text-muted">MIT License &middot; {year}</span>
     </div>
   </div>
 </footer>

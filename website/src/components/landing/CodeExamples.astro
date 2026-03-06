@@ -1,81 +1,26 @@
 ---
-const expressCode = `<span class="kw">import</span> express <span class="kw">from</span> <span class="str">'express'</span>;
-<span class="kw">import</span> { chatcopsMiddleware } <span class="kw">from</span> <span class="str">'@chatcops/server'</span>;
-
-<span class="kw">const</span> app = <span class="fn">express</span>();
-app.<span class="fn">use</span>(express.<span class="fn">json</span>());
-
-app.<span class="fn">post</span>(<span class="str">'/chat'</span>, <span class="fn">chatcopsMiddleware</span>({
-  <span class="prop">provider</span>: {
-    <span class="prop">type</span>: <span class="str">'claude'</span>,
-    <span class="prop">apiKey</span>: process.env.ANTHROPIC_API_KEY,
-    <span class="prop">model</span>: <span class="str">'claude-haiku-4-5-20251001'</span>,
-  },
-  <span class="prop">systemPrompt</span>: <span class="str">'You are a helpful assistant.'</span>,
-  <span class="prop">cors</span>: <span class="str">'*'</span>,
-  <span class="prop">rateLimit</span>: { <span class="prop">maxRequests</span>: <span class="num">30</span>, <span class="prop">windowMs</span>: <span class="num">60_000</span> },
-}));
-
-app.<span class="fn">listen</span>(<span class="num">3001</span>);`;
-
-const vercelCode = `<span class="kw">import</span> { chatcopsVercelHandler } <span class="kw">from</span> <span class="str">'@chatcops/server'</span>;
-
-<span class="kw">export const</span> config = { <span class="prop">runtime</span>: <span class="str">'edge'</span> };
-
-<span class="kw">export default</span> <span class="fn">chatcopsVercelHandler</span>({
-  <span class="prop">provider</span>: {
-    <span class="prop">type</span>: <span class="str">'claude'</span>,
-    <span class="prop">apiKey</span>: process.env.ANTHROPIC_API_KEY,
-  },
-  <span class="prop">systemPrompt</span>: <span class="str">'You are a helpful assistant.'</span>,
-  <span class="prop">cors</span>: <span class="str">'*'</span>,
-});`;
-
-const cloudflareCode = `<span class="kw">import</span> { chatcopsCloudflareHandler } <span class="kw">from</span> <span class="str">'@chatcops/server'</span>;
-
-<span class="kw">export default</span> {
-  <span class="kw">async</span> <span class="fn">fetch</span>(request, env) {
-    <span class="kw">const</span> handler = <span class="fn">chatcopsCloudflareHandler</span>({
-      <span class="prop">provider</span>: {
-        <span class="prop">type</span>: <span class="str">'claude'</span>,
-        <span class="prop">apiKey</span>: env.ANTHROPIC_API_KEY,
-      },
-      <span class="prop">systemPrompt</span>: <span class="str">'You are a helpful assistant.'</span>,
-      <span class="prop">cors</span>: <span class="str">'*'</span>,
-    });
-
-    <span class="kw">return</span> <span class="fn">handler</span>(request);
-  },
-};`;
+import CodeTabs from '../react/CodeTabs.tsx';
 ---
-<section class="section">
-  <div class="container">
-    <div class="section-header" data-animate="fade">
-      <span class="section-label">Adapters</span>
-      <h2 class="section-title">Deploy Anywhere</h2>
-      <p class="section-subtitle">
+
+<section class="relative py-28">
+  <div class="section-divider"></div>
+
+  <div class="mx-auto max-w-3xl px-6">
+    <div class="text-center mb-16" data-animate>
+      <span class="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary-glow px-3 py-1 text-xs font-medium text-primary-light mb-5">
+        <svg viewBox="0 0 20 20" fill="currentColor" class="h-3 w-3"><path fill-rule="evenodd" d="M2 5a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm14 1a1 1 0 11-2 0 1 1 0 012 0zM2 13a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2zm14 1a1 1 0 11-2 0 1 1 0 012 0z" clip-rule="evenodd"/></svg>
+        Adapters
+      </span>
+      <h2 class="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
+        Deploy <span class="text-gradient">anywhere</span>
+      </h2>
+      <p class="mt-4 text-text-secondary max-w-lg mx-auto text-lg">
         First-class adapters for every major platform. Copy, paste, deploy.
       </p>
     </div>
 
-    <div class="code-tabs" data-animate="scale" data-animate-delay="1">
-      <div class="code-tab-list" role="tablist">
-        <button class="code-tab-btn is-active" data-tab="express" role="tab">Express</button>
-        <button class="code-tab-btn" data-tab="vercel" role="tab">Vercel</button>
-        <button class="code-tab-btn" data-tab="cloudflare" role="tab">Cloudflare</button>
-      </div>
-
-      <div class="code-tab-panel is-active" data-tab-panel="express">
-        <pre set:html={expressCode} />
-      </div>
-
-      <div class="code-tab-panel" data-tab-panel="vercel">
-        <pre set:html={vercelCode} />
-      </div>
-
-      <div class="code-tab-panel" data-tab-panel="cloudflare">
-        <pre set:html={cloudflareCode} />
-      </div>
+    <div data-animate data-animate-delay="1">
+      <CodeTabs client:visible />
     </div>
   </div>
 </section>

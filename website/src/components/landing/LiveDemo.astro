@@ -1,47 +1,24 @@
 ---
+import LiveDemoReact from '../react/LiveDemo.tsx';
 ---
-<section class="demo-section section">
-  <div class="container">
-    <div class="section-header" data-animate="fade">
-      <span class="section-label">Live Preview</span>
-      <h2 class="section-title">See It in Action</h2>
-      <p class="section-subtitle">
-        A beautifully crafted chat widget that blends into any website. Dark mode, streaming responses, and full customization.
+
+<section class="relative py-28">
+  <div class="section-divider"></div>
+
+  <div class="mx-auto max-w-5xl px-6">
+    <div class="text-center mb-16" data-animate>
+      <span class="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary-glow px-3 py-1 text-xs font-medium text-primary-light mb-5">
+        <span class="h-1.5 w-1.5 rounded-full bg-success animate-pulse"></span>
+        Live Preview
+      </span>
+      <h2 class="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
+        See it in <span class="text-gradient">action</span>
+      </h2>
+      <p class="mt-4 text-text-secondary max-w-lg mx-auto text-lg">
+        A beautifully crafted chat widget that blends into any website. Dark mode, streaming, fully customizable.
       </p>
     </div>
 
-    <div class="demo-frame" data-animate="scale" data-animate-delay="1">
-      <div class="demo-widget">
-        <div class="demo-widget-header">
-          <div class="demo-avatar">C</div>
-          <div class="demo-header-text">
-            <div class="demo-header-name">ChatCops Demo</div>
-            <div class="demo-header-status">Online</div>
-          </div>
-        </div>
-        <div class="demo-messages">
-          <div class="demo-msg demo-msg-assistant">
-            Hey! I'm your AI assistant. How can I help you today?
-          </div>
-          <div class="demo-msg demo-msg-user">
-            What pricing plans do you offer?
-          </div>
-          <div class="demo-msg demo-msg-assistant">
-            We have three plans: Starter (free), Pro ($29/mo), and Enterprise (custom). Each includes unlimited conversations and all integrations. Want me to help you choose?
-          </div>
-          <div class="demo-typing">
-            <span class="demo-typing-dot"></span>
-            <span class="demo-typing-dot"></span>
-            <span class="demo-typing-dot"></span>
-          </div>
-        </div>
-        <div class="demo-input">
-          <span class="demo-input-field">Type a message...</span>
-          <div class="demo-input-btn">
-            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/></svg>
-          </div>
-        </div>
-      </div>
-    </div>
+    <LiveDemoReact client:visible />
   </div>
 </section>

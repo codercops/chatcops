@@ -2,11 +2,9 @@
 import '@fontsource/inter/400.css';
 import '@fontsource/inter/500.css';
 import '@fontsource/inter/600.css';
-import '@fontsource/playfair-display/400.css';
 import '@fontsource/jetbrains-mono/400.css';
 import '@fontsource/jetbrains-mono/500.css';
 import '../styles/global.css';
-import '../styles/landing.css';
 
 interface Props {
   title: string;
@@ -33,69 +31,29 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonicalURL} />
-    <meta property="og:image" content={new URL('/og-default.png', Astro.site)} />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
   </head>
-  <body>
+  <body class="bg-bg text-text antialiased">
     <slot />
 
     <script>
-      // Scroll animation observer
       const observer = new IntersectionObserver(
         (entries) => {
           entries.forEach((entry) => {
             if (entry.isIntersecting) {
               entry.target.classList.add('is-visible');
+              observer.unobserve(entry.target);
             }
           });
         },
-        { threshold: 0.1, rootMargin: '-50px' }
+        { threshold: 0.08, rootMargin: '-40px' }
       );
 
-      document.querySelectorAll('[data-animate]').forEach((el) => {
-        observer.observe(el);
-      });
-
-      // Mobile menu toggle
-      const hamburger = document.querySelector('.nav-hamburger');
-      const mobileMenu = document.querySelector('.mobile-menu');
-
-      hamburger?.addEventListener('click', () => {
-        mobileMenu?.classList.toggle('is-open');
-      });
-
-      // Close mobile menu on link click
-      mobileMenu?.querySelectorAll('a').forEach((link) => {
-        link.addEventListener('click', () => {
-          mobileMenu.classList.remove('is-open');
-        });
-      });
-
-      // Close on escape
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-          mobileMenu?.classList.remove('is-open');
-        }
-      });
-
-      // Code tabs
-      document.querySelectorAll('.code-tab-btn').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const tabGroup = btn.closest('.code-tabs');
-          if (!tabGroup) return;
-          const target = btn.getAttribute('data-tab');
-
-          tabGroup.querySelectorAll('.code-tab-btn').forEach((b) => b.classList.remove('is-active'));
-          tabGroup.querySelectorAll('.code-tab-panel').forEach((p) => p.classList.remove('is-active'));
-
-          btn.classList.add('is-active');
-          tabGroup.querySelector(`[data-tab-panel="${target}"]`)?.classList.add('is-active');
-        });
-      });
+      document.querySelectorAll('[data-animate]').forEach((el) => observer.observe(el));
     </script>
   </body>
 </html>

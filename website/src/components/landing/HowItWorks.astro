@@ -1,73 +1,71 @@
 ---
-const step1Code = `<span style="color:#f87171">&lt;script</span>
-  <span style="color:#818cf8">src</span>=<span style="color:#34d399">".../@chatcops/widget"</span>
-  <span style="color:#818cf8">data-api-url</span>=<span style="color:#34d399">"https://api.example.com/chat"</span>
-<span style="color:#f87171">&gt;&lt;/script&gt;</span>`;
-
-const step2Code = `<span style="color:#c084fc">import</span> { chatcopsMiddleware }
-  <span style="color:#c084fc">from</span> <span style="color:#34d399">'@chatcops/server'</span>;
-
-app.<span style="color:#60a5fa">post</span>(<span style="color:#34d399">'/chat'</span>, <span style="color:#60a5fa">chatcopsMiddleware</span>({
-  provider: { type: <span style="color:#34d399">'claude'</span> },
-  systemPrompt: <span style="color:#34d399">'...'</span>,
-}));`;
 ---
-<section class="section">
-  <div class="container">
-    <div class="section-header" data-animate="fade">
-      <span class="section-label">Setup</span>
-      <h2 class="section-title">Three Steps to Launch</h2>
-      <p class="section-subtitle">
+<section class="relative py-28">
+  <div class="section-divider"></div>
+
+  <div class="mx-auto max-w-5xl px-6">
+    <div class="text-center mb-16" data-animate>
+      <span class="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary-glow px-3 py-1 text-xs font-medium text-primary-light mb-5">
+        <svg viewBox="0 0 20 20" fill="currentColor" class="h-3 w-3"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>
+        Quick Setup
+      </span>
+      <h2 class="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
+        Three steps to <span class="text-gradient">launch</span>
+      </h2>
+      <p class="mt-4 text-text-secondary max-w-lg mx-auto text-lg">
         From zero to AI chatbot in under 5 minutes.
       </p>
     </div>
 
-    <div class="steps-grid">
-      <div class="card-premium-simple step-card" data-animate="slide-up" data-animate-delay="1">
-        <span class="step-number">1</span>
-        <h3>Add the Script Tag</h3>
-        <p>Drop a single &lt;script&gt; tag into your HTML. The widget auto-initializes.</p>
-        <div class="step-code">
-          <pre set:html={step1Code} />
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <!-- Step 1 -->
+      <div class="rounded-2xl border border-border bg-bg-card p-6" data-animate data-animate-delay="1">
+        <div class="mb-5 flex h-9 w-9 items-center justify-center rounded-full bg-primary-glow text-sm font-bold text-primary-light ring-1 ring-primary/20">
+          1
+        </div>
+        <h3 class="mb-2 text-base font-semibold text-text">Add the Script Tag</h3>
+        <p class="mb-4 text-sm leading-relaxed text-text-secondary">Drop a single &lt;script&gt; tag into your HTML. The widget auto-initializes with Shadow DOM isolation.</p>
+        <div class="rounded-xl bg-bg-surface border border-border p-3 font-mono text-xs leading-[1.8]">
+          <span class="text-[#f472b6]">&lt;script</span><br />
+          &nbsp;&nbsp;<span class="text-[#c4b5fd]">src</span>=<span class="text-[#6ee7b7]">".../@chatcops/widget"</span><br />
+          &nbsp;&nbsp;<span class="text-[#c4b5fd]">data-api-url</span>=<span class="text-[#6ee7b7]">"https://api.example.com/chat"</span><br />
+          <span class="text-[#f472b6]">&gt;&lt;/script&gt;</span>
         </div>
       </div>
 
-      <div class="card-premium-simple step-card" data-animate="slide-up" data-animate-delay="2">
-        <span class="step-number">2</span>
-        <h3>Configure Your Server</h3>
-        <p>Set up a server endpoint with your AI provider of choice.</p>
-        <div class="step-code">
-          <pre set:html={step2Code} />
+      <!-- Step 2 -->
+      <div class="rounded-2xl border border-border bg-bg-card p-6" data-animate data-animate-delay="2">
+        <div class="mb-5 flex h-9 w-9 items-center justify-center rounded-full bg-primary-glow text-sm font-bold text-primary-light ring-1 ring-primary/20">
+          2
+        </div>
+        <h3 class="mb-2 text-base font-semibold text-text">Configure Your Server</h3>
+        <p class="mb-4 text-sm leading-relaxed text-text-secondary">Set up a server endpoint with your AI provider of choice. Express, Vercel, or Cloudflare.</p>
+        <div class="rounded-xl bg-bg-surface border border-border p-3 font-mono text-xs leading-[1.8]">
+          <span class="text-[#c084fc]">import</span> {'{ chatcopsMiddleware }'}<br />
+          &nbsp;&nbsp;<span class="text-[#c084fc]">from</span> <span class="text-[#6ee7b7]">'@chatcops/server'</span>;<br /><br />
+          app.<span class="text-[#67e8f9]">post</span>(<span class="text-[#6ee7b7]">'/chat'</span>, <span class="text-[#67e8f9]">chatcopsMiddleware</span>({'{'}<br />
+          &nbsp;&nbsp;<span class="text-[#fbbf24]">provider</span>: {'{ type:'} <span class="text-[#6ee7b7]">'claude'</span> {'}'},<br />
+          {'}'}));
         </div>
       </div>
 
-      <div class="card-premium-simple step-card" data-animate="slide-up" data-animate-delay="3">
-        <span class="step-number">3</span>
-        <h3>Chat with Customers</h3>
-        <p>Your AI assistant is live. Capture leads, answer questions, and delight users.</p>
-        <div class="step-icon-wrap">
-          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" class="step-icon-svg">
-            <circle cx="24" cy="24" r="23" stroke="currentColor" stroke-width="2" stroke-dasharray="4 4"/>
-            <path d="M14 20a8 8 0 018-8h4a8 8 0 018 8v2a8 8 0 01-8 8h-2l-5 5v-5a8 8 0 01-5-8v-2z" fill="currentColor" opacity="0.15"/>
-            <path d="M16 20a6 6 0 016-6h4a6 6 0 016 6v2a6 6 0 01-6 6h-1l-4 4v-4a6 6 0 01-5-6v-2z" stroke="currentColor" stroke-width="1.5"/>
-            <circle cx="21" cy="21" r="1.5" fill="currentColor"/>
-            <circle cx="27" cy="21" r="1.5" fill="currentColor"/>
+      <!-- Step 3 -->
+      <div class="rounded-2xl border border-border bg-bg-card p-6" data-animate data-animate-delay="3">
+        <div class="mb-5 flex h-9 w-9 items-center justify-center rounded-full bg-primary-glow text-sm font-bold text-primary-light ring-1 ring-primary/20">
+          3
+        </div>
+        <h3 class="mb-2 text-base font-semibold text-text">Chat with Customers</h3>
+        <p class="mb-4 text-sm leading-relaxed text-text-secondary">Your AI assistant is live. Capture leads, answer questions, and delight users.</p>
+        <div class="flex items-center justify-center h-24">
+          <svg width="56" height="56" viewBox="0 0 48 48" fill="none" class="text-primary-light">
+            <circle cx="24" cy="24" r="23" stroke="currentColor" stroke-width="1" stroke-dasharray="4 4" opacity="0.2"/>
+            <circle cx="24" cy="24" r="16" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3" opacity="0.1"/>
+            <path d="M16 20a6 6 0 016-6h4a6 6 0 016 6v2a6 6 0 01-6 6h-1l-4 4v-4a6 6 0 01-5-6v-2z" stroke="currentColor" stroke-width="1.5" opacity="0.6"/>
+            <circle cx="21" cy="21" r="1.5" fill="currentColor" opacity="0.6"/>
+            <circle cx="27" cy="21" r="1.5" fill="currentColor" opacity="0.6"/>
           </svg>
         </div>
       </div>
     </div>
   </div>
 </section>
-
-<style>
-  .step-icon-wrap {
-    margin-top: var(--space-lg);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100px;
-  }
-  .step-icon-svg {
-    color: var(--accent-primary);
-  }
-</style>
