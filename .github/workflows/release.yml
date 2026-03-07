@@ -26,17 +26,14 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Build core (required by server)
-        run: pnpm --filter @chatcops/core build
+      - name: Build
+        run: pnpm -r build
 
       - name: Typecheck
         run: pnpm -r typecheck
 
       - name: Test
         run: pnpm test
-
-      - name: Build
-        run: pnpm -r build
 
       - name: Create Release PR or Publish
         id: changesets
