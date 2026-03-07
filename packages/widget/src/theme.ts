@@ -30,6 +30,7 @@ export function applyTheme(root: ShadowRoot, theme: ThemeConfig): void {
 }
 
 function parseHex(hex: string): [number, number, number] {
+  if (!/^#?[\da-f]{3}(?:[\da-f]{3})?$/i.test(hex)) return [0, 0, 0];
   const h = hex.replace('#', '');
   const n = parseInt(h.length === 3 ? h.split('').map((c) => c + c).join('') : h, 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];

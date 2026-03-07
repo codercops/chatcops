@@ -44,7 +44,7 @@
   justify-content: center;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
-  z-index: 2147483647;
+  z-index: 10000;
   outline: none;
 }
 
@@ -113,7 +113,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  z-index: 2147483646;
+  z-index: 9999;
   opacity: 0;
   transform: translateY(16px) scale(0.95);
   pointer-events: none;
@@ -344,6 +344,8 @@
 
 .cc-input:focus {
   border-color: var(--cc-accent);
+  outline: 2px solid var(--cc-accent);
+  outline-offset: 1px;
 }
 
 .cc-input::placeholder {
@@ -411,7 +413,7 @@
   max-width: 260px;
   font-size: 13px;
   line-height: 1.4;
-  z-index: 2147483645;
+  z-index: 9998;
   opacity: 0;
   transform: translateY(8px);
   pointer-events: none;

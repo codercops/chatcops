@@ -10,7 +10,7 @@ export function chatcopsCloudflareHandler(config: ChatCopsServerConfig) {
       return new Response(null, {
         status: 204,
         headers: {
-          'Access-Control-Allow-Origin': config.cors ?? '*',
+          'Access-Control-Allow-Origin': config.cors,
           'Access-Control-Allow-Methods': 'POST, OPTIONS',
           'Access-Control-Allow-Headers': 'Content-Type',
           'Access-Control-Max-Age': '86400',
@@ -26,7 +26,15 @@ export function chatcopsCloudflareHandler(config: ChatCopsServerConfig) {
     }
 
     const clientIp = request.headers.get('cf-connecting-ip') ?? 'unknown';
-    const body = await request.json();
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
     const { readable, writable } = new TransformStream();
     const writer = writable.getWriter();
@@ -49,7 +57,7 @@ export function chatcopsCloudflareHandler(config: ChatCopsServerConfig) {
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
-        'Access-Control-Allow-Origin': config.cors ?? '*',
+        'Access-Control-Allow-Origin': config.cors,
       },
     });
   };

@@ -61,6 +61,29 @@ describe('ConversationManager', () => {
     expect(messages).toHaveLength(0);
   });
 
+  it('maxMessages correctly limits total including system messages', async () => {
+    const manager = new ConversationManager({ maxMessages: 5 });
+
+    // Add a system message
+    await manager.addMessage('conv-sys', {
+      id: 'sys-1',
+      role: 'system',
+      content: 'System prompt',
+      timestamp: Date.now(),
+    });
+
+    // Add enough user messages to trigger trimming
+    for (let i = 0; i < 10; i++) {
+      await manager.addMessage('conv-sys', makeMessage('user', `Message ${i}`));
+    }
+
+    const messages = await manager.getMessages('conv-sys');
+    // Total should not exceed maxMessages (5), including the system message
+    expect(messages.length).toBeLessThanOrEqual(5);
+    // System message should be preserved
+    expect(messages.some((m) => m.role === 'system')).toBe(true);
+  });
+
   it('returns empty messages for non-existent conversation', async () => {
     const manager = new ConversationManager();
     const messages = await manager.getMessages('nope');

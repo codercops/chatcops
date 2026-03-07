@@ -19,6 +19,12 @@ export class RateLimiter {
 
   constructor(config?: Partial<RateLimitConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    if (this.config.maxRequests <= 0) {
+      throw new Error('maxRequests must be greater than 0');
+    }
+    if (this.config.windowMs <= 0) {
+      throw new Error('windowMs must be greater than 0');
+    }
   }
 
   check(key: string): { allowed: boolean; retryAfter?: number } {

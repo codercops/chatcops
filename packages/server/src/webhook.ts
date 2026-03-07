@@ -12,6 +12,9 @@ export class WebhookDispatcher {
   private maxRetries = 3;
 
   constructor(configs: WebhookConfig[]) {
+    for (const config of configs) {
+      new URL(config.url); // throws on invalid URL
+    }
     this.configs = configs;
   }
 

@@ -62,6 +62,18 @@ describe('WebhookDispatcher', () => {
     expect(callCount).toBe(3);
   });
 
+  it('throws on invalid URL in config', () => {
+    expect(() => new WebhookDispatcher([
+      { url: 'not-a-valid-url', events: ['test'] },
+    ])).toThrow();
+  });
+
+  it('accepts valid URLs in config', () => {
+    expect(() => new WebhookDispatcher([
+      { url: 'https://hooks.test/webhook', events: ['test'] },
+    ])).not.toThrow();
+  });
+
   it('does not retry on client errors', async () => {
     let callCount = 0;
     vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {

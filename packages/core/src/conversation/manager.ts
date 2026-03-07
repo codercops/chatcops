@@ -34,7 +34,7 @@ export class ConversationManager {
       const systemMessages = conversation.messages.filter((m) => m.role === 'system');
       const recentMessages = conversation.messages
         .filter((m) => m.role !== 'system')
-        .slice(-this.maxMessages);
+        .slice(-(this.maxMessages - systemMessages.length));
       conversation.messages = [...systemMessages, ...recentMessages];
     }
 

@@ -37,6 +37,7 @@ export class GeminiProvider implements AIProvider {
     });
 
     const lastMessage = messages[messages.length - 1]?.content ?? '';
+    if (!lastMessage) throw new Error('Cannot send empty message');
     const result = await chat.sendMessageStream(lastMessage);
 
     for await (const chunk of result.stream) {
@@ -69,6 +70,7 @@ export class GeminiProvider implements AIProvider {
     });
 
     const lastMessage = messages[messages.length - 1]?.content ?? '';
+    if (!lastMessage) throw new Error('Cannot send empty message');
     const result = await chat.sendMessage(lastMessage);
     return result.response.text();
   }

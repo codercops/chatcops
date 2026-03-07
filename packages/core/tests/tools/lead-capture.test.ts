@@ -49,6 +49,49 @@ describe('LeadCaptureTool', () => {
     );
   });
 
+  it('rejects when name is missing', async () => {
+    const tool = new LeadCaptureTool();
+    const result = await tool.execute({
+      email: 'john@example.com',
+      projectDetails: 'Need a website',
+    });
+    expect(result.success).toBe(false);
+    expect(result.message).toContain('Invalid lead data');
+  });
+
+  it('rejects when email is invalid', async () => {
+    const tool = new LeadCaptureTool();
+    const result = await tool.execute({
+      name: 'John',
+      email: 'not-an-email',
+      projectDetails: 'Need a website',
+    });
+    expect(result.success).toBe(false);
+    expect(result.message).toContain('Invalid lead data');
+  });
+
+  it('rejects when projectDetails is missing', async () => {
+    const tool = new LeadCaptureTool();
+    const result = await tool.execute({
+      name: 'John',
+      email: 'john@example.com',
+    });
+    expect(result.success).toBe(false);
+    expect(result.message).toContain('Invalid lead data');
+  });
+
+  it('handles callback errors gracefully', async () => {
+    const onCapture = vi.fn().mockRejectedValue(new Error('callback failed'));
+    const tool = new LeadCaptureTool(onCapture);
+    const result = await tool.execute({
+      name: 'John',
+      email: 'john@example.com',
+      projectDetails: 'Need a website',
+    });
+    expect(result.success).toBe(false);
+    expect(result.message).toContain('Failed to process lead capture callback');
+  });
+
   it('handles optional fields', async () => {
     const tool = new LeadCaptureTool();
     const result = await tool.execute({

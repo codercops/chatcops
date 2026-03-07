@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  lint-typecheck-test-build:
+  typecheck-test-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

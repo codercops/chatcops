@@ -27,9 +27,9 @@ export function renderMarkdown(input: string): string {
   // Italic
   html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
 
-  // Links
+  // Links (supports one level of nested parentheses in URLs)
   html = html.replace(
-    /\[([^\]]+)\]\(([^)]+)\)/g,
+    /\[([^\]]+)\]\(((?:[^()]*|\([^()]*\))*)\)/g,
     '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
   );
 

@@ -1,5 +1,25 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { chatRequestSchema } from '../src/config.js';
+import { createChatHandler } from '../src/handler.js';
+
+describe('createChatHandler', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('cleanup function clears interval', () => {
+    const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
+
+    const { cleanup } = createChatHandler({
+      provider: { type: 'claude', apiKey: 'test-key' },
+      systemPrompt: 'Test',
+      cors: '*',
+    });
+
+    cleanup();
+    expect(clearIntervalSpy).toHaveBeenCalledOnce();
+  });
+});
 
 describe('chatRequestSchema', () => {
   it('validates a minimal valid request', () => {

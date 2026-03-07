@@ -158,6 +158,8 @@ export class Widget {
     this.panel.destroy();
     this.fab.destroy();
     destroyShadowRoot();
+    this.eventHandlers.clear();
+    this.messages = [];
   }
 
   on(event: WidgetEventType, handler: WidgetEventHandler): void {

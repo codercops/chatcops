@@ -47,6 +47,13 @@ describe('renderMarkdown', () => {
     expect(result).toContain('<br><br>');
   });
 
+  it('handles URLs with parentheses (Wikipedia-style)', () => {
+    const input = '[Article](https://en.wikipedia.org/wiki/Rust_(programming_language))';
+    const result = renderMarkdown(input);
+    expect(result).toContain('href="https://en.wikipedia.org/wiki/Rust_(programming_language)"');
+    expect(result).toContain('Article</a>');
+  });
+
   it('handles mixed formatting', () => {
     const result = renderMarkdown('**bold** and *italic* and `code`');
     expect(result).toContain('<strong>bold</strong>');

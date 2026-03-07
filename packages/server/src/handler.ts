@@ -19,7 +19,7 @@ export function createChatHandler(config: ChatCopsServerConfig) {
   const toolDefs = config.tools?.map(toolToDefinition) ?? [];
 
   // Periodic cleanup
-  setInterval(() => rateLimiter.cleanup(), 60_000);
+  const cleanupInterval = setInterval(() => rateLimiter.cleanup(), 60_000);
 
   async function* handleChat(
     body: unknown,
@@ -104,6 +104,7 @@ export function createChatHandler(config: ChatCopsServerConfig) {
         yield JSON.stringify({ content: chunk });
       }
     } catch (err) {
+      console.error('[chatcops] Provider error:', err);
       yield JSON.stringify({ error: 'provider_error' });
       return;
     }
@@ -123,8 +124,13 @@ export function createChatHandler(config: ChatCopsServerConfig) {
     yield JSON.stringify({ done: true });
   }
 
+  function cleanup() {
+    clearInterval(cleanupInterval);
+  }
+
   return {
     handleChat,
     getAnalytics: () => analytics?.getStats() ?? null,
+    cleanup,
   };
 }

@@ -9,7 +9,7 @@ export interface ChatCopsServerConfig {
   rateLimit?: { maxRequests: number; windowMs: number };
   webhooks?: WebhookConfig[];
   analytics?: boolean;
-  cors?: string;
+  cors: string;
   i18n?: { defaultLocale: string; locales: Record<string, LocaleStrings> };
 }
 

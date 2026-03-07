@@ -50,6 +50,16 @@ describe('RateLimiter', () => {
     expect(limiter.check('client-2').allowed).toBe(true);
   });
 
+  it('throws on invalid maxRequests', () => {
+    expect(() => new RateLimiter({ maxRequests: 0 })).toThrow('maxRequests must be greater than 0');
+    expect(() => new RateLimiter({ maxRequests: -1 })).toThrow('maxRequests must be greater than 0');
+  });
+
+  it('throws on invalid windowMs', () => {
+    expect(() => new RateLimiter({ windowMs: 0 })).toThrow('windowMs must be greater than 0');
+    expect(() => new RateLimiter({ windowMs: -1000 })).toThrow('windowMs must be greater than 0');
+  });
+
   it('cleans up expired entries', () => {
     const limiter = new RateLimiter({ maxRequests: 5, windowMs: 10_000 });
     limiter.check('old-client');
