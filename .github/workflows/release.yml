@@ -26,6 +26,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Build core (required by server)
+        run: pnpm --filter @chatcops/core build
+
       - name: Typecheck
         run: pnpm -r typecheck
 
