@@ -2,9 +2,11 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import react from '@astrojs/react';
 import tailwindcss from '@tailwindcss/vite';
+import vercel from '@astrojs/vercel';
 
 export default defineConfig({
   output: 'static',
+  adapter: vercel(),
   site: 'https://chatcops.codercops.com',
   vite: {
     plugins: [tailwindcss()],
@@ -19,6 +21,20 @@ export default defineConfig({
       },
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/codercops/chatcops' },
+      ],
+      head: [
+        {
+          tag: 'script',
+          attrs: {
+            src: 'https://cdn.jsdelivr.net/npm/@chatcops/widget@0.2.0/dist/chatcops.min.js',
+            'data-api-url': '/api/chat',
+            'data-accent': '#6366f1',
+            'data-brand-name': 'ChatCops AI',
+            'data-welcome-message': "Hi! I'm the ChatCops assistant. Ask me anything about setting up ChatCops on your website.",
+            'data-position': 'bottom-right',
+            defer: true,
+          },
+        },
       ],
       customCss: [
         '@fontsource/inter/400.css',
