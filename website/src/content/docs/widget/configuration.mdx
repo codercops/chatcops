@@ -5,7 +5,16 @@ description: All configuration options for the ChatCops widget.
 
 The widget can be configured via `data-*` attributes on the script tag or programmatically via `ChatCops.init()`.
 
+## Display Modes
+
+ChatCops supports two display modes:
+
+- **Popup** (default) — Floating action button (FAB) in the corner that opens a chat panel overlay.
+- **Inline** — The chat panel renders directly inside a container element on your page. No FAB, no overlay.
+
 ## Script Tag Attributes
+
+### Popup Mode (default)
 
 ```html
 <script
@@ -25,13 +34,32 @@ The widget can be configured via `data-*` attributes on the script tag or progra
   data-welcome-bubble-delay="3000"
   data-placeholder="Type a message..."
   data-locale="en"
+  data-auto-open="1000"
 ></script>
 ```
 
+### Inline Mode
+
+```html
+<div id="chat-container" style="width: 400px; height: 500px;"></div>
+<script
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  data-api-url="https://your-api.com/chat"
+  data-mode="inline"
+  data-container="#chat-container"
+  data-brand-name="Support Bot"
+  data-welcome-message="Hi! How can I help you today?"
+></script>
+```
+
+In inline mode, the chat panel fills the container element. You control the size via the container's CSS.
+
 ## Programmatic Configuration
 
+### Popup Mode
+
 ```typescript
-import { ChatCops } from '@chatcops/widget';
+import ChatCops from '@chatcops/widget';
 
 ChatCops.init({
   apiUrl: 'https://your-api.com/chat',
@@ -42,7 +70,7 @@ ChatCops.init({
     textColor: '#FAFAF9',
     bgColor: '#0A0A0A',
     fontFamily: 'Inter, sans-serif',
-    borderRadius: 12,
+    borderRadius: '12',
     position: 'bottom-right',   // 'bottom-right' | 'bottom-left'
   },
 
@@ -55,12 +83,36 @@ ChatCops.init({
 
   // Behavior
   welcomeMessage: 'Hi! How can I help you today?',
-  welcomeBubble: 'Need help? Chat with us!',
-  welcomeBubbleDelay: 3000,    // ms before showing bubble
+  welcomeBubble: {
+    text: 'Need help? Chat with us!',
+    delay: 3000,
+  },
   placeholder: 'Type a message...',
+  autoOpen: 1000,  // Open after 1s, or true for immediate
   locale: 'en',
 });
 ```
+
+### Inline Mode
+
+```typescript
+import ChatCops from '@chatcops/widget';
+
+ChatCops.init({
+  apiUrl: 'https://your-api.com/chat',
+  mode: 'inline',
+  container: '#chat-container',  // CSS selector or HTMLElement
+
+  branding: {
+    name: 'Support Bot',
+    subtitle: 'Online',
+  },
+  welcomeMessage: 'Hi! How can I help you today?',
+  persistHistory: false,
+});
+```
+
+The `container` option accepts a CSS selector string or a direct `HTMLElement` reference.
 
 ## WidgetConfig Interface
 
@@ -68,12 +120,16 @@ ChatCops.init({
 interface WidgetConfig {
   apiUrl: string;
 
+  // Display mode
+  mode?: 'popup' | 'inline';       // Default: 'popup'
+  container?: string | HTMLElement; // Required when mode is 'inline'
+
   theme?: {
     accent?: string;          // Hex color, default: '#6366f1'
     textColor?: string;       // Hex color, default: '#FAFAF9'
     bgColor?: string;         // Hex color, default: '#0A0A0A'
     fontFamily?: string;      // CSS font-family
-    borderRadius?: number;    // px, default: 12
+    borderRadius?: string;    // px, default: '12'
     position?: 'bottom-right' | 'bottom-left';
   };
 
@@ -84,12 +140,49 @@ interface WidgetConfig {
   };
 
   welcomeMessage?: string;    // First assistant message
-  welcomeBubble?: string;     // Text shown on hover bubble
-  welcomeBubbleDelay?: number;// ms before bubble appears
+  welcomeBubble?: {           // Popup mode only
+    text: string;             // Text shown on hover bubble
+    delay?: number;           // ms before bubble appears
+    showOnce?: boolean;       // Only show once per session
+  };
   placeholder?: string;       // Input placeholder text
+  persistHistory?: boolean;   // Save chat history, default: true
+  maxMessages?: number;       // Max messages to persist, default: 50
+  pageContext?: boolean;       // Send page URL/title, default: true
+  autoOpen?: boolean | number; // Popup mode only. true = immediate, number = delay in ms
   locale?: string;            // 'en' | 'es' | 'hi' | 'fr' | 'de' | 'ja' | 'zh' | 'ar'
+  strings?: Partial<WidgetLocaleStrings>; // Custom i18n overrides
+
+  // Callbacks
+  onOpen?: () => void;
+  onClose?: () => void;
+  onMessage?: (message: MessageData) => void;
+  onError?: (error: Error) => void;
 }
 ```
+
+## Script Tag Attribute Reference
+
+| Attribute | Config Key | Description |
+|-----------|-----------|-------------|
+| `data-api-url` | `apiUrl` | API endpoint URL (required) |
+| `data-mode` | `mode` | `'popup'` or `'inline'` |
+| `data-container` | `container` | CSS selector for inline container |
+| `data-accent` | `theme.accent` | Primary accent color |
+| `data-text-color` | `theme.textColor` | Primary text color |
+| `data-bg-color` | `theme.bgColor` | Background color |
+| `data-font-family` | `theme.fontFamily` | Font family |
+| `data-border-radius` | `theme.borderRadius` | Border radius in px |
+| `data-position` | `theme.position` | `'bottom-right'` or `'bottom-left'` |
+| `data-brand-name` | `branding.name` | Header title |
+| `data-brand-avatar` | `branding.avatar` | Avatar image URL |
+| `data-brand-subtitle` | `branding.subtitle` | Subtitle text |
+| `data-welcome-message` | `welcomeMessage` | First assistant message |
+| `data-welcome-bubble` | `welcomeBubble.text` | Welcome bubble text |
+| `data-welcome-bubble-delay` | `welcomeBubble.delay` | Bubble delay in ms |
+| `data-placeholder` | `placeholder` | Input placeholder |
+| `data-auto-open` | `autoOpen` | Auto-open delay in ms or `true` |
+| `data-locale` | `locale` | Language code |
 
 ## CSS Custom Properties
 
@@ -110,3 +203,16 @@ The widget uses Shadow DOM and exposes these CSS custom properties on its host e
 | `--cc-fab-size` | FAB button size | `56px` |
 | `--cc-panel-width` | Chat panel width | `400px` |
 | `--cc-panel-height` | Chat panel height | `560px` |
+
+## Inline Mode Behavior
+
+When using `mode: 'inline'`:
+
+- The chat panel renders inside the specified container element
+- No floating action button (FAB) is created
+- No welcome bubble is shown
+- The panel is visible immediately (no toggle needed)
+- `autoOpen` is ignored (always open)
+- The panel fills 100% width and height of the container
+- Mobile responsive overrides do not apply — the container controls sizing
+- `open()` and `close()` still work programmatically

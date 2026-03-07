@@ -1,0 +1,5 @@
+{
+  "installCommand": "corepack enable && pnpm install",
+  "buildCommand": "pnpm -r build",
+  "outputDirectory": "website/.vercel/output"
+}

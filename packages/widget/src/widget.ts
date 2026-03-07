@@ -10,6 +10,8 @@ import type { MessageData } from './dom/messages.js';
 
 export interface WidgetConfig {
   apiUrl: string;
+  mode?: 'popup' | 'inline';
+  container?: string | HTMLElement;
   theme?: {
     accent?: string;
     textColor?: string;
@@ -33,6 +35,7 @@ export interface WidgetConfig {
   persistHistory?: boolean;
   maxMessages?: number;
   pageContext?: boolean;
+  autoOpen?: boolean | number;
   locale?: string;
   strings?: Partial<WidgetLocaleStrings>;
   onOpen?: () => void;
@@ -47,7 +50,7 @@ type WidgetEventHandler = (...args: unknown[]) => void;
 export class Widget {
   private config: WidgetConfig;
   private shadow!: ShadowRoot;
-  private fab!: FAB;
+  private fab?: FAB;
   private panel!: Panel;
   private bubble?: WelcomeBubble;
   private client: ChatClient;
@@ -57,6 +60,11 @@ export class Widget {
   private messages: MessageData[] = [];
   private isStreaming = false;
   private eventHandlers = new Map<WidgetEventType, Set<WidgetEventHandler>>();
+  private containerEl?: HTMLElement;
+
+  get isInline(): boolean {
+    return this.config.mode === 'inline';
+  }
 
   constructor(config: WidgetConfig) {
     this.config = config;
@@ -66,8 +74,27 @@ export class Widget {
     this.conversationId = this.storage.getSessionId();
   }
 
+  private resolveContainer(): HTMLElement {
+    if (!this.config.container) {
+      throw new Error('ChatCops: "container" is required when mode is "inline"');
+    }
+    if (typeof this.config.container === 'string') {
+      const el = document.querySelector(this.config.container);
+      if (!el) {
+        throw new Error(`ChatCops: container element not found: ${this.config.container}`);
+      }
+      return el as HTMLElement;
+    }
+    return this.config.container;
+  }
+
   init(): void {
-    this.shadow = createShadowRoot();
+    if (this.isInline) {
+      this.containerEl = this.resolveContainer();
+      this.shadow = createShadowRoot(this.containerEl);
+    } else {
+      this.shadow = createShadowRoot();
+    }
 
     if (this.config.theme) {
       applyTheme(this.shadow, this.config.theme);
@@ -75,13 +102,17 @@ export class Widget {
 
     const position = this.config.theme?.position ?? 'bottom-right';
 
-    this.fab = new FAB(this.shadow, {
-      position,
-      onClick: () => this.toggle(),
-    });
+    // FAB — popup mode only
+    if (!this.isInline) {
+      this.fab = new FAB(this.shadow, {
+        position,
+        onClick: () => this.toggle(),
+      });
+    }
 
     this.panel = new Panel(this.shadow, {
       position,
+      inline: this.isInline,
       branding: {
         name: this.config.branding?.name ?? 'AI Assistant',
         avatar: this.config.branding?.avatar,
@@ -117,8 +148,8 @@ export class Widget {
       this.panel.addMessage(welcomeMsg);
     }
 
-    // Welcome bubble
-    if (this.config.welcomeBubble) {
+    // Welcome bubble — popup mode only
+    if (!this.isInline && this.config.welcomeBubble) {
       this.bubble = new WelcomeBubble(this.shadow, {
         text: this.config.welcomeBubble.text,
         delay: this.config.welcomeBubble.delay,
@@ -127,20 +158,35 @@ export class Widget {
         onClick: () => this.open(),
       });
     }
+
+    // Inline mode — show panel immediately
+    if (this.isInline) {
+      this.panel.show();
+    }
+
+    // Auto-open — popup mode only
+    if (!this.isInline && this.config.autoOpen !== undefined && this.config.autoOpen !== false) {
+      const delay = typeof this.config.autoOpen === 'number' ? this.config.autoOpen : 0;
+      setTimeout(() => this.open(), delay);
+    }
   }
 
   open(): void {
     this.panel.show();
-    this.fab.setOpen(true);
-    this.fab.hideBadge();
-    this.bubble?.hide();
+    if (!this.isInline) {
+      this.fab?.setOpen(true);
+      this.fab?.hideBadge();
+      this.bubble?.hide();
+    }
     this.config.onOpen?.();
     this.emit('open');
   }
 
   close(): void {
     this.panel.hide();
-    this.fab.setOpen(false);
+    if (!this.isInline) {
+      this.fab?.setOpen(false);
+    }
     this.config.onClose?.();
     this.emit('close');
   }
@@ -156,8 +202,8 @@ export class Widget {
   destroy(): void {
     this.bubble?.destroy();
     this.panel.destroy();
-    this.fab.destroy();
-    destroyShadowRoot();
+    this.fab?.destroy();
+    destroyShadowRoot(this.containerEl);
     this.eventHandlers.clear();
     this.messages = [];
   }
@@ -242,8 +288,8 @@ export class Widget {
         this.config.onMessage?.(assistantMsg);
         this.emit('message', assistantMsg);
 
-        if (!this.panel.isVisible) {
-          this.fab.showBadge();
+        if (!this.isInline && !this.panel.isVisible) {
+          this.fab?.showBadge();
         }
       }
     } catch (err) {
