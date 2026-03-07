@@ -49,8 +49,8 @@ const faq = new FAQKnowledgeSource([
 
 const { handleChat } = createChatHandler({
   provider: {
-    type: 'claude',
-    apiKey: import.meta.env.ANTHROPIC_API_KEY ?? '',
+    type: 'openai',
+    apiKey: import.meta.env.OPENAI_API_KEY ?? '',
   },
   systemPrompt: `You are the ChatCops documentation assistant on the official ChatCops website.
 Your job is to help developers understand and use ChatCops — an open-source AI chatbot widget.

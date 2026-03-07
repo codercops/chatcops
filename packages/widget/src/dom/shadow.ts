@@ -1,9 +1,14 @@
 import widgetStyles from '../styles/widget.css?inline';
 
-export function createShadowRoot(): ShadowRoot {
+export function createShadowRoot(container?: HTMLElement): ShadowRoot {
   const host = document.createElement('div');
   host.id = 'chatcops-root';
-  document.body.appendChild(host);
+
+  if (container) {
+    container.appendChild(host);
+  } else {
+    document.body.appendChild(host);
+  }
 
   const shadow = host.attachShadow({ mode: 'open' });
 
@@ -14,7 +19,8 @@ export function createShadowRoot(): ShadowRoot {
   return shadow;
 }
 
-export function destroyShadowRoot(): void {
-  const host = document.getElementById('chatcops-root');
+export function destroyShadowRoot(container?: HTMLElement): void {
+  const searchRoot = container ?? document.body;
+  const host = searchRoot.querySelector('#chatcops-root') ?? document.getElementById('chatcops-root');
   if (host) host.remove();
 }

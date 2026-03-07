@@ -15,6 +15,7 @@
     "@astrojs/vercel": "^9.0.4",
     "@chatcops/core": "^0.2.0",
     "@chatcops/server": "^0.2.0",
+    "@chatcops/widget": "workspace:^",
     "@tailwindcss/vite": "^4.2.1",
     "astro": "^5.7.0",
     "motion": "^12.35.0",

@@ -6,6 +6,7 @@ const CLOSE_ICON = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
 
 export interface PanelOptions {
   position: 'bottom-right' | 'bottom-left';
+  inline?: boolean;
   branding: {
     name: string;
     avatar?: string;
@@ -25,6 +26,9 @@ export class Panel {
   constructor(root: ShadowRoot, options: PanelOptions) {
     this.el = document.createElement('div');
     this.el.className = 'cc-panel';
+    if (options.inline) {
+      this.el.classList.add('cc-inline');
+    }
     if (options.position === 'bottom-left') {
       this.el.classList.add('cc-left');
     }
@@ -51,12 +55,14 @@ export class Panel {
     info.innerHTML = `<div class="cc-header-name">${this.escapeHtml(options.branding.name)}</div><div class="cc-header-subtitle">${this.escapeHtml(options.branding.subtitle)}</div>`;
     header.appendChild(info);
 
-    const closeBtn = document.createElement('button');
-    closeBtn.className = 'cc-header-close';
-    closeBtn.setAttribute('aria-label', 'Close chat');
-    closeBtn.innerHTML = CLOSE_ICON;
-    closeBtn.addEventListener('click', options.onClose);
-    header.appendChild(closeBtn);
+    if (!options.inline) {
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'cc-header-close';
+      closeBtn.setAttribute('aria-label', 'Close chat');
+      closeBtn.innerHTML = CLOSE_ICON;
+      closeBtn.addEventListener('click', options.onClose);
+      header.appendChild(closeBtn);
+    }
 
     this.el.appendChild(header);
 
