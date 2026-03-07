@@ -35,6 +35,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Ensure npm supports OIDC
+        run: npm install -g npm@latest
+
       - name: Create Release PR or Publish
         id: changesets
         uses: changesets/action@v1
@@ -43,7 +46,6 @@ jobs:
           title: 'chore: version packages'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Deploy website to Vercel
         if: steps.changesets.outputs.published == 'true'
