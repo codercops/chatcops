@@ -12,17 +12,31 @@ The `ChatCops` singleton is exposed on `window.ChatCops` when using the IIFE bun
 Initialize the widget with a configuration object. Must be called before any other method if not using script tag auto-init.
 
 ```typescript
+// Popup mode (default)
 ChatCops.init({
   apiUrl: 'https://your-api.com/chat',
   theme: { accent: '#6366f1' },
   branding: { name: 'My Bot' },
   welcomeMessage: 'Hello! How can I help?',
 });
+
+// Inline mode
+ChatCops.init({
+  apiUrl: 'https://your-api.com/chat',
+  mode: 'inline',
+  container: '#chat-container',
+  branding: { name: 'My Bot' },
+});
 ```
+
+Calling `init()` again will destroy the previous instance and create a new one.
 
 ### `ChatCops.open()`
 
 Programmatically open the chat panel.
+
+- **Popup mode:** Shows the panel and updates the FAB icon.
+- **Inline mode:** Shows the panel (useful if you've previously called `close()`).
 
 ```typescript
 document.querySelector('#help-btn').addEventListener('click', () => {
@@ -34,6 +48,9 @@ document.querySelector('#help-btn').addEventListener('click', () => {
 
 Close the chat panel.
 
+- **Popup mode:** Hides the panel and resets the FAB icon.
+- **Inline mode:** Hides the panel. Call `open()` to show it again.
+
 ```typescript
 ChatCops.close();
 ```
@@ -42,21 +59,21 @@ ChatCops.close();
 
 Completely remove the widget from the DOM and clean up all event listeners.
 
+- **Popup mode:** Removes FAB, panel, and welcome bubble from the page.
+- **Inline mode:** Removes the widget from the container element.
+
 ```typescript
 ChatCops.destroy();
 ```
 
 ### `ChatCops.on(event, callback)`
 
-Subscribe to widget events. Returns an unsubscribe function.
+Subscribe to widget events.
 
 ```typescript
-const unsub = ChatCops.on('message', (data) => {
+ChatCops.on('message', (data) => {
   console.log('New message:', data);
 });
-
-// Later: unsubscribe
-unsub();
 ```
 
 ### `ChatCops.off(event, callback)`
@@ -76,6 +93,8 @@ ChatCops.off('open', onOpen);
 
 When using the CDN script tag, the widget auto-initializes by reading `data-*` attributes:
 
+### Popup (default)
+
 ```html
 <script
   src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
@@ -84,15 +103,61 @@ When using the CDN script tag, the widget auto-initializes by reading `data-*` a
 ></script>
 ```
 
+### Inline
+
+```html
+<div id="my-chat" style="width: 400px; height: 500px;"></div>
+<script
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  data-api-url="https://your-api.com/chat"
+  data-mode="inline"
+  data-container="#my-chat"
+></script>
+```
+
 The script tag approach is equivalent to calling `ChatCops.init()` with the corresponding config. You can still use the programmatic API after auto-init (e.g., `ChatCops.open()`).
 
 ## ESM Usage
 
 ```typescript
-import { ChatCops } from '@chatcops/widget';
+import ChatCops from '@chatcops/widget';
 
+// Popup
 ChatCops.init({ apiUrl: '/api/chat' });
+
+// Inline with element reference
+const el = document.getElementById('chat');
+ChatCops.init({
+  apiUrl: '/api/chat',
+  mode: 'inline',
+  container: el,
+});
 
 // Use methods as needed
 ChatCops.on('message', (msg) => console.log(msg));
+```
+
+## React / Framework Usage
+
+For inline mode in React or other frameworks, pass the container element directly:
+
+```tsx
+import { useEffect, useRef } from 'react';
+import ChatCops from '@chatcops/widget';
+
+function Chat() {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    ChatCops.init({
+      apiUrl: '/api/chat',
+      mode: 'inline',
+      container: ref.current,
+    });
+    return () => ChatCops.destroy();
+  }, []);
+
+  return <div ref={ref} style={{ width: 400, height: 500 }} />;
+}
 ```

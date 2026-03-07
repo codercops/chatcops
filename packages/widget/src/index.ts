@@ -1,6 +1,6 @@
 import { Widget, type WidgetConfig } from './widget.js';
 
-export type { WidgetConfig } from './widget.js';
+export { Widget, type WidgetConfig } from './widget.js';
 
 let instance: Widget | null = null;
 
@@ -44,8 +44,13 @@ function autoInit(): void {
   const apiUrl = script.dataset.apiUrl;
   if (!apiUrl) return;
 
+  const mode = script.dataset.mode as 'popup' | 'inline' | undefined;
+  const container = script.dataset.container;
+
   ChatCops.init({
     apiUrl,
+    mode: mode || undefined,
+    container: container || undefined,
     theme: {
       accent: script.dataset.accent,
       textColor: script.dataset.textColor,
@@ -65,6 +70,11 @@ function autoInit(): void {
           text: script.dataset.welcomeBubble,
           delay: script.dataset.welcomeBubbleDelay ? parseInt(script.dataset.welcomeBubbleDelay, 10) : undefined,
         }
+      : undefined,
+    autoOpen: script.dataset.autoOpen !== undefined
+      ? (script.dataset.autoOpen === '' || script.dataset.autoOpen === 'true'
+        ? true
+        : parseInt(script.dataset.autoOpen, 10) || true)
       : undefined,
     placeholder: script.dataset.placeholder,
     locale: script.dataset.locale,

@@ -36,6 +36,17 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
+
+    <!-- ChatCops Widget (popup bubble) -->
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/@chatcops/widget@0.2.0/dist/chatcops.min.js"
+      data-api-url="/api/chat"
+      data-accent="#6366f1"
+      data-brand-name="ChatCops AI"
+      data-welcome-message="Hi! I'm the ChatCops assistant. Ask me anything about setting up ChatCops on your website."
+      data-position="bottom-right"
+    ></script>
   </head>
   <body class="bg-bg text-text antialiased">
     <slot />
