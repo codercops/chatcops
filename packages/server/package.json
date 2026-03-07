@@ -50,6 +50,11 @@
     "vitest": "^3.0.0",
     "@types/express": "^5.0.0"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/codercops/chatcops",
+    "directory": "packages/server"
+  },
   "publishConfig": {
     "access": "public"
   },
