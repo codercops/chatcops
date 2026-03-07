@@ -23,6 +23,9 @@
       "import": "./dist/adapters/cloudflare.js"
     }
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
