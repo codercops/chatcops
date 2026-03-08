@@ -7,7 +7,7 @@ import vercel from '@astrojs/vercel';
 export default defineConfig({
   output: 'static',
   adapter: vercel(),
-  site: 'https://chatcops.codercops.com',
+  site: 'https://chat.codercops.com',
   vite: {
     plugins: [tailwindcss()],
   },
