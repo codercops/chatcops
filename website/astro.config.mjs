@@ -26,6 +26,17 @@ export default defineConfig({
         {
           tag: 'script',
           attrs: {
+            src: 'https://www.googletagmanager.com/gtag/js?id=G-GLYL9J6QYX',
+            async: true,
+          },
+        },
+        {
+          tag: 'script',
+          content: `window.dataLayer = window.dataLayer || [];function gtag(){dataLayer.push(arguments);}gtag('js', new Date());gtag('config', 'G-GLYL9J6QYX');`,
+        },
+        {
+          tag: 'script',
+          attrs: {
             src: 'https://cdn.jsdelivr.net/npm/@chatcops/widget@0.2.0/dist/chatcops.min.js',
             'data-api-url': '/api/chat',
             'data-accent': '#6366f1',
