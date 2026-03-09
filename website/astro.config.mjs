@@ -7,7 +7,7 @@ import vercel from '@astrojs/vercel';
 export default defineConfig({
   output: 'static',
   adapter: vercel(),
-  site: 'https://chatcops.codercops.com',
+  site: 'https://chat.codercops.com',
   vite: {
     plugins: [tailwindcss()],
   },
@@ -23,6 +23,17 @@ export default defineConfig({
         { icon: 'github', label: 'GitHub', href: 'https://github.com/codercops/chatcops' },
       ],
       head: [
+        {
+          tag: 'script',
+          attrs: {
+            src: 'https://www.googletagmanager.com/gtag/js?id=G-GLYL9J6QYX',
+            async: true,
+          },
+        },
+        {
+          tag: 'script',
+          content: `window.dataLayer = window.dataLayer || [];function gtag(){dataLayer.push(arguments);}gtag('js', new Date());gtag('config', 'G-GLYL9J6QYX');`,
+        },
         {
           tag: 'script',
           attrs: {
