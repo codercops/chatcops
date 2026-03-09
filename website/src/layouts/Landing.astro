@@ -37,6 +37,15 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
 
+    <!-- Google Analytics (same property as main site) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-GLYL9J6QYX"></script>
+    <script is:inline>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-GLYL9J6QYX');
+    </script>
+
     <!-- ChatCops Widget (popup bubble) -->
     <script
       defer
@@ -65,6 +74,40 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
       );
 
       document.querySelectorAll('[data-animate]').forEach((el) => observer.observe(el));
+    </script>
+
+    <!-- GitHub star count -->
+    <script is:inline>
+    (function() {
+      var CACHE_KEY = 'chatcops-gh-stars';
+      var CACHE_TTL = 3600000; // 1 hour
+
+      function show(count) {
+        var formatted = count >= 1000 ? (count / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(count);
+        var hero = document.getElementById('gh-stars');
+        if (hero) { hero.textContent = formatted; hero.style.display = ''; }
+        var header = document.getElementById('gh-stars-header');
+        if (header) { header.textContent = formatted; header.style.display = ''; }
+      }
+
+      try {
+        var cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || '{}');
+        if (cached.count != null && Date.now() - cached.ts < CACHE_TTL) {
+          show(cached.count);
+          return;
+        }
+      } catch(e) {}
+
+      fetch('https://api.github.com/repos/codercops/chatcops', { headers: { Accept: 'application/vnd.github.v3+json' } })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (typeof data.stargazers_count === 'number') {
+            show(data.stargazers_count);
+            try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ count: data.stargazers_count, ts: Date.now() })); } catch(e) {}
+          }
+        })
+        .catch(function() {});
+    })();
     </script>
   </body>
 </html>

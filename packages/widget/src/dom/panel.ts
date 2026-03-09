@@ -20,10 +20,12 @@ export interface PanelOptions {
 
 export class Panel {
   private el: HTMLDivElement;
+  private inline: boolean;
   messages: Messages;
   input: Input;
 
   constructor(root: ShadowRoot, options: PanelOptions) {
+    this.inline = options.inline ?? false;
     this.el = document.createElement('div');
     this.el.className = 'cc-panel';
     if (options.inline) {
@@ -86,7 +88,9 @@ export class Panel {
 
   show(): void {
     this.el.classList.add('cc-visible');
-    this.input.focus();
+    if (!this.inline) {
+      this.input.focus();
+    }
   }
 
   hide(): void {

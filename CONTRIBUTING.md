@@ -27,6 +27,7 @@ packages/
   core/     - @chatcops/core (AI providers, tools, knowledge base)
   widget/   - @chatcops/widget (embeddable chat UI)
   server/   - @chatcops/server (server handler + adapters)
+website/    - Marketing site + Starlight docs (Astro)
 ```
 
 ## Development Workflow
@@ -70,6 +71,26 @@ ANTHROPIC_API_KEY=sk-... npx tsx src/examples/express-server.ts
 2. Export all `LocaleStrings` fields
 3. Register in `packages/core/src/i18n/index.ts`
 4. Add to the test in `tests/i18n/locales.test.ts`
+
+## Website Development
+
+```bash
+cd website
+pnpm dev
+```
+
+The website requires a `.env.local` file with:
+
+```bash
+# Required — powers the live chat demo on the landing page
+OPENAI_API_KEY=sk-...
+
+# Optional — visitor counter (Upstash Redis)
+UPSTASH_REDIS_REST_URL=https://your-endpoint.upstash.io
+UPSTASH_REDIS_REST_TOKEN=your-token-here
+```
+
+The visitor counter gracefully degrades without Upstash credentials (displays `-`). Google Analytics (`G-GLYL9J6QYX`) is hardcoded in the layout and Starlight config.
 
 ## Commit Convention
 

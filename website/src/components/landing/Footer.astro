@@ -60,7 +60,51 @@ const year = new Date().getFullYear();
       <span class="text-xs text-text-muted">
         Built by <a href="https://codercops.com" target="_blank" rel="noopener" class="text-text-secondary hover:text-text transition-colors">CODERCOPS</a>
       </span>
+      <div class="flex items-center gap-4 text-xs text-text-muted">
+        <span class="inline-flex items-center gap-1.5">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Today: <span id="visitors-today" class="font-mono font-semibold text-text-secondary">-</span>
+        </span>
+        <span class="inline-flex items-center gap-1.5">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Total: <span id="visitors-total" class="font-mono font-semibold text-text-secondary">-</span>
+        </span>
+      </div>
       <span class="text-xs text-text-muted">MIT License &middot; {year}</span>
     </div>
   </div>
 </footer>
+
+<script is:inline>
+(function() {
+  function updateDOM(data) {
+    var today = document.getElementById('visitors-today');
+    var total = document.getElementById('visitors-total');
+    if (today) today.textContent = (data.today || 0).toLocaleString();
+    if (total) total.textContent = (data.total || 0).toLocaleString();
+  }
+
+  function loadVisitors() {
+    if (!sessionStorage.getItem('chatcops-counted')) {
+      fetch('/api/visitors', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          sessionStorage.setItem('chatcops-counted', '1');
+          updateDOM(data);
+        })
+        .catch(function(e) { console.warn('Visitor counter error:', e); });
+    } else {
+      fetch('/api/visitors')
+        .then(function(r) { return r.json(); })
+        .then(updateDOM)
+        .catch(function(e) { console.warn('Visitor counter error:', e); });
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadVisitors);
+  } else {
+    loadVisitors();
+  }
+})();
+</script>
