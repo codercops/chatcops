@@ -3,9 +3,12 @@
 ## Development Setup
 
 ```bash
-# Clone the repo
-git clone https://github.com/codercops/chatcops.git
+# Fork the repo on GitHub, then clone your fork
+git clone https://github.com/<your-username>/chatcops.git
 cd chatcops
+
+# Add upstream remote
+git remote add upstream https://github.com/codercops/chatcops.git
 
 # Install dependencies
 pnpm install
@@ -32,12 +35,44 @@ website/    - Marketing site + Starlight docs (Astro)
 
 ## Development Workflow
 
-1. Create a branch: `git checkout -b feature/my-feature`
-2. Make changes
+1. Sync your fork's `dev` branch with upstream:
+   ```bash
+   git fetch upstream
+   git checkout dev
+   git merge upstream/dev
+   ```
+2. Work directly on your fork's `dev` branch — commit and push as you go
 3. Run tests: `pnpm test`
 4. Run typecheck: `pnpm -r typecheck`
-5. Add a changeset: `pnpm changeset`
-6. Open a PR
+5. Add a changeset if your changes affect published packages: `pnpm changeset`
+6. When ready, open a PR from your fork's `dev` → upstream `dev`
+
+### Branch Strategy
+
+- **`dev`** — default branch, all development happens here
+- **`production`** — release branch, merged from `dev` when cutting a release
+- PRs should target **`dev`** unless you're doing a production release
+
+### Releasing to Production
+
+When `dev` is ready to ship:
+
+1. Ensure all changes that affect published packages have changesets:
+   ```bash
+   pnpm changeset
+   ```
+   This creates a changeset file describing the version bump (patch/minor/major) and a summary. Commit it to `dev`.
+
+2. Create a PR from `dev` → `production` and merge it.
+
+3. The **Release** workflow runs automatically on `production` push:
+   - Builds, typechecks, and tests everything
+   - If unreleased changesets exist, Changesets action opens a **"Version Packages"** PR on `production` that bumps versions and updates changelogs
+   - Merging that PR triggers the workflow again, which **publishes to npm** (via OIDC trusted publishing)
+
+4. The website is auto-deployed by the Vercel GitHub integration — no manual step needed.
+
+> **Note:** Only maintainers can merge into `production`. If you're a contributor, just make sure your PR to `dev` includes a changeset when needed.
 
 ## Widget Development
 
