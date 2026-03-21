@@ -1,6 +1,6 @@
 {
   "name": "@chatcops/core",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Core AI provider abstraction, tools, and knowledge base for ChatCops",
   "type": "module",
   "main": "dist/index.js",
