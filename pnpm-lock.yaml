@@ -85,6 +85,9 @@ importers:
       '@astrojs/react':
         specifier: ^4.4.2
         version: 4.4.2(@types/node@25.3.3)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(jiti@2.6.1)(lightningcss@1.31.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(terser@5.46.0)(yaml@2.8.2)
+      '@astrojs/sitemap':
+        specifier: 3.7.0
+        version: 3.7.0
       '@astrojs/starlight':
         specifier: ^0.34.0
         version: 0.34.8(astro@5.18.0(@types/node@25.3.3)(@vercel/functions@2.2.13)(jiti@2.6.1)(lightningcss@1.31.1)(rollup@4.59.0)(terser@5.46.0)(typescript@5.9.3)(yaml@2.8.2))

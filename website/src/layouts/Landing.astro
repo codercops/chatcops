@@ -16,7 +16,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="en" dir="ltr">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -36,6 +36,39 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
+    <meta name="twitter:site" content="@codercops" />
+    <meta name="twitter:creator" content="@codercops" />
+
+    <!-- Site identity -->
+    <meta property="og:site_name" content="ChatCops" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Browser chrome -->
+    <meta name="theme-color" content="#6366f1" />
+
+    <!-- Apple touch icon -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <!-- Structured data: WebSite -->
+    <script type="application/ld+json" set:html={JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "ChatCops",
+      "url": "https://chat.codercops.com",
+      "description": description
+    })} />
+
+    <!-- Structured data: SoftwareApplication -->
+    <script type="application/ld+json" set:html={JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "ChatCops",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "Web",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "url": "https://chat.codercops.com",
+      "description": description
+    })} />
 
     <!-- Google Analytics (same property as main site) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-GLYL9J6QYX"></script>

@@ -1,5 +1,6 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import sitemap from '@astrojs/sitemap';
 import react from '@astrojs/react';
 import tailwindcss from '@tailwindcss/vite';
 import vercel from '@astrojs/vercel';
@@ -13,6 +14,7 @@ export default defineConfig({
   },
   integrations: [
     react(),
+    sitemap(),
     starlight({
       title: 'ChatCops',
       description: 'Universal embeddable AI chatbot widget documentation',
@@ -46,6 +48,10 @@ export default defineConfig({
             defer: true,
           },
         },
+        { tag: 'meta', attrs: { property: 'og:site_name', content: 'ChatCops' } },
+        { tag: 'meta', attrs: { property: 'og:locale', content: 'en_US' } },
+        { tag: 'meta', attrs: { name: 'twitter:site', content: '@codercops' } },
+        { tag: 'meta', attrs: { name: 'theme-color', content: '#6366f1' } },
       ],
       customCss: [
         '@fontsource/inter/400.css',
