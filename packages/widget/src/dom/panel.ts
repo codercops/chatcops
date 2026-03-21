@@ -7,6 +7,7 @@ const CLOSE_ICON = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
 export interface PanelOptions {
   position: 'bottom-right' | 'bottom-left';
   inline?: boolean;
+  preChatEnabled?: boolean;
   branding: {
     name: string;
     avatar?: string;
@@ -69,10 +70,13 @@ export class Panel {
 
     this.el.appendChild(header);
 
-    // Messages wrapper (shared container for messages and pre-chat form)
-    this.messagesContainer = document.createElement('div');
-    this.messagesContainer.className = 'cc-messages-wrapper';
-    this.el.appendChild(this.messagesContainer);
+    if (options.preChatEnabled) {
+      this.messagesContainer = document.createElement('div');
+      this.messagesContainer.className = 'cc-messages-wrapper';
+      this.el.appendChild(this.messagesContainer);
+    } else {
+      this.messagesContainer = this.el;
+    }
     this.messages = new Messages(this.messagesContainer);
 
     // Input

@@ -57,7 +57,7 @@ export class Messages {
   }
 
   setVisible(visible: boolean): void {
-    this.container.style.display = visible ? '' : 'none';
+    this.container.classList.toggle('cc-hidden', !visible);
   }
 
   private scrollToBottom(): void {

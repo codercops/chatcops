@@ -226,7 +226,7 @@
 
 /* Messages area */
 .cc-messages {
-  flex: 1 1 0;
+  flex: 1;
   overflow-y: auto;
   padding: 16px;
   display: flex;
@@ -469,12 +469,16 @@
   color: var(--cc-text-secondary);
 }
 
-/* Messages wrapper */
+/* Visibility utility */
+.cc-hidden {
+  display: none;
+}
+
+/* Messages wrapper (only present when pre-chat form is enabled) */
 .cc-messages-wrapper {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   min-height: 0;
 }
 

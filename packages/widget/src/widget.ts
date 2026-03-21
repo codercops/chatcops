@@ -80,6 +80,7 @@ export class Widget {
   private conversationId: string;
   private messages: MessageData[] = [];
   private userData?: Record<string, string>;
+  private userDataSent = false;
   private isStreaming = false;
   private eventHandlers = new Map<WidgetEventType, Set<WidgetEventHandler>>();
   private containerEl?: HTMLElement;
@@ -135,6 +136,7 @@ export class Widget {
     this.panel = new Panel(this.shadow, {
       position,
       inline: this.isInline,
+      preChatEnabled: this.config.preChatForm?.enabled ?? false,
       branding: {
         name: this.config.branding?.name ?? 'AI Assistant',
         avatar: this.config.branding?.avatar,
@@ -331,6 +333,8 @@ export class Widget {
       ? { url: window.location.href, title: document.title }
       : undefined;
 
+    const includeUserData = this.userData && !this.userDataSent;
+
     try {
       let firstChunk = true;
       for await (const chunk of this.client.sendMessage({
@@ -338,7 +342,7 @@ export class Widget {
         message: text,
         pageContext,
         locale: this.config.locale,
-        userData: this.userData,
+        ...(includeUserData ? { userData: this.userData } : {}),
       })) {
         if (chunk.error) {
           const errorKey = chunk.error === 'rate_limit' ? 'errorRateLimit'
@@ -380,6 +384,9 @@ export class Widget {
       this.panel.addMessage(assistantMsg);
       this.config.onError?.(err instanceof Error ? err : new Error(String(err)));
     } finally {
+      if (includeUserData) {
+        this.userDataSent = true;
+      }
       this.isStreaming = false;
       this.panel.input.setDisabled(false);
       this.panel.input.focus();

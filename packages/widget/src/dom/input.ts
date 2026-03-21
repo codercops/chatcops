@@ -54,7 +54,7 @@ export class Input {
   }
 
   setVisible(visible: boolean): void {
-    this.area.style.display = visible ? '' : 'none';
+    this.area.classList.toggle('cc-hidden', !visible);
   }
 
   private send(): void {
