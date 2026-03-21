@@ -23,6 +23,7 @@ export class Panel {
   private inline: boolean;
   messages: Messages;
   input: Input;
+  messagesContainer: HTMLElement;
 
   constructor(root: ShadowRoot, options: PanelOptions) {
     this.inline = options.inline ?? false;
@@ -68,8 +69,11 @@ export class Panel {
 
     this.el.appendChild(header);
 
-    // Messages
-    this.messages = new Messages(this.el);
+    // Messages wrapper (shared container for messages and pre-chat form)
+    this.messagesContainer = document.createElement('div');
+    this.messagesContainer.className = 'cc-messages-wrapper';
+    this.el.appendChild(this.messagesContainer);
+    this.messages = new Messages(this.messagesContainer);
 
     // Input
     this.input = new Input(this.el, {
@@ -103,6 +107,14 @@ export class Panel {
 
   addMessage(msg: MessageData): HTMLDivElement {
     return this.messages.addMessage(msg);
+  }
+
+  hideMessages(): void {
+    this.messages.setVisible(false);
+  }
+
+  showMessages(): void {
+    this.messages.setVisible(true);
   }
 
   destroy(): void {

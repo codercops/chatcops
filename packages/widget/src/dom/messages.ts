@@ -56,6 +56,10 @@ export class Messages {
     this.typingEl = null;
   }
 
+  setVisible(visible: boolean): void {
+    this.container.style.display = visible ? '' : 'none';
+  }
+
   private scrollToBottom(): void {
     this.container.scrollTop = this.container.scrollHeight;
   }

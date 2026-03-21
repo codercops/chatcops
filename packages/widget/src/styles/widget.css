@@ -226,7 +226,7 @@
 
 /* Messages area */
 .cc-messages {
-  flex: 1;
+  flex: 1 1 0;
   overflow-y: auto;
   padding: 16px;
   display: flex;
@@ -467,6 +467,122 @@
   justify-content: center;
   font-size: 10px;
   color: var(--cc-text-secondary);
+}
+
+/* Messages wrapper */
+.cc-messages-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Pre-chat form */
+.cc-prechat {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cc-prechat-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--cc-text);
+}
+
+.cc-prechat-subtitle {
+  font-size: 13px;
+  color: var(--cc-text-secondary);
+  margin-top: -8px;
+}
+
+.cc-prechat-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cc-prechat-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cc-prechat-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cc-text);
+}
+
+.cc-prechat-label .cc-required {
+  color: #ef4444;
+  margin-left: 2px;
+}
+
+.cc-prechat-input,
+.cc-prechat-select,
+.cc-prechat-textarea {
+  background: var(--cc-bg-input);
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--cc-text);
+  font-family: var(--cc-font);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.cc-prechat-input:focus,
+.cc-prechat-select:focus,
+.cc-prechat-textarea:focus {
+  border-color: var(--cc-accent);
+}
+
+.cc-prechat-select {
+  appearance: auto;
+}
+
+.cc-prechat-textarea {
+  resize: none;
+  line-height: 1.5;
+}
+
+.cc-prechat-error {
+  font-size: 12px;
+  color: #ef4444;
+  min-height: 0;
+}
+
+.cc-prechat-error:empty {
+  display: none;
+}
+
+.cc-prechat-submit {
+  background: var(--cc-accent);
+  color: var(--cc-text);
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-family: var(--cc-font);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  margin-top: 8px;
+}
+
+.cc-prechat-submit:hover {
+  background: var(--cc-accent-hover);
+}
+
+.cc-prechat-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Mobile */

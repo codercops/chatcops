@@ -53,6 +53,10 @@ export class Input {
     this.autoResize();
   }
 
+  setVisible(visible: boolean): void {
+    this.area.style.display = visible ? '' : 'none';
+  }
+
   private send(): void {
     const text = this.textarea.value.trim();
     if (!text) return;
