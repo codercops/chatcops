@@ -1,5 +1,11 @@
 # @chatcops/widget
 
+## 0.3.1
+
+### Patch Changes
+
+- 959b5f2: Add README.md to all packages with install instructions, usage examples, and API reference
+
 ## 0.3.0
 
 ### Minor Changes
