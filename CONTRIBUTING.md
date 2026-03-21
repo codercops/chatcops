@@ -53,6 +53,27 @@ website/    - Marketing site + Starlight docs (Astro)
 - **`production`** — release branch, merged from `dev` when cutting a release
 - PRs should target **`dev`** unless you're doing a production release
 
+### Releasing to Production
+
+When `dev` is ready to ship:
+
+1. Ensure all changes that affect published packages have changesets:
+   ```bash
+   pnpm changeset
+   ```
+   This creates a changeset file describing the version bump (patch/minor/major) and a summary. Commit it to `dev`.
+
+2. Create a PR from `dev` → `production` and merge it.
+
+3. The **Release** workflow runs automatically on `production` push:
+   - Builds, typechecks, and tests everything
+   - If unreleased changesets exist, Changesets action opens a **"Version Packages"** PR on `production` that bumps versions and updates changelogs
+   - Merging that PR triggers the workflow again, which **publishes to npm** (via OIDC trusted publishing)
+
+4. The website is auto-deployed by the Vercel GitHub integration — no manual step needed.
+
+> **Note:** Only maintainers can merge into `production`. If you're a contributor, just make sure your PR to `dev` includes a changeset when needed.
+
 ## Widget Development
 
 ```bash
