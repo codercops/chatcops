@@ -1,5 +1,6 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import sitemap from '@astrojs/sitemap';
 import react from '@astrojs/react';
 import tailwindcss from '@tailwindcss/vite';
 import vercel from '@astrojs/vercel';
@@ -13,6 +14,7 @@ export default defineConfig({
   },
   integrations: [
     react(),
+    sitemap(),
     starlight({
       title: 'ChatCops',
       description: 'Universal embeddable AI chatbot widget documentation',
@@ -46,6 +48,28 @@ export default defineConfig({
             defer: true,
           },
         },
+        // OG Image
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:image',
+            content: 'https://og.codercops.com/api/og?template=saas-gradient-mesh&title=ChatCops+Docs&description=Universal+embeddable+AI+chatbot+widget+documentation&color1=%236366f1&color2=%23ec4899&color3=%2306b6d4&textColor=%23FFFFFF',
+          },
+        },
+        { tag: 'meta', attrs: { property: 'og:image:width', content: '1200' } },
+        { tag: 'meta', attrs: { property: 'og:image:height', content: '630' } },
+        {
+          tag: 'meta',
+          attrs: {
+            name: 'twitter:image',
+            content: 'https://og.codercops.com/api/og?template=saas-gradient-mesh&title=ChatCops+Docs&description=Universal+embeddable+AI+chatbot+widget+documentation&color1=%236366f1&color2=%23ec4899&color3=%2306b6d4&textColor=%23FFFFFF',
+          },
+        },
+        // SEO
+        { tag: 'meta', attrs: { property: 'og:site_name', content: 'ChatCops' } },
+        { tag: 'meta', attrs: { property: 'og:locale', content: 'en_US' } },
+        { tag: 'meta', attrs: { name: 'twitter:site', content: '@codercops' } },
+        { tag: 'meta', attrs: { name: 'theme-color', content: '#6366f1' } },
       ],
       customCss: [
         '@fontsource/inter/400.css',
