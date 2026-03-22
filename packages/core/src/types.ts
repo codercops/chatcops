@@ -63,6 +63,14 @@ export interface ToolResult {
   message?: string;
 }
 
+export interface ProviderToolCall {
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+}
+
+export type ProviderToolExecutor = (call: ProviderToolCall) => Promise<ToolResult>;
+
 export interface WebhookConfig {
   url: string;
   events: string[];
@@ -79,6 +87,7 @@ export interface ProviderChatParams {
   messages: ChatMessage[];
   systemPrompt: string;
   tools?: ToolDefinition[];
+  toolExecutor?: ProviderToolExecutor;
   maxTokens?: number;
   temperature?: number;
 }

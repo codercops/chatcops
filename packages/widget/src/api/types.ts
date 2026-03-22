@@ -15,5 +15,6 @@ export interface WidgetChatChunk {
   done?: boolean;
   error?: string;
   leadCaptured?: boolean;
+  leadData?: Record<string, unknown>;
   suggestedActions?: string[];
 }

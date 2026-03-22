@@ -17,6 +17,7 @@ export function createChatHandler(config: ChatCopsServerConfig) {
   const analytics = config.analytics ? new AnalyticsCollector() : null;
   const webhooks = config.webhooks?.length ? new WebhookDispatcher(config.webhooks) : null;
   const toolDefs = config.tools?.map(toolToDefinition) ?? [];
+  const toolsByName = new Map((config.tools ?? []).map((tool) => [tool.name, tool]));
 
   // Periodic cleanup
   const cleanupInterval = setInterval(() => rateLimiter.cleanup(), 60_000);
@@ -94,14 +95,49 @@ export function createChatHandler(config: ChatCopsServerConfig) {
 
     // Stream response
     let fullResponse = '';
+    const pendingEvents: string[] = [];
     try {
       for await (const chunk of provider.chat({
         messages,
         systemPrompt,
         tools: toolDefs.length > 0 ? toolDefs : undefined,
+        toolExecutor: async (toolCall) => {
+          const tool = toolsByName.get(toolCall.name);
+          if (!tool) {
+            return {
+              success: false,
+              message: `Unknown tool: ${toolCall.name}`,
+            };
+          }
+
+          const result = await tool.execute(toolCall.input);
+
+          if (tool.name === 'capture_lead' && result.success) {
+            analytics?.track('lead:captured', { conversationId: req.conversationId });
+            pendingEvents.push(JSON.stringify({
+              leadCaptured: true,
+              leadData: result.data,
+            }));
+            if (webhooks) {
+              await webhooks.dispatch('lead:captured', {
+                lead: result.data,
+                conversationId: req.conversationId,
+              });
+            }
+          }
+
+          return result;
+        },
       })) {
+        while (pendingEvents.length > 0) {
+          yield pendingEvents.shift()!;
+        }
         fullResponse += chunk;
         yield JSON.stringify({ content: chunk });
+      }
+
+      while (pendingEvents.length > 0) {
+        yield pendingEvents.shift()!;
       }
     } catch (err) {
       console.error('[chatcops] Provider error:', err);

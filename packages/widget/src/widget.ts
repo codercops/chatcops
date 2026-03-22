@@ -42,9 +42,10 @@ export interface WidgetConfig {
   onClose?: () => void;
   onMessage?: (message: MessageData) => void;
   onError?: (error: Error) => void;
+  onLeadCaptured?: (leadData?: Record<string, unknown>) => void;
 }
 
-type WidgetEventType = 'open' | 'close' | 'message' | 'error';
+type WidgetEventType = 'open' | 'close' | 'message' | 'error' | 'leadCaptured';
 type WidgetEventHandler = (...args: unknown[]) => void;
 
 export class Widget {
@@ -271,6 +272,11 @@ export class Widget {
         }
 
         if (chunk.done) break;
+
+        if (chunk.leadCaptured) {
+          this.config.onLeadCaptured?.(chunk.leadData);
+          this.emit('leadCaptured', chunk.leadData);
+        }
 
         if (chunk.content) {
           if (firstChunk) {
