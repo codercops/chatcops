@@ -57,4 +57,20 @@ export class ConversationStorage {
       return crypto.randomUUID();
     }
   }
+
+  isPreChatCompleted(sessionId: string): boolean {
+    try {
+      return sessionStorage.getItem(`chatcops-prechat-${sessionId}`) === 'true';
+    } catch {
+      return false;
+    }
+  }
+
+  setPreChatCompleted(sessionId: string): void {
+    try {
+      sessionStorage.setItem(`chatcops-prechat-${sessionId}`, 'true');
+    } catch {
+      // Storage unavailable
+    }
+  }
 }

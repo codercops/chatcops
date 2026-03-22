@@ -10,6 +10,11 @@ export interface WidgetLocaleStrings {
   poweredBy: string;
   newConversation: string;
   welcomeBubbleDefault: string;
+  preChatTitle: string;
+  preChatSubtitle: string;
+  preChatSubmit: string;
+  preChatRequired: string;
+  preChatInvalidEmail: string;
 }
 
 const en: WidgetLocaleStrings = {
@@ -24,6 +29,11 @@ const en: WidgetLocaleStrings = {
   poweredBy: 'Powered by ChatCops',
   newConversation: 'New conversation',
   welcomeBubbleDefault: 'Need help? Chat with us!',
+  preChatTitle: 'Before we start...',
+  preChatSubtitle: 'Tell us a bit about yourself',
+  preChatSubmit: 'Start Chat',
+  preChatRequired: 'This field is required',
+  preChatInvalidEmail: 'Please enter a valid email',
 };
 
 const locales: Record<string, WidgetLocaleStrings> = { en };

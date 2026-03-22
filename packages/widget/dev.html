@@ -64,6 +64,18 @@
         text: 'Need help? Try the chat widget!',
         delay: 2000,
       },
+      preChatForm: {
+        enabled: true,
+        title: 'Before we start...',
+        subtitle: 'Tell us a bit about yourself',
+        fields: [
+          { name: 'name', type: 'text', label: 'Name', placeholder: 'Your name', required: true },
+          { name: 'email', type: 'email', label: 'Email', placeholder: 'you@example.com', required: true },
+          { name: 'topic', type: 'select', label: 'Topic', options: ['Sales', 'Support', 'Billing', 'Other'] },
+          { name: 'message', type: 'textarea', label: 'Message', placeholder: 'How can we help?' },
+        ],
+        submitLabel: 'Start Chat',
+      },
     });
 
     // Log events

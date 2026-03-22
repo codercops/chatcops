@@ -6,7 +6,25 @@ import { ChatClient } from './api/client.js';
 import { ConversationStorage } from './storage.js';
 import { applyTheme } from './theme.js';
 import { getWidgetLocale, type WidgetLocaleStrings } from './i18n.js';
+import { PreChatForm } from './dom/prechat-form.js';
 import type { MessageData } from './dom/messages.js';
+
+export interface PreChatField {
+  name: string;
+  type: 'text' | 'email' | 'select' | 'textarea';
+  label: string;
+  placeholder?: string;
+  required?: boolean;
+  options?: string[];
+}
+
+export interface PreChatFormConfig {
+  enabled: boolean;
+  title?: string;
+  subtitle?: string;
+  fields: PreChatField[];
+  submitLabel?: string;
+}
 
 export interface WidgetConfig {
   apiUrl: string;
@@ -38,13 +56,15 @@ export interface WidgetConfig {
   autoOpen?: boolean | number;
   locale?: string;
   strings?: Partial<WidgetLocaleStrings>;
+  preChatForm?: PreChatFormConfig;
   onOpen?: () => void;
   onClose?: () => void;
   onMessage?: (message: MessageData) => void;
   onError?: (error: Error) => void;
+  onPreChatSubmit?: (data: Record<string, string>) => void;
 }
 
-type WidgetEventType = 'open' | 'close' | 'message' | 'error';
+type WidgetEventType = 'open' | 'close' | 'message' | 'error' | 'preChatSubmit';
 type WidgetEventHandler = (...args: unknown[]) => void;
 
 export class Widget {
@@ -53,11 +73,14 @@ export class Widget {
   private fab?: FAB;
   private panel!: Panel;
   private bubble?: WelcomeBubble;
+  private preChatFormEl?: PreChatForm;
   private client: ChatClient;
   private storage: ConversationStorage;
   private locale: WidgetLocaleStrings;
   private conversationId: string;
   private messages: MessageData[] = [];
+  private userData?: Record<string, string>;
+  private userDataSent = false;
   private isStreaming = false;
   private eventHandlers = new Map<WidgetEventType, Set<WidgetEventHandler>>();
   private containerEl?: HTMLElement;
@@ -113,6 +136,7 @@ export class Widget {
     this.panel = new Panel(this.shadow, {
       position,
       inline: this.isInline,
+      preChatEnabled: this.config.preChatForm?.enabled ?? false,
       branding: {
         name: this.config.branding?.name ?? 'AI Assistant',
         avatar: this.config.branding?.avatar,
@@ -136,16 +160,15 @@ export class Widget {
       }
     }
 
-    // Add welcome message if no history
-    if (this.messages.length === 0) {
-      const welcomeText = this.config.welcomeMessage ?? this.locale.welcomeMessage;
-      const welcomeMsg: MessageData = {
-        id: 'welcome',
-        role: 'assistant',
-        content: welcomeText,
-      };
-      this.messages.push(welcomeMsg);
-      this.panel.addMessage(welcomeMsg);
+    // Show pre-chat form or messages
+    const shouldShowPreChat = this.config.preChatForm?.enabled
+      && !this.isPreChatCompleted()
+      && this.messages.length === 0;
+
+    if (shouldShowPreChat) {
+      this.showPreChatForm();
+    } else {
+      this.showChatView();
     }
 
     // Welcome bubble — popup mode only
@@ -200,6 +223,7 @@ export class Widget {
   }
 
   destroy(): void {
+    this.preChatFormEl?.destroy();
     this.bubble?.destroy();
     this.panel.destroy();
     this.fab?.destroy();
@@ -221,6 +245,65 @@ export class Widget {
 
   private emit(event: WidgetEventType, ...args: unknown[]): void {
     this.eventHandlers.get(event)?.forEach((h) => h(...args));
+  }
+
+  private isPreChatCompleted(): boolean {
+    return this.storage.isPreChatCompleted(this.conversationId);
+  }
+
+  private setPreChatCompleted(): void {
+    this.storage.setPreChatCompleted(this.conversationId);
+  }
+
+  private showPreChatForm(): void {
+    const formConfig = this.config.preChatForm!;
+    this.panel.hideMessages();
+    this.panel.input.setVisible(false);
+
+    this.preChatFormEl = new PreChatForm(this.panel.messagesContainer, {
+      title: formConfig.title ?? this.locale.preChatTitle,
+      subtitle: formConfig.subtitle ?? this.locale.preChatSubtitle,
+      fields: formConfig.fields,
+      submitLabel: formConfig.submitLabel ?? this.locale.preChatSubmit,
+      locale: this.locale,
+      onSubmit: (data) => this.handlePreChatSubmit(data),
+    });
+  }
+
+  private handlePreChatSubmit(data: Record<string, string>): void {
+    this.userData = data;
+    this.setPreChatCompleted();
+
+    this.preChatFormEl?.destroy();
+    this.preChatFormEl = undefined;
+
+    this.panel.showMessages();
+    this.panel.input.setVisible(true);
+
+    this.showChatView();
+
+    this.config.onPreChatSubmit?.(data);
+    this.emit('preChatSubmit', data);
+
+    if (data.message) {
+      this.handleSend(data.message);
+    }
+  }
+
+  private showChatView(): void {
+    if (this.messages.length === 0) {
+      const userName = this.userData?.name;
+      const welcomeText = userName
+        ? `Hi ${userName}! ${this.config.welcomeMessage ?? this.locale.welcomeMessage}`
+        : (this.config.welcomeMessage ?? this.locale.welcomeMessage);
+      const welcomeMsg: MessageData = {
+        id: 'welcome',
+        role: 'assistant',
+        content: welcomeText,
+      };
+      this.messages.push(welcomeMsg);
+      this.panel.addMessage(welcomeMsg);
+    }
   }
 
   private async handleSend(text: string): Promise<void> {
@@ -250,6 +333,8 @@ export class Widget {
       ? { url: window.location.href, title: document.title }
       : undefined;
 
+    const includeUserData = this.userData && !this.userDataSent;
+
     try {
       let firstChunk = true;
       for await (const chunk of this.client.sendMessage({
@@ -257,6 +342,7 @@ export class Widget {
         message: text,
         pageContext,
         locale: this.config.locale,
+        ...(includeUserData ? { userData: this.userData } : {}),
       })) {
         if (chunk.error) {
           const errorKey = chunk.error === 'rate_limit' ? 'errorRateLimit'
@@ -298,6 +384,9 @@ export class Widget {
       this.panel.addMessage(assistantMsg);
       this.config.onError?.(err instanceof Error ? err : new Error(String(err)));
     } finally {
+      if (includeUserData) {
+        this.userDataSent = true;
+      }
       this.isStreaming = false;
       this.panel.input.setDisabled(false);
       this.panel.input.focus();
