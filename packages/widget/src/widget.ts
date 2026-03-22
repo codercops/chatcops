@@ -62,13 +62,16 @@ export interface WidgetConfig {
   onMessage?: (message: MessageData) => void;
   onError?: (error: Error) => void;
   onLeadCaptured?: (leadData?: Record<string, unknown>) => void;
-}
-
-type WidgetEventType = 'open' | 'close' | 'message' | 'error' | 'leadCaptured';
   onPreChatSubmit?: (data: Record<string, string>) => void;
 }
 
-type WidgetEventType = 'open' | 'close' | 'message' | 'error' | 'preChatSubmit';
+type WidgetEventType =
+  | 'open'
+  | 'close'
+  | 'message'
+  | 'error'
+  | 'leadCaptured'
+  | 'preChatSubmit';
 type WidgetEventHandler = (...args: unknown[]) => void;
 
 export class Widget {
