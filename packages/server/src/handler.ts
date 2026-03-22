@@ -85,6 +85,14 @@ export function createChatHandler(config: ChatCopsServerConfig) {
       }
     }
 
+    // Add user data from pre-chat form
+    if (req.userData && Object.keys(req.userData).length > 0) {
+      const userInfo = Object.entries(req.userData)
+        .map(([key, val]) => `${key}: ${val}`)
+        .join(', ');
+      systemPrompt += `\n\nUser information: ${userInfo}`;
+    }
+
     // Add locale info
     if (req.locale) {
       systemPrompt += `\n\nRespond in the user's language. Current locale: ${req.locale}`;

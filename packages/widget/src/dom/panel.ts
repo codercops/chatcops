@@ -7,6 +7,7 @@ const CLOSE_ICON = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
 export interface PanelOptions {
   position: 'bottom-right' | 'bottom-left';
   inline?: boolean;
+  preChatEnabled?: boolean;
   branding: {
     name: string;
     avatar?: string;
@@ -23,6 +24,7 @@ export class Panel {
   private inline: boolean;
   messages: Messages;
   input: Input;
+  messagesContainer: HTMLElement;
 
   constructor(root: ShadowRoot, options: PanelOptions) {
     this.inline = options.inline ?? false;
@@ -68,8 +70,14 @@ export class Panel {
 
     this.el.appendChild(header);
 
-    // Messages
-    this.messages = new Messages(this.el);
+    if (options.preChatEnabled) {
+      this.messagesContainer = document.createElement('div');
+      this.messagesContainer.className = 'cc-messages-wrapper';
+      this.el.appendChild(this.messagesContainer);
+    } else {
+      this.messagesContainer = this.el;
+    }
+    this.messages = new Messages(this.messagesContainer);
 
     // Input
     this.input = new Input(this.el, {
@@ -103,6 +111,14 @@ export class Panel {
 
   addMessage(msg: MessageData): HTMLDivElement {
     return this.messages.addMessage(msg);
+  }
+
+  hideMessages(): void {
+    this.messages.setVisible(false);
+  }
+
+  showMessages(): void {
+    this.messages.setVisible(true);
   }
 
   destroy(): void {

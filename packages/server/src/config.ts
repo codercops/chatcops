@@ -23,6 +23,7 @@ export const chatRequestSchema = z.object({
     contentSnippet: z.string().max(2000).optional(),
   }).optional(),
   locale: z.string().max(10).optional(),
+  userData: z.record(z.string(), z.string().max(500)).optional(),
 });
 
 export type ValidatedChatRequest = z.infer<typeof chatRequestSchema>;

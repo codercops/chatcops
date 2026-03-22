@@ -8,6 +8,7 @@ export interface WidgetChatRequest {
     contentSnippet?: string;
   };
   locale?: string;
+  userData?: Record<string, string>;
 }
 
 export interface WidgetChatChunk {
