@@ -1,6 +1,7 @@
 import type { ProviderChatParams, ProviderToolCall, ToolResult } from '../types.js';
 
 export const MAX_TOOL_ROUNDS = 5;
+export const DEFAULT_TOOL_TIMEOUT_MS = 30_000;
 
 export function parseToolInput(rawInput: string): Record<string, unknown> {
   if (!rawInput.trim()) return {};
@@ -45,9 +46,27 @@ export async function executeToolCall(
     };
   }
 
+  const timeoutMs = params.toolTimeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS;
+  const timers = globalThis as typeof globalThis & {
+    setTimeout: (callback: () => void, delay?: number) => unknown;
+    clearTimeout: (timeoutId: unknown) => void;
+  };
+  let timeoutId: unknown;
+
   try {
-    return await params.toolExecutor(call);
+    return await Promise.race([
+      params.toolExecutor(call),
+      new Promise<never>((_, reject) => {
+        timeoutId = timers.setTimeout(() => {
+          reject(new Error(`Tool execution timed out after ${timeoutMs}ms.`));
+        }, timeoutMs);
+      }),
+    ]);
   } catch (error) {
     return toToolFailure(error);
+  } finally {
+    if (timeoutId !== undefined) {
+      timers.clearTimeout(timeoutId);
+    }
   }
 }

@@ -5,6 +5,7 @@ export interface ChatCopsServerConfig {
   provider: ProviderConfig;
   systemPrompt: string;
   tools?: ChatTool[];
+  toolTimeoutMs?: number;
   knowledge?: KnowledgeSource[];
   rateLimit?: { maxRequests: number; windowMs: number };
   webhooks?: WebhookConfig[];
