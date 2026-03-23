@@ -9,6 +9,8 @@ export type {
   ToolParameter,
   ToolDefinition,
   ToolResult,
+  ProviderToolCall,
+  ProviderToolExecutor,
   WebhookConfig,
   ProviderConfig,
   ProviderChatParams,

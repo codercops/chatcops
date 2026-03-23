@@ -28,11 +28,11 @@ const ChatCops = {
   },
 
   on(event: string, handler: (...args: unknown[]) => void): void {
-    instance?.on(event as 'open' | 'close' | 'message' | 'error', handler);
+    instance?.on(event as 'open' | 'close' | 'message' | 'error' | 'leadCaptured' | 'preChatSubmit', handler);
   },
 
   off(event: string, handler: (...args: unknown[]) => void): void {
-    instance?.off(event as 'open' | 'close' | 'message' | 'error', handler);
+    instance?.off(event as 'open' | 'close' | 'message' | 'error' | 'leadCaptured' | 'preChatSubmit', handler);
   },
 };
 
