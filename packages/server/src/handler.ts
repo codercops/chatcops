@@ -109,6 +109,7 @@ export function createChatHandler(config: ChatCopsServerConfig) {
         messages,
         systemPrompt,
         tools: toolDefs.length > 0 ? toolDefs : undefined,
+        toolTimeoutMs: config.toolTimeoutMs,
         toolExecutor: async (toolCall) => {
           const tool = toolsByName.get(toolCall.name);
           if (!tool) {

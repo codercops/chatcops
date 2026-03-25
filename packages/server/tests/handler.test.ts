@@ -1,10 +1,96 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@chatcops/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@chatcops/core')>();
+vi.mock('@chatcops/core', () => {
+  class ConversationManager {
+    private readonly conversations = new Map<
+      string,
+      {
+        id: string;
+        messages: Array<{
+          id: string;
+          role: 'user' | 'assistant' | 'system';
+          content: string;
+          timestamp: number;
+          metadata?: Record<string, unknown>;
+        }>;
+        metadata?: Record<string, unknown>;
+        createdAt: number;
+        updatedAt: number;
+      }
+    >();
+
+    async getOrCreate(id: string) {
+      const existing = this.conversations.get(id);
+      if (existing) {
+        return existing;
+      }
+
+      const now = Date.now();
+      const conversation = {
+        id,
+        messages: [],
+        createdAt: now,
+        updatedAt: now,
+      };
+      this.conversations.set(id, conversation);
+      return conversation;
+    }
+
+    async addMessage(conversationId: string, message: {
+      id: string;
+      role: 'user' | 'assistant' | 'system';
+      content: string;
+      timestamp: number;
+      metadata?: Record<string, unknown>;
+    }) {
+      const conversation = await this.getOrCreate(conversationId);
+      conversation.messages.push(message);
+      conversation.updatedAt = Date.now();
+    }
+
+    async getMessages(conversationId: string) {
+      const conversation = await this.getOrCreate(conversationId);
+      return [...conversation.messages];
+    }
+  }
+
+  class AnalyticsCollector {
+    private totalConversations = 0;
+    private leadsCapture = 0;
+
+    track(event: string) {
+      if (event === 'conversation:started') {
+        this.totalConversations += 1;
+      }
+
+      if (event === 'lead:captured') {
+        this.leadsCapture += 1;
+      }
+    }
+
+    getStats() {
+      return {
+        totalConversations: this.totalConversations,
+        leadsCapture: this.leadsCapture,
+      };
+    }
+  }
+
   return {
-    ...actual,
     createProvider: vi.fn(),
+    ConversationManager,
+    AnalyticsCollector,
+    toolToDefinition: (tool: {
+      name: string;
+      description: string;
+      parameters: Record<string, { type: 'string' | 'number' | 'boolean'; description: string; enum?: string[] }>;
+      required: string[];
+    }) => ({
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.parameters,
+      required: tool.required,
+    }),
   };
 });
 
@@ -94,6 +180,37 @@ describe('createChatHandler', () => {
       { content: 'Forecast: sunny' },
       { done: true },
     ]);
+  });
+
+  it('passes the configured tool timeout into the provider chat params', async () => {
+    const receivedTimeouts: Array<number | undefined> = [];
+
+    mockedCreateProvider.mockResolvedValue({
+      name: 'test-provider',
+      async *chat(params) {
+        receivedTimeouts.push(params.toolTimeoutMs);
+        yield 'Configured timeout received.';
+      },
+      async chatSync() {
+        return '';
+      },
+    });
+
+    const { handleChat } = createChatHandler({
+      provider: { type: 'openai', apiKey: 'test-key' },
+      systemPrompt: 'Test',
+      cors: '*',
+      toolTimeoutMs: 2_500,
+    });
+
+    for await (const _chunk of handleChat({
+      conversationId: 'conv-timeout',
+      message: 'Hello',
+    })) {
+      // Drain the stream.
+    }
+
+    expect(receivedTimeouts).toEqual([2_500]);
   });
 
   it('tracks lead capture analytics when a tool succeeds', async () => {

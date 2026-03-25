@@ -88,6 +88,7 @@ export interface ProviderChatParams {
   systemPrompt: string;
   tools?: ToolDefinition[];
   toolExecutor?: ProviderToolExecutor;
+  toolTimeoutMs?: number;
   maxTokens?: number;
   temperature?: number;
 }
