@@ -1,23 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@chatcops/core', () => {
+  type ChatMessage = {
+    id: string;
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    timestamp: number;
+    metadata?: Record<string, unknown>;
+  };
+
+  type Conversation = {
+    id: string;
+    messages: ChatMessage[];
+    metadata?: Record<string, unknown>;
+    createdAt: number;
+    updatedAt: number;
+  };
+
   class ConversationManager {
-    private readonly conversations = new Map<
-      string,
-      {
-        id: string;
-        messages: Array<{
-          id: string;
-          role: 'user' | 'assistant' | 'system';
-          content: string;
-          timestamp: number;
-          metadata?: Record<string, unknown>;
-        }>;
-        metadata?: Record<string, unknown>;
-        createdAt: number;
-        updatedAt: number;
-      }
-    >();
+    private readonly conversations = new Map<string, Conversation>();
 
     async getOrCreate(id: string) {
       const existing = this.conversations.get(id);
@@ -26,7 +27,7 @@ vi.mock('@chatcops/core', () => {
       }
 
       const now = Date.now();
-      const conversation = {
+      const conversation: Conversation = {
         id,
         messages: [],
         createdAt: now,
@@ -36,21 +37,22 @@ vi.mock('@chatcops/core', () => {
       return conversation;
     }
 
-    async addMessage(conversationId: string, message: {
-      id: string;
-      role: 'user' | 'assistant' | 'system';
-      content: string;
-      timestamp: number;
-      metadata?: Record<string, unknown>;
-    }) {
+    async addMessage(conversationId: string, message: ChatMessage) {
       const conversation = await this.getOrCreate(conversationId);
       conversation.messages.push(message);
       conversation.updatedAt = Date.now();
+      return conversation;
     }
 
     async getMessages(conversationId: string) {
       const conversation = await this.getOrCreate(conversationId);
       return [...conversation.messages];
+    }
+
+    async removeMessage(conversationId: string, messageId: string) {
+      const conversation = await this.getOrCreate(conversationId);
+      conversation.messages = conversation.messages.filter((message) => message.id !== messageId);
+      conversation.updatedAt = Date.now();
     }
   }
 
@@ -333,6 +335,54 @@ describe('createChatHandler', () => {
       },
     });
   });
+
+  it('removes the previous assistant message before regenerating', async () => {
+    const receivedMessages: Array<Array<{ role: string; content: string }>> = [];
+
+    mockedCreateProvider.mockResolvedValue({
+      name: 'test-provider',
+      async *chat(params) {
+        receivedMessages.push(
+          params.messages.map((message) => ({
+            role: message.role,
+            content: message.content,
+          }))
+        );
+        yield receivedMessages.length === 1 ? 'First reply' : 'Regenerated reply';
+      },
+      async chatSync() {
+        return '';
+      },
+    });
+
+    const { handleChat } = createChatHandler({
+      provider: { type: 'claude', apiKey: 'test-key' },
+      systemPrompt: 'Test',
+      cors: '*',
+    });
+
+    for await (const _chunk of handleChat({
+      conversationId: 'conv-regenerate',
+      message: 'Hello there',
+      messageId: 'user-1',
+    })) {
+      // Drain initial response.
+    }
+
+    for await (const _chunk of handleChat({
+      conversationId: 'conv-regenerate',
+      message: 'Hello there',
+      messageId: 'user-1',
+      regenerate: true,
+    })) {
+      // Drain regenerated response.
+    }
+
+    expect(receivedMessages).toEqual([
+      [{ role: 'user', content: 'Hello there' }],
+      [{ role: 'user', content: 'Hello there' }],
+    ]);
+  });
 });
 
 describe('chatRequestSchema', () => {
@@ -356,6 +406,21 @@ describe('chatRequestSchema', () => {
       locale: 'en',
     });
     expect(result.success).toBe(true);
+  });
+
+  it('accepts regenerate metadata', () => {
+    const result = chatRequestSchema.safeParse({
+      conversationId: 'conv-1',
+      message: 'Hello',
+      messageId: 'msg-1',
+      regenerate: true,
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.messageId).toBe('msg-1');
+      expect(result.data.regenerate).toBe(true);
+    }
   });
 
   it('rejects empty conversationId', () => {
@@ -403,6 +468,7 @@ describe('chatRequestSchema', () => {
     if (result.success) {
       expect(result.data.pageContext).toBeUndefined();
       expect(result.data.locale).toBeUndefined();
+      expect(result.data.regenerate).toBeUndefined();
     }
   });
 });

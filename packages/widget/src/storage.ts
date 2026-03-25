@@ -4,6 +4,8 @@ interface StoredConversation {
     id: string;
     role: 'user' | 'assistant';
     content: string;
+    status?: 'streaming' | 'complete' | 'error';
+    errorType?: 'rate_limit' | 'network' | 'provider_error' | 'timeout';
     timestamp: number;
   }>;
   updatedAt: number;

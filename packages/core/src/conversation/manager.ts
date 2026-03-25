@@ -47,6 +47,15 @@ export class ConversationManager {
     return conversation?.messages ?? [];
   }
 
+  async removeMessage(conversationId: string, messageId: string): Promise<void> {
+    const conversation = await this.store.get(conversationId);
+    if (!conversation) return;
+
+    conversation.messages = conversation.messages.filter((message) => message.id !== messageId);
+    conversation.updatedAt = Date.now();
+    await this.store.save(conversation);
+  }
+
   async deleteConversation(id: string): Promise<void> {
     await this.store.delete(id);
   }

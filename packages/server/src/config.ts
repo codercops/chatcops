@@ -17,6 +17,8 @@ export interface ChatCopsServerConfig {
 export const chatRequestSchema = z.object({
   conversationId: z.string().min(1).max(128),
   message: z.string().min(1).max(10000),
+  messageId: z.string().min(1).max(128).optional(),
+  regenerate: z.boolean().optional(),
   pageContext: z.object({
     url: z.string().url(),
     title: z.string().max(500),

@@ -1,6 +1,8 @@
 export interface WidgetChatRequest {
   conversationId: string;
   message: string;
+  messageId?: string;
+  regenerate?: boolean;
   pageContext?: {
     url: string;
     title: string;

@@ -15,6 +15,8 @@ export interface WidgetLocaleStrings {
   preChatSubmit: string;
   preChatRequired: string;
   preChatInvalidEmail: string;
+  retryButton: string;
+  regenerateButton: string;
 }
 
 const en: WidgetLocaleStrings = {
@@ -34,6 +36,8 @@ const en: WidgetLocaleStrings = {
   preChatSubmit: 'Start Chat',
   preChatRequired: 'This field is required',
   preChatInvalidEmail: 'Please enter a valid email',
+  retryButton: 'Retry',
+  regenerateButton: 'Regenerate',
 };
 
 const locales: Record<string, WidgetLocaleStrings> = { en };

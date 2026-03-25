@@ -7,7 +7,8 @@ import { ConversationStorage } from './storage.js';
 import { applyTheme } from './theme.js';
 import { getWidgetLocale, type WidgetLocaleStrings } from './i18n.js';
 import { PreChatForm } from './dom/prechat-form.js';
-import type { MessageData } from './dom/messages.js';
+import type { WidgetChatRequest } from './api/types.js';
+import type { MessageData, MessageErrorType } from './dom/messages.js';
 
 export interface PreChatField {
   name: string;
@@ -73,6 +74,10 @@ type WidgetEventType =
   | 'leadCaptured'
   | 'preChatSubmit';
 type WidgetEventHandler = (...args: unknown[]) => void;
+type SendRequestOptions = {
+  regenerate?: boolean;
+  userMessageId?: string;
+};
 
 export class Widget {
   private config: WidgetConfig;
@@ -89,6 +94,7 @@ export class Widget {
   private userData?: Record<string, string>;
   private userDataSent = false;
   private isStreaming = false;
+  private retryRequests = new Map<string, SendRequestOptions>();
   private eventHandlers = new Map<WidgetEventType, Set<WidgetEventHandler>>();
   private containerEl?: HTMLElement;
 
@@ -151,6 +157,16 @@ export class Widget {
       },
       placeholder: this.config.placeholder ?? this.locale.inputPlaceholder,
       footerText: this.locale.poweredBy,
+      messageActions: {
+        onRetry: (messageId) => {
+          void this.handleRetry(messageId);
+        },
+        onRegenerate: (messageId) => {
+          void this.handleRegenerate(messageId);
+        },
+        retryLabel: this.locale.retryButton,
+        regenerateLabel: this.locale.regenerateButton,
+      },
       onSend: (text) => this.handleSend(text),
       onClose: () => this.close(),
     });
@@ -177,6 +193,8 @@ export class Widget {
     } else {
       this.showChatView();
     }
+
+    this.showLatestRegenerateButton();
 
     // Welcome bubble — popup mode only
     if (!this.isInline && this.config.welcomeBubble) {
@@ -326,44 +344,117 @@ export class Widget {
     this.config.onMessage?.(userMsg);
     this.emit('message', userMsg);
 
+    await this.sendToServer(text, { userMessageId: userMsg.id });
+  }
+
+  private async handleRetry(errorMessageId: string): Promise<void> {
+    if (this.isStreaming) return;
+
+    const errorIndex = this.messages.findIndex((message) => message.id === errorMessageId);
+    if (errorIndex === -1) return;
+
+    const retryRequest = this.retryRequests.get(errorMessageId);
+    let userMessage = retryRequest?.userMessageId
+      ? this.messages.find((message) => message.id === retryRequest.userMessageId)
+      : undefined;
+
+    if (!userMessage) {
+      for (let i = errorIndex - 1; i >= 0; i--) {
+        if (this.messages[i].role === 'user') {
+          userMessage = this.messages[i];
+          break;
+        }
+      }
+    }
+
+    if (!userMessage) return;
+
+    this.panel.messages.removeMessage(errorMessageId);
+    this.retryRequests.delete(errorMessageId);
+    this.messages = this.messages.filter((message) => message.id !== errorMessageId);
+
+    await this.sendToServer(userMessage.content, {
+      regenerate: retryRequest?.regenerate,
+      userMessageId: retryRequest?.userMessageId ?? userMessage.id,
+    });
+  }
+
+  private async handleRegenerate(assistantMessageId: string): Promise<void> {
+    if (this.isStreaming) return;
+
+    const assistantIndex = this.messages.findIndex((message) => message.id === assistantMessageId);
+    if (assistantIndex === -1) return;
+
+    const assistantMessage = this.messages[assistantIndex];
+    if (assistantMessage.role !== 'assistant') return;
+
+    const userMessage = this.findUserMessageForAssistant(assistantIndex);
+    if (!userMessage) return;
+
+    this.panel.messages.clearRegenerateButtons();
+    this.panel.messages.removeMessage(assistantMessageId);
+    this.retryRequests.delete(assistantMessageId);
+    this.messages = this.messages.filter((message) => message.id !== assistantMessageId);
+
+    await this.sendToServer(userMessage.content, {
+      regenerate: true,
+      userMessageId: userMessage.id,
+    });
+  }
+
+  private async sendToServer(text: string, options: SendRequestOptions = {}): Promise<void> {
+    if (this.isStreaming) return;
+
     this.isStreaming = true;
     this.panel.input.setDisabled(true);
+    this.panel.messages.clearRegenerateButtons();
     this.panel.messages.showTyping();
 
     const assistantMsg: MessageData = {
       id: crypto.randomUUID(),
       role: 'assistant',
       content: '',
+      status: 'streaming',
     };
 
-    const pageContext = this.config.pageContext !== false
-      ? { url: window.location.href, title: document.title }
-      : undefined;
-
-    const includeUserData = this.userData && !this.userDataSent;
+    const includeUserData = !!(this.userData && !this.userDataSent);
+    let firstChunk = true;
+    let requestCompleted = false;
+    let hasError = false;
 
     try {
-      let firstChunk = true;
-      for await (const chunk of this.client.sendMessage({
-        conversationId: this.conversationId,
-        message: text,
-        pageContext,
-        locale: this.config.locale,
-        ...(includeUserData ? { userData: this.userData } : {}),
-      })) {
+      for await (const chunk of this.client.sendMessage(this.createRequest(text, options, includeUserData))) {
         if (chunk.error) {
-          const errorKey = chunk.error === 'rate_limit' ? 'errorRateLimit'
-            : chunk.error === 'network' ? 'errorNetwork'
-            : 'errorGeneric';
-          assistantMsg.content = this.locale[errorKey];
+          const errorType = this.resolveErrorType(chunk.error);
+          assistantMsg.content = this.getErrorMessage(errorType);
+          assistantMsg.status = 'error';
+          assistantMsg.errorType = errorType;
+          hasError = true;
+
+          this.retryRequests.set(assistantMsg.id, {
+            regenerate: options.regenerate,
+            userMessageId: options.userMessageId,
+          });
+
           this.panel.messages.removeTyping();
-          this.panel.addMessage(assistantMsg);
-          this.config.onError?.(new Error(chunk.error));
-          this.emit('error', new Error(chunk.error));
+          if (firstChunk) {
+            this.panel.addMessage(assistantMsg);
+          } else {
+            this.panel.messages.updateMessage(assistantMsg);
+          }
+
+          this.messages.push(assistantMsg);
+
+          const error = new Error(chunk.error);
+          this.config.onError?.(error);
+          this.emit('error', error);
           break;
         }
 
-        if (chunk.done) break;
+        if (chunk.done) {
+          requestCompleted = true;
+          break;
+        }
 
         if (chunk.leadCaptured) {
           this.config.onLeadCaptured?.(chunk.leadData);
@@ -376,33 +467,137 @@ export class Widget {
             this.panel.addMessage(assistantMsg);
             firstChunk = false;
           }
+
           assistantMsg.content += chunk.content;
-          this.panel.messages.updateMessage(assistantMsg.id, assistantMsg.content, true);
+          this.panel.messages.updateMessage(assistantMsg);
         }
       }
 
-      if (assistantMsg.content) {
+      if (!hasError && !requestCompleted) {
+        requestCompleted = true;
+      }
+
+      if (!hasError && firstChunk) {
+        this.panel.messages.removeTyping();
+      }
+
+      if (!hasError && assistantMsg.content) {
+        assistantMsg.status = 'complete';
+        this.panel.messages.updateMessage(assistantMsg);
         this.messages.push(assistantMsg);
         this.config.onMessage?.(assistantMsg);
         this.emit('message', assistantMsg);
+        this.showLatestRegenerateButton();
 
         if (!this.isInline && !this.panel.isVisible) {
           this.fab?.showBadge();
         }
       }
     } catch (err) {
-      this.panel.messages.removeTyping();
       assistantMsg.content = this.locale.errorGeneric;
+      assistantMsg.status = 'error';
+      assistantMsg.errorType = 'network';
+
+      this.retryRequests.set(assistantMsg.id, {
+        regenerate: options.regenerate,
+        userMessageId: options.userMessageId,
+      });
+
+      this.panel.messages.removeTyping();
       this.panel.addMessage(assistantMsg);
-      this.config.onError?.(err instanceof Error ? err : new Error(String(err)));
+      this.messages.push(assistantMsg);
+
+      const error = err instanceof Error ? err : new Error(String(err));
+      this.config.onError?.(error);
+      this.emit('error', error);
     } finally {
-      if (includeUserData) {
+      if (includeUserData && requestCompleted) {
         this.userDataSent = true;
       }
       this.isStreaming = false;
       this.panel.input.setDisabled(false);
       this.panel.input.focus();
       this.saveHistory();
+    }
+  }
+
+  private createRequest(
+    text: string,
+    options: SendRequestOptions,
+    includeUserData: boolean
+  ): WidgetChatRequest {
+    const pageContext = this.config.pageContext !== false
+      ? { url: window.location.href, title: document.title }
+      : undefined;
+
+    return {
+      conversationId: this.conversationId,
+      message: text,
+      messageId: options.userMessageId,
+      regenerate: options.regenerate,
+      pageContext,
+      locale: this.config.locale,
+      ...(includeUserData ? { userData: this.userData } : {}),
+    };
+  }
+
+  private findUserMessageForAssistant(assistantIndex: number): MessageData | undefined {
+    for (let i = assistantIndex - 1; i >= 0; i--) {
+      if (this.messages[i].role === 'user') {
+        return this.messages[i];
+      }
+    }
+
+    return undefined;
+  }
+
+  private findLatestRegeneratableAssistant(): MessageData | undefined {
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+      const message = this.messages[i];
+      if (message.id === 'welcome') {
+        continue;
+      }
+
+      if (message.role !== 'assistant' || message.status === 'error') {
+        return undefined;
+      }
+
+      return message;
+    }
+
+    return undefined;
+  }
+
+  private showLatestRegenerateButton(): void {
+    const assistantMessage = this.findLatestRegeneratableAssistant();
+    if (assistantMessage) {
+      this.panel.messages.showRegenerateButton(assistantMessage.id);
+    } else {
+      this.panel.messages.clearRegenerateButtons();
+    }
+  }
+
+  private resolveErrorType(error: string): MessageErrorType {
+    switch (error) {
+      case 'rate_limit':
+      case 'network':
+      case 'provider_error':
+      case 'timeout':
+        return error;
+      default:
+        return 'provider_error';
+    }
+  }
+
+  private getErrorMessage(errorType: MessageErrorType): string {
+    switch (errorType) {
+      case 'rate_limit':
+        return this.locale.errorRateLimit;
+      case 'network':
+      case 'timeout':
+        return this.locale.errorNetwork;
+      default:
+        return this.locale.errorGeneric;
     }
   }
 
@@ -418,6 +613,8 @@ export class Widget {
         id: m.id,
         role: m.role,
         content: m.content,
+        status: m.status,
+        errorType: m.errorType,
         timestamp: Date.now(),
       })),
       updatedAt: Date.now(),

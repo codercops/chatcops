@@ -256,6 +256,9 @@
   overflow-wrap: break-word;
   font-size: 14px;
   line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .cc-message-user {
@@ -305,6 +308,56 @@
 .cc-message ul, .cc-message ol {
   padding-left: 20px;
   margin: 4px 0;
+}
+
+.cc-message-actions {
+  display: flex;
+  align-items: center;
+}
+
+.cc-message-retry,
+.cc-message-regenerate {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid var(--cc-border);
+  border-radius: 6px;
+  color: var(--cc-text-secondary);
+  font-family: var(--cc-font);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+
+.cc-message-retry:hover,
+.cc-message-regenerate:hover {
+  background: var(--cc-bg-input);
+  color: var(--cc-text);
+}
+
+.cc-message-retry svg,
+.cc-message-regenerate svg {
+  fill: currentColor;
+}
+
+.cc-message-regenerate {
+  opacity: 0;
+}
+
+.cc-message:hover .cc-message-regenerate {
+  opacity: 1;
+}
+
+.cc-message-retry {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.cc-message-retry:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
 }
 
 /* Typing indicator */
