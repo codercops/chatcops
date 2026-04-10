@@ -89,4 +89,18 @@ describe('ConversationManager', () => {
     const messages = await manager.getMessages('nope');
     expect(messages).toHaveLength(0);
   });
+
+  it('removes a message by id', async () => {
+    const manager = new ConversationManager();
+    const userMessage = makeMessage('user', 'Hello');
+    const assistantMessage = makeMessage('assistant', 'Hi there!');
+
+    await manager.addMessage('conv-remove', userMessage);
+    await manager.addMessage('conv-remove', assistantMessage);
+    await manager.removeMessage('conv-remove', assistantMessage.id);
+
+    const messages = await manager.getMessages('conv-remove');
+    expect(messages).toHaveLength(1);
+    expect(messages[0].id).toBe(userMessage.id);
+  });
 });

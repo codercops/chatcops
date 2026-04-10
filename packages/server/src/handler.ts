@@ -46,22 +46,38 @@ export function createChatHandler(config: ChatCopsServerConfig) {
     }
 
     // Get or create conversation
-    const conversation = await conversations.getOrCreate(req.conversationId);
+    await conversations.getOrCreate(req.conversationId);
+
+    if (req.regenerate) {
+      const existingMessages = await conversations.getMessages(req.conversationId);
+      const lastAssistant = [...existingMessages].reverse().find((message) => message.role === 'assistant');
+      if (lastAssistant) {
+        await conversations.removeMessage(req.conversationId, lastAssistant.id);
+      }
+    }
+
+    const conversationMessages = await conversations.getMessages(req.conversationId);
 
     // Track analytics
-    if (analytics && conversation.messages.length === 0) {
+    if (analytics && conversationMessages.length === 0) {
       analytics.track('conversation:started', { conversationId: req.conversationId });
     }
     analytics?.track('message:sent', { conversationId: req.conversationId });
 
-    // Add user message
-    const userMessage: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: 'user',
-      content: req.message,
-      timestamp: Date.now(),
-    };
-    await conversations.addMessage(req.conversationId, userMessage);
+    // Add user message unless this is a regenerate request or a retry of the same message
+    const hasExistingUserMessage = req.messageId
+      ? conversationMessages.some((message) => message.id === req.messageId)
+      : false;
+
+    if (!req.regenerate && !hasExistingUserMessage) {
+      const userMessage: ChatMessage = {
+        id: req.messageId ?? crypto.randomUUID(),
+        role: 'user',
+        content: req.message,
+        timestamp: Date.now(),
+      };
+      await conversations.addMessage(req.conversationId, userMessage);
+    }
 
     // Build system prompt
     let systemPrompt = config.systemPrompt;

@@ -4,6 +4,8 @@ interface StoredConversation {
     id: string;
     role: 'user' | 'assistant';
     content: string;
+    status?: 'streaming' | 'complete' | 'error';
+    errorType?: 'rate_limit' | 'network' | 'provider_error' | 'timeout';
     timestamp: number;
   }>;
   updatedAt: number;
@@ -30,7 +32,13 @@ export class ConversationStorage {
 
   save(conversation: StoredConversation): void {
     try {
-      localStorage.setItem(this.key, JSON.stringify(conversation));
+      const filtered = {
+        ...conversation,
+        messages: conversation.messages
+          .filter((m) => m.status !== 'error')
+          .map(({ status, ...message }) => message),
+      };
+      localStorage.setItem(this.key, JSON.stringify(filtered));
     } catch {
       // Storage full or unavailable
     }
