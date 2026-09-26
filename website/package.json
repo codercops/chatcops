@@ -6,14 +6,15 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "preview": "astro preview",
-    "check": "astro check"
+    "preview": "astro build && wrangler dev",
+    "check": "astro check",
+    "deploy": "astro build && wrangler deploy"
   },
   "dependencies": {
+    "@astrojs/cloudflare": "^12.6.13",
     "@astrojs/react": "^4.4.2",
     "@astrojs/sitemap": "^3.7.1",
     "@astrojs/starlight": "^0.34.0",
-    "@astrojs/vercel": "^9.0.4",
     "@chatcops/core": "^0.2.0",
     "@chatcops/server": "^0.2.0",
     "@chatcops/widget": "workspace:^",
@@ -31,6 +32,7 @@
     "@fontsource/playfair-display": "^5.1.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "wrangler": "^4.141.0"
   }
 }

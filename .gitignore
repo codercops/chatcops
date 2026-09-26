@@ -8,3 +8,7 @@ coverage/
 .astro/
 .vercel/
 package-lock.json
+
+# Cloudflare: local wrangler state and secrets
+.wrangler/
+.dev.vars*

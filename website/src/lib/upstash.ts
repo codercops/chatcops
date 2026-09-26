@@ -1,11 +1,20 @@
-const UPSTASH_URL = import.meta.env.UPSTASH_REDIS_REST_URL;
-const UPSTASH_TOKEN = import.meta.env.UPSTASH_REDIS_REST_TOKEN;
+import { getSecret } from 'astro:env/server';
+
+// Read per call: on Workers the credentials are secrets that only exist
+// inside a request.
+function upstash(): { url: string; token: string } {
+  const url = getSecret('UPSTASH_REDIS_REST_URL');
+  const token = getSecret('UPSTASH_REDIS_REST_TOKEN');
+  if (!url || !token) throw new Error('Upstash credentials are not set');
+  return { url, token };
+}
 
 async function redis(command: string[]): Promise<any> {
-  const res = await fetch(UPSTASH_URL, {
+  const { url, token } = upstash();
+  const res = await fetch(url, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${UPSTASH_TOKEN}`,
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(command),
@@ -42,10 +51,11 @@ export async function getVisitors(site: string): Promise<{ today: number; total:
   const todayKey = `${site}:today:${new Date().toISOString().slice(0, 10)}`;
   const totalKey = `${site}:total`;
 
-  const res = await fetch(`${UPSTASH_URL}/pipeline`, {
+  const { url, token } = upstash();
+  const res = await fetch(`${url}/pipeline`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${UPSTASH_TOKEN}`,
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify([['GET', todayKey], ['GET', totalKey]]),
