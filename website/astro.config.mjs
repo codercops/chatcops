@@ -1,13 +1,24 @@
-import { defineConfig } from 'astro/config';
+import { defineConfig, envField } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import sitemap from '@astrojs/sitemap';
 import react from '@astrojs/react';
 import tailwindcss from '@tailwindcss/vite';
-import vercel from '@astrojs/vercel';
+import cloudflare from '@astrojs/cloudflare';
 
 export default defineConfig({
+  // Static docs; only /api/chat and /api/visitors run in the Cloudflare Worker.
   output: 'static',
-  adapter: vercel(),
+  adapter: cloudflare(),
+  env: {
+    // Read per request with getSecret(). On Workers these are Worker secrets,
+    // which don't exist at build time, so import.meta.env would bake in
+    // `undefined`.
+    schema: {
+      OPENAI_API_KEY: envField.string({ context: 'server', access: 'secret', optional: true }),
+      UPSTASH_REDIS_REST_URL: envField.string({ context: 'server', access: 'secret', optional: true }),
+      UPSTASH_REDIS_REST_TOKEN: envField.string({ context: 'server', access: 'secret', optional: true }),
+    },
+  },
   site: 'https://chat.codercops.com',
   vite: {
     plugins: [tailwindcss()],

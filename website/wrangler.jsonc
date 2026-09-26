@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "chatcops-website",
+  // Built by `astro build` with @astrojs/cloudflare: the Starlight docs are
+  // static assets in dist/, /api/chat and /api/visitors run in the Worker.
+  // Workers Builds builds from the repo root (`pnpm -r build`, the widget
+  // package has to build first) and deploys from here.
+  "main": "./dist/_worker.js/index.js",
+  "compatibility_date": "2026-09-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS"
+    // Default html_handling (auto-trailing-slash): Starlight's URLs and
+    // canonicals end in a slash, so /core/tools redirects to /core/tools/.
+  },
+  "observability": {
+    "enabled": true,
+    "traces": { "enabled": true }
+  },
+  // workers.dev serves the site until the chat.codercops.com cutover, when the
+  // custom domain routes are added.
+  "workers_dev": true,
+  // PR branches get a Preview URL (behind Cloudflare Access).
+  "preview_urls": true,
+  "previews": {}
+}

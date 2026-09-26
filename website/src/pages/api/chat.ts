@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { getSecret } from 'astro:env/server';
 import { createChatHandler } from '@chatcops/server';
 import { FAQKnowledgeSource } from '@chatcops/core';
 
@@ -47,12 +48,17 @@ const faq = new FAQKnowledgeSource([
   },
 ]);
 
-const { handleChat } = createChatHandler({
-  provider: {
-    type: 'openai',
-    apiKey: import.meta.env.OPENAI_API_KEY ?? '',
-  },
-  systemPrompt: `You are the ChatCops documentation assistant on the official ChatCops website.
+// Built on the first request rather than at import: the API key is a Worker
+// secret that only exists inside a request, and createChatHandler starts a
+// timer, which Workers don't allow at global scope.
+let chat: ReturnType<typeof createChatHandler> | undefined;
+function getChat() {
+  chat ??= createChatHandler({
+    provider: {
+      type: 'openai',
+      apiKey: getSecret('OPENAI_API_KEY') ?? '',
+    },
+    systemPrompt: `You are the ChatCops documentation assistant on the official ChatCops website.
 Your job is to help developers understand and use ChatCops — an open-source AI chatbot widget.
 
 Key facts:
@@ -63,14 +69,20 @@ Key facts:
 - MIT licensed, fully open-source at github.com/codercops/chatcops
 
 Be concise, helpful, and friendly. Use markdown formatting. If you don't know something specific, direct users to the docs.`,
-  knowledge: [faq],
-  cors: '*',
-  rateLimit: { maxRequests: 10, windowMs: 60_000 },
-});
+    knowledge: [faq],
+    cors: '*',
+    rateLimit: { maxRequests: 10, windowMs: 60_000 },
+  });
+  return chat;
+}
 
 export const POST: APIRoute = async ({ request }) => {
+  // Cloudflare sets cf-connecting-ip; x-forwarded-for is only a local-dev
+  // fallback because its left-most entry can be set by the client.
   const clientIp =
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+    request.headers.get('cf-connecting-ip') ??
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    'unknown';
 
   let body: unknown;
   try {
@@ -86,7 +98,7 @@ export const POST: APIRoute = async ({ request }) => {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        for await (const chunk of handleChat(body, clientIp)) {
+        for await (const chunk of getChat().handleChat(body, clientIp)) {
           controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
         }
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
