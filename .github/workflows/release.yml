@@ -47,4 +47,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Website is auto-deployed by the Vercel GitHub integration
+      # Website is auto-deployed to Cloudflare Workers by Workers Builds
