@@ -70,7 +70,7 @@ When `dev` is ready to ship:
    - If unreleased changesets exist, Changesets action opens a **"Version Packages"** PR on `production` that bumps versions and updates changelogs
    - Merging that PR triggers the workflow again, which **publishes to npm** (via OIDC trusted publishing)
 
-4. The website is auto-deployed by the Vercel GitHub integration — no manual step needed.
+4. The website is auto-deployed to Cloudflare Workers by Workers Builds (the `chatcops-website` Worker, config in `website/wrangler.jsonc`) — no manual step needed.
 
 > **Note:** Only maintainers can merge into `production`. If you're a contributor, just make sure your PR to `dev` includes a changeset when needed.
 
