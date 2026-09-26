@@ -18,9 +18,8 @@
     "enabled": true,
     "traces": { "enabled": true }
   },
-  // chat.codercops.com is a route, not a custom domain, while its proxied
-  // CNAME still points at the frozen Vercel deployment: deleting the route
-  // sends traffic back there. www.chat is a custom domain only so it gets a
+  // chat.codercops.com is served through a route on a proxied placeholder DNS record
+  // (AAAA 100::). www.chat.codercops.com is a custom domain only so it gets a
   // certificate; a zone redirect rule 301s it to chat.codercops.com.
   "routes": [
     { "pattern": "chat.codercops.com/*", "zone_name": "codercops.com" },
