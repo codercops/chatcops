@@ -16,7 +16,9 @@
   },
   "observability": {
     "enabled": true,
-    "traces": { "enabled": true }
+    // Trace 5% of requests. From Oct 1, 2026 every span counts against the 20M
+    // observability events Workers Paid includes each month; logs stay at 100%.
+    "traces": { "enabled": true, "head_sampling_rate": 0.05 }
   },
   // chat.codercops.com is served through a route on a proxied placeholder DNS record
   // (AAAA 100::). www.chat.codercops.com is a custom domain only so it gets a
