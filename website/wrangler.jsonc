@@ -16,7 +16,9 @@
   },
   "observability": {
     "enabled": true,
-    "traces": { "enabled": true }
+    // Trace 5% of requests. From Oct 1, 2026 every span counts against the 20M
+    // observability events Workers Paid includes each month; logs stay at 100%.
+    "traces": { "enabled": true, "head_sampling_rate": 0.05 }
   },
   // chat.codercops.com is a route, not a custom domain, while its proxied
   // CNAME still points at the frozen Vercel deployment: deleting the route
