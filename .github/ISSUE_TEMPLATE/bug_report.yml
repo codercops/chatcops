@@ -1,0 +1,45 @@
+name: Bug report
+description: Something in ChatCops doesn't work the way it should
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: package
+    attributes:
+      label: Which part?
+      options:
+        - "@chatcops/widget"
+        - "@chatcops/server"
+        - "@chatcops/core"
+        - Docs / website
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Package version
+      placeholder: e.g. 0.3.1
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Include error messages from the browser console or server logs.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How can we reproduce it?
+      description: A minimal snippet (script tag, server setup) helps a lot.
+      render: html
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: e.g. Chrome 130, Express on Node 22, Cloudflare Workers
