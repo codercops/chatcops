@@ -10,6 +10,17 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (ch) => ESCAPE_MAP[ch] ?? ch);
 }
 
+const SAFE_SCHEMES = new Set(['http', 'https', 'mailto', 'tel']);
+
+function isSafeHref(href: string): boolean {
+  // Browsers drop tabs and newlines anywhere in a URL and trim leading
+  // control characters and spaces, so normalize the same way before
+  // reading the scheme. URLs without a scheme are relative and safe.
+  const normalized = href.replace(/[\t\n\r]/g, '').replace(/^[\u0000-\u0020]+/, '');
+  const scheme = /^([^:/?#]+):/.exec(normalized);
+  return !scheme || SAFE_SCHEMES.has(scheme[1].toLowerCase());
+}
+
 export function renderMarkdown(input: string): string {
   let html = escapeHtml(input);
 
@@ -27,10 +38,12 @@ export function renderMarkdown(input: string): string {
   // Italic
   html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
 
-  // Links (supports one level of nested parentheses in URLs)
+  // Links (supports one level of nested parentheses in URLs). Links with an
+  // unsafe scheme such as javascript: or data: are shown as plain text.
   html = html.replace(
     /\[([^\]]+)\]\(((?:[^()]*|\([^()]*\))*)\)/g,
-    '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
+    (_match, text: string, href: string) =>
+      isSafeHref(href) ? `<a href="${href}" target="_blank" rel="noopener noreferrer">${text}</a>` : text
   );
 
   // Unordered lists

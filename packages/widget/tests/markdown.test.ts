@@ -60,4 +60,36 @@ describe('renderMarkdown', () => {
     expect(result).toContain('<em>italic</em>');
     expect(result).toContain('<code>code</code>');
   });
+
+  describe('link schemes', () => {
+    it.each([
+      'javascript:alert(1)',
+      'JavaScript:alert(1)',
+      ' javascript:alert(1)',
+      'java\tscript:alert(1)',
+      'java\nscript:alert(1)',
+      'data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==',
+      'vbscript:msgbox(1)',
+    ])('renders %j as plain text', (url) => {
+      const result = renderMarkdown(`[Click me](${url})`);
+      expect(result).not.toContain('<a');
+      expect(result).not.toContain('href=');
+      expect(result).toContain('Click me');
+    });
+
+    it.each([
+      'https://example.com',
+      'http://example.com',
+      'HTTPS://example.com',
+      'mailto:hello@example.com',
+      'tel:+15551234567',
+      '/pricing',
+      '#faq',
+      '?plan=pro',
+    ])('keeps %j as a link', (url) => {
+      const result = renderMarkdown(`[Link](${url})`);
+      expect(result).toContain(`<a href="${url}"`);
+      expect(result).toContain('Link</a>');
+    });
+  });
 });
