@@ -5,7 +5,7 @@
   // static assets in dist/, /api/chat and /api/visitors run in the Worker.
   // Workers Builds builds from the repo root (`pnpm -r build`, the widget
   // package has to build first) and deploys from here.
-  "main": "./dist/_worker.js/index.js",
+  "main": "@astrojs/cloudflare/entrypoints/server",
   "compatibility_date": "2026-09-24",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {

@@ -22,5 +22,16 @@
     "pnpm": ">=9"
   },
   "packageManager": "pnpm@9.15.0",
-  "license": "MIT"
+  "license": "MIT",
+  "pnpm": {
+    "supportedArchitectures": {
+      "os": [
+        "current"
+      ],
+      "cpu": [
+        "current",
+        "wasm32"
+      ]
+    }
+  }
 }

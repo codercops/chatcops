@@ -8,7 +8,15 @@ import cloudflare from '@astrojs/cloudflare';
 export default defineConfig({
   // Static docs; only /api/chat and /api/visitors run in the Cloudflare Worker.
   output: 'static',
-  adapter: cloudflare(),
+  // 'compile' optimizes images at build time, as before; the v14 default would
+  // switch to the Cloudflare Images binding.
+  // Prerender the docs in Node: Starlight's Markdown pipeline (Satteri) runs
+  // its native build there instead of the wasm one.
+  adapter: cloudflare({ imageService: 'compile', prerenderEnvironment: 'node' }),
+  // Astro 7 defaults to 'jsx' whitespace rules; keep the previous output.
+  compressHTML: true,
+  // No Astro sessions, so the adapter doesn't add a SESSION KV namespace.
+  session: false,
   env: {
     // Read per request with getSecret(). On Workers these are Worker secrets,
     // which don't exist at build time, so import.meta.env would bake in
