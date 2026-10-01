@@ -23,7 +23,7 @@
     "motion": "^12.35.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "sharp": "^0.33.0",
+    "sharp": "^0.35.4",
     "tailwindcss": "^4.2.1"
   },
   "devDependencies": {
