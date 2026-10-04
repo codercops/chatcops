@@ -16,6 +16,20 @@ describe('FAQKnowledgeSource', () => {
     expect(context).toContain('refund');
   });
 
+  it('strips trailing punctuation so queries still match', async () => {
+    const source = new FAQKnowledgeSource(pairs);
+    const context = await source.getContext('Refunds?');
+
+    expect(context).toContain('refund');
+  });
+
+  it('keeps the first-3 fallback for a punctuation-only query', async () => {
+    const source = new FAQKnowledgeSource(pairs);
+    const context = await source.getContext('???');
+
+    expect(context).toContain('Frequently Asked Questions');
+  });
+
   it('returns first 3 pairs for empty-ish query', async () => {
     const source = new FAQKnowledgeSource(pairs);
     const context = await source.getContext('hi');

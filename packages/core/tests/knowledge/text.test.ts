@@ -38,6 +38,20 @@ describe('TextKnowledgeSource', () => {
     expect(context).toContain('support');
   });
 
+  it('strips trailing punctuation so queries still match', async () => {
+    const source = new TextKnowledgeSource(chunks);
+    const context = await source.getContext('pricing?');
+
+    expect(context).toContain('pricing');
+  });
+
+  it('returns empty for a punctuation-only query', async () => {
+    const source = new TextKnowledgeSource(chunks);
+    const context = await source.getContext('???');
+
+    expect(context).toBe('');
+  });
+
   it('limits to 3 results', async () => {
     const manyChunks = Array.from({ length: 10 }, (_, i) => `keyword content chunk ${i}`);
     const source = new TextKnowledgeSource(manyChunks);

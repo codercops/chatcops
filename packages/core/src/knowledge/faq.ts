@@ -1,4 +1,5 @@
 import type { KnowledgeSource } from './base.js';
+import { tokenize } from './tokenize.js';
 
 export interface FAQPair {
   question: string;
@@ -14,7 +15,7 @@ export class FAQKnowledgeSource implements KnowledgeSource {
   }
 
   async getContext(query: string): Promise<string> {
-    const queryWords = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+    const queryWords = tokenize(query);
     if (queryWords.length === 0 && this.pairs.length > 0) {
       return this.formatPairs(this.pairs.slice(0, 3));
     }
