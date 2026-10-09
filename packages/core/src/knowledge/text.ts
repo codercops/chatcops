@@ -1,4 +1,5 @@
 import type { KnowledgeSource } from './base.js';
+import { tokenize } from './tokenize.js';
 
 export class TextKnowledgeSource implements KnowledgeSource {
   type = 'text';
@@ -9,7 +10,7 @@ export class TextKnowledgeSource implements KnowledgeSource {
   }
 
   async getContext(query: string): Promise<string> {
-    const queryWords = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+    const queryWords = tokenize(query);
     if (queryWords.length === 0) return '';
 
     const scored = this.chunks.map((chunk) => {

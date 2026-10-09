@@ -46,12 +46,21 @@ export function renderMarkdown(input: string): string {
       isSafeHref(href) ? `<a href="${href}" target="_blank" rel="noopener noreferrer">${text}</a>` : text
   );
 
-  // Unordered lists
-  html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
-  html = html.replace(/(<li>.*<\/li>\n?)+/g, (match) => `<ul>${match}</ul>`);
-
-  // Ordered lists
-  html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+  // Lists — tag each item with its list type so consecutive same-type
+  // items can be grouped into a <ul>/<ol>, and a `-` list followed by a
+  // `1.` list stays two separate lists. Intra-list newlines are removed
+  // here so the line-break step below does not insert <br> between items.
+  html = html.replace(/^- (.+)$/gm, '<li data-md="ul">$1</li>');
+  html = html.replace(/^\d+\. (.+)$/gm, '<li data-md="ol">$1</li>');
+  html = html.replace(
+    /(?:<li data-md="ul">.*?<\/li>\n?)+|(?:<li data-md="ol">.*?<\/li>\n?)+/g,
+    (run) => {
+      const ordered = run.includes('data-md="ol"');
+      const tag = ordered ? 'ol' : 'ul';
+      const items = run.replace(/ data-md="(?:ul|ol)"/g, '').replace(/\n/g, '');
+      return `<${tag}>${items}</${tag}>`;
+    }
+  );
 
   // Line breaks (double newline = paragraph break)
   html = html.replace(/\n\n/g, '<br><br>');

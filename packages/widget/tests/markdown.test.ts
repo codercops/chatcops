@@ -36,6 +36,35 @@ describe('renderMarkdown', () => {
     expect(result).toContain('<li>Item 2</li>');
   });
 
+  it('renders ordered lists', () => {
+    const result = renderMarkdown('1. First\n2. Second');
+    expect(result).toContain('<ol>');
+    expect(result).toContain('<li>First</li>');
+    expect(result).toContain('<li>Second</li>');
+    expect(result).not.toContain('<br>');
+  });
+
+  it('does not insert breaks between list items', () => {
+    const ul = renderMarkdown('- A\n- B');
+    expect(ul).toContain('<ul><li>A</li><li>B</li></ul>');
+    const ol = renderMarkdown('1. A\n2. B');
+    expect(ol).toContain('<ol><li>A</li><li>B</li></ol>');
+  });
+
+  it('keeps an unordered list followed by an ordered list separate', () => {
+    const result = renderMarkdown('- a\n- b\n1. one\n2. two');
+    expect(result).toContain('<ul><li>a</li><li>b</li></ul>');
+    expect(result).toContain('<ol><li>one</li><li>two</li></ol>');
+    expect(result.indexOf('<ul>')).toBeLessThan(result.indexOf('<ol>'));
+  });
+
+  it('renders a list with text before and after it', () => {
+    const result = renderMarkdown('Intro\n1. First\n2. Second\nOutro');
+    expect(result).toContain('Intro');
+    expect(result).toContain('<ol><li>First</li><li>Second</li></ol>');
+    expect(result).toContain('Outro');
+  });
+
   it('escapes HTML to prevent injection', () => {
     const result = renderMarkdown('<script>alert("xss")</script>');
     expect(result).not.toContain('<script>');

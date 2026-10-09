@@ -34,6 +34,9 @@ const handler = chatcopsMiddleware({
     new LeadCaptureTool({ onCapture: (lead) => saveLead(lead) }),
   ],
 
+  // Optional: Tool execution timeout in ms (default: 30000)
+  toolTimeoutMs: 30_000,
+
   // Optional: Knowledge base
   knowledge: [
     new FAQKnowledgeSource([
@@ -81,6 +84,7 @@ interface ChatCopsServerConfig {
   };
   systemPrompt: string;
   tools?: ChatTool[];
+  toolTimeoutMs?: number;
   knowledge?: KnowledgeSource[];
   rateLimit?: {
     maxRequests: number;
@@ -104,6 +108,8 @@ The server validates incoming requests with Zod:
 {
   conversationId: string,  // 1-128 chars
   message: string,         // 1-10000 chars
+  messageId?: string,      // Optional, 1-128 chars
+  regenerate?: boolean,    // Optional
   pageContext?: {           // Optional page context
     url: string,           // Valid URL
     title: string,         // Max 500 chars
@@ -111,18 +117,47 @@ The server validates incoming requests with Zod:
     contentSnippet?: string, // Max 2000 chars
   },
   locale?: string,         // Max 10 chars
+  userData?: {              // Optional pre-chat data
+    [key: string]: string,  // Each value max 500 chars
+  },
 }
 ```
 
 ## Response Format
 
-The server responds with SSE (Server-Sent Events) for streaming:
+The server responds with SSE (Server-Sent Events) for streaming. Each event is a
+`data: <json>` line followed by a blank line. A successful response can include
+text chunks, lead-capture events, and a final completion event:
 
 ```
 Content-Type: text/event-stream
 
-data: {"type":"token","content":"Hello"}
-data: {"type":"token","content":" there"}
-data: {"type":"token","content":"!"}
-data: {"type":"done"}
+data: {"content":"Hello"}
+
+data: {"content":" there"}
+
+data: {"leadCaptured":true,"leadData":{"name":"Ada","email":"ada@example.com","projectDetails":"Support bot for an online store","source":"chatcops-widget"}}
+
+data: {"content":"!"}
+
+data: {"done":true}
+
+data: [DONE]
 ```
+
+The stream can contain these event shapes:
+
+- `{"content":"..."}` for each text chunk.
+- `{"leadCaptured":true,"leadData":{...}}` when the lead capture tool succeeds.
+- `{"error":"rate_limit","retryAfter":12}` when the client is rate limited.
+- `{"error":"provider_error"}` when the provider fails while generating a reply.
+- `{"error":"Invalid request","details":{...}}` when the request fails schema validation.
+- `{"error":"internal_error"}` when an adapter encounters an unexpected error.
+- `{"done":true}` at the end of a successful reply.
+- `data: [DONE]` as the final line written by the Vercel, Cloudflare, and Express adapters.
+
+Rate-limit and request-validation errors are stream events in an HTTP 200
+response, followed by `data: [DONE]`. Invalid JSON cannot be parsed as a
+request, so the Vercel and Cloudflare adapters return HTTP 400 instead.
+Non-`POST` requests return HTTP 405 (and `OPTIONS` requests are handled as CORS
+preflight requests).
