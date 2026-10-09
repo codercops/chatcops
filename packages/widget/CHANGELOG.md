@@ -1,5 +1,11 @@
 # @chatcops/widget
 
+## 0.4.1
+
+### Patch Changes
+
+- 6074d1b: Fix ordered lists rendering as bare `<li>` elements without an `<ol>` wrapper, and stop inserting `<br>` between list items.
+
 ## 0.4.0
 
 ### Minor Changes
