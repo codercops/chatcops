@@ -644,6 +644,10 @@
 
 /* Mobile */
 @media (max-width: 768px) {
+  .cc-fab.cc-open {
+    display: none;
+  }
+
   .cc-panel:not(.cc-inline) {
     width: 100%;
     height: 100%;

@@ -30,6 +30,42 @@ describe('Widget', () => {
     sessionStorage.clear();
   });
 
+  it.each(['bottom-right', 'bottom-left'] as const)(
+    'restores the %s launcher state after closing from the panel header',
+    (position) => {
+      const onOpen = vi.fn();
+      const onClose = vi.fn();
+      const widget = new Widget({
+        apiUrl: 'https://api.test/chat',
+        theme: { position },
+        onOpen,
+        onClose,
+      });
+      widget.init();
+
+      const root = getInternals(widget).shadow;
+      const launcher = root.querySelector('.cc-fab') as HTMLButtonElement;
+      const panel = root.querySelector('.cc-panel') as HTMLElement;
+      const headerClose = root.querySelector('.cc-header-close') as HTMLButtonElement;
+
+      launcher.click();
+      expect(launcher.classList.contains('cc-open')).toBe(true);
+      expect(panel.classList.contains('cc-visible')).toBe(true);
+
+      headerClose.click();
+      expect(launcher.classList.contains('cc-open')).toBe(false);
+      expect(launcher.getAttribute('aria-label')).toBe('Open chat');
+      expect(panel.classList.contains('cc-visible')).toBe(false);
+      expect(onClose).toHaveBeenCalledOnce();
+
+      launcher.click();
+      expect(launcher.classList.contains('cc-open')).toBe(true);
+      expect(panel.classList.contains('cc-visible')).toBe(true);
+      expect(onOpen).toHaveBeenCalledTimes(2);
+      widget.destroy();
+    }
+  );
+
   it('fires the leadCaptured callback and event when the stream includes lead data', async () => {
     const onLeadCaptured = vi.fn();
     const widget = new Widget({
