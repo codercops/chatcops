@@ -183,6 +183,110 @@ describe('PreChatForm', () => {
     });
   });
 
+  describe('accessibility', () => {
+    it('associates every label with its field via htmlFor and unique stable ids', () => {
+      createForm(parent);
+      const controls = parent.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
+        '.cc-prechat-input, .cc-prechat-select, .cc-prechat-textarea',
+      );
+      const labels = parent.querySelectorAll<HTMLLabelElement>('.cc-prechat-label');
+      const ids = new Set<string>();
+
+      expect(controls.length).toBe(4);
+      expect(labels.length).toBe(controls.length);
+
+      controls.forEach((control) => {
+        expect(control.id).toBe(`cc-prechat-${control.name}`);
+        expect(ids.has(control.id)).toBe(false);
+        ids.add(control.id);
+      });
+
+      labels.forEach((label) => {
+        const control = document.getElementById(label.htmlFor);
+        expect(control).toBeTruthy();
+        expect(control?.tagName).toMatch(/INPUT|SELECT|TEXTAREA/);
+      });
+    });
+
+    it('sets aria-required on required fields only', () => {
+      createForm(parent);
+      const nameInput = parent.querySelector('input[name="name"]') as HTMLInputElement;
+      const emailInput = parent.querySelector('input[name="email"]') as HTMLInputElement;
+      const topicSelect = parent.querySelector('select[name="topic"]') as HTMLSelectElement;
+      const messageTextarea = parent.querySelector('textarea[name="message"]') as HTMLTextAreaElement;
+
+      expect(nameInput.getAttribute('aria-required')).toBe('true');
+      expect(emailInput.getAttribute('aria-required')).toBe('true');
+      expect(topicSelect.hasAttribute('aria-required')).toBe(false);
+      expect(messageTextarea.hasAttribute('aria-required')).toBe(false);
+    });
+
+    it('associates an error with its field via aria-invalid and aria-describedby', () => {
+      createForm(parent);
+
+      const form = parent.querySelector('form') as HTMLFormElement;
+      form.dispatchEvent(new Event('submit', { cancelable: true }));
+
+      const nameInput = parent.querySelector('input[name="name"]') as HTMLInputElement;
+      const nameError = parent.querySelectorAll('.cc-prechat-error')[0];
+      expect(nameError.id).toBeTruthy();
+      expect(nameInput.getAttribute('aria-invalid')).toBe('true');
+      expect(nameInput.getAttribute('aria-describedby')).toBe(nameError.id);
+      expect(document.getElementById(nameError.id)).toBe(nameError);
+      expect(nameError.textContent).toBe('This field is required');
+    });
+
+    it('removes error attributes on input without removing unrelated accessibility attributes', () => {
+      createForm(parent);
+
+      const form = parent.querySelector('form') as HTMLFormElement;
+      form.dispatchEvent(new Event('submit', { cancelable: true }));
+
+      const nameInput = parent.querySelector('input[name="name"]') as HTMLInputElement;
+      nameInput.setAttribute('aria-live', 'polite');
+      expect(nameInput.getAttribute('aria-invalid')).toBe('true');
+
+      nameInput.value = 'Alice';
+      nameInput.dispatchEvent(new Event('input'));
+
+      expect(nameInput.hasAttribute('aria-invalid')).toBe(false);
+      expect(nameInput.hasAttribute('aria-describedby')).toBe(false);
+      expect(nameInput.getAttribute('aria-live')).toBe('polite');
+    });
+
+    it('keeps unrelated aria-describedby when clearing a field without an error', () => {
+      createForm(parent);
+
+      const emailInput = parent.querySelector('input[name="email"]') as HTMLInputElement;
+      emailInput.setAttribute('aria-describedby', 'external-hint');
+      emailInput.dispatchEvent(new Event('input'));
+
+      expect(emailInput.getAttribute('aria-describedby')).toBe('external-hint');
+      expect(emailInput.hasAttribute('aria-invalid')).toBe(false);
+    });
+
+    it('disables native validation with noValidate so widget messages are shown', () => {
+      const onSubmit = vi.fn();
+      createForm(parent, [], onSubmit);
+
+      const form = parent.querySelector('form') as HTMLFormElement;
+      expect(form.noValidate).toBe(true);
+
+      const nameInput = parent.querySelector('input[name="name"]') as HTMLInputElement;
+      const emailInput = parent.querySelector('input[name="email"]') as HTMLInputElement;
+      nameInput.value = 'Alice';
+      nameInput.dispatchEvent(new Event('input'));
+      emailInput.value = 'not-an-email';
+      emailInput.dispatchEvent(new Event('input'));
+
+      form.dispatchEvent(new Event('submit', { cancelable: true }));
+
+      const emailError = parent.querySelectorAll('.cc-prechat-error')[1];
+      expect(emailError.textContent).toBe('Please enter a valid email');
+      expect(onSubmit).not.toHaveBeenCalled();
+    });
+  });
+
   describe('form submission', () => {
     it('calls onSubmit with all field values', () => {
       const onSubmit = vi.fn();
