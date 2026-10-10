@@ -42,6 +42,24 @@ describe('PreChatForm', () => {
   });
 
   describe('field rendering', () => {
+    it('limits text inputs and textareas to 500 characters', () => {
+      createForm(parent);
+
+      const textInput = parent.querySelector(
+        'input[name="name"]',
+      ) as HTMLInputElement;
+      const emailInput = parent.querySelector(
+        'input[name="email"]',
+      ) as HTMLInputElement;
+      const textarea = parent.querySelector(
+        'textarea[name="message"]',
+      ) as HTMLTextAreaElement;
+
+      expect(textInput.maxLength).toBe(500);
+      expect(emailInput.maxLength).toBe(500);
+      expect(textarea.maxLength).toBe(500);
+    });
+
     it('renders title and subtitle', () => {
       createForm(parent);
       expect(parent.querySelector('.cc-prechat-title')?.textContent).toBe('Before we start...');

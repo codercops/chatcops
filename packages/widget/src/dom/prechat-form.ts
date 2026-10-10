@@ -1,6 +1,9 @@
 import type { PreChatField } from '../widget.js';
 import type { WidgetLocaleStrings } from '../i18n.js';
 
+// Must match the userData value limit in packages/server/src/config.ts (chatRequestSchema).
+const MAX_PRECHAT_FIELD_LENGTH = 500;
+
 export interface PreChatFormOptions {
   title: string;
   subtitle: string;
@@ -102,11 +105,13 @@ export class PreChatForm {
       textarea.className = 'cc-prechat-textarea';
       textarea.placeholder = field.placeholder ?? '';
       textarea.rows = 3;
+      textarea.maxLength = MAX_PRECHAT_FIELD_LENGTH;
       input = textarea;
     } else {
       const textInput = document.createElement('input');
       textInput.type = field.type;
       textInput.className = 'cc-prechat-input';
+      textInput.maxLength = MAX_PRECHAT_FIELD_LENGTH;
       textInput.placeholder = field.placeholder ?? '';
       input = textInput;
     }
