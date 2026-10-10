@@ -38,6 +38,7 @@ export class PreChatForm {
 
     const form = document.createElement('form');
     form.className = 'cc-prechat-fields';
+    form.noValidate = true;
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       this.handleSubmit();
@@ -68,8 +69,12 @@ export class PreChatForm {
     const wrapper = document.createElement('div');
     wrapper.className = 'cc-prechat-field';
 
+    const inputId = `cc-prechat-${field.name}`;
+    const errorId = `cc-prechat-${field.name}-error`;
+
     const label = document.createElement('label');
     label.className = 'cc-prechat-label';
+    label.htmlFor = inputId;
     label.textContent = field.label;
     if (field.required) {
       const req = document.createElement('span');
@@ -112,6 +117,10 @@ export class PreChatForm {
     }
 
     input.name = field.name;
+    input.id = inputId;
+    if (field.required) {
+      input.setAttribute('aria-required', 'true');
+    }
     input.addEventListener('input', () => {
       this.clearError(field.name);
       this.updateSubmitState();
@@ -127,6 +136,7 @@ export class PreChatForm {
 
     const error = document.createElement('div');
     error.className = 'cc-prechat-error';
+    error.id = errorId;
     wrapper.appendChild(error);
     this.errorElements.set(field.name, error);
 
@@ -173,11 +183,25 @@ export class PreChatForm {
   private showError(fieldName: string, message: string): void {
     const el = this.errorElements.get(fieldName);
     if (el) el.textContent = message;
+    const fieldEl = this.fieldElements.get(fieldName);
+    if (fieldEl && el) {
+      fieldEl.setAttribute('aria-invalid', 'true');
+      fieldEl.setAttribute('aria-describedby', el.id);
+    }
   }
 
   private clearError(fieldName: string): void {
     const el = this.errorElements.get(fieldName);
     if (el) el.textContent = '';
+    const fieldEl = this.fieldElements.get(fieldName);
+    if (fieldEl && el) {
+      if (fieldEl.getAttribute('aria-describedby') === el.id) {
+        fieldEl.removeAttribute('aria-describedby');
+      }
+      if (fieldEl.getAttribute('aria-invalid') === 'true') {
+        fieldEl.removeAttribute('aria-invalid');
+      }
+    }
   }
 
   private isValidEmail(email: string): boolean {
