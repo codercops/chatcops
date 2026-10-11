@@ -4,6 +4,14 @@
 
 Closes #
 
+## How I tested this
+
+<!-- Required. What you ran or clicked through to check this works. -->
+
+## AI assistance
+
+<!-- For contributor PRs. Write "none", or name the tool and what you used it for. See CONTRIBUTING.md. -->
+
 ## Checklist
 
 - [ ] This PR targets `dev`
