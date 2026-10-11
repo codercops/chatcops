@@ -138,6 +138,10 @@ pnpm test
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for details.
 
+## Community
+
+Questions, or want to chat with other contributors? Join the [CODERCOPS Discord](https://discord.gg/mpGdJyjaRQ).
+
 ## License
 
 MIT

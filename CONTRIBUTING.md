@@ -14,7 +14,7 @@ We're taking part in Hacktoberfest this year, and first-time contributors are ve
 
 PRs count for Hacktoberfest once they're merged or labeled `hacktoberfest-accepted`. PRs that aren't linked to an issue, only reformat code, or change things nobody asked for will be closed, and spammy ones get the `spam` label. If you have an idea that isn't an issue yet, open an issue first so we can agree on it before you write code.
 
-Stuck? Ask on the issue. Questions are welcome.
+Stuck? Ask on the issue, or in `#oss-help` on our [Discord](https://discord.gg/mpGdJyjaRQ). Questions are welcome. Claims still happen on the issue, so the assignment stays visible to everyone.
 
 ## Prerequisites
 

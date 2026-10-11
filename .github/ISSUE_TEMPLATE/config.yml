@@ -3,3 +3,6 @@ contact_links:
   - name: Documentation
     url: https://chat.codercops.com
     about: Setup guides, configuration and API reference
+  - name: Ask a question on Discord
+    url: https://discord.gg/mpGdJyjaRQ
+    about: Chat with the maintainers and other contributors. Issue claims still happen on GitHub.
