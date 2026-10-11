@@ -14,6 +14,12 @@ export interface ChatCopsServerConfig {
   i18n?: { defaultLocale: string; locales: Record<string, LocaleStrings> };
 }
 
+// Everything in a request can end up in the system prompt, so every field has a ceiling.
+export const MAX_USER_DATA_FIELDS = 50;
+export const MAX_USER_DATA_KEY_LENGTH = 100;
+/** Longer page URLs are still accepted, but only this much reaches the prompt. */
+export const MAX_PAGE_URL_LENGTH = 2000;
+
 export const chatRequestSchema = z.object({
   conversationId: z.string().min(1).max(128),
   message: z.string().min(1).max(10000),
@@ -26,7 +32,12 @@ export const chatRequestSchema = z.object({
     contentSnippet: z.string().max(2000).optional(),
   }).optional(),
   locale: z.string().max(10).optional(),
-  userData: z.record(z.string(), z.string().max(500)).optional(),
+  userData: z
+    .record(z.string().max(MAX_USER_DATA_KEY_LENGTH), z.string().max(500))
+    .refine((data) => Object.keys(data).length <= MAX_USER_DATA_FIELDS, {
+      message: `userData can have at most ${MAX_USER_DATA_FIELDS} fields`,
+    })
+    .optional(),
 });
 
 export type ValidatedChatRequest = z.infer<typeof chatRequestSchema>;

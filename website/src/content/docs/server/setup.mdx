@@ -111,14 +111,14 @@ The server validates incoming requests with Zod:
   messageId?: string,      // Optional, 1-128 chars
   regenerate?: boolean,    // Optional
   pageContext?: {           // Optional page context
-    url: string,           // Valid URL
+    url: string,           // Valid URL (the prompt gets the first 2000 chars)
     title: string,         // Max 500 chars
     description?: string,  // Max 1000 chars
     contentSnippet?: string, // Max 2000 chars
   },
   locale?: string,         // Max 10 chars
-  userData?: {              // Optional pre-chat data
-    [key: string]: string,  // Each value max 500 chars
+  userData?: {              // Optional pre-chat data, max 50 fields
+    [key: string]: string,  // Key max 100 chars, value max 500 chars
   },
 }
 ```

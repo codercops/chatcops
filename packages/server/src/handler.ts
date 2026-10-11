@@ -6,7 +6,7 @@ import {
   type ChatMessage,
 } from '@chatcops/core';
 import type { ChatCopsServerConfig, ValidatedChatRequest } from './config.js';
-import { chatRequestSchema } from './config.js';
+import { chatRequestSchema, MAX_PAGE_URL_LENGTH } from './config.js';
 import { RateLimiter } from './rate-limit.js';
 import { WebhookDispatcher } from './webhook.js';
 
@@ -95,7 +95,9 @@ export function createChatHandler(config: ChatCopsServerConfig) {
 
     // Add page context
     if (req.pageContext) {
-      systemPrompt += `\n\nThe user is currently on: ${req.pageContext.url} (${req.pageContext.title})`;
+      // A page URL can be very long (tracking parameters, tokens). The start is all the model needs.
+      const pageUrl = req.pageContext.url.slice(0, MAX_PAGE_URL_LENGTH);
+      systemPrompt += `\n\nThe user is currently on: ${pageUrl} (${req.pageContext.title})`;
       if (req.pageContext.description) {
         systemPrompt += `\nPage description: ${req.pageContext.description}`;
       }

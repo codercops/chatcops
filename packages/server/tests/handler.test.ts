@@ -184,6 +184,40 @@ describe('createChatHandler', () => {
     ]);
   });
 
+  it('accepts a very long page URL but only puts the start of it in the system prompt', async () => {
+    const prompts: string[] = [];
+    mockedCreateProvider.mockResolvedValue({
+      name: 'test-provider',
+      async *chat(params) {
+        prompts.push(params.systemPrompt ?? '');
+        yield 'ok';
+      },
+      async chatSync() {
+        return '';
+      },
+    });
+
+    const { handleChat } = createChatHandler({
+      provider: { type: 'openai', apiKey: 'test-key' },
+      systemPrompt: 'Test',
+      cors: '*',
+    });
+
+    const url = `https://example.com/page?token=${'a'.repeat(5000)}`;
+    const events: Array<Record<string, unknown>> = [];
+    for await (const chunk of handleChat({
+      conversationId: 'conv-long-url',
+      message: 'Hello',
+      pageContext: { url, title: 'Pricing' },
+    })) {
+      events.push(JSON.parse(chunk));
+    }
+
+    expect(events).toEqual([{ content: 'ok' }, { done: true }]);
+    expect(prompts[0]).toContain(`The user is currently on: ${url.slice(0, 2000)} (Pricing)`);
+    expect(prompts[0]).not.toContain(url.slice(0, 2001));
+  });
+
   it('passes the configured tool timeout into the provider chat params', async () => {
     const receivedTimeouts: Array<number | undefined> = [];
 
@@ -457,6 +491,17 @@ describe('chatRequestSchema', () => {
       },
     });
     expect(result.success).toBe(false);
+  });
+
+  it('limits how many pre-chat fields a request can carry, and how long their names are', () => {
+    const fields = (count: number) => Object.fromEntries(Array.from({ length: count }, (_, i) => [`field${i}`, 'x']));
+    const parse = (userData: Record<string, string>) =>
+      chatRequestSchema.safeParse({ conversationId: 'conv-1', message: 'Hello', userData }).success;
+
+    expect(parse(fields(50))).toBe(true);
+    expect(parse(fields(51))).toBe(false);
+    expect(parse({ ['k'.repeat(100)]: 'x' })).toBe(true);
+    expect(parse({ ['k'.repeat(101)]: 'x' })).toBe(false);
   });
 
   it('allows missing optional fields', () => {
