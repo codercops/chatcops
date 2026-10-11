@@ -8,7 +8,7 @@ We're taking part in Hacktoberfest this year, and first-time contributors are ve
 
 1. Pick an open issue labeled [`hacktoberfest`](https://github.com/codercops/chatcops/issues?q=is%3Aissue+is%3Aopen+label%3Ahacktoberfest+no%3Aassignee) or [`good first issue`](https://github.com/codercops/chatcops/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22+no%3Aassignee) that nobody is assigned to.
 2. Comment on it to ask for it. I'll assign it to you, usually within a day. Please don't start on an issue that's assigned to someone else.
-3. Take one issue at a time. Once your PR is merged, grab the next one.
+3. Take one issue at a time. Once your PR is merged, grab the next one. After 3 merged PRs with us you can hold two issues at once.
 4. If you're assigned and there's no PR or update for 5 days, I'll free the issue up for someone else. Just comment if you need more time.
 5. Open your PR against `dev` and put `Closes #<issue number>` in the description.
 
