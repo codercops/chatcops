@@ -1,0 +1,106 @@
+name: Description check
+
+# Every contributor PR says how it was tested and whether AI tools helped (see
+# CONTRIBUTING.md). This check says so on the PR itself while one of the two is
+# missing or still empty, so nobody has to wait for a review to find out.
+#
+# It uses pull_request_target so fork PRs get an answer without a maintainer
+# approving the run. That is safe here: the job never checks out or runs the
+# PR's code, and its token can only read.
+on:
+  pull_request_target:
+    branches: [dev]
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  pull-requests: read
+
+concurrency:
+  group: description-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  sections:
+    name: Says how it was tested and whether AI helped
+    # Maintainers and bots are exempt.
+    if: >-
+      github.event.pull_request.user.type != 'Bot' &&
+      !contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the description
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          # Read the description as it is now, so a re-run sees later edits.
+          gh api "repos/$REPO/pulls/$PR" --jq '.body // ""' > body.md
+
+          python3 - <<'PY'
+          import os
+          import re
+          import sys
+
+          body = open("body.md", encoding="utf-8").read()
+          # The hints in the PR template are HTML comments. They aren't an answer.
+          body = re.sub(r"<!--.*?-->", "", body, flags=re.S)
+          lines = body.splitlines()
+
+          # Section name, the headings we accept for it, and what to write there.
+          WANTED = [
+              (
+                  "How I tested this",
+                  r"how i tested|\btest(ed|ing|s)?\b|\bverif|\bvalidat|\bqa\b",
+                  "what you ran or clicked through to check that this works",
+              ),
+              (
+                  "AI assistance",
+                  r"\bai[ -]?(assist|usage|use|disclos|tool|help|generated)|\b(use|usage) of ai\b|^\W*ai\W*$",
+                  'write "none", or name the tool and what you used it for',
+              ),
+          ]
+
+
+          def is_heading(line):
+              """A Markdown heading, or a bold line used as one."""
+              return bool(re.match(r"\s{0,3}#{1,6}\s", line) or re.fullmatch(r"\s*(\*\*|__).+(\*\*|__)\s*:?\s*", line))
+
+
+          def answer(pattern):
+              """The text under the first matching heading, or after a "Label: answer" line. None when there is neither."""
+              for i, line in enumerate(lines):
+                  if is_heading(line) and re.search(pattern, line, re.I):
+                      below = []
+                      for following in lines[i + 1 :]:
+                          if is_heading(following):
+                              break
+                          below.append(following)
+                      return "\n".join(below).strip()
+                  label, colon, inline = line.partition(":")
+                  if colon and len(label) < 60 and re.search(pattern, label, re.I) and inline.strip(" *_"):
+                      return inline.strip(" *_")
+              return None
+
+
+          problems = []
+          for name, pattern, hint in WANTED:
+              found = answer(pattern)
+              if found is None:
+                  problems.append(f'The description has no "{name}" section. Add one: {hint}.')
+              elif not found:
+                  problems.append(f'The "{name}" section is empty. Fill it in: {hint}.')
+
+          if not problems:
+              print("Both sections are filled in.")
+              sys.exit(0)
+
+          tail = "Edit the PR description and this check runs again (CONTRIBUTING.md has the rules)."
+          for problem in problems:
+              print(f"::error title=PR description::{problem} {tail}")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("### PR description\n\n" + "\n".join(f"- {p}" for p in problems) + f"\n\n{tail}\n")
+          sys.exit(1)
+          PY
