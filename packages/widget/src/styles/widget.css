@@ -145,6 +145,10 @@
   transition: none;
 }
 
+.cc-panel.cc-inline:not(.cc-visible) {
+  visibility: hidden;
+}
+
 .cc-panel.cc-inline.cc-visible {
   transform: none;
 }
