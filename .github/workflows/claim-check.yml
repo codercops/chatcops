@@ -11,20 +11,13 @@ on:
   pull_request_target:
     branches: [dev]
     types: [opened, edited, reopened, synchronize]
-  # To look at one PR by hand: gh workflow run claim-check.yml -f pr=<number>
-  workflow_dispatch:
-    inputs:
-      pr:
-        description: Number of the PR to check
-        required: true
-        type: number
 
 permissions:
   issues: read
   pull-requests: read
 
 concurrency:
-  group: claim-check-${{ github.event.pull_request.number || inputs.pr }}
+  group: claim-check-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
@@ -32,17 +25,15 @@ jobs:
     name: Linked issue is assigned to the author
     # Maintainers and bots don't claim issues.
     if: >-
-      github.event_name == 'workflow_dispatch' || (
-        github.event.pull_request.user.type != 'Bot' &&
-        !contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
-      )
+      github.event.pull_request.user.type != 'Bot' &&
+      !contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
     runs-on: ubuntu-latest
     steps:
       - name: Check the linked issue
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number || inputs.pr }}
+          PR: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
 
