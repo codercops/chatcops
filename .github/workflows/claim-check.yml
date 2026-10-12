@@ -1,0 +1,104 @@
+name: Claim check
+
+# A contributor's PR counts only for an issue that was assigned to them first
+# (see CONTRIBUTING.md). This check says so on the PR itself, so nobody has to
+# wait for a review to find out.
+#
+# It uses pull_request_target so fork PRs get an answer without a maintainer
+# approving the run. That is safe here: the job never checks out or runs the
+# PR's code, and its token can only read.
+on:
+  pull_request_target:
+    branches: [dev]
+    types: [opened, edited, reopened, synchronize]
+  # To look at one PR by hand: gh workflow run claim-check.yml -f pr=<number>
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Number of the PR to check
+        required: true
+        type: number
+
+permissions:
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: claim-check-${{ github.event.pull_request.number || inputs.pr }}
+  cancel-in-progress: true
+
+jobs:
+  assigned:
+    name: Linked issue is assigned to the author
+    # Maintainers and bots don't claim issues.
+    if: >-
+      github.event_name == 'workflow_dispatch' || (
+        github.event.pull_request.user.type != 'Bot' &&
+        !contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the linked issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number || inputs.pr }}
+        run: |
+          set -euo pipefail
+
+          pr=$(gh api graphql \
+            -f owner="${REPO%/*}" -f name="${REPO#*/}" -F pr="$PR" \
+            -f query='query($owner: String!, $name: String!, $pr: Int!) {
+              repository(owner: $owner, name: $name) {
+                pullRequest(number: $pr) {
+                  author { login }
+                  body
+                  closingIssuesReferences(first: 20) {
+                    nodes { number repository { nameWithOwner } assignees(first: 20) { nodes { login } } }
+                  }
+                }
+              }
+            }' \
+            --jq '.data.repository.pullRequest')
+          author=$(jq -r '.author.login // ""' <<<"$pr")
+
+          # The issues GitHub will close when this PR merges ("Closes #12" in the description).
+          linked=$(jq --arg repo "$REPO" '[ .closingIssuesReferences.nodes[] | {
+            ref: (if .repository.nameWithOwner == $repo then "#\(.number)" else "\(.repository.nameWithOwner)#\(.number)" end),
+            assignees: [.assignees.nodes[].login]
+          } ]' <<<"$pr")
+
+          # GitHub can take a moment to record those links on a new PR, so when it
+          # has none, read "Closes #12" from the description here.
+          if [ "$(jq length <<<"$linked")" -eq 0 ]; then
+            numbers=$(jq -r '[ (.body // "") | scan("(?i)\\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\\s*:?\\s+#([0-9]+)") | .[0] ] | unique | .[]' <<<"$pr")
+            for number in $numbers; do
+              # A number can also belong to a PR, or to nothing at all. Those don't count.
+              if issue=$(gh api "repos/$REPO/issues/$number" --jq 'select(.pull_request == null) | {ref: "#\(.number)", assignees: [.assignees[].login]}' 2>/dev/null) && [ -n "$issue" ]; then
+                linked=$(jq --argjson issue "$issue" '. + [$issue]' <<<"$linked")
+              fi
+            done
+          fi
+
+          fail() {
+            echo "::error title=$1::$2"
+            printf '### %s\n\n%s\n' "$1" "$2" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
+
+          if [ "$(jq length <<<"$linked")" -eq 0 ]; then
+            fail "No linked issue" "This PR isn't linked to an issue. Add \"Closes #12\" to the description, with the number of the issue that was assigned to you. If you haven't claimed one yet, comment on the issue and wait to be assigned (CONTRIBUTING.md has the rules)."
+          fi
+
+          # Every linked issue has to be assigned to the PR author.
+          missing=$(jq -r --arg author "$author" '
+            [ .[]
+              | select(all(.assignees[]; ascii_downcase != ($author | ascii_downcase)))
+              | .ref ]
+            | join(", ")' <<<"$linked")
+
+          if [ -n "$missing" ]; then
+            fail "Issue not assigned to you" "$missing isn't assigned to @$author. Comment on the issue and wait for a maintainer to assign it before you open a PR (CONTRIBUTING.md has the rules). Once it's assigned to you, this check passes the next time it runs: push a commit or edit the PR description."
+          fi
+
+          echo "Assigned to @$author: $(jq -r '[.[].ref] | join(", ")' <<<"$linked")"
