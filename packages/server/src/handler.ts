@@ -122,6 +122,7 @@ export function createChatHandler(config: ChatCopsServerConfig) {
     // Stream response
     let fullResponse = '';
     const pendingEvents: string[] = [];
+    const pendingDeliveries: Promise<void>[] = [];
     try {
       for await (const chunk of provider.chat({
         messages,
@@ -146,10 +147,11 @@ export function createChatHandler(config: ChatCopsServerConfig) {
               leadData: result.data,
             }));
             if (webhooks) {
-              await webhooks.dispatch('lead:captured', {
+              // Start delivery without awaiting it so a slow webhook can't delay the tool result.
+              pendingDeliveries.push(webhooks.dispatch('lead:captured', {
                 lead: result.data,
                 conversationId: req.conversationId,
-              });
+              }));
             }
           }
 
@@ -183,6 +185,9 @@ export function createChatHandler(config: ChatCopsServerConfig) {
       await conversations.addMessage(req.conversationId, assistantMessage);
       analytics?.track('message:received', { conversationId: req.conversationId });
     }
+
+    // Keep serverless runtimes from freezing the request before deliveries finish.
+    await Promise.allSettled(pendingDeliveries);
 
     yield JSON.stringify({ done: true });
   }

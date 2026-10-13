@@ -370,6 +370,64 @@ describe('createChatHandler', () => {
     });
   });
 
+  it('returns the lead capture result without waiting for a pending webhook', async () => {
+    const leadTool = {
+      name: 'capture_lead',
+      description: 'Capture a lead',
+      parameters: {
+        email: { type: 'string' as const, description: 'Email address' },
+      },
+      required: ['email'],
+      execute: vi.fn().mockResolvedValue({
+        success: true,
+        data: { email: 'lead@example.com' },
+        message: 'Lead stored',
+      }),
+    };
+
+    // A webhook endpoint that never answers.
+    vi.spyOn(globalThis, 'fetch').mockReturnValue(new Promise(() => {}));
+
+    let executorResult: unknown;
+    mockedCreateProvider.mockResolvedValue({
+      name: 'test-provider',
+      async *chat(params) {
+        executorResult = await Promise.race([
+          params.toolExecutor?.({
+            id: 'tool-1',
+            name: 'capture_lead',
+            input: { email: 'lead@example.com' },
+          }),
+          new Promise((resolve) => setTimeout(() => resolve('timed out'), 100)),
+        ]);
+
+        yield 'Thanks, we will reach out shortly.';
+      },
+      async chatSync() {
+        return '';
+      },
+    });
+
+    const { handleChat } = createChatHandler({
+      provider: { type: 'claude', apiKey: 'test-key' },
+      systemPrompt: 'Test',
+      cors: '*',
+      tools: [leadTool],
+      webhooks: [{ url: 'https://hooks.test/lead', events: ['lead:captured'] }],
+    });
+
+    // Stop once the leadCaptured event arrives: the done event waits for the
+    // pending webhook, which never settles in this test.
+    for await (const chunk of handleChat({
+      conversationId: 'conv-hanging',
+      message: 'My email is lead@example.com',
+    })) {
+      if (chunk.includes('leadCaptured')) break;
+    }
+
+    expect(executorResult).toMatchObject({ success: true });
+  });
+
   it('removes the previous assistant message before regenerating', async () => {
     const receivedMessages: Array<Array<{ role: string; content: string }>> = [];
 

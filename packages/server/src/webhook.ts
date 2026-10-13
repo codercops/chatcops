@@ -1,5 +1,7 @@
 import type { WebhookConfig } from '@chatcops/core';
 
+const WEBHOOK_TIMEOUT_MS = 10_000;
+
 interface WebhookPayload {
   event: string;
   data: unknown;
@@ -46,6 +48,7 @@ export class WebhookDispatcher {
             ...(payload.signature ? { 'X-ChatCops-Signature': payload.signature } : {}),
           },
           body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
         });
 
         if (response.ok) return;
