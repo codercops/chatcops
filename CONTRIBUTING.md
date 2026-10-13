@@ -48,7 +48,7 @@ I review most PRs within a few days. Please don't ping repeatedly or DM maintain
 
 ### Goodies
 
-The top 5 contributors this October get a CODERCOPS T-shirt and stickers. You need at least 5 merged PRs labeled `hacktoberfest-accepted` across chatcops, ogcops and toolbelt, merged between Oct 1 and Oct 31 (UTC), and ties go to whoever got there first. To keep it fair:
+The top 5 contributors this October get a CODERCOPS T-shirt and stickers. You need at least 5 merged PRs labeled `hacktoberfest-accepted` across chatcops, ogcops, toolbelt and discord-bot, merged between Oct 1 and Oct 31 (UTC), and ties go to whoever got there first. To keep it fair:
 
 - only PRs for issues that were assigned to you count
 - a fix split into several PRs counts once
