@@ -17,6 +17,54 @@ interface Env {
   SYSTEM_PROMPT: string;
 }
 
+// Built on the first request rather than at import, because the API key is a
+// Worker secret that only exists inside a request. Caching the handler here is
+// what keeps conversation history and rate limiting alive across requests.
+let handler: ReturnType<typeof chatcopsCloudflareHandler> | undefined;
+function getHandler(env: Env) {
+  handler ??= chatcopsCloudflareHandler({
+    provider: {
+      type: 'claude',
+      apiKey: env.ANTHROPIC_API_KEY,
+      model: 'claude-haiku-4-5-20251001',
+    },
+
+    systemPrompt: env.SYSTEM_PROMPT || `You are a helpful customer support assistant.
+        Be friendly and concise. Capture leads when users share contact info.`,
+
+    tools: [
+      new LeadCaptureTool(async (lead) => {
+        // Forward to webhook
+        if (env.WEBHOOK_URL) {
+          await fetch(env.WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'lead', ...lead }),
+          });
+        }
+      }),
+    ],
+
+    knowledge: [
+      new FAQKnowledgeSource([
+        { question: 'Pricing?', answer: 'Free tier available. Pro starts at $29/mo.' },
+        { question: 'Support hours?', answer: '24/7 via chat, email support 9am-5pm EST.' },
+        { question: 'Refund policy?', answer: '30-day money-back guarantee on all plans.' },
+      ]),
+      new TextKnowledgeSource([
+        `We are a SaaS company specializing in developer tools.
+          Founded in 2023. Based in San Francisco.
+          Used by 1000+ developers worldwide.`,
+      ]),
+    ],
+
+    cors: '*',
+    rateLimit: { maxRequests: 20, windowMs: 60_000 },
+    analytics: true,
+  });
+  return handler;
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     // Health check
@@ -26,48 +74,7 @@ export default {
       });
     }
 
-    const handler = chatcopsCloudflareHandler({
-      provider: {
-        type: 'claude',
-        apiKey: env.ANTHROPIC_API_KEY,
-        model: 'claude-haiku-4-5-20251001',
-      },
-
-      systemPrompt: env.SYSTEM_PROMPT || `You are a helpful customer support assistant.
-        Be friendly and concise. Capture leads when users share contact info.`,
-
-      tools: [
-        new LeadCaptureTool(async (lead) => {
-          // Forward to webhook
-          if (env.WEBHOOK_URL) {
-            await fetch(env.WEBHOOK_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ type: 'lead', ...lead }),
-            });
-          }
-        }),
-      ],
-
-      knowledge: [
-        new FAQKnowledgeSource([
-          { question: 'Pricing?', answer: 'Free tier available. Pro starts at $29/mo.' },
-          { question: 'Support hours?', answer: '24/7 via chat, email support 9am-5pm EST.' },
-          { question: 'Refund policy?', answer: '30-day money-back guarantee on all plans.' },
-        ]),
-        new TextKnowledgeSource([
-          `We are a SaaS company specializing in developer tools.
-          Founded in 2023. Based in San Francisco.
-          Used by 1000+ developers worldwide.`,
-        ]),
-      ],
-
-      cors: '*',
-      rateLimit: { maxRequests: 20, windowMs: 60_000 },
-      analytics: true,
-    });
-
-    return handler(request);
+    return getHandler(env)(request);
   },
 };
 ```

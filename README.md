@@ -126,11 +126,19 @@ export default chatcopsVercelHandler({
 ```typescript
 import { chatcopsCloudflareHandler } from '@chatcops/server/cloudflare';
 
-export default {
-  fetch: chatcopsCloudflareHandler({
+let handler: ReturnType<typeof chatcopsCloudflareHandler> | undefined;
+function getHandler(env: Env) {
+  handler ??= chatcopsCloudflareHandler({
     provider: { type: 'openai', apiKey: env.OPENAI_API_KEY },
     systemPrompt: 'You are a helpful assistant.',
-  }),
+  });
+  return handler;
+}
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    return getHandler(env)(request);
+  },
 };
 ```
 

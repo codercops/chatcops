@@ -12,24 +12,37 @@ Create a Worker at `src/index.ts`:
 ```typescript
 import { chatcopsCloudflareHandler } from '@chatcops/server';
 
+// Built on the first request rather than at import, because the API key is a
+// Worker secret that only exists inside a request. Caching the handler here is
+// what keeps conversation history and rate limiting alive across requests.
+let handler: ReturnType<typeof chatcopsCloudflareHandler> | undefined;
+function getHandler(env: Record<string, string>) {
+  handler ??= chatcopsCloudflareHandler({
+    provider: {
+      type: 'claude',
+      apiKey: env.ANTHROPIC_API_KEY,
+    },
+    systemPrompt: 'You are a helpful assistant.',
+    cors: '*',
+  });
+  return handler;
+}
+
 export default {
   async fetch(
     request: Request,
     env: Record<string, string>
   ): Promise<Response> {
-    const handler = chatcopsCloudflareHandler({
-      provider: {
-        type: 'claude',
-        apiKey: env.ANTHROPIC_API_KEY,
-      },
-      systemPrompt: 'You are a helpful assistant.',
-      cors: '*',
-    });
-
-    return handler(request);
+    return getHandler(env)(request);
   },
 };
 ```
+
+:::note[History and rate limits]
+Conversation history and rate limiting live in memory on the isolate, not in a
+shared store. They are not shared between isolates and they do not survive a
+restart, so a deploy or a scale event resets both.
+:::
 
 ## Environment Variables
 
@@ -61,30 +74,34 @@ SYSTEM_PROMPT = "You are a helpful assistant."
 import { chatcopsCloudflareHandler } from '@chatcops/server';
 import { LeadCaptureTool } from '@chatcops/core';
 
+let handler: ReturnType<typeof chatcopsCloudflareHandler> | undefined;
+function getHandler(env: Record<string, string>) {
+  handler ??= chatcopsCloudflareHandler({
+    provider: {
+      type: 'gemini',
+      apiKey: env.GOOGLE_AI_API_KEY,
+      model: 'gemini-2.0-flash',
+    },
+    systemPrompt: env.SYSTEM_PROMPT || 'You are a helpful assistant.',
+    tools: [
+      new LeadCaptureTool(async (lead) => {
+        // Use Cloudflare KV, D1, or external webhook
+        await fetch(env.WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(lead),
+        });
+      }),
+    ],
+    cors: '*',
+    rateLimit: { maxRequests: 20, windowMs: 60_000 },
+  });
+  return handler;
+}
+
 export default {
   async fetch(request: Request, env: Record<string, string>): Promise<Response> {
-    const handler = chatcopsCloudflareHandler({
-      provider: {
-        type: 'gemini',
-        apiKey: env.GOOGLE_AI_API_KEY,
-        model: 'gemini-2.0-flash',
-      },
-      systemPrompt: env.SYSTEM_PROMPT || 'You are a helpful assistant.',
-      tools: [
-        new LeadCaptureTool(async (lead) => {
-          // Use Cloudflare KV, D1, or external webhook
-          await fetch(env.WEBHOOK_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(lead),
-          });
-        }),
-      ],
-      cors: '*',
-      rateLimit: { maxRequests: 20, windowMs: 60_000 },
-    });
-
-    return handler(request);
+    return getHandler(env)(request);
   },
 };
 ```
