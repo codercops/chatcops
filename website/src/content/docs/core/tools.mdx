@@ -22,13 +22,13 @@ const leadTool = new LeadCaptureTool(async (lead) => {
 
 ```typescript
 interface LeadData {
-name: string;
-email: string;
-company?: string;
-phone?: string;
-projectDetails: string;
-source: string;
-metadata?: Record<string, unknown>;
+  name: string;
+  email: string;
+  company?: string;
+  phone?: string;
+  projectDetails: string;
+  source: string;
+  metadata?: Record<string, unknown>;
 }
 ```
 
@@ -48,23 +48,23 @@ Create custom tools by implementing the `ChatTool` interface:
 
 ```typescript
 interface ChatTool {
-name: string;
-description: string;
-parameters: Record<string, ToolParameter>;
-required: string[];
-execute(input: Record<string, unknown>): Promise<ToolResult>;
+  name: string;
+  description: string;
+  parameters: Record<string, ToolParameter>;
+  required: string[];
+  execute(input: Record<string, unknown>): Promise<ToolResult>;
 }
 
 interface ToolParameter {
-type: 'string' | 'number' | 'boolean';
-description: string;
-enum?: string[];
+  type: 'string' | 'number' | 'boolean';
+  description: string;
+  enum?: string[];
 }
 
 interface ToolResult {
-success: boolean;
-data?: unknown;
-message?: string;
+  success: boolean;
+  data?: unknown;
+  message?: string;
 }
 ```
 
@@ -72,32 +72,32 @@ message?: string;
 
 ```typescript
 const weatherTool: ChatTool = {
-name: 'get_weather',
-description: 'Get current weather for a city',
-parameters: {
-  city: { type: 'string', description: 'City name' },
-  unit: { type: 'string', description: 'Temperature unit', enum: ['celsius', 'fahrenheit'] },
-},
-required: ['city'],
+  name: 'get_weather',
+  description: 'Get current weather for a city',
+  parameters: {
+    city: { type: 'string', description: 'City name' },
+    unit: { type: 'string', description: 'Temperature unit', enum: ['celsius', 'fahrenheit'] },
+  },
+  required: ['city'],
 
-async execute(input) {
-  const response = await fetch(
-    `https://api.weather.example.com/${input.city}`
-  );
-  const data = await response.json();
-  return {
-    success: true,
-    data,
-    message: `It's ${data.temp}° in ${input.city}`,
-  };
-},
+  async execute(input) {
+    const response = await fetch(
+      `https://api.weather.example.com/${input.city}`
+    );
+    const data = await response.json();
+    return {
+      success: true,
+      data,
+      message: `It's ${data.temp}° in ${input.city}`,
+    };
+  },
 };
 
 // Use in server config
 chatcopsMiddleware({
-provider: { type: 'claude', apiKey: '...' },
-systemPrompt: 'Help users with weather queries.',
-tools: [weatherTool],
+  provider: { type: 'claude', apiKey: '...' },
+  systemPrompt: 'Help users with weather queries.',
+  tools: [weatherTool],
 });
 ```
 

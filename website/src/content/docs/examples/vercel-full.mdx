@@ -9,8 +9,7 @@ A production-ready Vercel Edge Function with lead capture, knowledge base, and a
 
 ```typescript
 import { chatcopsVercelHandler } from '@chatcops/server';
-import { LeadCaptureTool } from '@chatcops/core';
-import { FAQKnowledgeSource } from '@chatcops/core';
+import { LeadCaptureTool, FAQKnowledgeSource } from '@chatcops/core';
 
 export const config = { runtime: 'edge' };
 
@@ -35,9 +34,9 @@ export default chatcopsVercelHandler({
           type: 'lead_captured',
           lead,
           timestamp: new Date().toISOString(),
+        }),
+      });
     }),
-        });
-      }),
   ],
 
   knowledge: [

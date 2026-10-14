@@ -9,8 +9,7 @@ A production-ready Cloudflare Worker with lead capture, knowledge base, and rate
 
 ```typescript
 import { chatcopsCloudflareHandler } from '@chatcops/server';
-import { LeadCaptureTool } from '@chatcops/core';
-import { FAQKnowledgeSource, TextKnowledgeSource } from '@chatcops/core';
+import { LeadCaptureTool, FAQKnowledgeSource, TextKnowledgeSource } from '@chatcops/core';
 
 interface Env {
   ANTHROPIC_API_KEY: string;
