@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+﻿import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NextFunction, Request, Response } from 'express';
 
 vi.mock('../../src/handler.js', async (importOriginal) => {
@@ -26,10 +26,7 @@ vi.mock('@chatcops/core', async (importOriginal) => {
   };
 });
 
-import {
-  chatcopsAnalyticsHandler,
-  chatcopsMiddleware,
-} from '../../src/adapters/express.js';
+import { chatcopsAnalyticsHandler, chatcopsMiddleware } from '../../src/adapters/express.js';
 import type { ChatCopsServerConfig } from '../../src/config.js';
 
 function createRequest(method: string, body?: unknown): Request {
@@ -222,7 +219,7 @@ describe('express analytics sharing', () => {
       await middleware(
         createRequest('POST', { conversationId, message: 'Hello' }),
         res,
-        (() => undefined) as NextFunction,
+        (() => undefined) as NextFunction
       );
       expect(fake.chunks.join('')).toContain('data: [DONE]');
       expect(fake.ended).toBe(true);
