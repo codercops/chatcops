@@ -27,18 +27,17 @@ export default chatcopsVercelHandler({
 
   tools: [
     new LeadCaptureTool(async (lead) => {
-        // Send to webhook (e.g., Zapier, Make, n8n)
-        await fetch(process.env.WEBHOOK_URL!, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'lead_captured',
-            lead,
-            timestamp: new Date().toISOString(),
-          }),
-        });
-      },
+      // Send to webhook (e.g., Zapier, Make, n8n)
+      await fetch(process.env.WEBHOOK_URL!, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'lead_captured',
+          lead,
+          timestamp: new Date().toISOString(),
     }),
+        });
+      }),
   ],
 
   knowledge: [

@@ -34,19 +34,18 @@ Best for unstructured content (documentation, product descriptions, policies):
 ```typescript
 import { TextKnowledgeSource } from '@chatcops/core';
 
-const docs = new TextKnowledgeSource(
+const docs = new TextKnowledgeSource([
   `Our company was founded in 2020 by Jane Doe.
   We specialize in AI-powered customer support solutions.
   Our flagship product is ChatCops, an embeddable chatbot widget.
   We serve over 500 businesses worldwide.
   Our headquarters is in San Francisco, CA.`,
-  
-);
+]);
 ```
 
 ### How Text Matching Works
 
-1. Texts are matched against the user's query
+1. Each string in the array is one chunk
 2. User's query words are matched against each chunk
 3. Top 3 relevant chunks are returned
 4. Context is prefixed with `"Relevant context:\n"`

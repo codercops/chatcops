@@ -51,10 +51,9 @@ app.all('/chat', chatcopsMiddleware({
   systemPrompt: 'You are a helpful assistant. Capture leads when users share contact info.',
   tools: [
     new LeadCaptureTool(async (lead) => {
-        // Save to your database, CRM, etc.
-        await db.leads.create(lead);
-        console.log('Lead captured:', lead.email);
-      },
+      // Save to your database, CRM, etc.
+      await db.leads.create(lead);
+      console.log('Lead captured:', lead.email);
     }),
   ],
 }));
@@ -74,8 +73,8 @@ app.all('/chat', chatcopsMiddleware({
       { question: 'Do you offer refunds?', answer: 'Yes, within 30 days of purchase.' },
     ]),
     new TextKnowledgeSource([
-      'Our company was founded in 2020. We specialize in AI solutions...'
-      ]),
+      'Our company was founded in 2020. We specialize in AI solutions...',
+    ]),
   ],
 }));
 ```

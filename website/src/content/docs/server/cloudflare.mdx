@@ -72,13 +72,12 @@ export default {
       systemPrompt: env.SYSTEM_PROMPT || 'You are a helpful assistant.',
       tools: [
         new LeadCaptureTool(async (lead) => {
-            // Use Cloudflare KV, D1, or external webhook
-            await fetch(env.WEBHOOK_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(lead),
-            });
-          },
+          // Use Cloudflare KV, D1, or external webhook
+          await fetch(env.WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(lead),
+          });
         }),
       ],
       cors: '*',

@@ -39,15 +39,14 @@ export default {
 
       tools: [
         new LeadCaptureTool(async (lead) => {
-            // Forward to webhook
-            if (env.WEBHOOK_URL) {
-              await fetch(env.WEBHOOK_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'lead', ...lead }),
-              });
-            }
-          },
+          // Forward to webhook
+          if (env.WEBHOOK_URL) {
+            await fetch(env.WEBHOOK_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ type: 'lead', ...lead }),
+            });
+          }
         }),
       ],
 
@@ -57,11 +56,11 @@ export default {
           { question: 'Support hours?', answer: '24/7 via chat, email support 9am-5pm EST.' },
           { question: 'Refund policy?', answer: '30-day money-back guarantee on all plans.' },
         ]),
-        new TextKnowledgeSource(
+        new TextKnowledgeSource([
           `We are a SaaS company specializing in developer tools.
           Founded in 2023. Based in San Francisco.
-          Used by 1000+ developers worldwide.`
-        ),
+          Used by 1000+ developers worldwide.`,
+        ]),
       ],
 
       cors: '*',

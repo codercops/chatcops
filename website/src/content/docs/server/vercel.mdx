@@ -66,10 +66,10 @@ export default chatcopsVercelHandler({
     Help users with product questions and capture leads.`,
   tools: [
     new LeadCaptureTool(async (lead) => {
-        await fetch('https://hooks.zapier.com/...', {
-          method: 'POST',
-          body: JSON.stringify(lead),);
-      },
+      await fetch('https://hooks.zapier.com/...', {
+        method: 'POST',
+        body: JSON.stringify(lead),
+      });
     }),
   ],
   knowledge: [
