@@ -1,6 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NextFunction, Request, Response } from 'express';
 
+vi.mock('../../src/handler.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/handler.js')>();
+  return {
+    ...actual,
+    createChatHandler: vi.fn(actual.createChatHandler),
+  };
+});
+
+import { createChatHandler } from '../../src/handler.js';
 vi.mock('@chatcops/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@chatcops/core')>();
   return {
@@ -84,6 +93,115 @@ describe('express analytics sharing', () => {
       clearInterval(result.value as ReturnType<typeof setInterval>);
     }
     vi.restoreAllMocks();
+  });
+
+  it('writes an internal_error event and ends when the handler throws', async () => {
+    vi.mocked(createChatHandler).mockImplementationOnce(() => ({
+      async *handleChat() {
+        throw new Error('Unexpected handler failure');
+      },
+      getAnalytics: () => null,
+      cleanup: () => undefined,
+    }));
+
+    const config: ChatCopsServerConfig = {
+      provider: { type: 'claude', apiKey: 'test-key' },
+      systemPrompt: 'Test',
+      cors: '*',
+    };
+    const middleware = chatcopsMiddleware(config);
+    const { fake, res } = createResponse();
+
+    await middleware(
+      createRequest('POST', {
+        conversationId: 'express-error-test',
+        message: 'Hello',
+      }),
+      res,
+      (() => undefined) as NextFunction,
+    );
+
+    expect(fake.chunks).toContain(
+      `data: ${JSON.stringify({ error: 'internal_error' })}\n\n`,
+    );
+    expect(fake.chunks).not.toContain('data: [DONE]\n\n');
+    expect(fake.ended).toBe(true);
+  });
+
+  it('returns 204 with CORS headers for OPTIONS requests', async () => {
+    const config: ChatCopsServerConfig = {
+      provider: { type: 'claude', apiKey: 'test-key' },
+      systemPrompt: 'Test',
+      cors: '*',
+    };
+    const middleware = chatcopsMiddleware(config);
+    const { fake, res } = createResponse();
+
+    await middleware(
+      createRequest('OPTIONS'),
+      res,
+      (() => undefined) as NextFunction,
+    );
+
+    expect(fake.statusCode).toBe(204);
+    expect(fake.headers).toMatchObject({
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Max-Age': '86400',
+    });
+    expect(fake.ended).toBe(true);
+    expect(fake.body).toBeUndefined();
+  });
+
+  it('returns 405 JSON for GET requests', async () => {
+    const config: ChatCopsServerConfig = {
+      provider: { type: 'claude', apiKey: 'test-key' },
+      systemPrompt: 'Test',
+      cors: '*',
+    };
+    const middleware = chatcopsMiddleware(config);
+    const { fake, res } = createResponse();
+
+    await middleware(
+      createRequest('GET'),
+      res,
+      (() => undefined) as NextFunction,
+    );
+
+    expect(fake.statusCode).toBe(405);
+    expect(fake.body).toEqual({ error: 'Method not allowed' });
+    expect(fake.chunks).toEqual([]);
+    expect(fake.ended).toBe(false);
+  });
+
+  it('streams chunks as SSE data, writes DONE, and ends the response', async () => {
+    const config: ChatCopsServerConfig = {
+      provider: { type: 'claude', apiKey: 'test-key' },
+      systemPrompt: 'Test',
+      cors: '*',
+    };
+    const middleware = chatcopsMiddleware(config);
+    const { fake, res } = createResponse();
+
+    await middleware(
+      createRequest('POST', {
+        conversationId: 'express-sse-test',
+        message: 'Hello',
+      }),
+      res,
+      (() => undefined) as NextFunction,
+    );
+
+    expect(fake.headers).toMatchObject({
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+    });
+    expect(fake.chunks).toContain('data: {"content":"Hello"}\n\n');
+    expect(fake.chunks.at(-1)).toBe('data: [DONE]\n\n');
+    expect(fake.ended).toBe(true);
   });
 
   it('reports middleware traffic through chatcopsAnalyticsHandler', async () => {

@@ -352,6 +352,19 @@
   opacity: 1;
 }
 
+/* Keep regenerate available to keyboard and touch users */
+.cc-message:focus-within .cc-message-regenerate,
+.cc-message-regenerate:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .cc-message-regenerate {
+    opacity: 1;
+  }
+}
+
+
 .cc-message-retry {
   border-color: #ef4444;
   color: #ef4444;
@@ -670,5 +683,30 @@
     right: 16px;
     left: 16px;
     max-width: none;
+  }
+}
+
+/* Keyboard focus indicators */
+.cc-fab:focus-visible,
+.cc-header-close:focus-visible,
+.cc-send-btn:focus-visible,
+.cc-message-retry:focus-visible,
+.cc-message-regenerate:focus-visible,
+.cc-bubble-close:focus-visible,
+.cc-prechat-submit:focus-visible {
+  outline: 2px solid var(--cc-accent);
+  outline-offset: 3px;
+}
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .cc-fab.cc-pulse,
+  .cc-typing-dot {
+    animation: none;
+  }
+
+  .cc-panel,
+  .cc-bubble {
+    transition: none;
   }
 }
