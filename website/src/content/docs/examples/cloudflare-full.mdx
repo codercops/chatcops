@@ -9,8 +9,8 @@ A production-ready Cloudflare Worker with lead capture, knowledge base, and rate
 
 ```typescript
 import { chatcopsCloudflareHandler } from '@chatcops/server';
-import { LeadCaptureTool } from '@chatcops/core/tools';
-import { FAQKnowledgeSource, TextKnowledgeSource } from '@chatcops/core/knowledge';
+import { LeadCaptureTool } from '@chatcops/core';
+import { FAQKnowledgeSource, TextKnowledgeSource } from '@chatcops/core';
 
 interface Env {
   ANTHROPIC_API_KEY: string;
@@ -38,8 +38,7 @@ export default {
         Be friendly and concise. Capture leads when users share contact info.`,
 
       tools: [
-        new LeadCaptureTool({
-          onCapture: async (lead) => {
+        new LeadCaptureTool(async (lead) => {
             // Forward to webhook
             if (env.WEBHOOK_URL) {
               await fetch(env.WEBHOOK_URL, {

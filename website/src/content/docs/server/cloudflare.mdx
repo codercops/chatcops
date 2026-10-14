@@ -59,7 +59,7 @@ SYSTEM_PROMPT = "You are a helpful assistant."
 
 ```typescript
 import { chatcopsCloudflareHandler } from '@chatcops/server';
-import { LeadCaptureTool } from '@chatcops/core/tools';
+import { LeadCaptureTool } from '@chatcops/core';
 
 export default {
   async fetch(request: Request, env: Record<string, string>): Promise<Response> {
@@ -71,8 +71,7 @@ export default {
       },
       systemPrompt: env.SYSTEM_PROMPT || 'You are a helpful assistant.',
       tools: [
-        new LeadCaptureTool({
-          onCapture: async (lead) => {
+        new LeadCaptureTool(async (lead) => {
             // Use Cloudflare KV, D1, or external webhook
             await fetch(env.WEBHOOK_URL, {
               method: 'POST',

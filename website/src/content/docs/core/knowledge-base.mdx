@@ -10,7 +10,7 @@ Knowledge sources give the AI relevant context for each query, grounding respons
 Best for structured question-answer pairs:
 
 ```typescript
-import { FAQKnowledgeSource } from '@chatcops/core/knowledge';
+import { FAQKnowledgeSource } from '@chatcops/core';
 
 const faq = new FAQKnowledgeSource([
   { question: 'What are your business hours?', answer: '9am-5pm EST, Monday to Friday.' },
@@ -32,7 +32,7 @@ const faq = new FAQKnowledgeSource([
 Best for unstructured content (documentation, product descriptions, policies):
 
 ```typescript
-import { TextKnowledgeSource } from '@chatcops/core/knowledge';
+import { TextKnowledgeSource } from '@chatcops/core';
 
 const docs = new TextKnowledgeSource(
   `Our company was founded in 2020 by Jane Doe.
@@ -40,13 +40,13 @@ const docs = new TextKnowledgeSource(
   Our flagship product is ChatCops, an embeddable chatbot widget.
   We serve over 500 businesses worldwide.
   Our headquarters is in San Francisco, CA.`,
-  { chunkSize: 500 }  // Optional: characters per chunk
+  
 );
 ```
 
 ### How Text Matching Works
 
-1. Source text is split into chunks at initialization
+1. Texts are matched against the user's query
 2. User's query words are matched against each chunk
 3. Top 3 relevant chunks are returned
 4. Context is prefixed with `"Relevant context:\n"`
@@ -70,8 +70,8 @@ chatcopsMiddleware({
   systemPrompt: 'Answer using the provided context. If unsure, say so.',
   knowledge: [
     new FAQKnowledgeSource(faqs),
-    new TextKnowledgeSource(productDocs),
-    new TextKnowledgeSource(policyDocs),
+    new TextKnowledgeSource([productDocs]),
+    new TextKnowledgeSource([policyDocs]),
   ],
 });
 ```

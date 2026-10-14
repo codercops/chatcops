@@ -65,7 +65,7 @@ When `analytics: true`, the server automatically tracks:
 ## AnalyticsCollector API
 
 ```typescript
-import { AnalyticsCollector } from '@chatcops/core/analytics';
+import { AnalyticsCollector } from '@chatcops/core';
 
 const analytics = new AnalyticsCollector();
 
@@ -77,7 +77,7 @@ const stats = analytics.getStats();
 // {
 //   totalConversations: 150,
 //   totalMessages: 2340,
-//   leadsCaptured: 23,
+//   leadsCapture: 23,
 //   averageMessagesPerConversation: 15.6,
 //   eventCounts: { 'conversation:started': 150, ... }
 // }
@@ -96,7 +96,7 @@ analytics.clear();
 interface AnalyticsStats {
   totalConversations: number;
   totalMessages: number;
-  leadsCaptured: number;
+  leadsCapture: number;
   averageMessagesPerConversation: number;
   eventCounts: Record<string, number>;
 }

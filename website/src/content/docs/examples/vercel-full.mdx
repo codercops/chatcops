@@ -9,8 +9,8 @@ A production-ready Vercel Edge Function with lead capture, knowledge base, and a
 
 ```typescript
 import { chatcopsVercelHandler } from '@chatcops/server';
-import { LeadCaptureTool } from '@chatcops/core/tools';
-import { FAQKnowledgeSource } from '@chatcops/core/knowledge';
+import { LeadCaptureTool } from '@chatcops/core';
+import { FAQKnowledgeSource } from '@chatcops/core';
 
 export const config = { runtime: 'edge' };
 
@@ -26,8 +26,7 @@ export default chatcopsVercelHandler({
     If a user shares contact info, capture it with the lead tool.`,
 
   tools: [
-    new LeadCaptureTool({
-      onCapture: async (lead) => {
+    new LeadCaptureTool(async (lead) => {
         // Send to webhook (e.g., Zapier, Make, n8n)
         await fetch(process.env.WEBHOOK_URL!, {
           method: 'POST',

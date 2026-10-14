@@ -10,10 +10,9 @@ Tools extend the AI's capabilities by letting it perform actions like capturing 
 The `LeadCaptureTool` lets the AI collect contact information from conversations:
 
 ```typescript
-import { LeadCaptureTool } from '@chatcops/core/tools';
+import { LeadCaptureTool } from '@chatcops/core';
 
-const leadTool = new LeadCaptureTool({
-  onCapture: async (lead) => {
+const leadTool = new LeadCaptureTool(async (lead) => {
     console.log('New lead:', lead);
     // Save to database, CRM, send webhook, etc.
   },

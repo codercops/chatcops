@@ -10,8 +10,8 @@ A production-ready Express server with lead capture, knowledge base, webhooks, a
 ```typescript
 import express from 'express';
 import { chatcopsMiddleware } from '@chatcops/server';
-import { LeadCaptureTool } from '@chatcops/core/tools';
-import { FAQKnowledgeSource, TextKnowledgeSource } from '@chatcops/core/knowledge';
+import { LeadCaptureTool } from '@chatcops/core';
+import { FAQKnowledgeSource, TextKnowledgeSource } from '@chatcops/core';
 
 const app = express();
 app.use(express.json());
@@ -35,8 +35,7 @@ app.all('/chat', chatcopsMiddleware({
     Always be transparent about being an AI assistant.`,
 
   tools: [
-    new LeadCaptureTool({
-      onCapture: async (lead) => {
+    new LeadCaptureTool(async (lead) => {
         console.log('New lead captured:', lead.email);
         // Save to database
         // await db.leads.create(lead);
@@ -45,7 +44,7 @@ app.all('/chat', chatcopsMiddleware({
         // await fetch('https://hooks.zapier.com/...', {
         //   method: 'POST',
         //   body: JSON.stringify(lead),
-        // });
+        //);
       },
     }),
   ],

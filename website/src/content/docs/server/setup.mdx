@@ -31,7 +31,7 @@ const handler = chatcopsMiddleware({
 
   // Optional: Tools
   tools: [
-    new LeadCaptureTool({ onCapture: (lead) => saveLead(lead) }),
+    new LeadCaptureTool((lead) => saveLead(lead)),
   ],
 
   // Optional: Tool execution timeout in ms (default: 30000)

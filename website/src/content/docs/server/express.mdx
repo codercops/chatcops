@@ -41,7 +41,7 @@ Cross-origin deployments must let `OPTIONS` preflight requests reach the Express
 ## With Lead Capture
 
 ```typescript
-import { LeadCaptureTool } from '@chatcops/core/tools';
+import { LeadCaptureTool } from '@chatcops/core';
 
 app.all('/chat', chatcopsMiddleware({
   provider: {
@@ -50,8 +50,7 @@ app.all('/chat', chatcopsMiddleware({
   },
   systemPrompt: 'You are a helpful assistant. Capture leads when users share contact info.',
   tools: [
-    new LeadCaptureTool({
-      onCapture: async (lead) => {
+    new LeadCaptureTool(async (lead) => {
         // Save to your database, CRM, etc.
         await db.leads.create(lead);
         console.log('Lead captured:', lead.email);
@@ -64,7 +63,7 @@ app.all('/chat', chatcopsMiddleware({
 ## With Knowledge Base
 
 ```typescript
-import { FAQKnowledgeSource, TextKnowledgeSource } from '@chatcops/core/knowledge';
+import { FAQKnowledgeSource, TextKnowledgeSource } from '@chatcops/core';
 
 app.all('/chat', chatcopsMiddleware({
   provider: { type: 'openai', apiKey: process.env.OPENAI_API_KEY! },
@@ -74,10 +73,9 @@ app.all('/chat', chatcopsMiddleware({
       { question: 'What are your hours?', answer: '9am-5pm EST, Monday-Friday.' },
       { question: 'Do you offer refunds?', answer: 'Yes, within 30 days of purchase.' },
     ]),
-    new TextKnowledgeSource(
-      'Our company was founded in 2020. We specialize in AI solutions...',
-      { chunkSize: 500 }
-    ),
+    new TextKnowledgeSource([
+      'Our company was founded in 2020. We specialize in AI solutions...'
+      ]),
   ],
 }));
 ```

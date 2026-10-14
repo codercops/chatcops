@@ -96,7 +96,7 @@ All providers support tool calling with a unified format. ChatCops automatically
 chatcopsMiddleware({
   provider: { type: 'claude', apiKey: '...' },
   systemPrompt: '...',
-  tools: [new LeadCaptureTool({ onCapture: saveLead })],
+  tools: [new LeadCaptureTool(saveLead)],
 });
 ```
 
