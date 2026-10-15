@@ -44,6 +44,8 @@ Two spam PRs and you won't be assigned more issues this month, and you're out of
 
 Every PR needs a "How I tested this" line: what you ran or clicked through to check it works.
 
+For a bug fix, check that your new test fails without the fix: undo the change in the source, run the tests, then put it back. A test that passes either way doesn't catch anything.
+
 I review most PRs within a few days. Please don't ping repeatedly or DM maintainers about a review. If three days pass with no reply, one follow-up comment on the PR is fine.
 
 ### Goodies

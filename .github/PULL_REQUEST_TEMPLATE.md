@@ -18,5 +18,6 @@ Closes #
 - [ ] I was assigned the linked issue
 - [ ] `pnpm -r build`, `pnpm test` and `pnpm -r typecheck` pass locally
 - [ ] Tests added or updated where it makes sense
+- [ ] For a bug fix: the new test fails without my change
 - [ ] Changeset added (`pnpm changeset`) if this changes `core`, `widget` or `server`
 - [ ] Docs updated if behavior or options changed
