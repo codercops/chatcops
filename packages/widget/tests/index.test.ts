@@ -1,9 +1,15 @@
 import { beforeEach, afterEach, describe, expect, it } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import ChatCops from '../src/index.js';
+import ChatCops, { parseAutoOpen } from '../src/index.js';
 
 describe('ChatCops browser export and auto-init', () => {
+
+  it.each([
+    [undefined, undefined], ['', true], ['true', true], ['false', false], ['1500', 1500], ['0', 0], ['nope', undefined],
+  ])('parses data-auto-open %j', (value, expected) => {
+    expect(parseAutoOpen(value)).toBe(expected);
+  });
   const bundlePath = resolve(__dirname, '../dist/chatcops.min.js');
   let bundleCode: string;
 
