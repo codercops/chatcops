@@ -146,6 +146,70 @@ describe('renderMarkdown', () => {
     });
   });
 
+  describe('headings', () => {
+    it.each([1, 2, 3, 4, 5, 6])('renders a level %i heading', (level) => {
+      const result = renderMarkdown(`${'#'.repeat(level)} Shipping options`);
+      expect(result).toBe(`<h${level}>Shipping options</h${level}>`);
+    });
+
+    it('does not put a <br> right after a heading', () => {
+      const result = renderMarkdown('### Shipping options\n\nWe ship worldwide.');
+      expect(result).toBe('<h3>Shipping options</h3>We ship worldwide.');
+    });
+
+    it('needs a space after the hashes and seven is too many', () => {
+      expect(renderMarkdown('#hashtag')).not.toContain('<h1>');
+      expect(renderMarkdown('####### too deep')).not.toContain('<h');
+    });
+
+    it('keeps # literal inside inline code and code blocks', () => {
+      expect(renderMarkdown('`# not a heading`')).toBe('<code># not a heading</code>');
+      const block = renderMarkdown('```\n# comment\n```');
+      expect(block).toBe('<pre><code># comment</code></pre>');
+    });
+
+    it('still escapes HTML inside a heading', () => {
+      expect(renderMarkdown('## <b>hi</b>')).toBe('<h2>&lt;b&gt;hi&lt;/b&gt;</h2>');
+    });
+  });
+
+  describe('bullet markers', () => {
+    it.each(['*', '+'])('groups %s items into one <ul> like - items', (marker) => {
+      const result = renderMarkdown(`${marker} Item 1\n${marker} Item 2`);
+      expect(result).toBe('<ul><li>Item 1</li><li>Item 2</li></ul>');
+    });
+
+    it('renders bold text inside a * item', () => {
+      const result = renderMarkdown('* **Free plan**: 100 messages\n* **Pro plan**: unlimited');
+      expect(result).toBe(
+        '<ul><li><strong>Free plan</strong>: 100 messages</li><li><strong>Pro plan</strong>: unlimited</li></ul>'
+      );
+    });
+
+    it('renders a heading followed by a * list', () => {
+      const result = renderMarkdown('### Plans\n* Free\n* Pro');
+      expect(result).toBe('<h3>Plans</h3><ul><li>Free</li><li>Pro</li></ul>');
+    });
+
+    it('keeps * and + lines literal inside a code block', () => {
+      const result = renderMarkdown('```\n* one\n+ two\n```');
+      expect(result).toBe('<pre><code>* one\n+ two</code></pre>');
+    });
+  });
+
+  describe('italic', () => {
+    it('leaves asterisks with spaces around them alone', () => {
+      const result = renderMarkdown('The total is 5 * 3 = 15 and 2 * 4 = 8.');
+      expect(result).not.toContain('<em>');
+      expect(result).toBe('The total is 5 * 3 = 15 and 2 * 4 = 8.');
+    });
+
+    it('still renders single-word and multi-word italic', () => {
+      expect(renderMarkdown('*a*')).toBe('<em>a</em>');
+      expect(renderMarkdown('an *italic phrase* here')).toBe('an <em>italic phrase</em> here');
+    });
+  });
+
   describe('link schemes', () => {
     it.each([
       'javascript:alert(1)',

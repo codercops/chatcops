@@ -312,6 +312,14 @@
   margin: 4px 0;
 }
 
+.cc-message h1, .cc-message h2, .cc-message h3,
+.cc-message h4, .cc-message h5, .cc-message h6 {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 4px 0 0;
+}
+
 .cc-message-actions {
   display: flex;
   align-items: center;
