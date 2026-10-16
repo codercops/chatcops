@@ -15,7 +15,7 @@ ChatCops.init({
     textColor: '#FAFAF9',        // Main text color
     bgColor: '#0A0A0A',          // Widget background
     fontFamily: 'Inter, sans-serif',
-    borderRadius: 12,            // px
+    borderRadius: 12,            // px if a number, or any CSS length like '1rem'
     position: 'bottom-right',    // or 'bottom-left'
   },
 });
@@ -23,11 +23,11 @@ ChatCops.init({
 
 ## Color Manipulation
 
-The theme engine automatically generates hover and surface colors from your accent:
+The theme engine derives hover and surface colors from the colors you pass:
 
-- **Accent hover:** Darkened by 15% from your accent
-- **Accent light:** Lightened by 40% for subtle backgrounds
-- **Surface colors:** Derived from `bgColor`
+- **Accent hover:** Darkened by 10% from `accent`
+- **Surface:** Lightened by 8% from `bgColor`
+- **Input:** Lightened by 14% from `bgColor`
 
 ## Built-in Dark Theme
 
@@ -35,13 +35,14 @@ The default theme is optimized for dark mode:
 
 | Element | Color |
 |---------|-------|
-| Background | `#0A0A0A` |
-| Surface | `#111111` |
-| Input area | `#171717` |
-| Border | `#262626` |
-| Text | `#FAFAF9` |
-| Secondary text | `#A8A29E` |
+| Background | `#0a0a0a` |
+| Surface | `#1a1a1a` |
+| Input area | `#2a2a2a` |
+| Border | `#333333` |
+| Text | `#ffffff` |
+| Secondary text | `#a0a0a0` |
 | Accent | `#6366f1` (indigo) |
+| Accent hover | `#4f46e5` |
 
 ## Light Theme Example
 
@@ -59,10 +60,10 @@ ChatCops.init({
 
 ## CSS Override (Advanced)
 
-You can override widget styles by targeting the custom element:
+You can override widget styles by targeting the host element:
 
 ```css
-chatcops-widget {
+#chatcops-root {
   --cc-accent: #e11d48;
   --cc-bg: #ffffff;
   --cc-text: #111111;
@@ -80,7 +81,7 @@ interface ThemeConfig {
   textColor?: string;       // Hex color
   bgColor?: string;         // Hex color
   fontFamily?: string;      // CSS font-family string
-  borderRadius?: number;    // Pixels
+  borderRadius?: string | number;  // px if a number or numeric string (12, '12'), or any CSS length ('1rem')
   position?: 'bottom-right' | 'bottom-left';
 }
 ```

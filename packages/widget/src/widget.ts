@@ -36,7 +36,7 @@ export interface WidgetConfig {
     textColor?: string;
     bgColor?: string;
     fontFamily?: string;
-    borderRadius?: string;
+    borderRadius?: string | number;
     position?: 'bottom-right' | 'bottom-left';
   };
   branding?: {

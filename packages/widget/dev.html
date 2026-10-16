@@ -23,22 +23,37 @@
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
       margin: 20px 0;
     }
+    .controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+    .controls a { color: #4f46e5; text-decoration: none; padding: 4px 10px; border-radius: 6px; }
+    .controls a[aria-current="page"] { background: #6366f1; color: white; font-weight: 600; }
+    .controls button { padding: 4px 12px; border: 1px solid #ccc; border-radius: 6px; background: white; cursor: pointer; }
+    #chatcops-inline { width: 400px; height: 600px; margin: 20px 0; }
   </style>
 </head>
 <body>
   <h1>ChatCops Widget - Development</h1>
 
+  <nav class="controls">
+    <a href="?mode=popup" id="link-popup">Popup</a>
+    <a href="?mode=inline" id="link-inline">Inline</a>
+    <button type="button" id="btn-open">Open</button>
+    <button type="button" id="btn-close">Close</button>
+  </nav>
+
   <div class="card">
     <h2>Test Page</h2>
     <p>
-      This is a test page for the ChatCops widget. The widget should appear
-      in the bottom-right corner as a floating action button.
+      This is a test page for the ChatCops widget. In popup mode (default) the
+      widget appears in the bottom-right corner as a floating action button.
+      Use <code>?mode=inline</code> to render it inside the container below.
     </p>
     <p>
       Click the button to open the chat panel. Try sending messages
       to test the streaming UI.
     </p>
   </div>
+
+  <div id="chatcops-inline" hidden></div>
 
   <div class="card">
     <h2>Configuration</h2>
@@ -50,7 +65,17 @@
   <script type="module">
     import ChatCops from './dist/chatcops.esm.js';
 
+    // Unknown mode values fall back to popup
+    const mode = new URLSearchParams(location.search).get('mode') === 'inline' ? 'inline' : 'popup';
+    document.getElementById(`link-${mode}`).setAttribute('aria-current', 'page');
+    if (mode === 'inline') document.getElementById('chatcops-inline').hidden = false;
+
+    document.getElementById('btn-open').addEventListener('click', () => ChatCops.open());
+    document.getElementById('btn-close').addEventListener('click', () => ChatCops.close());
+
     ChatCops.init({
+      mode,
+      ...(mode === 'inline' && { container: '#chatcops-inline' }),
       apiUrl: 'http://localhost:3001/chat',
       theme: {
         accent: '#6366f1',

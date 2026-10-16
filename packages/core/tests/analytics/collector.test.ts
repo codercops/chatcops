@@ -1,4 +1,4 @@
-﻿import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AnalyticsCollector } from '../../src/analytics/collector.js';
 
 describe('AnalyticsCollector', () => {

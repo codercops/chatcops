@@ -3,7 +3,7 @@ export interface ThemeConfig {
   textColor?: string;
   bgColor?: string;
   fontFamily?: string;
-  borderRadius?: string;
+  borderRadius?: string | number;
   position?: 'bottom-right' | 'bottom-left';
 }
 
@@ -24,9 +24,20 @@ export function applyTheme(root: ShadowRoot, theme: ThemeConfig): void {
   if (theme.fontFamily) {
     host.style.setProperty('--cc-font', theme.fontFamily);
   }
-  if (theme.borderRadius) {
-    host.style.setProperty('--cc-radius', theme.borderRadius);
+  if (theme.borderRadius !== undefined) {
+    const radius = toCssLength(theme.borderRadius);
+    if (radius) host.style.setProperty('--cc-radius', radius);
   }
+}
+
+/**
+ * A bare number (`12` or `'12'`) is pixels. A value that already has a unit
+ * (`'1rem'`, `'12px'`) is returned as is. Empty and non-finite values give ''.
+ */
+function toCssLength(value: string | number): string {
+  if (typeof value === 'number' && !Number.isFinite(value)) return '';
+  const text = String(value).trim();
+  return /^(?:\d+(?:\.\d+)?|\.\d+)$/.test(text) ? `${text}px` : text;
 }
 
 function parseHex(hex: string): [number, number, number] {
