@@ -99,6 +99,7 @@ export class Widget {
   private retryRequests = new Map<string, SendRequestOptions>();
   private eventHandlers = new Map<WidgetEventType, Set<WidgetEventHandler>>();
   private containerEl?: HTMLElement;
+  private autoOpenTimer?: ReturnType<typeof setTimeout>;
 
   get isInline(): boolean {
     return this.config.mode === 'inline';
@@ -217,7 +218,7 @@ export class Widget {
     // Auto-open — popup mode only
     if (!this.isInline && this.config.autoOpen !== undefined && this.config.autoOpen !== false) {
       const delay = typeof this.config.autoOpen === 'number' ? this.config.autoOpen : 0;
-      setTimeout(() => this.open(), delay);
+      this.autoOpenTimer = setTimeout(() => this.open(), delay);
     }
   }
 
@@ -251,6 +252,7 @@ export class Widget {
 
   destroy(): void {
     this.destroyed = true;
+    if (this.autoOpenTimer !== undefined) clearTimeout(this.autoOpenTimer);
     this.abortController?.abort();
     this.abortController = undefined;
     this.preChatFormEl?.destroy();

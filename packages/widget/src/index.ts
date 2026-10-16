@@ -4,6 +4,14 @@ export { Widget, type WidgetConfig } from './widget.js';
 
 let instance: Widget | null = null;
 
+export function parseAutoOpen(value?: string): boolean | number | undefined {
+  if (value === undefined) return undefined;
+  if (value === '' || value === 'true') return true;
+  if (value === 'false') return false;
+  if (/^\d+$/.test(value)) return Number(value);
+  return undefined;
+}
+
 const ChatCops = {
   init(config: WidgetConfig): Widget {
     if (instance) {
@@ -70,11 +78,7 @@ function autoInit(script: HTMLScriptElement | null): void {
           delay: script.dataset.welcomeBubbleDelay ? parseInt(script.dataset.welcomeBubbleDelay, 10) : undefined,
         }
       : undefined,
-    autoOpen: script.dataset.autoOpen !== undefined
-      ? (script.dataset.autoOpen === '' || script.dataset.autoOpen === 'true'
-        ? true
-        : parseInt(script.dataset.autoOpen, 10) || true)
-      : undefined,
+    autoOpen: parseAutoOpen(script.dataset.autoOpen),
     placeholder: script.dataset.placeholder,
     locale: script.dataset.locale,
   });

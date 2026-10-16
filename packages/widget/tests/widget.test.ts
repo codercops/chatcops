@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Widget } from '../src/widget.js';
 
 type WidgetInternals = {
@@ -28,6 +28,18 @@ describe('Widget', () => {
     document.body.innerHTML = '';
     localStorage.clear();
     sessionStorage.clear();
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  it('does not open after destroy when auto-open is delayed', () => {
+    vi.useFakeTimers();
+    const onOpen = vi.fn();
+    const widget = new Widget({ apiUrl: 'https://api.test/chat', autoOpen: 100, onOpen });
+    widget.init();
+    widget.destroy();
+    vi.advanceTimersByTime(100);
+    expect(onOpen).not.toHaveBeenCalled();
   });
 
   it.each(['bottom-right', 'bottom-left'] as const)(
