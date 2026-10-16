@@ -1,5 +1,21 @@
 # @chatcops/widget
 
+## 0.4.2
+
+### Patch Changes
+
+- 19d4d7a: Improve keyboard focus visibility and respect reduced-motion preferences.
+- d453af6: Fix browser global IIFE export to allow `window.ChatCops.init()` directly without `.default`, and capture `document.currentScript` before deferring auto-init on DOMContentLoaded.
+- a53385b: Avoid sending or clearing chat messages when Enter confirms an IME composition, including Safari's keyCode 229 case.
+- b3029f3: Respect a false auto-open attribute and cancel pending auto-open timers on destroy.
+- fb49364: Fix inline panel visibility when close() is called
+- 7494c32: Keep code literal in markdown rendering by stashing fenced code blocks and inline code as placeholders before any other transformation, so `*`, `**`, `[text](url)`, `- `, and `1. ` inside code no longer produce formatting, links, or lists, and newlines inside `<pre><code>` are preserved instead of becoming `<br>`.
+- 88cd44a: Treat a numeric `borderRadius` (such as `12` or `'12'`) as pixels instead of writing invalid CSS, and accept numbers in the `ThemeConfig` and `WidgetConfig` types.
+- 26923e2: Limit pre-chat fields and chat messages to server-accepted lengths
+- c3b9771: Associate pre-chat labels with uniquely identified fields, add `aria-required`/`aria-invalid`/`aria-describedby` error accessibility attributes, and disable native form validation so translated widget validation messages are shown.
+- 72c4c97: Stop a late reply from overwriting saved history after `destroy()`: `ChatClient.sendMessage` now accepts an optional `AbortSignal` (alongside its timeout), `destroy()` aborts the in-flight request, and a reply that finishes after the widget is destroyed no longer calls `saveHistory()`, `onMessage`, `onError`, or `emit()` — including when `ChatCops.init()` is called again.
+- 758f2ff: Hide the popup launcher while chat is open on mobile so it no longer covers the send button or textbox.
+
 ## 0.4.1
 
 ### Patch Changes

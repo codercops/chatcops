@@ -1,5 +1,19 @@
 # @chatcops/server
 
+## 0.3.2
+
+### Patch Changes
+
+- 957a63b: Build the Cloudflare Worker handler once and reuse it, rather than rebuilding
+  it inside `fetch`. Rebuilding per request gave every request a fresh
+  conversation store and rate limiter, so the bot forgot earlier messages and
+  rate limiting never engaged. The handler is now created lazily on the first
+  request, because the API key is a Worker secret that only exists there.
+- 1a74af9: Make `cors` optional in `ChatCopsServerConfig`, defaulting to `'*'`.
+- 54da4c6: Limit the pre-chat `userData` in a request to 50 fields with names of up to 100 characters, and put only the first 2,000 characters of the page URL into the system prompt. Requests with longer page URLs are still accepted.
+- 8eee3e7: Reuse the same chat handler and `AnalyticsCollector` between `chatcopsMiddleware` and `chatcopsAnalyticsHandler` (keyed by the config object) so the analytics endpoint reports real traffic instead of zeros and no duplicate providers or cleanup intervals are created.
+- 7bfee10: Update Express example and documentation to use `app.all('/chat', ...)` so cross-origin `OPTIONS` preflight requests reach the adapter.
+
 ## 0.3.1
 
 ### Patch Changes
