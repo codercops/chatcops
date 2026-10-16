@@ -208,6 +208,11 @@ describe('renderMarkdown', () => {
       expect(renderMarkdown('*a*')).toBe('<em>a</em>');
       expect(renderMarkdown('an *italic phrase* here')).toBe('an <em>italic phrase</em> here');
     });
+
+    it('keeps two one-letter italics on one line separate', () => {
+      expect(renderMarkdown('*x* and *y*')).toBe('<em>x</em> and <em>y</em>');
+      expect(renderMarkdown('Let *x* be 5 and *y* be 3')).toBe('Let <em>x</em> be 5 and <em>y</em> be 3');
+    });
   });
 
   describe('link schemes', () => {

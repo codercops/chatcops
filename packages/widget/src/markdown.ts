@@ -58,7 +58,7 @@ export function renderMarkdown(input: string): string {
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
 
   // Italic
-  html = html.replace(/\*(\S(?:.*?\S)?)\*/g, '<em>$1</em>');
+  html = html.replace(/\*(\S(?:.*?\S)??)\*/g, '<em>$1</em>');
 
   // Links (supports one level of nested parentheses in URLs). Links with an
   // unsafe scheme such as javascript: or data: are shown as plain text.
