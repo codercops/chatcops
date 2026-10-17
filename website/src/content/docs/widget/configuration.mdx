@@ -150,7 +150,7 @@ interface WidgetConfig {
   maxMessages?: number;       // Max messages to persist, default: 50
   pageContext?: boolean;       // Send page URL/title, default: true
   autoOpen?: boolean | number; // Popup mode only. true = immediate, number = delay in ms
-  locale?: string;            // 'en' | 'es' | 'hi' | 'fr' | 'de' | 'ja' | 'zh' | 'ar'
+  locale?: string;            // Sent to the server with each message. Only English strings are built in
   strings?: Partial<WidgetLocaleStrings>; // Custom i18n overrides
 
   // Callbacks

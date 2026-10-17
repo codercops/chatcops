@@ -57,7 +57,7 @@ That's it. Your site now has an AI chat widget.
 - **Knowledge base** - Feed text chunks or FAQ pairs for context-aware responses.
 - **Conversation persistence** - localStorage on client, pluggable stores on server.
 - **Analytics** - Track conversations, messages, and lead captures.
-- **i18n** - 8 built-in locales, fully customizable strings.
+- **i18n** - Replace any widget string, and the model replies in the visitor's language.
 - **Deployable anywhere** - Express, Vercel, Cloudflare Workers adapters included.
 - **Customizable** - Theme, branding, position, welcome messages, callbacks.
 
