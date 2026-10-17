@@ -45,6 +45,31 @@ describe('Messages', () => {
     expect(parent.querySelector('.cc-typing')).toBeNull();
   });
 
+  it('announces new messages politely', () => {
+    const container = parent.querySelector('.cc-messages')!;
+    expect(container.getAttribute('role')).toBe('log');
+    expect(container.getAttribute('aria-live')).toBe('polite');
+  });
+
+  it('gives the typing indicator text and hides the dots', () => {
+    messages = new Messages(parent, { typingLabel: 'Escribiendo...' });
+    messages.showTyping();
+    const typing = parent.querySelectorAll('.cc-typing')[0]!;
+    expect(typing.querySelector('.cc-sr-only')?.textContent).toBe('Escribiendo...');
+    typing.querySelectorAll('.cc-typing-dot').forEach((dot) => {
+      expect(dot.getAttribute('aria-hidden')).toBe('true');
+    });
+  });
+
+  it('marks a streaming message busy until it completes', () => {
+    messages.addMessage({ id: '5', role: 'assistant', content: 'Hel', status: 'streaming' });
+    const el = parent.querySelector('[data-id="5"]')!;
+    expect(el.getAttribute('aria-busy')).toBe('true');
+
+    messages.updateMessage({ id: '5', role: 'assistant', content: 'Hello', status: 'complete' });
+    expect(el.hasAttribute('aria-busy')).toBe(false);
+  });
+
   it('removes typing indicator when adding a message', () => {
     messages.showTyping();
     messages.addMessage({ id: '4', role: 'assistant', content: 'Done' });

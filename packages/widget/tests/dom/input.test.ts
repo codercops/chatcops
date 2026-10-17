@@ -139,4 +139,8 @@ describe('Input keyboard behavior', () => {
     expect(textarea.value).toBe('');
     expect(sendButton.disabled).toBe(true);
   });
+
+  it('labels the textarea with the placeholder', () => {
+    expect(textarea.getAttribute('aria-label')).toBe('Type here...');
+  });
 });

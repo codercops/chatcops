@@ -19,6 +19,7 @@ export interface MessageActions {
   onRegenerate?: (messageId: string) => void;
   retryLabel?: string;
   regenerateLabel?: string;
+  typingLabel?: string;
 }
 
 export class Messages {
@@ -30,6 +31,8 @@ export class Messages {
     this.actions = actions;
     this.container = document.createElement('div');
     this.container.className = 'cc-messages';
+    this.container.setAttribute('role', 'log');
+    this.container.setAttribute('aria-live', 'polite');
     parent.appendChild(this.container);
   }
 
@@ -53,7 +56,7 @@ export class Messages {
     if (this.typingEl) return;
     this.typingEl = document.createElement('div');
     this.typingEl.className = 'cc-typing';
-    this.typingEl.innerHTML = '<div class="cc-typing-dot"></div><div class="cc-typing-dot"></div><div class="cc-typing-dot"></div>';
+    this.typingEl.innerHTML = `<span class="cc-sr-only">${this.escapeHtml(this.actions?.typingLabel ?? 'Typing...')}</span><div class="cc-typing-dot" aria-hidden="true"></div><div class="cc-typing-dot" aria-hidden="true"></div><div class="cc-typing-dot" aria-hidden="true"></div>`;
     this.container.appendChild(this.typingEl);
     this.scrollToBottom();
   }
@@ -119,6 +122,12 @@ export class Messages {
       el.dataset.status = msg.status;
     } else {
       delete el.dataset.status;
+    }
+
+    if (msg.status === 'streaming') {
+      el.setAttribute('aria-busy', 'true');
+    } else {
+      el.removeAttribute('aria-busy');
     }
 
     if (msg.errorType) {
