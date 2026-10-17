@@ -3,9 +3,11 @@ title: Internationalization
 description: Localize the ChatCops widget for different languages.
 ---
 
-ChatCops includes 8 built-in locales with full UI string translations.
+The widget's own text ships in English. For another language, pass your translations in `strings`. Built-in translations for more languages are tracked in [#55](https://github.com/codercops/chatcops/issues/55).
 
 ## Setting a Locale
+
+The widget sends `locale` with every message, and the server asks the model to reply in that language.
 
 ### Via script tag
 
@@ -17,31 +19,37 @@ ChatCops includes 8 built-in locales with full UI string translations.
 ></script>
 ```
 
+There's no script tag attribute for `strings`, so the widget's buttons and placeholders stay in English here. Use `ChatCops.init` to translate them.
+
 ### Programmatically
 
 ```typescript
 ChatCops.init({
   apiUrl: '/api/chat',
-  locale: 'fr',
+  locale: 'es',
+  strings: {
+    welcomeMessage: '¿En qué puedo ayudarte hoy?',
+    greetingWithName: '¡Hola, {name}!',
+    inputPlaceholder: 'Escribe un mensaje...',
+    sendButton: 'Enviar',
+    closeButton: 'Cerrar',
+  },
 });
 ```
+
+Any string you leave out stays in English.
 
 ## Available Locales
 
 | Code | Language |
 |------|----------|
 | `en` | English (default) |
-| `es` | Spanish |
-| `hi` | Hindi |
-| `fr` | French |
-| `de` | German |
-| `ja` | Japanese |
-| `zh` | Chinese |
-| `ar` | Arabic |
+
+Any other `locale` uses the English strings, with your `strings` on top.
 
 ## Locale Strings
 
-Each locale provides translations for:
+`strings` accepts any of these keys:
 
 ```typescript
 interface LocaleStrings {
@@ -74,31 +82,10 @@ interface LocaleStrings {
 
 ## Server-Side i18n
 
-The server also supports i18n for error messages and system prompts:
+The server doesn't translate anything itself. When a request has a `locale`, it adds this line to the system prompt:
 
-```typescript
-chatcopsMiddleware({
-  provider: { type: 'claude', apiKey: '...' },
-  systemPrompt: '...',
-  i18n: {
-    defaultLocale: 'en',
-    locales: {
-      es: {
-        welcomeMessage: 'Hola! Como puedo ayudarte?',
-        inputPlaceholder: 'Escribe un mensaje...',
-        sendButton: 'Enviar',
-        closeButton: 'Cerrar',
-        errorGeneric: 'Algo salio mal. Intentalo de nuevo.',
-        errorNetwork: 'Error de conexion.',
-        errorRateLimit: 'Demasiados mensajes. Espera un momento.',
-        typingIndicator: 'Escribiendo...',
-        poweredBy: 'Desarrollado por',
-        newConversation: 'Nueva conversacion',
-        welcomeBubbleDefault: 'Necesitas ayuda?',
-      },
-    },
-  },
-});
+```text
+Respond in the user's language. Current locale: es
 ```
 
-The widget sends its current `locale` with each request, and the server uses it to select the appropriate strings.
+Error messages the visitor sees come from the widget's `strings` (`errorGeneric`, `errorNetwork`, `errorRateLimit`). The server config also has an `i18n` option, but nothing reads it yet.
