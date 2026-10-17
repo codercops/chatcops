@@ -22,6 +22,7 @@ export class Input {
     this.textarea = document.createElement('textarea');
     this.textarea.className = 'cc-input';
     this.textarea.placeholder = options.placeholder;
+    this.textarea.setAttribute('aria-label', options.placeholder);
     this.textarea.rows = 1;
     this.textarea.maxLength = MAX_MESSAGE_LENGTH;
     this.textarea.addEventListener('input', () => this.autoResize());

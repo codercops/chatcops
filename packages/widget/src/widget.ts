@@ -173,6 +173,7 @@ export class Widget {
         },
         retryLabel: this.locale.retryButton,
         regenerateLabel: this.locale.regenerateButton,
+        typingLabel: this.locale.typingIndicator,
       },
       onSend: (text) => this.handleSend(text),
       onClose: () => this.close(),
