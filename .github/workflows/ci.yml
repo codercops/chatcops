@@ -12,6 +12,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Some editors save files with a UTF-8 BOM, and a tool that reads UTF-8 with
+      # the wrong encoding turns a dash or an arrow into two or three other
+      # characters. Both have reached PRs here, so catch them before review.
+      - name: No BOM or garbled characters
+        run: |
+          if git grep -n -I -F -e $'\xEF\xBB\xBF' -e $'\xCE\x93\xC3\x87' -e $'\xCE\x93\xC3\xA5\xC3\x86' \
+              -e $'\xE2\x94\xAC\xE2\x95\x96' -e $'\xC3\xA2\xE2\x82\xAC' -e $'\xC3\x83\xC2\xA9'; then
+            echo "::error::The lines above start with a UTF-8 BOM or have text garbled by the wrong encoding. Save the file as UTF-8 without a BOM, and copy garbled lines back from the base branch."
+            exit 1
+          fi
+
       - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
