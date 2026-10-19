@@ -22,7 +22,7 @@ describe('i18n', () => {
 
   it('returns Hindi locale', () => {
     const locale = getLocale('hi');
-    expect(locale.sendButton).toBe('Bhejen');
+    expect(locale.sendButton).toBe('भेजें');
   });
 
   it('lists available locales', () => {
