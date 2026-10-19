@@ -92,7 +92,6 @@ export class Widget {
   private conversationId: string;
   private messages: MessageData[] = [];
   private userData?: Record<string, string>;
-  private userDataSent = false;
   private isStreaming = false;
   private destroyed = false;
   private abortController?: AbortController;
@@ -191,6 +190,13 @@ export class Widget {
       }
     }
 
+    if (this.config.preChatForm?.enabled) {
+      const savedUserData = this.storage.getPreChatData(this.conversationId);
+      if (savedUserData) {
+        this.userData = savedUserData;
+      }
+    }
+
     // Show pre-chat form or messages
     const shouldShowPreChat = this.config.preChatForm?.enabled
       && !this.isPreChatCompleted()
@@ -268,6 +274,7 @@ export class Widget {
     destroyShadowRoot(this.containerEl);
     this.eventHandlers.clear();
     this.messages = [];
+    this.userData = undefined;
   }
 
   on(event: WidgetEventType, handler: WidgetEventHandler): void {
@@ -290,8 +297,8 @@ export class Widget {
     return this.storage.isPreChatCompleted(this.conversationId);
   }
 
-  private setPreChatCompleted(): void {
-    this.storage.setPreChatCompleted(this.conversationId);
+  private setPreChatCompleted(data?: Record<string, string>): void {
+    this.storage.setPreChatCompleted(this.conversationId, data);
   }
 
   private showPreChatForm(): void {
@@ -310,8 +317,9 @@ export class Widget {
   }
 
   private handlePreChatSubmit(data: Record<string, string>): void {
+    if (!this.config.preChatForm?.enabled) return;
     this.userData = data;
-    this.setPreChatCompleted();
+    this.setPreChatCompleted(data);
 
     this.preChatFormEl?.destroy();
     this.preChatFormEl = undefined;
@@ -432,7 +440,6 @@ export class Widget {
       status: 'streaming',
     };
 
-    const includeUserData = !!(this.userData && !this.userDataSent);
     let firstChunk = true;
     let requestCompleted = false;
     let hasError = false;
@@ -442,7 +449,7 @@ export class Widget {
 
     try {
       for await (const chunk of this.client.sendMessage(
-        this.createRequest(text, options, includeUserData),
+        this.createRequest(text, options),
         { signal: abortController.signal }
       )) {
         if (this.destroyed) break;
@@ -542,9 +549,6 @@ export class Widget {
       }
 
       if (!this.destroyed) {
-        if (includeUserData && requestCompleted) {
-          this.userDataSent = true;
-        }
         this.isStreaming = false;
         this.panel.input.setDisabled(false);
         this.panel.input.focus();
@@ -555,12 +559,13 @@ export class Widget {
 
   private createRequest(
     text: string,
-    options: SendRequestOptions,
-    includeUserData: boolean
+    options: SendRequestOptions
   ): WidgetChatRequest {
     const pageContext = this.config.pageContext !== false
       ? { url: window.location.href, title: document.title }
       : undefined;
+
+    const includeUserData = Boolean(this.config.preChatForm?.enabled && this.userData);
 
     return {
       conversationId: this.conversationId,

@@ -74,9 +74,34 @@ export class ConversationStorage {
     }
   }
 
-  setPreChatCompleted(sessionId: string): void {
+  setPreChatCompleted(sessionId: string, data?: Record<string, string>): void {
     try {
       sessionStorage.setItem(`chatcops-prechat-${sessionId}`, 'true');
+    } catch {
+      // Storage unavailable
+    }
+    if (data) {
+      this.setPreChatData(sessionId, data);
+    }
+  }
+
+  getPreChatData(sessionId: string): Record<string, string> | null {
+    try {
+      const raw = sessionStorage.getItem(`chatcops-prechat-data-${sessionId}`);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        return null;
+      }
+      return parsed as Record<string, string>;
+    } catch {
+      return null;
+    }
+  }
+
+  setPreChatData(sessionId: string, data: Record<string, string>): void {
+    try {
+      sessionStorage.setItem(`chatcops-prechat-data-${sessionId}`, JSON.stringify(data));
     } catch {
       // Storage unavailable
     }
