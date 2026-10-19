@@ -47,7 +47,7 @@ export class Messages {
   }
 
   updateMessage(msg: MessageData): void {
-    const el = this.container.querySelector(`[data-id="${msg.id}"]`) as HTMLDivElement | null;
+    const el = this.findMessage(msg.id);
     if (el) {
       this.renderMessageElement(el, msg);
       this.scrollToBottom();
@@ -76,7 +76,7 @@ export class Messages {
   }
 
   removeMessage(id: string): void {
-    const el = this.container.querySelector(`[data-id="${id}"]`) as HTMLDivElement | null;
+    const el = this.findMessage(id);
     el?.remove();
   }
 
@@ -90,7 +90,7 @@ export class Messages {
 
     if (!this.actions?.onRegenerate) return;
 
-    const msgEl = this.container.querySelector(`[data-id="${messageId}"]`) as HTMLDivElement | null;
+    const msgEl = this.findMessage(messageId);
     if (!msgEl || !msgEl.classList.contains('cc-message-assistant')) return;
 
     const actions = this.ensureActionsContainer(msgEl);
@@ -104,6 +104,11 @@ export class Messages {
 
   setVisible(visible: boolean): void {
     this.container.classList.toggle('cc-hidden', !visible);
+  }
+
+  private findMessage(id: string): HTMLDivElement | null {
+    const found = Array.from(this.container.children).find((el) => (el as HTMLElement).dataset.id === id);
+    return (found as HTMLDivElement | undefined) ?? null;
   }
 
   private scrollToBottom(): void {
