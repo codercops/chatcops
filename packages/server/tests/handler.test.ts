@@ -651,6 +651,96 @@ describe('createChatHandler', () => {
       [{ role: 'user', content: 'Hello there' }],
     ]);
   });
+
+  it('restores user message when regenerating an unknown conversation', async () => {
+    const receivedMessages: Array<Array<{ id: string; role: string; content: string }>> = [];
+
+    mockedCreateProvider.mockResolvedValue({
+      name: 'test-provider',
+      async *chat(params) {
+        receivedMessages.push(
+          params.messages.map((message) => ({
+            id: message.id,
+            role: message.role,
+            content: message.content,
+          }))
+        );
+        yield 'Recovered reply';
+      },
+      async chatSync() {
+        return '';
+      },
+    });
+
+    const { handleChat } = createChatHandler({
+      provider: { type: 'claude', apiKey: 'test-key' },
+      systemPrompt: 'Test',
+      cors: '*',
+    });
+
+    for await (const _chunk of handleChat({
+      conversationId: 'conv-unknown-regen',
+      message: 'Hello from unknown',
+      messageId: 'user-unknown-1',
+      regenerate: true,
+    })) {
+      // Drain response.
+    }
+
+    expect(receivedMessages).toEqual([
+      [{ id: 'user-unknown-1', role: 'user', content: 'Hello from unknown' }],
+    ]);
+  });
+
+  it('keeps repeated regenerate retries with the same messageId idempotent', async () => {
+    const receivedMessages: Array<Array<{ id: string; role: string; content: string }>> = [];
+
+    mockedCreateProvider.mockResolvedValue({
+      name: 'test-provider',
+      async *chat(params) {
+        receivedMessages.push(
+          params.messages.map((message) => ({
+            id: message.id,
+            role: message.role,
+            content: message.content,
+          }))
+        );
+        yield receivedMessages.length === 1 ? 'First reply' : 'Retried reply';
+      },
+      async chatSync() {
+        return '';
+      },
+    });
+
+    const { handleChat } = createChatHandler({
+      provider: { type: 'claude', apiKey: 'test-key' },
+      systemPrompt: 'Test',
+      cors: '*',
+    });
+
+    for await (const _chunk of handleChat({
+      conversationId: 'conv-retry-regen',
+      message: 'Retry message',
+      messageId: 'user-retry-1',
+      regenerate: true,
+    })) {
+      // Drain first turn.
+    }
+
+    for await (const _chunk of handleChat({
+      conversationId: 'conv-retry-regen',
+      message: 'Retry message',
+      messageId: 'user-retry-1',
+      regenerate: true,
+    })) {
+      // Drain retry turn.
+    }
+
+    expect(receivedMessages).toEqual([
+      [{ id: 'user-retry-1', role: 'user', content: 'Retry message' }],
+      [{ id: 'user-retry-1', role: 'user', content: 'Retry message' }],
+    ]);
+  });
 });
 
 describe('chatRequestSchema', () => {

@@ -1,5 +1,34 @@
 # @chatcops/widget
 
+## 0.4.4
+
+### Patch Changes
+
+- fd9edf3: Screen readers now announce new chat messages and the typing indicator, and the message box has an accessible name.
+- 70fa9c3: Move hardcoded English UI text and aria-labels into `WidgetLocaleStrings`.
+
+  New keys added to `WidgetLocaleStrings`:
+
+  - `openChat` – aria-label for the FAB when the panel is closed
+  - `defaultName` – default branding name shown in the panel header ("AI Assistant")
+  - `defaultSubtitle` – default branding subtitle ("Online")
+  - `greetingWithName` – welcome greeting when the visitor's name is known; supports a `{name}` placeholder
+  - `selectPlaceholder` – default option text for select fields in the pre-chat form; supports a `{label}` placeholder
+  - `dismissBubble` – aria-label for the welcome bubble dismiss button
+
+  The existing `sendButton` and `closeButton` keys are now also used as aria-labels for the send and close buttons respectively.
+
+  The bubble dismiss button gains `type="button"` and an `aria-label`.
+
+- 2227526: Persist and restore pre-chat `userData` across widget recreation and send `userData` with every request.
+
+  - Persist pre-chat `userData` in `sessionStorage` alongside the completion flag.
+  - Restore pre-chat `userData` when a widget instance initializes so the welcome message greets returning visitors by name after `destroy()` and recreation in the same tab.
+  - Send `userData` on every chat request instead of only the first request.
+  - When `preChatForm` is disabled, do not restore, store, or send form answers.
+
+- 2e53ad7: Reset the request timeout on received stream data so active long replies can complete. Expose the inactivity timeout in milliseconds through WidgetConfig.timeout while preserving request cancellation.
+
 ## 0.4.3
 
 ### Patch Changes

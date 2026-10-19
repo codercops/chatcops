@@ -5,6 +5,16 @@ export function chatcopsVercelHandler(config: ChatCopsServerConfig) {
   const { handleChat } = createChatHandler(config);
   const corsOrigin = config.cors ?? '*';
 
+  function errorResponse(status: number, error: string): Response {
+    return new Response(JSON.stringify({ error }), {
+      status,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': corsOrigin,
+      },
+    });
+  }
+
   return async function handler(req: Request): Promise<Response> {
     // Handle CORS preflight
     if (req.method === 'OPTIONS') {
@@ -20,10 +30,7 @@ export function chatcopsVercelHandler(config: ChatCopsServerConfig) {
     }
 
     if (req.method !== 'POST') {
-      return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-        status: 405,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return errorResponse(405, 'Method not allowed');
     }
 
     const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
@@ -31,10 +38,7 @@ export function chatcopsVercelHandler(config: ChatCopsServerConfig) {
     try {
       body = await req.json();
     } catch {
-      return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return errorResponse(400, 'Invalid JSON body');
     }
 
     const encoder = new TextEncoder();

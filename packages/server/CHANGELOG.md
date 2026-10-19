@@ -1,5 +1,20 @@
 # @chatcops/server
 
+## 0.4.0
+
+### Minor Changes
+
+- 2e1b955: Support configuring a custom `conversationStore` in `ChatCopsServerConfig`.
+- de08282: Add `maxTokens` and `temperature` to the server config and pass them to the provider.
+
+### Patch Changes
+
+- 66d0858: Send the configured CORS header with 400 and 405 error responses across the Cloudflare, Vercel, and Express server adapters.
+- 0550fc3: Deprecate the `i18n` option, which the server never read. Setting it now logs a warning.
+- 6a5f8b8: Restore user message when regenerating a conversation with no existing user message to answer, and keep retries idempotent.
+- Updated dependencies [ce073a4]
+  - @chatcops/core@0.3.2
+
 ## 0.3.3
 
 ### Patch Changes

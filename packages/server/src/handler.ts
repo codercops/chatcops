@@ -68,12 +68,19 @@ export function createChatHandler(config: ChatCopsServerConfig) {
     }
     analytics?.track('message:sent', { conversationId: req.conversationId });
 
-    // Add user message unless this is a regenerate request or a retry of the same message
+    // Add user message unless this is a retry of the same message or a regenerate request that already has a user message
     const hasExistingUserMessage = req.messageId
       ? conversationMessages.some((message) => message.id === req.messageId)
       : false;
+    const hasUserMessageToAnswer = req.messageId
+      ? hasExistingUserMessage
+      : conversationMessages.some((message) => message.role === 'user');
 
-    if (!req.regenerate && !hasExistingUserMessage) {
+    const shouldAddUserMessage = req.regenerate
+      ? !hasUserMessageToAnswer
+      : !hasExistingUserMessage;
+
+    if (shouldAddUserMessage) {
       const userMessage: ChatMessage = {
         id: req.messageId ?? crypto.randomUUID(),
         role: 'user',
