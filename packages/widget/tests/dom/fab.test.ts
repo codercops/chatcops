@@ -66,6 +66,19 @@ describe('FAB', () => {
     expect(btn.getAttribute('aria-label')).toBe('Abrir chat');
   });
 
+  it('sets aria-expanded and points aria-controls at the panel', () => {
+    const fab = new FAB(root, { position: 'bottom-right', ...defaultOptions, onClick: vi.fn() });
+    const btn = root.querySelector('.cc-fab') as HTMLElement;
+    expect(btn.getAttribute('aria-controls')).toBe('cc-panel');
+    expect(btn.getAttribute('aria-expanded')).toBe('false');
+
+    fab.setOpen(true);
+    expect(btn.getAttribute('aria-expanded')).toBe('true');
+
+    fab.setOpen(false);
+    expect(btn.getAttribute('aria-expanded')).toBe('false');
+  });
+
   it('shows and hides badge', () => {
     const fab = new FAB(root, { position: 'bottom-right', ...defaultOptions, onClick: vi.fn() });
     const badge = root.querySelector('.cc-fab-badge') as HTMLElement;

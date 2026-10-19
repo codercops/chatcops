@@ -86,6 +86,44 @@ describe('Widget', () => {
     }
   );
 
+  it('closes the popup on Escape and moves focus back to the FAB', () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+
+    const root = getInternals(widget).shadow;
+    const launcher = root.querySelector('.cc-fab') as HTMLButtonElement;
+    launcher.click();
+    const textarea = root.querySelector('.cc-panel textarea') as HTMLElement;
+    expect(root.activeElement).toBe(textarea);
+
+    textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(root.querySelector('.cc-panel')?.classList.contains('cc-visible')).toBe(false);
+    expect(launcher.getAttribute('aria-expanded')).toBe('false');
+    expect(root.activeElement).toBe(launcher);
+
+    widget.destroy();
+  });
+
+  it('keeps the welcome bubble inert and hidden from screen readers until it shows', () => {
+    vi.useFakeTimers();
+    const widget = new Widget({ apiUrl: 'https://api.test/chat', welcomeBubble: { text: 'Hi there', delay: 1000 } });
+    widget.init();
+
+    const bubble = getInternals(widget).shadow.querySelector('.cc-bubble') as HTMLElement;
+    expect(bubble.hasAttribute('inert')).toBe(true);
+    expect(bubble.getAttribute('aria-hidden')).toBe('true');
+
+    vi.advanceTimersByTime(1000);
+    expect(bubble.hasAttribute('inert')).toBe(false);
+    expect(bubble.hasAttribute('aria-hidden')).toBe(false);
+
+    widget.open();
+    expect(bubble.hasAttribute('inert')).toBe(true);
+    expect(bubble.getAttribute('aria-hidden')).toBe('true');
+
+    widget.destroy();
+  });
+
   it('strings: { closeButton } overrides the close aria-label on both the panel header and the FAB', () => {
     const widget = new Widget({
       apiUrl: 'https://api.test/chat',

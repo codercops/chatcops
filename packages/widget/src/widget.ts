@@ -248,9 +248,11 @@ export class Widget {
   }
 
   close(): void {
+    const hadFocus = this.panel.containsFocus();
     this.panel.hide();
     if (!this.isInline) {
       this.fab?.setOpen(false);
+      if (hadFocus) this.fab?.focus();
     }
     this.config.onClose?.();
     this.emit('close');
