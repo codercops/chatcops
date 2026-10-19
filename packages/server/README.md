@@ -111,6 +111,9 @@ const handler = createChatHandler({
   // Analytics (optional)
   analytics: true,
 
+  // Conversation storage (optional, default: in-memory)
+  conversationStore: new RedisConversationStore(redisClient),
+
   // CORS origin (optional, default: '*')
   cors: '*',
 });
@@ -163,6 +166,41 @@ await dispatcher.dispatch('lead:captured', { email: 'user@example.com' });
 ```
 
 Signature sent via `X-ChatCops-Signature` header.
+
+## Custom Conversation Store
+
+By default, conversations are held in memory (`MemoryStore`). You can persist conversations across server restarts or share them across instances by implementing `ConversationStore` from `@chatcops/core`:
+
+```typescript
+import type { ConversationStore, Conversation } from '@chatcops/core';
+
+class RedisConversationStore implements ConversationStore {
+  constructor(private redis: RedisClient) {}
+
+  async get(id: string): Promise<Conversation | null> {
+    const data = await this.redis.get(`conversation:${id}`);
+    return data ? JSON.parse(data) : null;
+  }
+
+  async save(conversation: Conversation): Promise<void> {
+    await this.redis.set(`conversation:${conversation.id}`, JSON.stringify(conversation));
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.redis.del(`conversation:${id}`);
+  }
+}
+```
+
+Pass the store when initializing the handler:
+
+```typescript
+const handler = createChatHandler({
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY },
+  systemPrompt: 'You are a helpful assistant.',
+  conversationStore: new RedisConversationStore(redisClient),
+});
+```
 
 ## License
 

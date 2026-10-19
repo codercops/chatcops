@@ -2,11 +2,13 @@ import type { WidgetChatRequest, WidgetChatChunk } from './types.js';
 
 export interface ChatClientOptions {
   apiUrl: string;
+  /** Inactivity timeout in milliseconds. Defaults to 30000. */
   timeout?: number;
 }
 
 export interface SendMessageOptions {
   signal?: AbortSignal;
+  /** Override the client's inactivity timeout for this request, in milliseconds. */
   timeout?: number;
 }
 
@@ -24,9 +26,38 @@ export class ChatClient {
     options: SendMessageOptions = {}
   ): AsyncGenerator<WidgetChatChunk> {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), options.timeout ?? this.timeout);
+    const timeout = options.timeout ?? this.timeout;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    let timedOut = false;
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
     const externalSignal = options.signal;
-    const onExternalAbort = () => controller.abort();
+    const onExternalAbort = () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
+    const resetTimeout = () => {
+      clearTimeout(timeoutId);
+      if (controller.signal.aborted) return;
+      timeoutId = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, timeout);
+    };
+    const cleanup = async () => {
+      clearTimeout(timeoutId);
+      externalSignal?.removeEventListener('abort', onExternalAbort);
+      if (reader) {
+        const currentReader = reader;
+        reader = undefined;
+        try {
+          await currentReader.cancel();
+        } catch {
+          // The stream may already have failed or been aborted.
+        } finally {
+          currentReader.releaseLock();
+        }
+      }
+    };
 
     if (externalSignal) {
       if (externalSignal.aborted) {
@@ -35,6 +66,7 @@ export class ChatClient {
         externalSignal.addEventListener('abort', onExternalAbort);
       }
     }
+    resetTimeout();
 
     try {
       const response = await fetch(this.apiUrl, {
@@ -45,6 +77,7 @@ export class ChatClient {
       });
 
       if (!response.ok) {
+        await cleanup();
         if (response.status === 429) {
           yield { error: 'rate_limit' };
           return;
@@ -53,8 +86,9 @@ export class ChatClient {
         return;
       }
 
-      const reader = response.body?.getReader();
+      reader = response.body?.getReader();
       if (!reader) {
+        await cleanup();
         yield { error: 'No response body' };
         return;
       }
@@ -66,6 +100,9 @@ export class ChatClient {
         const { done, value } = await reader.read();
         if (done) break;
 
+        // Transport activity counts even before a complete, valid SSE event arrives.
+        if (value.byteLength > 0) resetTimeout();
+
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
@@ -76,6 +113,7 @@ export class ChatClient {
 
           const data = trimmed.slice(6);
           if (data === '[DONE]') {
+            await cleanup();
             yield { done: true };
             return;
           }
@@ -88,16 +126,17 @@ export class ChatClient {
         }
       }
 
+      await cleanup();
       yield { done: true };
     } catch (err) {
+      await cleanup();
       if (err instanceof DOMException && err.name === 'AbortError') {
-        yield externalSignal?.aborted ? { error: 'aborted' } : { error: 'timeout' };
+        yield timedOut ? { error: 'timeout' } : { error: 'aborted' };
       } else {
         yield { error: 'network' };
       }
     } finally {
-      clearTimeout(timeoutId);
-      externalSignal?.removeEventListener('abort', onExternalAbort);
+      await cleanup();
     }
   }
 }

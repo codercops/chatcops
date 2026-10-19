@@ -37,6 +37,13 @@ const handler = chatcopsMiddleware({
   // Optional: Tool execution timeout in ms (default: 30000)
   toolTimeoutMs: 30_000,
 
+  // Optional: Most tokens in one reply (default: 1024)
+  maxTokens: 1024,
+
+  // Optional: Sampling temperature (default: the provider's own).
+  // The allowed range depends on the provider.
+  temperature: 0.7,
+
   // Optional: Knowledge base
   knowledge: [
     new FAQKnowledgeSource([
@@ -62,6 +69,9 @@ const handler = chatcopsMiddleware({
   // Optional: Analytics
   analytics: true,
 
+  // Optional: Conversation store (defaults to in-memory)
+  conversationStore: new RedisConversationStore(redisClient),
+
   // Optional: CORS origin
   cors: '*',
 });
@@ -79,6 +89,8 @@ interface ChatCopsServerConfig {
   systemPrompt: string;
   tools?: ChatTool[];
   toolTimeoutMs?: number;
+  maxTokens?: number;
+  temperature?: number;
   knowledge?: KnowledgeSource[];
   rateLimit?: {
     maxRequests: number;
@@ -86,12 +98,38 @@ interface ChatCopsServerConfig {
   };
   webhooks?: WebhookConfig[];
   analytics?: boolean;
+  conversationStore?: ConversationStore;
   cors?: string;
   /** @deprecated Ignored by the server. Use the widget's `strings` option. */
   i18n?: {
     defaultLocale: string;
     locales: Record<string, LocaleStrings>;
   };
+}
+```
+
+## Custom Conversation Store
+
+By default, the server retains conversation history in memory with `MemoryStore`. For multi-instance deployments or persistent chat history across restarts, pass a custom `conversationStore` that implements the `ConversationStore` interface from `@chatcops/core`:
+
+```typescript
+import type { ConversationStore, Conversation } from '@chatcops/core';
+
+class RedisConversationStore implements ConversationStore {
+  constructor(private redis: RedisClient) {}
+
+  async get(id: string): Promise<Conversation | null> {
+    const raw = await this.redis.get(`chat:${id}`);
+    return raw ? JSON.parse(raw) : null;
+  }
+
+  async save(conversation: Conversation): Promise<void> {
+    await this.redis.set(`chat:${conversation.id}`, JSON.stringify(conversation));
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.redis.del(`chat:${id}`);
+  }
 }
 ```
 

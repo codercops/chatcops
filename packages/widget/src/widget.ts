@@ -29,6 +29,8 @@ export interface PreChatFormConfig {
 
 export interface WidgetConfig {
   apiUrl: string;
+  /** Request/stream inactivity timeout in milliseconds. Defaults to 30000. */
+  timeout?: number;
   mode?: 'popup' | 'inline';
   container?: string | HTMLElement;
   theme?: {
@@ -106,7 +108,7 @@ export class Widget {
 
   constructor(config: WidgetConfig) {
     this.config = config;
-    this.client = new ChatClient({ apiUrl: config.apiUrl });
+    this.client = new ChatClient({ apiUrl: config.apiUrl, timeout: config.timeout });
     this.storage = new ConversationStorage();
     this.locale = getWidgetLocale(config.locale ?? 'en', config.strings);
     this.conversationId = this.storage.getSessionId();

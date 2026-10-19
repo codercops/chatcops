@@ -63,6 +63,7 @@ import ChatCops from '@chatcops/widget';
 
 ChatCops.init({
   apiUrl: 'https://your-api.com/chat',
+  timeout: 60000, // Abort after 60s without received data (default: 30000ms)
 
   // Theme
   theme: {
@@ -114,11 +115,25 @@ ChatCops.init({
 
 The `container` option accepts a CSS selector string or a direct `HTMLElement` reference.
 
+### Streaming inactivity timeout
+
+Set `timeout` in `ChatCops.init()` to change the inactivity timeout in milliseconds.
+The default is `30000` (30 seconds). It starts when a request begins and restarts
+whenever a nonempty stream chunk arrives, including heartbeat comments, partial
+SSE events and malformed data. It measures received transport activity, not the
+time between displayed text updates or the total response duration.
+
+A response can stream for longer than the timeout as long as chunks keep arriving.
+A request that never responds, or a stream that stops sending data, fails with a
+timeout error. Use a larger value for backends with longer silent periods. This
+option is available through programmatic configuration.
+
 ## WidgetConfig Interface
 
 ```typescript
 interface WidgetConfig {
   apiUrl: string;
+  timeout?: number;              // Inactivity timeout in ms, default: 30000
 
   // Display mode
   mode?: 'popup' | 'inline';       // Default: 'popup'

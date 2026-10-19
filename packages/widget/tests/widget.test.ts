@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Widget } from '../src/widget.js';
+import { mockChatStream } from './helpers/stream.js';
 import { ConversationStorage } from '../src/storage.js';
 
 type WidgetInternals = {
@@ -540,3 +541,82 @@ describe('Widget', () => {
   });
 });
 
+describe('Widget streaming timeout configuration', () => {
+  let widget: Widget;
+
+  beforeEach(() => {
+    document.body.innerHTML = '';
+    localStorage.clear();
+    sessionStorage.clear();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    widget?.destroy();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it.each([undefined, 750, 0])('uses the configured timeout (%s) through the real client', async (timeout) => {
+    const transport = mockChatStream(false);
+    const onError = vi.fn();
+    widget = new Widget({ apiUrl: '/chat', timeout, persistHistory: false, onError });
+    widget.init();
+    const pending = getInternals(widget).handleSend('Hello');
+    const interval = timeout ?? 30000;
+
+    if (interval > 0) {
+      await vi.advanceTimersByTimeAsync(interval - 1);
+      expect(transport.signal.aborted).toBe(false);
+    }
+    await vi.advanceTimersByTimeAsync(interval === 0 ? 0 : 1);
+    await pending;
+
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: 'timeout' }));
+    expect(getInternals(widget).messages.at(-1)).toMatchObject({ status: 'error', errorType: 'timeout' });
+    expect(getInternals(widget).shadow.querySelector<HTMLTextAreaElement>('.cc-input')!.disabled).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('destroy aborts the real stream without late errors or messages', async () => {
+    const transport = mockChatStream();
+    const onError = vi.fn();
+    const onMessage = vi.fn();
+    widget = new Widget({ apiUrl: '/chat', timeout: 1000, persistHistory: false, onError, onMessage });
+    widget.init();
+    const pending = getInternals(widget).handleSend('Hello');
+    transport.send('data: {"content":"Partial reply"}\n\n');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getInternals(widget).shadow.textContent).toContain('Partial reply');
+
+    widget.destroy();
+    await pending;
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(transport.signal.aborted).toBe(true);
+    expect(transport.body.locked).toBe(false);
+    expect(onError).not.toHaveBeenCalled();
+    expect(onMessage).toHaveBeenCalledOnce(); // Only the original user message.
+    expect(document.querySelector('#chatcops-root')).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('keeps the existing partial-error UI when an active stream later stalls', async () => {
+    const transport = mockChatStream();
+    widget = new Widget({ apiUrl: '/chat', timeout: 1000, persistHistory: false });
+    widget.init();
+    const pending = getInternals(widget).handleSend('Hello');
+    transport.send('data: {"content":"Partial reply"}\n\n');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getInternals(widget).shadow.textContent).toContain('Partial reply');
+
+    await vi.advanceTimersByTimeAsync(1000);
+    await pending;
+
+    const reply = getInternals(widget).messages.at(-1)!;
+    expect(reply).toMatchObject({ status: 'error', errorType: 'timeout' });
+    expect(reply.content).not.toContain('Partial reply');
+    expect(getInternals(widget).shadow.textContent).not.toContain('Partial reply');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
