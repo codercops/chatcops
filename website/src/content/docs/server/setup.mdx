@@ -64,12 +64,6 @@ const handler = chatcopsMiddleware({
 
   // Optional: CORS origin
   cors: '*',
-
-  // Optional: i18n (accepted, but the server doesn't read it yet)
-  i18n: {
-    defaultLocale: 'en',
-    locales: { /* custom strings */ },
-  },
 });
 ```
 
@@ -93,6 +87,7 @@ interface ChatCopsServerConfig {
   webhooks?: WebhookConfig[];
   analytics?: boolean;
   cors?: string;
+  /** @deprecated Ignored by the server. Use the widget's `strings` option. */
   i18n?: {
     defaultLocale: string;
     locales: Record<string, LocaleStrings>;

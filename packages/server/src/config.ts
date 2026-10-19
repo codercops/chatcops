@@ -12,6 +12,7 @@ export interface ChatCopsServerConfig {
   analytics?: boolean;
   /** Allowed CORS origin. Defaults to `'*'`. */
   cors?: string;
+  /** @deprecated The server ignores this. Set the widget's text with its `strings` option. */
   i18n?: { defaultLocale: string; locales: Record<string, LocaleStrings> };
 }
 

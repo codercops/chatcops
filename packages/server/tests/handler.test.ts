@@ -131,6 +131,32 @@ describe('createChatHandler', () => {
     expect(clearIntervalSpy).toHaveBeenCalledOnce();
   });
 
+  it('warns once when the deprecated i18n option is set', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const { cleanup } = createChatHandler({
+      provider: { type: 'openai', apiKey: 'test-key' },
+      systemPrompt: 'Test',
+      i18n: { defaultLocale: 'en', locales: {} },
+    });
+    cleanup();
+
+    expect(warnSpy).toHaveBeenCalledOnce();
+    expect(warnSpy.mock.calls[0][0]).toContain('i18n');
+  });
+
+  it('does not warn when i18n is not set', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const { cleanup } = createChatHandler({
+      provider: { type: 'openai', apiKey: 'test-key' },
+      systemPrompt: 'Test',
+    });
+    cleanup();
+
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
   it('passes a working tool executor into the streaming provider', async () => {
     const weatherTool = {
       name: 'get_weather',

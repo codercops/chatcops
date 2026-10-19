@@ -11,6 +11,10 @@ import { RateLimiter } from './rate-limit.js';
 import { WebhookDispatcher } from './webhook.js';
 
 export function createChatHandler(config: ChatCopsServerConfig) {
+  if (config.i18n) {
+    console.warn('[chatcops] The `i18n` option is deprecated and ignored. Set the widget text with its `strings` option.');
+  }
+
   const providerPromise = createProvider(config.provider);
   const conversations = new ConversationManager();
   const rateLimiter = config.rateLimit ? new RateLimiter(config.rateLimit) : new RateLimiter();
