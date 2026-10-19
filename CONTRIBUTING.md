@@ -10,7 +10,7 @@ We're taking part in Hacktoberfest this year, and first-time contributors are ve
 2. Comment on it to ask for it. I'll assign it to you, usually within a day. Please don't start on an issue that's assigned to someone else.
 3. Take one issue at a time. Once your PR is merged, grab the next one. After 3 merged PRs with us you can hold two issues at once.
 4. If you're assigned and there's no PR or update for 5 days, I'll free the issue up for someone else. Just comment if you need more time.
-5. Open your PR against `dev` and put `Closes #<issue number>` in the description. A check on the PR ("Claim check") fails if that issue isn't assigned to you. Another one ("Description check") fails while the "How I tested this" or "AI assistance" section of the description is missing or empty.
+5. Open your PR against `dev` here in codercops/chatcops and put `Closes #<issue number>` in the description. A PR merged inside your own fork never reaches us, so it doesn't count. A check on the PR ("Claim check") fails if that issue isn't assigned to you. Another one ("Description check") fails while the "How I tested this" or "AI assistance" section of the description is missing or empty.
 
 PRs count for Hacktoberfest once they're merged or labeled `hacktoberfest-accepted`. PRs that aren't linked to an issue, only reformat code, or change things nobody asked for will be closed, and spammy ones get the `spam` label. If you have an idea that isn't an issue yet, open an issue first so we can agree on it before you write code. The full rules are under [Ground rules](#ground-rules) below.
 
