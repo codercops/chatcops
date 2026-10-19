@@ -5,6 +5,16 @@ export function chatcopsCloudflareHandler(config: ChatCopsServerConfig) {
   const { handleChat } = createChatHandler(config);
   const corsOrigin = config.cors ?? '*';
 
+  function errorResponse(status: number, error: string): Response {
+    return new Response(JSON.stringify({ error }), {
+      status,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': corsOrigin,
+      },
+    });
+  }
+
   return async function handler(request: Request): Promise<Response> {
     // Handle CORS preflight
     if (request.method === 'OPTIONS') {
@@ -20,10 +30,7 @@ export function chatcopsCloudflareHandler(config: ChatCopsServerConfig) {
     }
 
     if (request.method !== 'POST') {
-      return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-        status: 405,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return errorResponse(405, 'Method not allowed');
     }
 
     const clientIp = request.headers.get('cf-connecting-ip') ?? 'unknown';
@@ -31,10 +38,7 @@ export function chatcopsCloudflareHandler(config: ChatCopsServerConfig) {
     try {
       body = await request.json();
     } catch {
-      return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return errorResponse(400, 'Invalid JSON body');
     }
 
     const { readable, writable } = new TransformStream();

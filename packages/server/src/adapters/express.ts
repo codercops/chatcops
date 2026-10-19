@@ -19,6 +19,11 @@ export function chatcopsMiddleware(config: ChatCopsServerConfig) {
   const { handleChat } = getOrCreateChatHandler(config);
   const corsOrigin = config.cors ?? '*';
 
+  function sendError(res: Response, status: number, error: string) {
+    res.setHeader('Access-Control-Allow-Origin', corsOrigin);
+    res.status(status).json({ error });
+  }
+
   return async function chatcopsHandler(req: Request, res: Response, next: NextFunction) {
     // Handle CORS preflight
     if (req.method === 'OPTIONS') {
@@ -31,7 +36,7 @@ export function chatcopsMiddleware(config: ChatCopsServerConfig) {
     }
 
     if (req.method !== 'POST') {
-      res.status(405).json({ error: 'Method not allowed' });
+      sendError(res, 405, 'Method not allowed');
       return;
     }
 
