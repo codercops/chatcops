@@ -275,6 +275,45 @@ describe('createChatHandler', () => {
     expect(receivedTimeouts).toEqual([2_500]);
   });
 
+  it('passes maxTokens and temperature from the config into the provider chat params', async () => {
+    const received: Array<{ maxTokens?: number; temperature?: number }> = [];
+
+    mockedCreateProvider.mockResolvedValue({
+      name: 'test-provider',
+      async *chat(params) {
+        received.push({ maxTokens: params.maxTokens, temperature: params.temperature });
+        yield 'ok';
+      },
+      async chatSync() {
+        return '';
+      },
+    });
+
+    const withOptions = createChatHandler({
+      provider: { type: 'openai', apiKey: 'test-key' },
+      systemPrompt: 'Test',
+      maxTokens: 4096,
+      temperature: 0.2,
+    });
+    const withoutOptions = createChatHandler({
+      provider: { type: 'openai', apiKey: 'test-key' },
+      systemPrompt: 'Test',
+    });
+
+    for (const { handleChat } of [withOptions, withoutOptions]) {
+      for await (const _chunk of handleChat({ conversationId: 'conv-params', message: 'Hello' })) {
+        // Drain the stream.
+      }
+    }
+    withOptions.cleanup();
+    withoutOptions.cleanup();
+
+    expect(received).toEqual([
+      { maxTokens: 4096, temperature: 0.2 },
+      { maxTokens: undefined, temperature: undefined },
+    ]);
+  });
+
   it('tracks lead capture analytics when a tool succeeds', async () => {
     const leadTool = {
       name: 'capture_lead',
