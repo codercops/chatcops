@@ -170,9 +170,47 @@ describe('express analytics sharing', () => {
     );
 
     expect(fake.statusCode).toBe(405);
+    expect(fake.headers['Access-Control-Allow-Origin']).toBe('*');
     expect(fake.body).toEqual({ error: 'Method not allowed' });
     expect(fake.chunks).toEqual([]);
     expect(fake.ended).toBe(false);
+  });
+
+  it('returns 405 with Access-Control-Allow-Origin: * when cors is not configured', async () => {
+    const config: ChatCopsServerConfig = {
+      provider: { type: 'claude', apiKey: 'test-key' },
+      systemPrompt: 'Test',
+    };
+    const middleware = chatcopsMiddleware(config);
+    const { fake, res } = createResponse();
+
+    await middleware(
+      createRequest('GET'),
+      res,
+      (() => undefined) as NextFunction,
+    );
+
+    expect(fake.statusCode).toBe(405);
+    expect(fake.headers['Access-Control-Allow-Origin']).toBe('*');
+  });
+
+  it('returns 405 with custom Access-Control-Allow-Origin when cors is configured', async () => {
+    const config: ChatCopsServerConfig = {
+      provider: { type: 'claude', apiKey: 'test-key' },
+      systemPrompt: 'Test',
+      cors: 'https://example.com',
+    };
+    const middleware = chatcopsMiddleware(config);
+    const { fake, res } = createResponse();
+
+    await middleware(
+      createRequest('GET'),
+      res,
+      (() => undefined) as NextFunction,
+    );
+
+    expect(fake.statusCode).toBe(405);
+    expect(fake.headers['Access-Control-Allow-Origin']).toBe('https://example.com');
   });
 
   it('streams chunks as SSE data, writes DONE, and ends the response', async () => {

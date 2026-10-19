@@ -31,6 +31,7 @@ export function chatcopsMiddleware(config: ChatCopsServerConfig) {
     }
 
     if (req.method !== 'POST') {
+      res.setHeader('Access-Control-Allow-Origin', corsOrigin);
       res.status(405).json({ error: 'Method not allowed' });
       return;
     }
