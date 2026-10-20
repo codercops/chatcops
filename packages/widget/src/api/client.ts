@@ -127,7 +127,10 @@ export class ChatClient {
       }
 
       await cleanup();
-      yield { done: true };
+      // A [DONE] with no newline after it still counts. Anything else means the
+      // connection was cut mid-reply (a proxy timeout, a server crash), so the
+      // visitor should see an error and a Retry button rather than half an answer.
+      yield buffer.trim() === 'data: [DONE]' ? { done: true } : { error: 'network' };
     } catch (err) {
       await cleanup();
       if (err instanceof DOMException && err.name === 'AbortError') {
