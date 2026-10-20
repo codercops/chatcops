@@ -49,8 +49,9 @@ jobs:
       - name: Typecheck
         run: pnpm -r typecheck
 
+      # Per-package coverage minimums are in vitest.config.ts.
       - name: Test
-        run: pnpm test
+        run: pnpm test:coverage
 
   changeset:
     if: github.event_name == 'pull_request' && github.base_ref == 'dev'

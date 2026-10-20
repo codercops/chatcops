@@ -84,6 +84,9 @@ pnpm -r build
 # Run tests
 pnpm test
 
+# Run tests with coverage, as CI does (fails if a package drops below its minimum)
+pnpm test:coverage
+
 # Typecheck
 pnpm -r typecheck
 ```
