@@ -199,6 +199,8 @@ ANTHROPIC_API_KEY=sk-... npx tsx src/examples/express-server.ts
 
 `npx` downloads `tsx` the first time.
 
+The widget has a size budget: 14 kB gzipped for the script tag bundle (`dist/chatcops.min.js`), checked in CI by `pnpm size` after a build (limits in `.size-limit.json`).
+
 ### Browser tests
 
 The unit tests run in happy-dom. The tests in `e2e/` load the built widget in a real Chromium, against a small mock server that streams canned replies, and run an axe accessibility check:

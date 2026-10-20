@@ -42,6 +42,10 @@ jobs:
       - name: Package checks
         run: pnpm publint
 
+      # Gzip budgets for the widget bundles are in .size-limit.json.
+      - name: Widget size budget
+        run: pnpm size
+
       - name: Typecheck
         run: pnpm -r typecheck
 
