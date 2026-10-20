@@ -102,6 +102,7 @@ packages/
   core/     @chatcops/core (AI providers, tools, knowledge base)
   widget/   @chatcops/widget (embeddable chat UI)
   server/   @chatcops/server (server handler + adapters)
+  store-*/  conversation, counter and analytics stores, one package per backend
 website/    Marketing site + Starlight docs (Astro)
 ```
 
@@ -224,6 +225,28 @@ They cover starting from the script tag, streaming, Escape and the tab order, th
 4. Register in the `createProvider` factory
 5. Export from `index.ts`
 6. Add tests
+
+## Writing a store package
+
+Stores live in their own packages (`packages/store-<name>`), so a Cloudflare user never installs a Postgres driver. Each one implements the interfaces in `packages/core/src/storage/types.ts`: `conversations` is required, and `counters`, `kv` and `events` are what make rate limits and analytics work across server instances. `memoryStorage()` in `packages/core/src/storage/memory.ts` is the reference.
+
+A new package needs:
+
+- `package.json` with `"private": true` until a maintainer publishes it for the first time, `"type": "module"`, an `exports` entry like `@chatcops/core`'s, `"@chatcops/core": "workspace:^"` in `peerDependencies` (and `"workspace:*"` in `devDependencies`), the database client as a peer dependency where there is one, and the `build`, `typecheck` and `test` scripts.
+- `tsconfig.json` extending `../../tsconfig.json`, like the other packages.
+- `tests/conformance.test.ts` running the shared suite, which is the contract every store has to meet:
+
+  ```ts
+  import { describe } from 'vitest';
+  import { runStorageConformance } from '@chatcops/core/testing';
+  import { redisStorage } from '../src/index.js';
+
+  const url = process.env.CHATCOPS_TEST_REDIS_URL;
+  if (url) runStorageConformance('redis', () => redisStorage({ url }));
+  else describe.skip('redis conformance (set CHATCOPS_TEST_REDIS_URL to run)', () => {});
+  ```
+
+CI runs Redis, the Upstash REST emulator and Postgres next to the tests and sets `CHATCOPS_TEST_REDIS_URL`, `CHATCOPS_TEST_UPSTASH_URL` with `CHATCOPS_TEST_UPSTASH_TOKEN`, and `CHATCOPS_TEST_POSTGRES_URL` (see `.github/workflows/ci.yml`). Locally, start the same containers with Docker and export the variables, or let those tests skip. The root `vitest.config.ts` and `pnpm publint` pick up a new package by themselves, and store packages need 90% line and 80% branch coverage.
 
 ## Adding a new locale
 

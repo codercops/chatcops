@@ -2,7 +2,8 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    projects: ['packages/core', 'packages/widget', 'packages/server'],
+    // Every package with tests, including store packages as they're added.
+    projects: ['packages/*'],
     coverage: {
       provider: 'v8',
       include: ['packages/*/src/**'],
@@ -15,6 +16,8 @@ export default defineConfig({
         'packages/core/src/**': { lines: 80, branches: 80 },
         'packages/server/src/**': { lines: 90, branches: 85 },
         'packages/widget/src/**': { lines: 90, branches: 80 },
+        // Store packages start strict: the conformance suite covers most paths.
+        'packages/store-*/src/**': { lines: 90, branches: 80 },
       },
     },
   },

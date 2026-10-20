@@ -9,6 +9,34 @@ on:
 jobs:
   typecheck-test-build:
     runs-on: ubuntu-latest
+    # Databases for the store packages' conformance tests. Locally those tests
+    # skip unless the CHATCOPS_TEST_* variables below are set.
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+      # The Upstash REST API in front of the redis service, for @upstash/redis.
+      upstash:
+        image: hiett/serverless-redis-http:0.0.10
+        ports: ['8079:80']
+        env:
+          SRH_MODE: env
+          SRH_TOKEN: chatcops_test_token
+          SRH_CONNECTION_STRING: redis://redis:6379
+      postgres:
+        image: postgres:17-alpine
+        ports: ['5432:5432']
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      CHATCOPS_TEST_REDIS_URL: redis://localhost:6379
+      CHATCOPS_TEST_UPSTASH_URL: http://localhost:8079
+      CHATCOPS_TEST_UPSTASH_TOKEN: chatcops_test_token
+      CHATCOPS_TEST_POSTGRES_URL: postgres://postgres:postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v4
 

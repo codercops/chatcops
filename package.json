@@ -13,7 +13,7 @@
     "lint": "biome check packages/*/src packages/*/tests website/src",
     "clean": "pnpm -r clean",
     "e2e": "playwright test -c e2e/playwright.config.ts",
-    "publint": "publint packages/core && publint packages/server && publint packages/widget",
+    "publint": "pnpm -r --filter \"./packages/*\" exec publint",
     "size": "size-limit"
   },
   "devDependencies": {
