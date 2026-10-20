@@ -17,10 +17,37 @@ export type {
   ProviderChatParams,
   AnalyticsEvent,
   LocaleStrings,
+  TokenUsage,
+  ProviderMetadata,
+  JSONSchema,
+  ToolExecutor,
+  ToolCallState,
+  MessagePart,
+  TextPart,
+  ReasoningPart,
+  SourcePart,
+  ToolCallPart,
+  ToolResultPart,
+  LeadCapturedPart,
+  HandoffPart,
 } from './types.js';
+export { partsOf, messageText } from './parts.js';
+
+// Wire protocol
+export { PROTOCOL_VERSION } from './protocol/index.js';
+export type {
+  WirePart,
+  WirePartType,
+  WireErrorCode,
+  WireFinishReason,
+  WireAgent,
+  WireErrorBody,
+  ChatRequestV1,
+  ClientToolManifest,
+} from './protocol/index.js';
 
 // Providers
-export type { AIProvider, NormalizedMessage } from './providers/index.js';
+export type { AIProvider, NormalizedMessage, FinishReason, ProviderEvent, ProviderStepParams } from './providers/index.js';
 export { createProvider, normalizeHistory, ClaudeProvider, OpenAIProvider, GeminiProvider } from './providers/index.js';
 
 // Tools

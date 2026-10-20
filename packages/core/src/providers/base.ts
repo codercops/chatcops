@@ -1,11 +1,8 @@
 import type { Tool as GeminiTool } from '@google/genai';
-import type { ChatMessage, ProviderChatParams, ProviderConfig, ToolDefinition } from '../types.js';
+import type { ChatMessage, ProviderConfig, ToolDefinition } from '../types.js';
+import type { AIProvider } from './types.js';
 
-export interface AIProvider {
-  name: string;
-  chat(params: ProviderChatParams): AsyncGenerator<string>;
-  chatSync(params: ProviderChatParams): Promise<string>;
-}
+export type { AIProvider } from './types.js';
 
 /** Output token limit used when neither the server config nor the request sets one. */
 export const DEFAULT_MAX_TOKENS = 4096;

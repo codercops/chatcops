@@ -72,7 +72,7 @@ function partsOf(response: GenerateContentResponse): Part[] {
 export class GeminiProvider implements AIProvider {
   name = 'gemini';
   private ai: GoogleGenAI;
-  private model: string;
+  readonly model: string;
   private effort: ProviderEffort;
 
   constructor(config: ProviderConfig) {

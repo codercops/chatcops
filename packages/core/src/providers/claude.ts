@@ -91,7 +91,7 @@ function textOf(content: Anthropic.Messages.Message['content']): string {
 export class ClaudeProvider implements AIProvider {
   name = 'claude';
   private client: Anthropic;
-  private model: string;
+  readonly model: string;
   private effort: ProviderEffort | undefined;
 
   constructor(config: ProviderConfig) {

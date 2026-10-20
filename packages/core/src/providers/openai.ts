@@ -34,7 +34,7 @@ export function isOpenAIReasoningModel(model: string, baseURL?: string): boolean
 export class OpenAIProvider implements AIProvider {
   name = 'openai';
   private client: OpenAI;
-  private model: string;
+  readonly model: string;
   private reasoning: boolean;
   private effort: ProviderEffort;
   private maxTokensParam: 'max_completion_tokens' | 'max_tokens';

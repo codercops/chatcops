@@ -1,7 +1,27 @@
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
+  /**
+   * The message text. For a message with `parts`, this is the text parts
+   * joined, kept so older stores and widgets that only know `content` work.
+   */
   content: string;
+  /**
+   * What the message is made of: text, tool calls and their results, sources.
+   * Messages saved by older versions have no parts; read them with
+   * `partsOf(message)`, which treats `content` as one text part.
+   */
+  parts?: MessagePart[];
+  /**
+   * `incomplete` is a reply that stopped early (a provider error, max tokens).
+   * `aborted` is a reply the visitor walked away from. Neither is sent back to
+   * the model as if it were a finished answer. Missing means complete.
+   */
+  status?: 'complete' | 'incomplete' | 'aborted';
+  /** Tokens the reply used. Assistant messages only. */
+  usage?: TokenUsage;
+  /** True on replies a model wrote, for machine-readable AI marking. */
+  aiGenerated?: boolean;
   timestamp: number;
   metadata?: Record<string, unknown>;
 }
@@ -10,9 +30,101 @@ export interface Conversation {
   id: string;
   messages: ChatMessage[];
   metadata?: Record<string, unknown>;
+  /**
+   * Goes up by one on every write, for stores that check for conflicting
+   * writes. Missing on conversations from stores that don't track it.
+   */
+  version?: number;
   createdAt: number;
   updatedAt: number;
 }
+
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  /** Input tokens read from the provider's prompt cache. */
+  cacheReadTokens?: number;
+  /** Input tokens written to the provider's prompt cache. */
+  cacheWriteTokens?: number;
+}
+
+/**
+ * Data a provider needs back on the next request but nobody else reads, keyed
+ * by provider name. For example Claude's thinking signatures or Gemini's
+ * thought signatures. Store it as is and never show it.
+ */
+export type ProviderMetadata = Record<string, Record<string, unknown>>;
+
+/** A JSON Schema object (draft 2020-12). Providers each accept a subset. */
+export type JSONSchema = Record<string, unknown>;
+
+export type ToolExecutor = 'server' | 'client' | 'mcp';
+
+export type ToolCallState = 'pending' | 'awaiting-approval' | 'done' | 'error' | 'expired';
+
+export interface TextPart {
+  type: 'text';
+  text: string;
+  providerMetadata?: ProviderMetadata;
+}
+
+/** The model's reasoning. Kept for the provider, never shown to visitors. */
+export interface ReasoningPart {
+  type: 'reasoning';
+  text: string;
+  providerMetadata?: ProviderMetadata;
+}
+
+export interface SourcePart {
+  type: 'source';
+  sourceId: string;
+  url: string;
+  title?: string;
+  snippet?: string;
+}
+
+export interface ToolCallPart {
+  type: 'tool-call';
+  toolCallId: string;
+  toolName: string;
+  input: unknown;
+  executor: ToolExecutor;
+  state: ToolCallState;
+  providerMetadata?: ProviderMetadata;
+}
+
+export interface ToolResultPart {
+  type: 'tool-result';
+  toolCallId: string;
+  toolName: string;
+  output?: unknown;
+  error?: string;
+}
+
+export interface LeadCapturedPart {
+  type: 'lead-captured';
+  lead: Record<string, unknown>;
+}
+
+export interface HandoffPart {
+  type: 'handoff';
+  status: 'requested' | 'queued' | 'connected' | 'ended';
+  provider?: string;
+}
+
+/**
+ * One piece of a message. An assistant message for a turn with tool calls
+ * holds every step in order: reasoning, text and tool calls, then the tool
+ * results, then the next step.
+ */
+export type MessagePart =
+  | TextPart
+  | ReasoningPart
+  | SourcePart
+  | ToolCallPart
+  | ToolResultPart
+  | LeadCapturedPart
+  | HandoffPart;
 
 export interface ChatRequest {
   conversationId: string;

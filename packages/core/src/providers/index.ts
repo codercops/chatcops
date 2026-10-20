@@ -1,4 +1,5 @@
 export type { AIProvider, NormalizedMessage } from './base.js';
+export type { FinishReason, ProviderEvent, ProviderStepParams } from './types.js';
 export {
   createProvider,
   normalizeHistory,
