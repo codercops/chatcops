@@ -132,7 +132,8 @@ describe('adapters stop the provider when the visitor disconnects', () => {
         ended = true;
       }),
       on: vi.fn((event: string, listener: () => void) => {
-        (listeners[event] ??= []).push(listener);
+        listeners[event] ??= [];
+        listeners[event].push(listener);
       }),
     };
     const req = { method: 'POST', body, ip: '127.0.0.1', socket: {} };

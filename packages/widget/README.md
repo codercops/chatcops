@@ -1,6 +1,6 @@
 # @chatcops/widget
 
-Embeddable AI chatbot widget. Zero dependencies, Shadow DOM isolated, ~50KB gzipped.
+Embeddable AI chatbot widget. Zero dependencies, Shadow DOM isolated, ~13KB gzipped.
 
 ## Install
 
@@ -157,7 +157,7 @@ All configuration can be set via `data-*` attributes:
 - **Conversation Persistence** - localStorage for history, sessionStorage for session ID
 - **Theming** - CSS custom properties, auto-derived surface colors from `bgColor`
 - **Mobile Responsive** - Full-screen panel on screens below 768px
-- **i18n** - Built-in locale strings with custom override support
+- **i18n** - Ships in English with custom override support for any language
 - **Accessible** - ARIA labels, semantic HTML, keyboard navigation
 
 ## License

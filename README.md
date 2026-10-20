@@ -51,13 +51,13 @@ That's it. Your site now has an AI chat widget.
 ## Features
 
 - **Multi-provider** - Claude, OpenAI, Gemini. Switch with one config change.
-- **Zero-dependency widget** - Shadow DOM isolated, ~50KB gzipped.
+- **Zero-dependency widget** - Shadow DOM isolated, ~13KB gzipped.
 - **Streaming responses** - Real-time SSE streaming from all providers.
 - **Lead capture** - Built-in tool for capturing contact info, with webhook support.
 - **Knowledge base** - Feed text chunks or FAQ pairs for context-aware responses.
 - **Conversation persistence** - localStorage on client, pluggable stores on server.
 - **Analytics** - Track conversations, messages, and lead captures.
-- **i18n** - Replace any widget string, and the model replies in the visitor's language.
+- **i18n** - Ships in English with custom string overrides; the model replies in the visitor's language.
 - **Deployable anywhere** - Express, Vercel, Cloudflare Workers adapters included.
 - **Customizable** - Theme, branding, position, welcome messages, callbacks.
 

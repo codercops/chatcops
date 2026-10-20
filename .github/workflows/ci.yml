@@ -32,14 +32,26 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Lint
+        run: pnpm lint
+
       - name: Build
         run: pnpm -r build
+
+      # Checks each package's exports, types and files the way npm will see them.
+      - name: Package checks
+        run: pnpm publint
+
+      # Gzip budgets for the widget bundles are in .size-limit.json.
+      - name: Widget size budget
+        run: pnpm size
 
       - name: Typecheck
         run: pnpm -r typecheck
 
+      # Per-package coverage minimums are in vitest.config.ts.
       - name: Test
-        run: pnpm test
+        run: pnpm test:coverage
 
   changeset:
     if: github.event_name == 'pull_request' && github.base_ref == 'dev'

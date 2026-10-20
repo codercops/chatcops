@@ -17,6 +17,13 @@ export function createChatHandler(config: ChatCopsServerConfig) {
   }
 
   const providerPromise = createProvider(config.provider);
+  // A failed setup (unknown provider type, SDK that throws on a missing key)
+  // is logged once here and reported to visitors per request below. Without
+  // this handler it would be an unhandled rejection and stop the process.
+  // Only the message is logged: SDK errors can carry the config or headers.
+  providerPromise.catch((err) => {
+    console.error('[chatcops] Provider setup failed:', err instanceof Error ? err.message : String(err));
+  });
   const conversations = new ConversationManager({ store: config.conversationStore });
   const rateLimiter = config.rateLimit ? new RateLimiter(config.rateLimit) : new RateLimiter();
   const analytics = config.analytics ? new AnalyticsCollector() : null;
@@ -38,7 +45,6 @@ export function createChatHandler(config: ChatCopsServerConfig) {
     options: { signal?: AbortSignal } = {}
   ): AsyncGenerator<string> {
     const { signal } = options;
-    const provider = await providerPromise;
     // Validate request
     const parsed = chatRequestSchema.safeParse(body);
     if (!parsed.success) {
@@ -55,6 +61,15 @@ export function createChatHandler(config: ChatCopsServerConfig) {
         yield JSON.stringify({ error: 'rate_limit', retryAfter: limit.retryAfter });
         return;
       }
+    }
+
+    let provider: Awaited<typeof providerPromise>;
+    try {
+      provider = await providerPromise;
+    } catch {
+      // Already logged where the provider was created.
+      yield JSON.stringify({ error: 'provider_error' });
+      return;
     }
 
     // Get or create conversation

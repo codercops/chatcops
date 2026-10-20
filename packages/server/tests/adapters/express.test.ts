@@ -84,7 +84,8 @@ function createResponse(): { fake: FakeResponse; res: Response } {
     },
     writableFinished: false,
     on: (event, listener) => {
-      (listeners[event] ??= []).push(listener);
+      listeners[event] ??= [];
+      listeners[event].push(listener);
       return fake;
     },
     disconnect: () => {

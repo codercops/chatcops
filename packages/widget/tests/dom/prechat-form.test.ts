@@ -109,7 +109,6 @@ describe('PreChatForm', () => {
       const onSubmit = vi.fn();
       createForm(parent, [], onSubmit);
 
-      const btn = parent.querySelector('.cc-prechat-submit') as HTMLButtonElement;
       const form = parent.querySelector('form') as HTMLFormElement;
       form.dispatchEvent(new Event('submit', { cancelable: true }));
 

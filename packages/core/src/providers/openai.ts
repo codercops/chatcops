@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import type { ProviderConfig, ProviderChatParams, ProviderEffort } from '../types.js';
+import type { ProviderConfig, ProviderChatParams, ProviderEffort, ToolResult } from '../types.js';
 import type { AIProvider } from './base.js';
 import { DEFAULT_MAX_TOKENS, normalizeHistory, toOpenAITools, warnOnce } from './base.js';
 import {
@@ -195,7 +195,7 @@ export class OpenAIProvider implements AIProvider {
     toolCalls: FunctionToolCall[]
   ): Promise<OpenAI.Chat.ChatCompletionToolMessageParam[]> {
     return Promise.all(toolCalls.map(async (toolCall) => {
-      let result;
+      let result: ToolResult;
       try {
         result = await executeToolCall(params, {
           id: toolCall.id,

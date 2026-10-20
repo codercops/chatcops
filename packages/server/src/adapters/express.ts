@@ -24,7 +24,7 @@ export function chatcopsMiddleware(config: ChatCopsServerConfig) {
     res.status(status).json({ error });
   }
 
-  return async function chatcopsHandler(req: Request, res: Response, next: NextFunction) {
+  return async function chatcopsHandler(req: Request, res: Response, _next: NextFunction) {
     // Handle CORS preflight
     if (req.method === 'OPTIONS') {
       res.setHeader('Access-Control-Allow-Origin', corsOrigin);

@@ -99,3 +99,14 @@ test('a reply that fails partway keeps its text and shows the error under it', a
   const results = await new AxeBuilder({ page }).include('#chatcops-root').analyze();
   expect(seriousOrWorse(results.violations)).toEqual([]);
 });
+
+test('a reply cut off without [DONE] keeps its text and offers a retry', async ({ page }) => {
+  await page.locator(fab).click();
+  await page.locator(input).fill('Please cut off');
+  await page.locator(send).click();
+
+  const reply = page.locator('.cc-message-assistant').last();
+  await expect(reply.locator('.cc-message-error-note')).toBeVisible();
+  await expect(reply.locator('.cc-message-content')).toHaveText('Hello from the');
+  await expect(reply.locator('.cc-message-retry')).toBeVisible();
+});

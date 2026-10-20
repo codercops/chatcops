@@ -311,7 +311,9 @@ export class Widget {
 
   private emit(event: WidgetEventType, ...args: unknown[]): void {
     if (this.destroyed) return;
-    this.eventHandlers.get(event)?.forEach((h) => h(...args));
+    this.eventHandlers.get(event)?.forEach((h) => {
+      h(...args);
+    });
   }
 
   private isPreChatCompleted(): boolean {

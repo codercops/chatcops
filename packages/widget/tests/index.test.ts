@@ -210,7 +210,9 @@ describe('ChatCops browser export and auto-init', () => {
     let cleanups: Array<() => void> = [];
 
     afterEach(() => {
-      cleanups.forEach((c) => c());
+      cleanups.forEach((c) => {
+        c();
+      });
       cleanups = [];
       ChatCops.destroy();
     });

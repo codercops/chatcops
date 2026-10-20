@@ -177,7 +177,6 @@ export class PreChatForm {
       if (field.type === 'email' && value && !this.isValidEmail(value)) {
         this.showError(field.name, this.options.locale.preChatInvalidEmail);
         valid = false;
-        continue;
       }
     }
 

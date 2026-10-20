@@ -1,5 +1,25 @@
 # @chatcops/website
 
+## 0.0.4
+
+### Patch Changes
+
+- Updated dependencies [f406cf9]
+- Updated dependencies [a55f095]
+- Updated dependencies [2b43de8]
+- Updated dependencies [9decd23]
+- Updated dependencies [a1829e6]
+- Updated dependencies [80704a3]
+- Updated dependencies [58a4511]
+- Updated dependencies [e694ba4]
+- Updated dependencies [8ba3987]
+- Updated dependencies [6e5147f]
+- Updated dependencies [3a4b9b8]
+- Updated dependencies [1ad2c02]
+  - @chatcops/core@0.4.0
+  - @chatcops/server@0.5.0
+  - @chatcops/widget@0.5.0
+
 ## 0.0.3
 
 ### Patch Changes

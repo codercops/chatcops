@@ -181,7 +181,7 @@ describe('createChatHandler', () => {
           input: { city: 'Boston' },
         });
 
-        yield `Forecast: ${(toolResult?.data as { forecast: string }).forecast}`;
+        yield `Forecast: ${(toolResult?.data as { forecast?: string })?.forecast}`;
       },
       async chatSync() {
         return '';
@@ -522,6 +522,85 @@ describe('createChatHandler', () => {
     resolveWebhookFetch(new Response('OK', { status: 200 }));
     await streamCompletionPromise;
     expect(isStreamFinished).toBe(true);
+  });
+
+  describe('when the provider fails to set up', () => {
+    const body = (n: number) => ({ conversationId: `conv-setup-${n}`, message: 'Hello' });
+
+    async function collect(generator: AsyncGenerator<string>) {
+      const events: Array<Record<string, unknown>> = [];
+      for await (const chunk of generator) events.push(JSON.parse(chunk));
+      return events;
+    }
+
+    it('handles the rejection, logs it once, and answers every request with provider_error', async () => {
+      const unhandled: unknown[] = [];
+      const onUnhandled = (reason: unknown) => unhandled.push(reason);
+      process.on('unhandledRejection', onUnhandled);
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      mockedCreateProvider.mockRejectedValue(new Error('Unknown provider type: nope'));
+
+      try {
+        const { handleChat, cleanup } = createChatHandler({
+          provider: { type: 'claude', apiKey: 'sk-secret-key' },
+          systemPrompt: 'Test',
+        });
+
+        // Give the runtime a chance to report a rejection nobody handled.
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        expect(unhandled).toEqual([]);
+
+        for (const n of [1, 2, 3]) {
+          expect(await collect(handleChat(body(n)))).toEqual([{ error: 'provider_error' }]);
+        }
+        cleanup();
+
+        expect(errorSpy).toHaveBeenCalledTimes(1);
+        expect(errorSpy).toHaveBeenCalledWith(
+          '[chatcops] Provider setup failed:',
+          'Unknown provider type: nope'
+        );
+        expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('sk-secret-key');
+      } finally {
+        process.off('unhandledRejection', onUnhandled);
+      }
+    });
+
+    it('logs only the message, not the error object, which can carry the config', async () => {
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const failure = Object.assign(new Error('Missing API key'), { config: { apiKey: 'sk-secret-key' } });
+      mockedCreateProvider.mockRejectedValue(failure);
+
+      const { cleanup } = createChatHandler({
+        provider: { type: 'claude', apiKey: 'sk-secret-key' },
+        systemPrompt: 'Test',
+      });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      cleanup();
+
+      expect(errorSpy).toHaveBeenCalledWith('[chatcops] Provider setup failed:', 'Missing API key');
+      expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('sk-secret-key');
+    });
+
+    it('still validates requests and applies rate limits before reporting provider_error', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      mockedCreateProvider.mockRejectedValue(new Error('setup failed'));
+
+      const { handleChat, cleanup } = createChatHandler({
+        provider: { type: 'claude', apiKey: 'k' },
+        systemPrompt: 'Test',
+        rateLimit: { maxRequests: 1, windowMs: 60_000 },
+      });
+
+      const invalid = await collect(handleChat({ conversationId: '', message: '' }, '1.2.3.4'));
+      expect(invalid).toEqual([expect.objectContaining({ error: 'Invalid request' })]);
+
+      expect(await collect(handleChat(body(1), '5.6.7.8'))).toEqual([{ error: 'provider_error' }]);
+      expect(await collect(handleChat(body(2), '5.6.7.8'))).toEqual([
+        expect.objectContaining({ error: 'rate_limit' }),
+      ]);
+      cleanup();
+    });
   });
 
   it('awaits pending webhook delivery before returning provider_error when provider throws', async () => {

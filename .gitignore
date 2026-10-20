@@ -19,3 +19,6 @@ playwright-report/
 e2e/test-results/
 e2e/playwright-report/
 .playwright-mcp/
+
+# Private keys (the release bot key is downloaded as a .pem)
+*.pem

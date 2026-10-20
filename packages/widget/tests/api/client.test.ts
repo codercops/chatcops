@@ -58,6 +58,30 @@ describe('ChatClient', () => {
     expect(chunks[0]).toEqual({ error: 'rate_limit' });
   });
 
+  it.each([
+    ['ends with [DONE]', ['data: {"content":"Hello"}\n\n', 'data: [DONE]\n\n'], { done: true }],
+    ['ends with [DONE] and no newline', ['data: {"content":"Hello"}\n\n', 'data: [DONE]'], { done: true }],
+    ['ends without [DONE]', ['data: {"content":"Hello"}\n\n'], { error: 'network' }],
+    ['ends mid-event', ['data: {"content":"Hello"}\n\n', 'data: {"cont'], { error: 'network' }],
+  ])('a stream that %s', async (_name, events, terminal) => {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        for (const event of events) controller.enqueue(encoder.encode(event));
+        controller.close();
+      },
+    });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(stream, { status: 200 }));
+
+    const client = new ChatClient({ apiUrl: 'https://api.test/chat' });
+    const chunks: unknown[] = [];
+    for await (const chunk of client.sendMessage({ conversationId: 'test', message: 'Hi' })) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks).toEqual([{ content: 'Hello' }, terminal]);
+  });
+
   it('handles network error', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Network failed'));
 
@@ -175,6 +199,7 @@ describe('ChatClient inactivity timeout', () => {
       transport.send(data);
       await vi.advanceTimersByTimeAsync(0);
     }
+    transport.send('data: [DONE]\n\n');
     transport.close();
 
     expect(await result).toEqual([{ content: 'Hello' }, { done: true }]);
@@ -246,7 +271,7 @@ describe('ChatClient inactivity timeout', () => {
         if (ending === 'eof') transport.close();
         if (ending === 'failure') transport.fail();
         const terminal = await stream.next();
-        expect(terminal.value).toEqual(ending === 'failure' ? { error: 'network' } : { done: true });
+        expect(terminal.value).toEqual(ending === 'done' ? { done: true } : { error: 'network' });
         // Cleanup must happen even if the consumer pauses at the terminal yield.
         expect(vi.getTimerCount()).toBe(0);
         await stream.return(undefined);

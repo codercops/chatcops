@@ -1,0 +1,14 @@
+[
+  {
+    "name": "widget, script tag (IIFE)",
+    "path": "packages/widget/dist/chatcops.min.js",
+    "limit": "14 KB",
+    "gzip": true
+  },
+  {
+    "name": "widget, ESM",
+    "path": "packages/widget/dist/chatcops.esm.js",
+    "limit": "17.5 KB",
+    "gzip": true
+  }
+]

@@ -9,9 +9,9 @@ const HEADERS = {
   'Cache-Control': 'no-store',
 };
 
-export const POST: APIRoute = async () => {
+export const POST: APIRoute = async ({ request }) => {
   try {
-    const counts = await incrementVisitors(SITE);
+    const counts = await incrementVisitors(SITE, request.headers.get('cf-connecting-ip'));
     return new Response(JSON.stringify(counts), { headers: HEADERS });
   } catch {
     return new Response(JSON.stringify({ today: 0, total: 0 }), { status: 500, headers: HEADERS });

@@ -1,5 +1,19 @@
 # @chatcops/widget
 
+## 0.5.0
+
+### Minor Changes
+
+- 80704a3: Maintain a persistent registry of ChatCops event handlers across widget initialization and re-initialization, return an unsubscribe function from ChatCops.on(), and export WidgetEventType.
+- 1ad2c02: Two widgets on one page now keep separate conversations. Each widget gets its own host element (`chatcops-root`, then `chatcops-root-2` and so on, all with the class `chatcops-root`) and destroying one no longer removes another's host. A new `siteId` option names a widget's saved conversation. Without it, a single widget uses the same storage keys as before, and a second widget on the page gets its own automatically, also across the script tag and bundled builds.
+
+### Patch Changes
+
+- a55f095: Text on the accent color now always reaches WCAG AA contrast (4.5:1). With the default accent, white text in the visitor's own messages was at 4.47:1. The widget now picks the text color from `theme.accent`: white when it passes, near-black on light accents (which keep their exact color), or white on a slightly darker shade of the accent. Icons on the launcher and send button use the same text color. New CSS variables: `--cc-on-accent` and `--cc-accent-contrast`.
+- 2b43de8: Messages whose id contains a quote or a backslash can be updated and removed again. The widget now compares ids directly instead of putting them in a CSS selector.
+- 9decd23: When a reply fails after some of it has streamed, the widget keeps that text and shows the error as a short note under it, with Retry as before. Before, the error message replaced the whole bubble. A failure that throws partway through also no longer adds a second copy of the bubble.
+- 58a4511: The closed popup panel and the hidden welcome bubble are out of the tab order and hidden from screen readers. Escape closes the open popup and moves focus back to the launcher, which now has `aria-expanded` and `aria-controls`, and the panel is a labeled dialog.
+
 ## 0.4.4
 
 ### Patch Changes

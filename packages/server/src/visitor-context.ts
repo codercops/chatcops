@@ -19,6 +19,7 @@ const TAG = 'visitor_context';
 /** One line of plain text: no control characters, no line breaks, no tags that could close the block. */
 function clean(value: string): string {
   return value
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: sanitize control characters
     .replace(/[\u0000-\u001f\u007f]+/g, ' ')
     .replace(new RegExp(`<\\s*/?\\s*${TAG}[^>]*>`, 'gi'), '')
     .replace(/\s+/g, ' ')

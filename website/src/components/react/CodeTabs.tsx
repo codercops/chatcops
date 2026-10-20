@@ -100,6 +100,7 @@ export default function CodeTabs() {
       <div className="flex border-b border-border">
         {tabs.map((t) => (
           <button
+            type="button"
             key={t.id}
             onClick={() => setActive(t.id)}
             className={`relative px-5 py-3 text-sm font-medium transition-colors ${
@@ -130,6 +131,7 @@ export default function CodeTabs() {
             className="p-5"
           >
             <pre className="font-mono text-[13px] leading-[1.8] overflow-x-auto">
+              {/* biome-ignore lint/security/noDangerouslySetInnerHtml: syntax highlighted code */}
               <code dangerouslySetInnerHTML={{ __html: highlight(tab.code) }} />
             </pre>
           </motion.div>

@@ -16,6 +16,7 @@ function isSafeHref(href: string): boolean {
   // Browsers drop tabs and newlines anywhere in a URL and trim leading
   // control characters and spaces, so normalize the same way before
   // reading the scheme. URLs without a scheme are relative and safe.
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: strip control characters from url
   const normalized = href.replace(/[\t\n\r]/g, '').replace(/^[\u0000-\u0020]+/, '');
   const scheme = /^([^:/?#]+):/.exec(normalized);
   return !scheme || SAFE_SCHEMES.has(scheme[1].toLowerCase());

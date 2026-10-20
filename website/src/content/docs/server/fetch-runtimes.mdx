@@ -1,0 +1,140 @@
+---
+title: Next.js, Hono, Bun and Deno
+description: Run ChatCops in any runtime built on the Fetch API.
+---
+
+`chatcopsVercelHandler` is a plain `(request: Request) => Promise<Response>` function. It isn't tied to Vercel, so it works in any runtime that speaks the Fetch API: Next.js route handlers, Hono, Bun and Deno.
+
+Two things apply to every example on this page:
+
+- **Route `OPTIONS` to the handler as well as `POST`.** The handler answers the CORS preflight itself. A widget on another origin sends `OPTIONS` first, and if your router returns 404 or 405 for it, the browser never sends the chat request.
+- **Create the handler once, at module level.** It holds the conversation store and the rate limiter. A handler created per request starts empty every time, so conversations lose their history and rate limits never trigger.
+
+## Next.js (App Router)
+
+Create `app/api/chat/route.ts`:
+
+```typescript
+import { chatcopsVercelHandler } from '@chatcops/server';
+
+const handler = chatcopsVercelHandler({
+  provider: {
+    type: 'claude',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  },
+  systemPrompt: 'You are a helpful assistant.',
+  cors: '*',
+});
+
+export const POST = handler;
+export const OPTIONS = handler;
+```
+
+The widget's `data-api-url` is then `/api/chat` on the same site, or the full URL from another origin.
+
+## Hono
+
+Pass Hono's raw `Request` to the handler with `c.req.raw`:
+
+```typescript
+import { Hono } from 'hono';
+import { chatcopsVercelHandler } from '@chatcops/server';
+
+const chat = chatcopsVercelHandler({
+  provider: {
+    type: 'claude',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  },
+  systemPrompt: 'You are a helpful assistant.',
+  cors: '*',
+});
+
+const app = new Hono();
+
+app.on(['POST', 'OPTIONS'], '/api/chat', (c) => chat(c.req.raw));
+
+export default app;
+```
+
+Bun runs this file as it is (`bun run index.ts`). For other runtimes, start the app the way [Hono's docs](https://hono.dev/docs/getting-started/basic) describe for that runtime.
+
+## Bun
+
+```typescript
+import { chatcopsVercelHandler } from '@chatcops/server';
+
+const chat = chatcopsVercelHandler({
+  provider: {
+    type: 'claude',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  },
+  systemPrompt: 'You are a helpful assistant.',
+  cors: '*',
+});
+
+Bun.serve({
+  port: 3000,
+  // Replies stream for a while; Bun closes idle connections after 10 seconds by default.
+  idleTimeout: 120,
+  fetch(req, server) {
+    const { pathname } = new URL(req.url);
+    if (pathname !== '/api/chat') return new Response('Not found', { status: 404 });
+
+    // Rate limiting keys on x-forwarded-for. Without a proxy in front, set it
+    // to the socket address so each visitor gets their own limit.
+    const headers = new Headers(req.headers);
+    headers.set('x-forwarded-for', server.requestIP(req)?.address ?? 'unknown');
+    return chat(new Request(req, { headers }));
+  },
+});
+```
+
+## Deno
+
+```typescript
+import { chatcopsVercelHandler } from 'npm:@chatcops/server@^0.5.0';
+
+const chat = chatcopsVercelHandler({
+  provider: {
+    type: 'claude',
+    apiKey: Deno.env.get('ANTHROPIC_API_KEY')!,
+  },
+  systemPrompt: 'You are a helpful assistant.',
+  cors: '*',
+});
+
+Deno.serve({ port: 8000 }, (req, info) => {
+  const { pathname } = new URL(req.url);
+  if (pathname !== '/api/chat') return new Response('Not found', { status: 404 });
+
+  // Rate limiting keys on x-forwarded-for. Without a proxy in front, set it
+  // to the socket address so each visitor gets their own limit.
+  const headers = new Headers(req.headers);
+  headers.set('x-forwarded-for', (info.remoteAddr as Deno.NetAddr).hostname);
+  return chat(new Request(req, { headers }));
+});
+```
+
+Run it with `deno run --allow-net --allow-env --allow-read --allow-sys server.ts`. Pin the version in the `npm:` specifier as above. Deno also skips npm versions published in the last 24 hours by default, so right after a ChatCops release it may resolve the previous version for a day.
+
+## Rate limiting and the client IP
+
+The built-in rate limiter keys each visitor on the first IP in the `x-forwarded-for` header. Platforms with a proxy in front (Vercel, most hosts, a reverse proxy you run) set that header for you, and the Next.js example needs nothing extra there.
+
+When you run Bun or Deno directly, nothing sets the header. Every request then shares one `"unknown"` key, so a single busy visitor can use up the limit for everyone. Worse, a visitor can send their own `x-forwarded-for` and get a fresh limit with every request. That's why the Bun and Deno examples overwrite the header with the socket address. If you put a proxy in front instead, make it set the header and drop the override.
+
+## Checking your setup
+
+With the server running (a placeholder key such as `test` is enough for the first two):
+
+```bash
+# CORS preflight: expect 204 with Access-Control-Allow-Origin
+curl -i -X OPTIONS http://localhost:3000/api/chat
+
+# Broken JSON: expect 400 {"error":"Invalid JSON body"}
+curl -i -X POST http://localhost:3000/api/chat -H 'Content-Type: application/json' --data '{broken'
+
+# A real reply (needs a real key): expect data: lines, ending with data: [DONE]
+curl -N -X POST http://localhost:3000/api/chat -H 'Content-Type: application/json' \
+  --data '{"conversationId":"test","message":"Hello"}'
+```

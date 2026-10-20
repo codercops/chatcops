@@ -81,7 +81,9 @@ export class Messages {
   }
 
   clearRegenerateButtons(): void {
-    this.container.querySelectorAll('.cc-message-regenerate').forEach((button) => button.remove());
+    this.container.querySelectorAll('.cc-message-regenerate').forEach((button) => {
+      button.remove();
+    });
     this.cleanupEmptyActionContainers();
   }
 

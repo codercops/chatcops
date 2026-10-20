@@ -1,5 +1,23 @@
 # @chatcops/server
 
+## 0.5.0
+
+### Minor Changes
+
+- f406cf9: Stop the provider when the visitor disconnects. `ProviderChatParams` takes a `signal`, which all three providers pass to their SDK and check between tool rounds. `handleChat(body, clientIp, { signal })` stops quietly on abort and doesn't save the partial reply. The Express adapter aborts when the response closes early; the Vercel and Cloudflare adapters abort when the response stream is cancelled, and the Cloudflare adapter no longer throws an unhandled rejection after a disconnect. The Cloudflare handler accepts the Workers `(request, env, ctx)` arguments and uses `ctx.waitUntil` so lead webhooks still finish.
+- 6e5147f: Visitor-supplied page context and pre-chat answers no longer go into the system prompt, where they had the same authority as the site's own instructions. They are sent in a `<visitor_context>` block in front of the visitor's latest message (not stored), with values that can't close the block early and a 4,000 character cap, and the system prompt tells the model to treat that block as information, never as instructions. The site's system prompt and knowledge base are unchanged. `locale` is only used when it looks like a language tag.
+- 3a4b9b8: Webhook deliveries are now signed over the raw body and can be verified with the new `verifyWebhook()` helper. Each request has an `X-ChatCops-Signature: t=<seconds>,v1=<hmac>` header, and the body is `{ id, type, created, data }` with a stable event id for deduplication (the old `event` and `timestamp` fields are still there; the `signature` field in the body is gone). 429 responses are retried and `Retry-After` is honored, redirects aren't followed, and a delivery that fails for good is logged without the body. Webhook URLs must be https and can't point at loopback, private or link-local addresses unless the webhook sets `allowPrivateNetwork: true`. The reply's `done` event is now sent before waiting for webhooks, so a slow receiver no longer delays the end of the visitor's reply.
+
+### Patch Changes
+
+- a1829e6: Errors that were swallowed before now show up in the server logs with the `[chatcops]` prefix: unexpected errors in the Express, Vercel and Cloudflare adapters, and a lead capture callback that throws. Logs carry the error and where it happened, never request bodies or lead data. Errors after a visitor disconnects aren't logged. What visitors see is unchanged.
+- 8ba3987: Preserve the previous assistant message during regenerate until the new reply is saved, and avoid deleting earlier answers on retry.
+- Updated dependencies [f406cf9]
+- Updated dependencies [a1829e6]
+- Updated dependencies [e694ba4]
+- Updated dependencies [3a4b9b8]
+  - @chatcops/core@0.4.0
+
 ## 0.4.0
 
 ### Minor Changes

@@ -13,7 +13,6 @@ export interface FABOptions {
 export class FAB {
   private el: HTMLButtonElement;
   private badge: HTMLDivElement;
-  private isOpen = false;
   private openLabel: string;
   private closeLabel: string;
 
@@ -44,7 +43,6 @@ export class FAB {
   }
 
   setOpen(open: boolean): void {
-    this.isOpen = open;
     this.el.innerHTML = open ? CLOSE_ICON : CHAT_ICON;
     if (!open) this.el.appendChild(this.badge);
     this.el.classList.toggle('cc-open', open);

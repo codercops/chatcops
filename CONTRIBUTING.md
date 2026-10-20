@@ -84,6 +84,9 @@ pnpm -r build
 # Run tests
 pnpm test
 
+# Run tests with coverage, as CI does (fails if a package drops below its minimum)
+pnpm test:coverage
+
 # Typecheck
 pnpm -r typecheck
 ```
@@ -162,11 +165,14 @@ flowchart LR
 
 The sync PR has to be opened by a GitHub App: `dev` requires CI to pass, and a PR opened with the workflow's own `GITHUB_TOKEN` doesn't trigger CI.
 
-1. In the organization settings, open **Developer settings > GitHub Apps > New GitHub App**. Any name works, for example "CoderCops Release Bot". Turn off the webhook.
+1. In the organization settings, open **Developer settings > GitHub Apps > New GitHub App**. Any name works (ours is `chatcops-release-bot`). Turn off the webhook. GitHub asks you to confirm your identity first.
 2. Under **Repository permissions**, give it **Contents: Read and write** and **Pull requests: Read and write**. Nothing else.
 3. Create it, then **Install App** on `codercops/chatcops` only.
 4. Copy the **App ID** into a repository variable named `RELEASE_BOT_APP_ID` (Settings > Secrets and variables > Actions > Variables).
-5. Generate a private key and paste the whole `.pem` file into a repository secret named `RELEASE_BOT_PRIVATE_KEY`.
+5. In the app settings, open **Credentials > Key pairs** and click **New key**. GitHub downloads the `.pem` file once. Save it as a repository secret, then delete the file:
+   ```bash
+   gh secret set RELEASE_BOT_PRIVATE_KEY -R codercops/chatcops < path/to/key.pem
+   ```
 
 The next publish opens the sync PR on its own.
 
@@ -195,6 +201,8 @@ ANTHROPIC_API_KEY=sk-... npx tsx src/examples/express-server.ts
 ```
 
 `npx` downloads `tsx` the first time.
+
+The widget has a size budget: 14 kB gzipped for the script tag bundle (`dist/chatcops.min.js`), checked in CI by `pnpm size` after a build (limits in `.size-limit.json`).
 
 ### Browser tests
 
