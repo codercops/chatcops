@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Two widgets on one page</title>
+</head>
+<body>
+  <main>
+    <h1>Two widgets</h1>
+    <div id="inline-box" style="width: 400px; height: 600px"></div>
+  </main>
+  <!-- A popup from the script tag build, like the CDN snippet... -->
+  <script src="/chatcops.min.js" data-api-url="/api/chat"></script>
+  <!-- ...and an inline widget from the ESM build, like a bundled app. Neither sets a siteId. -->
+  <script type="module">
+    import { Widget } from '/chatcops.esm.js';
+    window.addEventListener('load', () => {
+      const inline = new Widget({ apiUrl: '/api/chat', mode: 'inline', container: '#inline-box' });
+      inline.init();
+      window.inlineWidget = inline;
+    });
+  </script>
+</body>
+</html>

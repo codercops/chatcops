@@ -13,14 +13,15 @@ export type {
   ProviderToolExecutor,
   WebhookConfig,
   ProviderConfig,
+  ProviderEffort,
   ProviderChatParams,
   AnalyticsEvent,
   LocaleStrings,
 } from './types.js';
 
 // Providers
-export type { AIProvider } from './providers/index.js';
-export { createProvider, ClaudeProvider, OpenAIProvider, GeminiProvider } from './providers/index.js';
+export type { AIProvider, NormalizedMessage } from './providers/index.js';
+export { createProvider, normalizeHistory, ClaudeProvider, OpenAIProvider, GeminiProvider } from './providers/index.js';
 
 // Tools
 export type { ChatTool, LeadCaptureCallback } from './tools/index.js';

@@ -1,6 +1,6 @@
 {
   "name": "@chatcops/core",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Core AI provider abstraction, tools, and knowledge base for ChatCops",
   "type": "module",
   "main": "dist/index.js",
@@ -22,9 +22,9 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
-    "openai": "^4.80.0",
-    "@google/generative-ai": "^0.21.0",
+    "@anthropic-ai/sdk": "^0.135.0",
+    "@google/genai": "^2.30.0",
+    "openai": "^7.39.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {

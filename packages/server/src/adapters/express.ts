@@ -47,13 +47,23 @@ export function chatcopsMiddleware(config: ChatCopsServerConfig) {
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('Access-Control-Allow-Origin', corsOrigin);
 
+    // Stop the reply when the visitor goes away before it's done.
+    const abort = new AbortController();
+    res.on('close', () => {
+      if (!res.writableFinished) abort.abort();
+    });
+
     try {
-      for await (const chunk of handleChat(req.body, clientIp)) {
+      for await (const chunk of handleChat(req.body, clientIp, { signal: abort.signal })) {
+        if (abort.signal.aborted) break;
         res.write(`data: ${chunk}\n\n`);
       }
-      res.write('data: [DONE]\n\n');
+      if (!abort.signal.aborted) res.write('data: [DONE]\n\n');
     } catch (err) {
-      res.write(`data: ${JSON.stringify({ error: 'internal_error' })}\n\n`);
+      if (!abort.signal.aborted) {
+        console.error('[chatcops] Unhandled error while handling chat:', err);
+        res.write(`data: ${JSON.stringify({ error: 'internal_error' })}\n\n`);
+      }
     } finally {
       res.end();
     }

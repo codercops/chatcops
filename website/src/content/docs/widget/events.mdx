@@ -7,26 +7,36 @@ The ChatCops widget emits events you can listen to for analytics, custom behavio
 
 ## Subscribing to Events
 
-```typescript
-// Using .on()
-ChatCops.on('open', () => {
-  console.log('Chat opened');
-});
+You can register event handlers with `ChatCops.on()`. Handlers can be registered before calling `ChatCops.init()` (including in inline scripts before `DOMContentLoaded`), and are preserved across repeated `init()` calls.
 
-// Returns unsubscribe function
-const unsub = ChatCops.on('message', (data) => {
-  console.log('Message:', data);
+`ChatCops.on()` returns an unsubscribe function that removes the handler from both the persistent registry and the active widget instance:
+
+```typescript
+// Subscribe to an event
+const unsub = ChatCops.on('open', () => {
+  console.log('Chat opened');
 });
 
 // Unsubscribe later
 unsub();
 ```
 
+Alternatively, you can unregister a handler with `ChatCops.off()`:
+
+```typescript
+function onOpen() {
+  console.log('Chat opened');
+}
+
+ChatCops.on('open', onOpen);
+ChatCops.off('open', onOpen);
+```
+
 ## Event Types
 
 ### `open`
 
-Fired when the chat panel opens.
+Fired when the chat panel opens. Takes no arguments.
 
 ```typescript
 ChatCops.on('open', () => {
@@ -36,7 +46,7 @@ ChatCops.on('open', () => {
 
 ### `close`
 
-Fired when the chat panel closes.
+Fired when the chat panel closes. Takes no arguments.
 
 ```typescript
 ChatCops.on('close', () => {
@@ -48,24 +58,53 @@ ChatCops.on('close', () => {
 
 Fired when a message is sent or received.
 
+Payload: `{ id, role, content, status?, errorType? }`
+
+- `id`: `string` - Unique identifier for the message.
+- `role`: `'user' | 'assistant'` - The sender role.
+- `content`: `string` - The message text content.
+- `status`: `'streaming' | 'complete' | 'error'` (optional) - Delivery status of the message.
+- `errorType`: `'rate_limit' | 'network' | 'provider_error' | 'timeout'` (optional) - Error category when status is `'error'`.
+
 ```typescript
-ChatCops.on('message', (data) => {
-  // data.role: 'user' | 'assistant'
-  // data.content: string
-  // data.timestamp: number
-  console.log(`${data.role}: ${data.content}`);
+ChatCops.on('message', (message) => {
+  console.log(`${message.role}: ${message.content}`);
 });
 ```
 
 ### `error`
 
-Fired when an error occurs (network failure, rate limit, etc.).
+Fired when an error occurs. Emits a plain JavaScript `Error` instance.
+
+Payload: `Error`
 
 ```typescript
 ChatCops.on('error', (error) => {
-  // error.type: 'network' | 'rate_limit' | 'generic'
-  // error.message: string
   console.error('Chat error:', error.message);
+});
+```
+
+### `leadCaptured`
+
+Fired when lead data is captured during a chat session.
+
+Payload: `leadData?: Record<string, unknown>`
+
+```typescript
+ChatCops.on('leadCaptured', (leadData) => {
+  console.log('Lead captured:', leadData);
+});
+```
+
+### `preChatSubmit`
+
+Fired when a user submits the pre-chat form before starting a conversation.
+
+Payload: `data: Record<string, string>`
+
+```typescript
+ChatCops.on('preChatSubmit', (data) => {
+  console.log('Pre-chat form submitted:', data);
 });
 ```
 

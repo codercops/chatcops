@@ -4,6 +4,7 @@ import { Panel } from './dom/panel.js';
 import { WelcomeBubble } from './dom/bubble.js';
 import { ChatClient } from './api/client.js';
 import { ConversationStorage } from './storage.js';
+import { claimNamespace, type ClaimedNamespace } from './namespace.js';
 import { applyTheme } from './theme.js';
 import { getWidgetLocale, type WidgetLocaleStrings } from './i18n.js';
 import { PreChatForm } from './dom/prechat-form.js';
@@ -32,6 +33,12 @@ export interface WidgetConfig {
   /** Request/stream inactivity timeout in milliseconds. Defaults to 30000. */
   timeout?: number;
   mode?: 'popup' | 'inline';
+  /**
+   * Names this widget's saved conversation. Set a different one on each widget
+   * when a page has more than one. Without it a single widget uses the default
+   * storage, and a second widget on the page is given its own automatically.
+   */
+  siteId?: string;
   container?: string | HTMLElement;
   theme?: {
     accent?: string;
@@ -68,14 +75,14 @@ export interface WidgetConfig {
   onPreChatSubmit?: (data: Record<string, string>) => void;
 }
 
-type WidgetEventType =
+export type WidgetEventType =
   | 'open'
   | 'close'
   | 'message'
   | 'error'
   | 'leadCaptured'
   | 'preChatSubmit';
-type WidgetEventHandler = (...args: unknown[]) => void;
+export type WidgetEventHandler = (...args: unknown[]) => void;
 type SendRequestOptions = {
   regenerate?: boolean;
   userMessageId?: string;
@@ -84,12 +91,14 @@ type SendRequestOptions = {
 export class Widget {
   private config: WidgetConfig;
   private shadow!: ShadowRoot;
+  private mounted = false;
   private fab?: FAB;
   private panel!: Panel;
   private bubble?: WelcomeBubble;
   private preChatFormEl?: PreChatForm;
   private client: ChatClient;
   private storage: ConversationStorage;
+  private namespace: ClaimedNamespace;
   private locale: WidgetLocaleStrings;
   private conversationId: string;
   private messages: MessageData[] = [];
@@ -109,7 +118,12 @@ export class Widget {
   constructor(config: WidgetConfig) {
     this.config = config;
     this.client = new ChatClient({ apiUrl: config.apiUrl, timeout: config.timeout });
-    this.storage = new ConversationStorage();
+    this.namespace = claimNamespace(
+      config.siteId,
+      config.mode ?? 'popup',
+      () => !this.destroyed && (!this.mounted || this.shadow.host.isConnected)
+    );
+    this.storage = new ConversationStorage(this.namespace.siteId);
     this.locale = getWidgetLocale(config.locale ?? 'en', config.strings);
     this.conversationId = this.storage.getSessionId();
   }
@@ -135,6 +149,7 @@ export class Widget {
     } else {
       this.shadow = createShadowRoot();
     }
+    this.mounted = true;
 
     if (this.config.theme) {
       applyTheme(this.shadow, this.config.theme);
@@ -248,9 +263,11 @@ export class Widget {
   }
 
   close(): void {
+    const hadFocus = this.panel.containsFocus();
     this.panel.hide();
     if (!this.isInline) {
       this.fab?.setOpen(false);
+      if (hadFocus) this.fab?.focus();
     }
     this.config.onClose?.();
     this.emit('close');
@@ -273,17 +290,19 @@ export class Widget {
     this.bubble?.destroy();
     this.panel.destroy();
     this.fab?.destroy();
-    destroyShadowRoot(this.containerEl);
+    destroyShadowRoot(this.shadow);
+    this.namespace.release();
     this.eventHandlers.clear();
     this.messages = [];
     this.userData = undefined;
   }
 
-  on(event: WidgetEventType, handler: WidgetEventHandler): void {
+  on(event: WidgetEventType, handler: WidgetEventHandler): () => void {
     if (!this.eventHandlers.has(event)) {
       this.eventHandlers.set(event, new Set());
     }
     this.eventHandlers.get(event)!.add(handler);
+    return () => this.off(event, handler);
   }
 
   off(event: WidgetEventType, handler: WidgetEventHandler): void {
@@ -457,8 +476,7 @@ export class Widget {
         if (this.destroyed) break;
         if (chunk.error) {
           const errorType = this.resolveErrorType(chunk.error);
-          assistantMsg.content = this.getErrorMessage(errorType);
-          assistantMsg.status = 'error';
+          this.markFailed(assistantMsg, this.getErrorMessage(errorType));
           assistantMsg.errorType = errorType;
           hasError = true;
 
@@ -529,8 +547,7 @@ export class Widget {
     } catch (err) {
       if (this.destroyed) return;
 
-      assistantMsg.content = this.locale.errorGeneric;
-      assistantMsg.status = 'error';
+      this.markFailed(assistantMsg, this.locale.errorGeneric);
       assistantMsg.errorType = 'network';
 
       this.retryRequests.set(assistantMsg.id, {
@@ -539,7 +556,12 @@ export class Widget {
       });
 
       this.panel.messages.removeTyping();
-      this.panel.addMessage(assistantMsg);
+      // The bubble already exists if some of the reply streamed before the failure.
+      if (firstChunk) {
+        this.panel.addMessage(assistantMsg);
+      } else {
+        this.panel.messages.updateMessage(assistantMsg);
+      }
       this.messages.push(assistantMsg);
 
       const error = err instanceof Error ? err : new Error(String(err));
@@ -625,6 +647,19 @@ export class Widget {
         return error;
       default:
         return 'provider_error';
+    }
+  }
+
+  /**
+   * Marks a reply as failed. Text that already streamed stays, and the error
+   * shows as a note under it; an empty reply shows the error as its content.
+   */
+  private markFailed(message: MessageData, errorMessage: string): void {
+    message.status = 'error';
+    if (message.content.trim()) {
+      message.errorText = errorMessage;
+    } else {
+      message.content = errorMessage;
     }
   }
 

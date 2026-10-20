@@ -219,29 +219,25 @@ describe('provider tool execution loops', () => {
     ]));
   });
 
-  it('GeminiProvider sends function responses back into the chat session', async () => {
+  it('GeminiProvider sends function responses back in the next request', async () => {
     const provider = new GeminiProvider({ type: 'gemini', apiKey: 'test-key' });
-    const sendMessageStream = vi.fn()
-      .mockResolvedValueOnce({
-        stream: (async function* () {})(),
-        response: Promise.resolve({
-          functionCalls: () => [{ name: 'lookup_order', args: { orderId: '123' } }],
-          text: () => '',
-        }),
-      })
-      .mockResolvedValueOnce({
-        stream: (async function* () {
-          yield { text: () => 'Order 123 is shipped.' };
-        })(),
-        response: Promise.resolve({
-          functionCalls: () => undefined,
-          text: () => 'Order 123 is shipped.',
-        }),
-      });
+    const generateContentStream = vi.fn()
+      .mockResolvedValueOnce((async function* () {
+        yield {
+          candidates: [{
+            content: {
+              role: 'model',
+              parts: [{ functionCall: { name: 'lookup_order', args: { orderId: '123' } } }],
+            },
+          }],
+        };
+      })())
+      .mockResolvedValueOnce((async function* () {
+        yield { candidates: [{ content: { role: 'model', parts: [{ text: 'Order 123 is shipped.' }] } }] };
+      })());
 
-    const startChat = vi.fn().mockReturnValue({ sendMessageStream });
-    const getGenerativeModel = vi.fn().mockReturnValue({ startChat });
-    (provider as unknown as { genAI: { getGenerativeModel: typeof getGenerativeModel } }).genAI.getGenerativeModel = getGenerativeModel;
+    (provider as unknown as { ai: { models: { generateContentStream: typeof generateContentStream } } })
+      .ai.models.generateContentStream = generateContentStream;
 
     const toolExecutor = vi.fn().mockResolvedValue({
       success: true,
@@ -253,15 +249,18 @@ describe('provider tool execution loops', () => {
     expect(chunks).toEqual(['Order 123 is shipped.']);
     expect(toolExecutor).toHaveBeenCalledOnce();
 
-    const secondRequest = sendMessageStream.mock.calls[1][0];
-    expect(secondRequest).toEqual([
-      expect.objectContaining({
-        functionResponse: {
-          name: 'lookup_order',
-          response: expect.objectContaining({ success: true }),
-        },
-      }),
-    ]);
+    const secondContents = generateContentStream.mock.calls[1][0].contents;
+    expect(secondContents.at(-1)).toEqual({
+      role: 'user',
+      parts: [
+        expect.objectContaining({
+          functionResponse: {
+            name: 'lookup_order',
+            response: expect.objectContaining({ success: true }),
+          },
+        }),
+      ],
+    });
   });
 
   it('OpenAIProvider stops after the max tool-call iterations guard', async () => {

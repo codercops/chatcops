@@ -1,6 +1,10 @@
 :host {
   --cc-accent: #6366f1;
   --cc-accent-hover: #4f46e5;
+  /* Text and icons on accent backgrounds, and the accent shade that text sits on.
+     Both are recomputed from theme.accent so text always reaches WCAG AA 4.5:1. */
+  --cc-on-accent: #ffffff;
+  --cc-accent-contrast: #6164ec;
   --cc-text: #ffffff;
   --cc-bg: #0a0a0a;
   --cc-bg-surface: #1a1a1a;
@@ -65,7 +69,7 @@
 .cc-fab svg {
   width: 24px;
   height: 24px;
-  fill: var(--cc-text);
+  fill: var(--cc-on-accent);
   transition: transform 0.3s ease;
 }
 
@@ -185,7 +189,7 @@
 .cc-header-avatar-placeholder svg {
   width: 20px;
   height: 20px;
-  fill: var(--cc-text);
+  fill: var(--cc-on-accent);
 }
 
 .cc-header-info {
@@ -265,8 +269,8 @@
 
 .cc-message-user {
   align-self: flex-end;
-  background: var(--cc-accent);
-  color: var(--cc-text);
+  background: var(--cc-accent-contrast);
+  color: var(--cc-on-accent);
   border-bottom-right-radius: 4px;
 }
 
@@ -283,7 +287,13 @@
 }
 
 .cc-message-user a {
-  color: var(--cc-text);
+  color: var(--cc-on-accent);
+}
+
+.cc-message-error-note {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--cc-text-secondary);
 }
 
 .cc-message code {
@@ -474,7 +484,7 @@
 .cc-send-btn svg {
   width: 16px;
   height: 16px;
-  fill: var(--cc-text);
+  fill: var(--cc-on-accent);
 }
 
 /* Footer */
@@ -652,8 +662,8 @@
 }
 
 .cc-prechat-submit {
-  background: var(--cc-accent);
-  color: var(--cc-text);
+  background: var(--cc-accent-contrast);
+  color: var(--cc-on-accent);
   border: none;
   border-radius: 8px;
   padding: 10px 16px;

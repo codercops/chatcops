@@ -22,6 +22,8 @@ export default function LiveDemo() {
         accent: '#6366f1',
       },
       persistHistory: false,
+      // The landing page also has the popup widget; keep their conversations apart.
+      siteId: 'landing-demo',
     });
     widget.init();
     widgetRef.current = widget;

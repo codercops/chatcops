@@ -12,12 +12,16 @@ interface StoredConversation {
 }
 
 const KEY_PREFIX = 'chatcops_conversation';
+const SESSION_KEY_PREFIX = 'chatcops_session_id';
 
 export class ConversationStorage {
   private key: string;
+  private sessionKey: string;
 
+  /** Without a siteId the keys are the ones the widget has always used. */
   constructor(siteId?: string) {
     this.key = siteId ? `${KEY_PREFIX}_${siteId}` : KEY_PREFIX;
+    this.sessionKey = siteId ? `${SESSION_KEY_PREFIX}_${siteId}` : SESSION_KEY_PREFIX;
   }
 
   load(): StoredConversation | null {
@@ -53,12 +57,11 @@ export class ConversationStorage {
   }
 
   getSessionId(): string {
-    const SESSION_KEY = 'chatcops_session_id';
     try {
-      let id = sessionStorage.getItem(SESSION_KEY);
+      let id = sessionStorage.getItem(this.sessionKey);
       if (!id) {
         id = crypto.randomUUID();
-        sessionStorage.setItem(SESSION_KEY, id);
+        sessionStorage.setItem(this.sessionKey, id);
       }
       return id;
     } catch {

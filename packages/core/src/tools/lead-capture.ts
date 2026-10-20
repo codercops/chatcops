@@ -51,7 +51,8 @@ export class LeadCaptureTool implements ChatTool {
     if (this.onCapture) {
       try {
         await this.onCapture(lead);
-      } catch {
+      } catch (err) {
+        console.error('[chatcops] Lead capture callback failed:', err);
         return {
           success: false,
           message: 'Failed to process lead capture callback.',

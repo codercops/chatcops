@@ -15,7 +15,7 @@ app.all('/chat', chatcopsMiddleware({
   provider: {
     type: 'claude',
     apiKey: process.env.ANTHROPIC_API_KEY,
-    model: 'claude-haiku-4-5-20251001',
+    model: 'claude-haiku-5-5',
   },
   systemPrompt: 'You are a helpful assistant.',
   cors: '*',

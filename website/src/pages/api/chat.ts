@@ -95,22 +95,29 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   const encoder = new TextEncoder();
+  // Workers cancel the response when the visitor leaves; stop the reply then.
+  const abort = new AbortController();
   const stream = new ReadableStream({
     async start(controller) {
+      const send = (text: string) => {
+        if (!abort.signal.aborted) controller.enqueue(encoder.encode(text));
+      };
       try {
-        for await (const chunk of getChat().handleChat(body, clientIp)) {
-          controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
+        for await (const chunk of getChat().handleChat(body, clientIp, {
+          signal: abort.signal,
+        })) {
+          if (abort.signal.aborted) break;
+          send(`data: ${chunk}\n\n`);
         }
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        send('data: [DONE]\n\n');
       } catch {
-        controller.enqueue(
-          encoder.encode(
-            `data: ${JSON.stringify({ error: 'internal_error' })}\n\n`
-          )
-        );
+        send(`data: ${JSON.stringify({ error: 'internal_error' })}\n\n`);
       } finally {
-        controller.close();
+        if (!abort.signal.aborted) controller.close();
       }
+    },
+    cancel() {
+      abort.abort();
     },
   });
 

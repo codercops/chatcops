@@ -49,6 +49,10 @@ type FakeResponse = {
   json: (payload: unknown) => FakeResponse;
   write: (chunk: string) => boolean;
   end: () => FakeResponse;
+  writableFinished: boolean;
+  on: (event: string, listener: () => void) => FakeResponse;
+  /** Simulates the visitor disconnecting before the reply is done. */
+  disconnect: () => void;
 };
 
 function createResponse(): { fake: FakeResponse; res: Response } {
@@ -75,9 +79,19 @@ function createResponse(): { fake: FakeResponse; res: Response } {
     },
     end: () => {
       fake.ended = true;
+      fake.writableFinished = true;
       return fake;
     },
+    writableFinished: false,
+    on: (event, listener) => {
+      (listeners[event] ??= []).push(listener);
+      return fake;
+    },
+    disconnect: () => {
+      for (const listener of listeners.close ?? []) listener();
+    },
   };
+  const listeners: Record<string, Array<() => void>> = {};
   return { fake, res: fake as unknown as Response };
 }
 
@@ -126,6 +140,62 @@ describe('express analytics sharing', () => {
     );
     expect(fake.chunks).not.toContain('data: [DONE]\n\n');
     expect(fake.ended).toBe(true);
+  });
+
+  it('logs the error before writing internal_error', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const failure = new Error('Unexpected handler failure');
+    vi.mocked(createChatHandler).mockImplementationOnce(() => ({
+      async *handleChat() {
+        throw failure;
+      },
+      getAnalytics: () => null,
+      cleanup: () => undefined,
+    }));
+
+    const middleware = chatcopsMiddleware({
+      provider: { type: 'claude', apiKey: 'test-key' },
+      systemPrompt: 'Test',
+    });
+    const { fake, res } = createResponse();
+
+    await middleware(
+      createRequest('POST', { conversationId: 'express-log-test', message: 'secret message' }),
+      res,
+      (() => undefined) as NextFunction,
+    );
+
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('[chatcops]'), failure);
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('secret message');
+    expect(fake.chunks).toEqual([`data: ${JSON.stringify({ error: 'internal_error' })}\n\n`]);
+  });
+
+  it('does not log an error that follows a visitor disconnect', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { fake, res } = createResponse();
+    vi.mocked(createChatHandler).mockImplementationOnce(() => ({
+      async *handleChat() {
+        yield JSON.stringify({ content: 'Hi' });
+        fake.disconnect();
+        throw new DOMException('Aborted', 'AbortError');
+      },
+      getAnalytics: () => null,
+      cleanup: () => undefined,
+    }));
+
+    const middleware = chatcopsMiddleware({
+      provider: { type: 'claude', apiKey: 'test-key' },
+      systemPrompt: 'Test',
+    });
+
+    await middleware(
+      createRequest('POST', { conversationId: 'express-disconnect-log-test', message: 'Hello' }),
+      res,
+      (() => undefined) as NextFunction,
+    );
+
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(fake.chunks.join('')).not.toContain('internal_error');
   });
 
   it('returns 204 with CORS headers for OPTIONS requests', async () => {

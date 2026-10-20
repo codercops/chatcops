@@ -1,8 +1,19 @@
-import { Widget, type WidgetConfig } from './widget.js';
+import {
+  Widget,
+  type WidgetConfig,
+  type WidgetEventType,
+  type WidgetEventHandler,
+} from './widget.js';
 
-export { Widget, type WidgetConfig } from './widget.js';
+export {
+  Widget,
+  type WidgetConfig,
+  type WidgetEventType,
+  type WidgetEventHandler,
+} from './widget.js';
 
 let instance: Widget | null = null;
+const persistentHandlers = new Map<WidgetEventType, Set<WidgetEventHandler>>();
 
 export function parseAutoOpen(value?: string): boolean | number | undefined {
   if (value === undefined) return undefined;
@@ -18,6 +29,11 @@ const ChatCops = {
       instance.destroy();
     }
     instance = new Widget(config);
+    for (const [event, handlers] of persistentHandlers) {
+      for (const handler of handlers) {
+        instance.on(event, handler);
+      }
+    }
     instance.init();
     return instance;
   },
@@ -35,12 +51,22 @@ const ChatCops = {
     instance = null;
   },
 
-  on(event: string, handler: (...args: unknown[]) => void): void {
-    instance?.on(event as 'open' | 'close' | 'message' | 'error' | 'leadCaptured' | 'preChatSubmit', handler);
+  on(event: WidgetEventType, handler: WidgetEventHandler): () => void {
+    let handlers = persistentHandlers.get(event);
+    if (!handlers) {
+      handlers = new Set();
+      persistentHandlers.set(event, handlers);
+    }
+    handlers.add(handler);
+    instance?.on(event, handler);
+    return () => {
+      ChatCops.off(event, handler);
+    };
   },
 
-  off(event: string, handler: (...args: unknown[]) => void): void {
-    instance?.off(event as 'open' | 'close' | 'message' | 'error' | 'leadCaptured' | 'preChatSubmit', handler);
+  off(event: WidgetEventType, handler: WidgetEventHandler): void {
+    persistentHandlers.get(event)?.delete(handler);
+    instance?.off(event, handler);
   },
 };
 
@@ -88,7 +114,7 @@ function autoInit(script: HTMLScriptElement | null): void {
 const currentScript = typeof document !== 'undefined' ? (document.currentScript as HTMLScriptElement | null) : null;
 if (currentScript && currentScript.dataset.apiUrl) {
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => autoInit(currentScript));
+    document.addEventListener('DOMContentLoaded', () => autoInit(currentScript), { once: true });
   } else {
     autoInit(currentScript);
   }

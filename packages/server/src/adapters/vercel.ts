@@ -42,18 +42,28 @@ export function chatcopsVercelHandler(config: ChatCopsServerConfig) {
     }
 
     const encoder = new TextEncoder();
+    // The runtime cancels the response stream when the visitor disconnects.
+    const abort = new AbortController();
     const stream = new ReadableStream({
       async start(controller) {
+        const send = (text: string) => {
+          if (!abort.signal.aborted) controller.enqueue(encoder.encode(text));
+        };
         try {
-          for await (const chunk of handleChat(body, clientIp)) {
-            controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
+          for await (const chunk of handleChat(body, clientIp, { signal: abort.signal })) {
+            if (abort.signal.aborted) break;
+            send(`data: ${chunk}\n\n`);
           }
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-        } catch {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'internal_error' })}\n\n`));
+          send('data: [DONE]\n\n');
+        } catch (err) {
+          if (!abort.signal.aborted) console.error('[chatcops] Unhandled error while handling chat:', err);
+          send(`data: ${JSON.stringify({ error: 'internal_error' })}\n\n`);
         } finally {
-          controller.close();
+          if (!abort.signal.aborted) controller.close();
         }
+      },
+      cancel() {
+        abort.abort();
       },
     });
 

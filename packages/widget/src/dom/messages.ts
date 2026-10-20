@@ -12,6 +12,8 @@ export interface MessageData {
   content: string;
   status?: MessageStatus;
   errorType?: MessageErrorType;
+  /** Shown under the content when a reply fails after some of it already streamed. */
+  errorText?: string;
 }
 
 export interface MessageActions {
@@ -45,7 +47,7 @@ export class Messages {
   }
 
   updateMessage(msg: MessageData): void {
-    const el = this.container.querySelector(`[data-id="${msg.id}"]`) as HTMLDivElement | null;
+    const el = this.findMessage(msg.id);
     if (el) {
       this.renderMessageElement(el, msg);
       this.scrollToBottom();
@@ -74,7 +76,7 @@ export class Messages {
   }
 
   removeMessage(id: string): void {
-    const el = this.container.querySelector(`[data-id="${id}"]`) as HTMLDivElement | null;
+    const el = this.findMessage(id);
     el?.remove();
   }
 
@@ -88,7 +90,7 @@ export class Messages {
 
     if (!this.actions?.onRegenerate) return;
 
-    const msgEl = this.container.querySelector(`[data-id="${messageId}"]`) as HTMLDivElement | null;
+    const msgEl = this.findMessage(messageId);
     if (!msgEl || !msgEl.classList.contains('cc-message-assistant')) return;
 
     const actions = this.ensureActionsContainer(msgEl);
@@ -102,6 +104,11 @@ export class Messages {
 
   setVisible(visible: boolean): void {
     this.container.classList.toggle('cc-hidden', !visible);
+  }
+
+  private findMessage(id: string): HTMLDivElement | null {
+    const found = Array.from(this.container.children).find((el) => (el as HTMLElement).dataset.id === id);
+    return (found as HTMLDivElement | undefined) ?? null;
   }
 
   private scrollToBottom(): void {
@@ -142,6 +149,13 @@ export class Messages {
     content.className = 'cc-message-content';
     content.innerHTML = msg.role === 'assistant' ? renderMarkdown(msg.content) : this.escapeHtml(msg.content);
     el.appendChild(content);
+
+    if (msg.status === 'error' && msg.errorText) {
+      const note = document.createElement('div');
+      note.className = 'cc-message-error-note';
+      note.textContent = msg.errorText;
+      el.appendChild(note);
+    }
 
     const actions = this.createActionsContainer(msg);
     if (actions) {

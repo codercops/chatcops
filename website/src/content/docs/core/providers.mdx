@@ -1,44 +1,90 @@
 ---
 title: AI Providers
-description: Connect to Claude, OpenAI, or Gemini with a unified interface.
+description: Connect to Claude, OpenAI, Gemini, or any OpenAI-compatible server with one config.
 ---
 
-ChatCops abstracts AI providers behind a unified `AIProvider` interface. Switch between Claude, OpenAI, and Gemini by changing one config value.
+ChatCops puts every provider behind the same `AIProvider` interface. Switch between Claude, OpenAI, and Gemini by changing one config value.
 
-## Provider Configuration
+## Provider configuration
 
 ```typescript
 // Claude (Anthropic)
 provider: {
   type: 'claude',
   apiKey: process.env.ANTHROPIC_API_KEY!,
-  model: 'claude-haiku-4-5-20251001',  // Default
+  model: 'claude-haiku-5-5',  // Default
 }
 
 // OpenAI
 provider: {
   type: 'openai',
   apiKey: process.env.OPENAI_API_KEY!,
-  model: 'gpt-4o-mini',  // Default
+  model: 'gpt-5-mini',  // Default
 }
 
 // Google Gemini
 provider: {
   type: 'gemini',
   apiKey: process.env.GOOGLE_AI_API_KEY!,
-  model: 'gemini-2.0-flash',  // Default
+  model: 'gemini-3.5-flash-lite',  // Default
 }
 ```
 
-## Default Models
+## Default models
 
-| Provider | Default Model | Streaming |
-|----------|--------------|-----------|
-| Claude | `claude-haiku-4-5-20251001` | SSE via `messages.stream()` |
-| OpenAI | `gpt-4o-mini` | SSE via `chat.completions.create({ stream: true })` |
-| Gemini | `gemini-2.0-flash` | SSE via `generateContentStream()` |
+| Provider | Default model | SDK | Streaming |
+|----------|---------------|-----|-----------|
+| Claude | `claude-haiku-5-5` | `@anthropic-ai/sdk` | `messages.stream()` |
+| OpenAI | `gpt-5-mini` | `openai` | `chat.completions.create({ stream: true })` |
+| Gemini | `gemini-3.5-flash-lite` | `@google/genai` | `models.generateContentStream()` |
 
-## AIProvider Interface
+Set `model` to use any other model the provider offers.
+
+## Options
+
+| Option | Providers | Default | What it does |
+|--------|-----------|---------|--------------|
+| `model` | all | see above | The model id. |
+| `effort` | all | `'low'` | How much effort the model spends per reply: `'low'`, `'medium'`, `'high'`, `'xhigh'` or `'max'`. Lower is faster and cheaper, which suits chat. Sent as `output_config.effort` to Claude 4.6 and later, `reasoning_effort` to OpenAI reasoning models, and `thinkingLevel` to Gemini 3 models. Models without an effort setting ignore it. |
+| `baseURL` | all | provider default | A custom API endpoint: a proxy, a gateway, or an OpenAI-compatible server. |
+| `organization` | OpenAI | none | Your OpenAI organization id. |
+| `maxTokensParam` | OpenAI | `'max_completion_tokens'` | Set to `'max_tokens'` for OpenAI-compatible servers that only accept the old parameter name. |
+
+The server config's `maxTokens` (default 4096) and `temperature` are passed to the provider on every request.
+
+### Temperature on newer models
+
+Claude 5.x models, Claude Opus 4.7 and later, and OpenAI reasoning models (GPT-5 and later, o-series) don't accept a custom `temperature`. ChatCops leaves it out for those models and logs a one-time warning. Use `effort` instead.
+
+## OpenAI-compatible servers
+
+Any server that speaks the OpenAI chat completions API works through the `openai` provider with a `baseURL`:
+
+```typescript
+// Ollama on your own machine
+provider: {
+  type: 'openai',
+  apiKey: 'ollama',  // Ollama ignores the key, but the SDK needs one
+  model: 'llama3.3',
+  baseURL: 'http://localhost:11434/v1',
+}
+
+// OpenRouter
+provider: {
+  type: 'openai',
+  apiKey: process.env.OPENROUTER_API_KEY!,
+  model: 'anthropic/claude-haiku-5-5',
+  baseURL: 'https://openrouter.ai/api/v1',
+}
+```
+
+If the server rejects `max_completion_tokens`, add `maxTokensParam: 'max_tokens'`.
+
+## Conversation history
+
+Before each request ChatCops cleans up the stored history so every provider accepts it. The history always starts with a user message, and two messages in a row from the same side are joined into one. This happens, for example, when a reply failed and the visitor sent their message again.
+
+## AIProvider interface
 
 ```typescript
 interface AIProvider {
@@ -51,12 +97,12 @@ interface ProviderChatParams {
   messages: ChatMessage[];
   systemPrompt: string;
   tools?: ToolDefinition[];
-  maxTokens?: number;      // Default: 1024
-  temperature?: number;    // Default: provider-specific
+  maxTokens?: number;      // Default: 4096
+  temperature?: number;    // Left out on models that don't accept it
 }
 ```
 
-## Direct Provider Usage
+## Direct provider usage
 
 For advanced use cases, you can use providers directly:
 
@@ -84,13 +130,15 @@ const response = await provider.chatSync({
 console.log(response);
 ```
 
-## Tool Support
+## Tool support
 
-All providers support tool calling with a unified format. ChatCops automatically converts tool definitions to each provider's native format:
+All providers support tool calling with one tool format. ChatCops converts tool definitions to each provider's native format:
 
 - Claude: `tools` array with `input_schema`
 - OpenAI: `tools` array with `function.parameters`
-- Gemini: `functionDeclarations` in `tools`
+- Gemini: `functionDeclarations` with `parametersJsonSchema`
+
+When the model calls several tools at once, they run in parallel on every provider.
 
 ```typescript
 chatcopsMiddleware({

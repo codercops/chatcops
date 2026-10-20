@@ -92,6 +92,28 @@ describe('LeadCaptureTool', () => {
     expect(result.message).toContain('Failed to process lead capture callback');
   });
 
+  it('logs the callback error without the lead data', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const failure = new Error('callback failed');
+    const tool = new LeadCaptureTool(vi.fn().mockRejectedValue(failure));
+    const result = await tool.execute({
+      name: 'John Doe',
+      email: 'john@example.com',
+      projectDetails: 'Need a website',
+    });
+
+    expect(result).toEqual({
+      success: false,
+      message: 'Failed to process lead capture callback.',
+    });
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('[chatcops]'), failure);
+    const logged = JSON.stringify(errorSpy.mock.calls);
+    expect(logged).not.toContain('John Doe');
+    expect(logged).not.toContain('john@example.com');
+    expect(logged).not.toContain('Need a website');
+    errorSpy.mockRestore();
+  });
+
   it('handles optional fields', async () => {
     const tool = new LeadCaptureTool();
     const result = await tool.execute({

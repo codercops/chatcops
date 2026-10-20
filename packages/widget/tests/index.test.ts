@@ -1,7 +1,7 @@
-import { beforeEach, afterEach, describe, expect, it } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import ChatCops, { parseAutoOpen } from '../src/index.js';
+import ChatCops, { parseAutoOpen, type WidgetEventType } from '../src/index.js';
 
 describe('ChatCops browser export and auto-init', () => {
 
@@ -203,6 +203,235 @@ describe('ChatCops browser export and auto-init', () => {
 
       // Clean up
       document.head.removeChild(script);
+    });
+  });
+
+  describe('event registry and subscriptions', () => {
+    let cleanups: Array<() => void> = [];
+
+    afterEach(() => {
+      cleanups.forEach((c) => c());
+      cleanups = [];
+      ChatCops.destroy();
+    });
+
+    it('attaches handlers registered before initialization when instance is created', () => {
+      const onOpen = vi.fn();
+      const unsub = ChatCops.on('open', onOpen);
+      cleanups.push(unsub);
+
+      const container = document.createElement('div');
+      container.id = 'event-container-1';
+      document.body.appendChild(container);
+
+      ChatCops.init({
+        apiUrl: 'https://api.test/chat',
+        mode: 'inline',
+        container: '#event-container-1',
+      });
+
+      ChatCops.open();
+      expect(onOpen).toHaveBeenCalledOnce();
+    });
+
+    it('attaches handlers registered by an inline script before DOMContentLoaded', () => {
+      const container = document.createElement('div');
+      container.id = 'event-container-auto';
+      document.body.appendChild(container);
+
+      const script = document.createElement('script');
+      script.dataset.apiUrl = 'https://api.test/chat';
+      script.dataset.mode = 'inline';
+      script.dataset.container = '#event-container-auto';
+      document.head.appendChild(script);
+
+      Object.defineProperty(document, 'readyState', {
+        value: 'loading',
+        configurable: true,
+        writable: true,
+      });
+
+      Object.defineProperty(document, 'currentScript', {
+        value: script,
+        configurable: true,
+        writable: true,
+      });
+
+      // Execute bundle while document is loading (simulates script tag execution)
+      window.eval(bundleCode);
+
+      // Inline script runs before DOMContentLoaded
+      const onOpen = vi.fn();
+      const unsub = window.ChatCops.on('open', onOpen);
+
+      // Dispatch DOMContentLoaded
+      document.dispatchEvent(new Event('DOMContentLoaded'));
+
+      window.ChatCops.open();
+      expect(onOpen).toHaveBeenCalledOnce();
+
+      unsub();
+      document.head.removeChild(script);
+    });
+
+    it('preserves registered handlers across repeated init() calls and attaches each exactly once', () => {
+      const onOpen = vi.fn();
+      const unsub = ChatCops.on('open', onOpen);
+      cleanups.push(unsub);
+
+      const container = document.createElement('div');
+      container.id = 'reinit-container';
+      document.body.appendChild(container);
+
+      // First init
+      ChatCops.init({
+        apiUrl: 'https://api.test/chat',
+        mode: 'inline',
+        container: '#reinit-container',
+      });
+
+      ChatCops.open();
+      expect(onOpen).toHaveBeenCalledTimes(1);
+
+      ChatCops.close();
+
+      // Second init (re-initialization)
+      ChatCops.init({
+        apiUrl: 'https://api.test/chat',
+        mode: 'inline',
+        container: '#reinit-container',
+      });
+
+      ChatCops.open();
+      // Should have been called a second time (persisted), but exactly once for this open call (not duplicated)
+      expect(onOpen).toHaveBeenCalledTimes(2);
+    });
+
+    it('removes registration when unsubscribe function is called before init()', () => {
+      const onOpen = vi.fn();
+      const unsub = ChatCops.on('open', onOpen);
+      unsub(); // unsubscribe before init
+
+      const container = document.createElement('div');
+      container.id = 'unsub-before-init';
+      document.body.appendChild(container);
+
+      ChatCops.init({
+        apiUrl: 'https://api.test/chat',
+        mode: 'inline',
+        container: '#unsub-before-init',
+      });
+
+      ChatCops.open();
+      expect(onOpen).not.toHaveBeenCalled();
+    });
+
+    it('removes registration when unsubscribe function is called after init() and persists removal across re-init', () => {
+      const onOpen = vi.fn();
+      const container = document.createElement('div');
+      container.id = 'unsub-after-init';
+      document.body.appendChild(container);
+
+      ChatCops.init({
+        apiUrl: 'https://api.test/chat',
+        mode: 'inline',
+        container: '#unsub-after-init',
+      });
+
+      const unsub = ChatCops.on('open', onOpen);
+      unsub(); // unsubscribe after init
+
+      ChatCops.open();
+      expect(onOpen).not.toHaveBeenCalled();
+
+      // Re-init should also not have the handler
+      ChatCops.init({
+        apiUrl: 'https://api.test/chat',
+        mode: 'inline',
+        container: '#unsub-after-init',
+      });
+
+      ChatCops.open();
+      expect(onOpen).not.toHaveBeenCalled();
+    });
+
+    it('removes handler from persistent registry and active instance via ChatCops.off()', () => {
+      const onOpen = vi.fn();
+      const container = document.createElement('div');
+      container.id = 'off-container';
+      document.body.appendChild(container);
+
+      ChatCops.on('open', onOpen);
+
+      ChatCops.init({
+        apiUrl: 'https://api.test/chat',
+        mode: 'inline',
+        container: '#off-container',
+      });
+
+      ChatCops.off('open', onOpen);
+
+      ChatCops.open();
+      expect(onOpen).not.toHaveBeenCalled();
+
+      // Verify removal persisted across re-initialization
+      ChatCops.init({
+        apiUrl: 'https://api.test/chat',
+        mode: 'inline',
+        container: '#off-container',
+      });
+
+      ChatCops.open();
+      expect(onOpen).not.toHaveBeenCalled();
+    });
+
+    it('removes handler from persistent registry when ChatCops.off() is called before init()', () => {
+      const onOpen = vi.fn();
+      const container = document.createElement('div');
+      container.id = 'off-before-container';
+      document.body.appendChild(container);
+
+      ChatCops.on('open', onOpen);
+      ChatCops.off('open', onOpen);
+
+      ChatCops.init({
+        apiUrl: 'https://api.test/chat',
+        mode: 'inline',
+        container: '#off-before-container',
+      });
+
+      ChatCops.open();
+      expect(onOpen).not.toHaveBeenCalled();
+    });
+
+    it('attaches duplicate registrations of the same handler exactly once', () => {
+      const onOpen = vi.fn();
+      const unsub1 = ChatCops.on('open', onOpen);
+      const unsub2 = ChatCops.on('open', onOpen);
+      cleanups.push(unsub1, unsub2);
+
+      const container = document.createElement('div');
+      container.id = 'dedup-container';
+      document.body.appendChild(container);
+
+      ChatCops.init({
+        apiUrl: 'https://api.test/chat',
+        mode: 'inline',
+        container: '#dedup-container',
+      });
+
+      ChatCops.open();
+      expect(onOpen).toHaveBeenCalledOnce();
+    });
+
+    it('supports all WidgetEventType events in ChatCops.on and ChatCops.off', () => {
+      const events: WidgetEventType[] = ['open', 'close', 'message', 'error', 'leadCaptured', 'preChatSubmit'];
+      for (const ev of events) {
+        const handler = vi.fn();
+        const unsub = ChatCops.on(ev, handler);
+        ChatCops.off(ev, handler);
+        unsub();
+      }
     });
   });
 });

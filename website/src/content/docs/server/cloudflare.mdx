@@ -80,7 +80,7 @@ function getHandler(env: Record<string, string>) {
     provider: {
       type: 'gemini',
       apiKey: env.GOOGLE_AI_API_KEY,
-      model: 'gemini-2.0-flash',
+      model: 'gemini-3.5-flash-lite',
     },
     systemPrompt: env.SYSTEM_PROMPT || 'You are a helpful assistant.',
     tools: [

@@ -131,6 +131,19 @@ describe('Messages', () => {
     expect(parent.querySelector('[data-id="remove-1"]')).toBeNull();
   });
 
+  it('updates and removes a message whose id has a quote and a backslash', () => {
+    const id = 'msg-"1"\\x';
+    messages.addMessage({ id, role: 'assistant', content: 'Hello' });
+
+    messages.updateMessage({ id, role: 'assistant', content: 'Hello world' });
+    const msg = parent.querySelector('.cc-message-assistant') as HTMLDivElement;
+    expect(msg.dataset.id).toBe(id);
+    expect(msg.textContent).toContain('Hello world');
+
+    messages.removeMessage(id);
+    expect(parent.querySelector('.cc-message-assistant')).toBeNull();
+  });
+
   it('shows a regenerate button on the selected assistant message', () => {
     messages = new Messages(parent, {
       onRegenerate: () => undefined,

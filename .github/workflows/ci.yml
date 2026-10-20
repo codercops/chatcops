@@ -40,3 +40,47 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+  changeset:
+    if: github.event_name == 'pull_request' && github.base_ref == 'dev'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # A change under packages/*/src needs a changeset so it shows up in the
+      # next release. `pnpm changeset --empty` covers changes that shouldn't.
+      - name: Changeset for package source changes
+        run: bash .github/scripts/check-changeset.sh origin/${{ github.base_ref }}
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build the widget
+        run: pnpm --filter @chatcops/widget build
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Browser tests
+        run: pnpm e2e
+
+      - name: Upload the report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report
+          retention-days: 7

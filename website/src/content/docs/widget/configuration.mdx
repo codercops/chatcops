@@ -115,6 +115,25 @@ ChatCops.init({
 
 The `container` option accepts a CSS selector string or a direct `HTMLElement` reference.
 
+### More than one widget on a page
+
+Each widget saves its conversation in the browser. A page with one widget needs nothing extra. When a page has two, for example a popup and an inline demo, give each a `siteId` so they keep separate conversations:
+
+```typescript
+import ChatCops, { Widget } from '@chatcops/widget';
+
+ChatCops.init({ apiUrl: '/api/chat', siteId: 'support' });
+
+new Widget({
+  apiUrl: '/api/chat',
+  mode: 'inline',
+  container: '#demo',
+  siteId: 'demo',
+}).init();
+```
+
+If you leave `siteId` out, the first widget keeps the default storage and the next one is given its own, with a note in the console. The first widget's host element has the id `chatcops-root`; later ones get `chatcops-root-2` and so on, and every host has the class `chatcops-root`.
+
 ### Streaming inactivity timeout
 
 Set `timeout` in `ChatCops.init()` to change the inactivity timeout in milliseconds.
@@ -138,6 +157,7 @@ interface WidgetConfig {
   // Display mode
   mode?: 'popup' | 'inline';       // Default: 'popup'
   container?: string | HTMLElement; // Required when mode is 'inline'
+  siteId?: string;                 // Names the saved conversation; set one per widget when a page has several
 
   theme?: {
     accent?: string;          // Hex color, default: '#6366f1'

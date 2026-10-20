@@ -1,4 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+
+vi.mock('../../src/handler.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/handler.js')>();
+  return {
+    ...actual,
+    createChatHandler: vi.fn(actual.createChatHandler),
+  };
+});
+
+import { createChatHandler } from '../../src/handler.js';
 import { chatcopsVercelHandler } from '../../src/adapters/vercel.js';
 
 const config = {
@@ -114,5 +124,36 @@ describe('chatcopsVercelHandler', () => {
     expect(res.headers.get('Content-Type')).toBe('application/json');
     const body = await res.json();
     expect(body.error).toBe('Invalid JSON body');
+  });
+
+  describe('when the chat handler throws', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('logs the error and still streams internal_error', async () => {
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const failure = new Error('Unexpected handler failure');
+      vi.mocked(createChatHandler).mockImplementationOnce(() => ({
+        async *handleChat() {
+          throw failure;
+        },
+        getAnalytics: () => null,
+        cleanup: () => undefined,
+      }));
+
+      const failing = chatcopsVercelHandler(config);
+      const res = await failing(
+        new Request('http://localhost/api/chat', {
+          method: 'POST',
+          body: JSON.stringify({ conversationId: 'log-test', message: 'secret message' }),
+        }),
+      );
+      const text = await res.text();
+
+      expect(text).toBe(`data: ${JSON.stringify({ error: 'internal_error' })}\n\n`);
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('[chatcops]'), failure);
+      expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('secret message');
+    });
   });
 });

@@ -68,17 +68,22 @@ ChatCops.destroy();
 
 ### `ChatCops.on(event, callback)`
 
-Subscribe to widget events.
+Subscribe to widget events. Returns an unsubscribe function.
+
+Handlers can be registered before `init()` (including from inline scripts before `DOMContentLoaded`), and are preserved across repeated `init()` calls.
 
 ```typescript
-ChatCops.on('message', (data) => {
+const unsub = ChatCops.on('message', (data) => {
   console.log('New message:', data);
 });
+
+// Later, remove the listener:
+unsub();
 ```
 
 ### `ChatCops.off(event, callback)`
 
-Remove a specific event listener.
+Remove a specific event listener from both the persistent registry and the active widget instance.
 
 ```typescript
 function onOpen() {

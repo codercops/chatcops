@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Widget } from '../src/widget.js';
+import { Widget, type WidgetEventType } from '../src/widget.js';
 import { mockChatStream } from './helpers/stream.js';
 import { ConversationStorage } from '../src/storage.js';
 
@@ -85,6 +85,44 @@ describe('Widget', () => {
       widget.destroy();
     }
   );
+
+  it('closes the popup on Escape and moves focus back to the FAB', () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+
+    const root = getInternals(widget).shadow;
+    const launcher = root.querySelector('.cc-fab') as HTMLButtonElement;
+    launcher.click();
+    const textarea = root.querySelector('.cc-panel textarea') as HTMLElement;
+    expect(root.activeElement).toBe(textarea);
+
+    textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(root.querySelector('.cc-panel')?.classList.contains('cc-visible')).toBe(false);
+    expect(launcher.getAttribute('aria-expanded')).toBe('false');
+    expect(root.activeElement).toBe(launcher);
+
+    widget.destroy();
+  });
+
+  it('keeps the welcome bubble inert and hidden from screen readers until it shows', () => {
+    vi.useFakeTimers();
+    const widget = new Widget({ apiUrl: 'https://api.test/chat', welcomeBubble: { text: 'Hi there', delay: 1000 } });
+    widget.init();
+
+    const bubble = getInternals(widget).shadow.querySelector('.cc-bubble') as HTMLElement;
+    expect(bubble.hasAttribute('inert')).toBe(true);
+    expect(bubble.getAttribute('aria-hidden')).toBe('true');
+
+    vi.advanceTimersByTime(1000);
+    expect(bubble.hasAttribute('inert')).toBe(false);
+    expect(bubble.hasAttribute('aria-hidden')).toBe(false);
+
+    widget.open();
+    expect(bubble.hasAttribute('inert')).toBe(true);
+    expect(bubble.getAttribute('aria-hidden')).toBe('true');
+
+    widget.destroy();
+  });
 
   it('strings: { closeButton } overrides the close aria-label on both the panel header and the FAB', () => {
     const widget = new Widget({
@@ -237,6 +275,58 @@ describe('Widget', () => {
       content: 'Recovered response',
       status: 'complete',
     });
+  });
+
+  it('keeps streamed text when an error arrives partway through and shows the error under it', async () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementationOnce(async function* () {
+      yield { content: 'Here is the first half' };
+      yield { content: ' of the answer' };
+      yield { error: 'provider_error' };
+    });
+
+    await getInternals(widget).handleSend('Tell me everything');
+
+    const failed = getInternals(widget).messages.at(-1)!;
+    expect(failed).toMatchObject({ role: 'assistant', status: 'error', content: 'Here is the first half of the answer' });
+    const bubbles = getInternals(widget).shadow.querySelectorAll('.cc-message-assistant');
+    const bubble = bubbles[bubbles.length - 1];
+    expect(bubble.querySelector('.cc-message-content')?.textContent).toContain('Here is the first half of the answer');
+    expect(bubble.querySelector('.cc-message-error-note')?.textContent).toBeTruthy();
+    expect(bubble.querySelector('.cc-message-retry')).toBeTruthy();
+  });
+
+  it('shows the error as the content when nothing streamed before it', async () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementationOnce(async function* () {
+      yield { error: 'provider_error' };
+    });
+
+    await getInternals(widget).handleSend('Hi');
+
+    const bubbles = getInternals(widget).shadow.querySelectorAll('.cc-message-assistant');
+    const bubble = bubbles[bubbles.length - 1];
+    expect(bubble.querySelector('.cc-message-content')?.textContent?.trim()).toBeTruthy();
+    expect(bubble.querySelector('.cc-message-error-note')).toBeNull();
+  });
+
+  it('does not duplicate the bubble when the stream throws after some text', async () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementationOnce(async function* () {
+      yield { content: 'Partial' };
+      throw new Error('socket closed');
+    });
+
+    await getInternals(widget).handleSend('Hi');
+
+    const ids = Array.from(getInternals(widget).shadow.querySelectorAll('.cc-message-assistant'))
+      .map((el) => (el as HTMLElement).dataset.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    const last = getInternals(widget).messages.at(-1)!;
+    expect(last).toMatchObject({ status: 'error', content: 'Partial', errorType: 'network' });
   });
 
   it('regenerates the last assistant response and sends the regenerate flag', async () => {
@@ -601,7 +691,7 @@ describe('Widget streaming timeout configuration', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('keeps the existing partial-error UI when an active stream later stalls', async () => {
+  it('keeps the partial reply and adds the timeout error under it when an active stream later stalls', async () => {
     const transport = mockChatStream();
     widget = new Widget({ apiUrl: '/chat', timeout: 1000, persistHistory: false });
     widget.init();
@@ -614,9 +704,22 @@ describe('Widget streaming timeout configuration', () => {
     await pending;
 
     const reply = getInternals(widget).messages.at(-1)!;
-    expect(reply).toMatchObject({ status: 'error', errorType: 'timeout' });
-    expect(reply.content).not.toContain('Partial reply');
-    expect(getInternals(widget).shadow.textContent).not.toContain('Partial reply');
+    expect(reply).toMatchObject({ status: 'error', errorType: 'timeout', content: 'Partial reply' });
+    expect(getInternals(widget).shadow.textContent).toContain('Partial reply');
+    expect(getInternals(widget).shadow.querySelector('.cc-message-error-note')?.textContent).toBeTruthy();
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('returns an unsubscribe function from on() that removes the handler', () => {
+    widget = new Widget({ apiUrl: '/chat' });
+    const eventType: WidgetEventType = 'open';
+    const onOpen = vi.fn();
+    const unsub = widget.on(eventType, onOpen);
+    widget.init();
+
+    unsub();
+    widget.open();
+
+    expect(onOpen).not.toHaveBeenCalled();
   });
 });

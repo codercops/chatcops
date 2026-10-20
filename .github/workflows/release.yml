@@ -15,6 +15,9 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The dev sync step compares dev with production.
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
 
@@ -49,5 +52,24 @@ jobs:
           title: 'chore: version packages'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # After a publish, dev has to catch up with production (the version commit).
+      # dev requires CI, and a PR opened with GITHUB_TOKEN doesn't trigger CI, so the
+      # sync PR is opened with a token from the release bot GitHub App when it's set
+      # up (CONTRIBUTING.md, "Releasing to production"). Without it, the job summary
+      # says what to run.
+      - name: Get a release bot token
+        id: bot-token
+        if: steps.changesets.outputs.published == 'true' && vars.RELEASE_BOT_APP_ID != ''
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+
+      - name: Sync dev with production
+        if: steps.changesets.outputs.published == 'true'
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+        run: bash .github/scripts/sync-dev.sh
 
       # Website is auto-deployed to Cloudflare Workers by Workers Builds

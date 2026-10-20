@@ -1,0 +1,27 @@
+# Weekly update PRs for the three provider SDKs only. Providers retire models
+# and change APIs often, and a stale SDK is how a default model ends up shut
+# down without anyone noticing. Everything else is still bumped by hand.
+#
+# Merging one of these PRs: add a changeset for @chatcops/core (`pnpm changeset`)
+# so the new SDK version reaches npm, and run the live provider check if the
+# bump is a new major.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /packages/core
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: dev
+    allow:
+      - dependency-name: '@anthropic-ai/sdk'
+      - dependency-name: openai
+      - dependency-name: '@google/genai'
+    groups:
+      provider-sdks:
+        patterns: ['@anthropic-ai/sdk', 'openai', '@google/genai']
+        update-types: [minor, patch]
+    commit-message:
+      prefix: 'chore(deps)'
+    labels: [dependencies]
+    open-pull-requests-limit: 3

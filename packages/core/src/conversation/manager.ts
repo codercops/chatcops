@@ -32,9 +32,13 @@ export class ConversationManager {
 
     if (conversation.messages.length > this.maxMessages) {
       const systemMessages = conversation.messages.filter((m) => m.role === 'system');
-      const recentMessages = conversation.messages
+      let recentMessages = conversation.messages
         .filter((m) => m.role !== 'system')
         .slice(-(this.maxMessages - systemMessages.length));
+      // Never start the kept history with an assistant turn; some providers
+      // (Gemini) reject a conversation that doesn't open with the user.
+      const firstUser = recentMessages.findIndex((m) => m.role === 'user');
+      recentMessages = firstUser === -1 ? [] : recentMessages.slice(firstUser);
       conversation.messages = [...systemMessages, ...recentMessages];
     }
 
