@@ -62,6 +62,30 @@ export { TextKnowledgeSource, FAQKnowledgeSource } from './knowledge/index.js';
 export type { ConversationStore } from './conversation/index.js';
 export { ConversationManager, MemoryStore } from './conversation/index.js';
 
+// Storage
+export type {
+  AppendOptions,
+  ChatCopsStorage,
+  ConversationSummary,
+  CounterStore,
+  CounterValue,
+  EventCount,
+  EventQuery,
+  EventSink,
+  KeyValueStore,
+  ListQuery,
+  MemoryStorageOptions,
+  ConversationStoreWithAppend,
+} from './storage/index.js';
+export {
+  ConflictError,
+  isConflictError,
+  CONFLICT_ERROR_CODE,
+  memoryStorage,
+  withAppend,
+  isLegacyConversationStore,
+} from './storage/index.js';
+
 // Analytics
 export { AnalyticsCollector } from './analytics/index.js';
 export type { AnalyticsStats } from './analytics/index.js';
