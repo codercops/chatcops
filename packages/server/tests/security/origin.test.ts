@@ -18,6 +18,11 @@ describe('matchOrigin', () => {
     expect(matchOrigin('https://acme.com:8443', ['https://acme.com'])).toBeNull();
   });
 
+  it('normalizes default ports in exact entries', () => {
+    expect(matchOrigin('https://acme.com', ['https://acme.com:443'])).toBe('https://acme.com:443');
+    expect(matchOrigin('http://localhost', ['http://localhost:80'])).toBe('http://localhost:80');
+  });
+
   it('matches one or more wildcard subdomain labels', () => {
     const allowed = ['https://*.acme.com'];
     expect(matchOrigin('https://app.acme.com', allowed)).toBe(allowed[0]);
@@ -42,6 +47,10 @@ describe('matchOrigin', () => {
     for (const origin of [null, '', 'null']) {
       expect(matchOrigin(origin, ['https://acme.com'])).toBeNull();
     }
+  });
+
+  it('rejects an origin that is not a URL', () => {
+    expect(matchOrigin('not a url', ['https://acme.com'])).toBeNull();
   });
 });
 

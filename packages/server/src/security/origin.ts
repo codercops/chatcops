@@ -1,17 +1,8 @@
 /** Returns the allowed entry that matches, or null. */
 export function matchOrigin(origin: string | null, allowed: string[]): string | null {
-  const wildcard = allowed.find((entry) => entry === '*');
-
-  if (wildcard || (origin !== null && origin !== '' && origin !== 'null')) {
-    for (const entry of allowed) {
-      if (entry === '*') return entry;
-      if (origin !== null && origin !== '' && origin !== 'null' && matchesEntry(origin, entry)) {
-        return entry;
-      }
-    }
-  }
-
-  return null;
+  if (allowed.includes('*')) return '*';
+  if (origin === null || origin === '' || origin === 'null') return null;
+  return allowed.find((entry) => matchesEntry(origin, entry)) ?? null;
 }
 
 /** Returns CORS headers for a response to `origin`. */
@@ -45,7 +36,7 @@ function matchesEntry(origin: string, configured: string): boolean {
     const requestUrl = new URL(origin);
     if (requestUrl.protocol !== `${scheme}:` || requestUrl.username || requestUrl.password) return false;
 
-    if (!wildcardHost) return requestUrl.origin.toLowerCase() === `${scheme}://${authority}`;
+    if (!wildcardHost) return new URL(normalized).origin === requestUrl.origin;
 
     const baseUrl = new URL(`${scheme}://${authority.slice(2)}`);
     return (
