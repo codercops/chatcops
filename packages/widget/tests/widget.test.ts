@@ -629,6 +629,22 @@ describe('Widget', () => {
     widget2.destroy();
     setItemSpy.mockRestore();
   });
+
+  it('does not throw during init when {} is stored and shows the welcome message', () => {
+    localStorage.setItem('chatcops_conversation', '{}');
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+
+    expect(() => widget.init()).not.toThrow();
+
+    const internals = getInternals(widget);
+    const welcome = internals.messages.find((m) => m.id === 'welcome');
+    expect(welcome).toBeDefined();
+    expect(welcome?.content).toBe('How can I help you today?');
+    expect(internals.shadow.querySelector('.cc-message-assistant')?.textContent).toContain('How can I help you today?');
+    expect(localStorage.getItem('chatcops_conversation')).toBeNull();
+
+    widget.destroy();
+  });
 });
 
 describe('Widget streaming timeout configuration', () => {

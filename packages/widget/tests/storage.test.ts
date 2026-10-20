@@ -96,4 +96,77 @@ describe('ConversationStorage', () => {
     sessionStorage.setItem('chatcops-prechat-data-array', JSON.stringify(['not', 'an', 'object']));
     expect(storage.getPreChatData('array')).toBeNull();
   });
+
+  it.each([
+    ['empty object', '{}'],
+    ['empty array', '[]'],
+    ['array of objects', JSON.stringify([{ id: '1' }])],
+    ['missing id', JSON.stringify({ messages: [] })],
+    ['invalid id (number)', JSON.stringify({ id: 123, messages: [] })],
+    ['invalid id (object)', JSON.stringify({ id: {}, messages: [] })],
+    ['invalid id (null)', JSON.stringify({ id: null, messages: [] })],
+    ['missing messages', JSON.stringify({ id: 'conv-1' })],
+    ['non-array messages (string)', JSON.stringify({ id: 'conv-1', messages: 'hello' })],
+    ['non-array messages (object)', JSON.stringify({ id: 'conv-1', messages: {} })],
+    ['non-array messages (null)', JSON.stringify({ id: 'conv-1', messages: null })],
+    ['non-array messages (number)', JSON.stringify({ id: 'conv-1', messages: 42 })],
+    ['invalid json', 'not-valid-json'],
+    ['primitive number', '123'],
+    ['primitive string', '"plain-string"'],
+    ['primitive boolean', 'true'],
+    ['primitive null', 'null'],
+  ])('removes the stored key and returns null for invalid top-level data: %s', (_, value) => {
+    const key = 'chatcops_conversation_site-a';
+    localStorage.setItem(key, value);
+    const storage = new ConversationStorage('site-a');
+
+    expect(storage.load()).toBeNull();
+    expect(localStorage.getItem(key)).toBeNull();
+  });
+
+  it('removes only the specific stored key on invalid data without touching other keys', () => {
+    localStorage.setItem('chatcops_conversation', '{}');
+    localStorage.setItem('chatcops_conversation_other', JSON.stringify({ id: 'other', messages: [] }));
+
+    const storage = new ConversationStorage();
+    expect(storage.load()).toBeNull();
+    expect(localStorage.getItem('chatcops_conversation')).toBeNull();
+    expect(localStorage.getItem('chatcops_conversation_other')).not.toBeNull();
+  });
+
+  it('filters messages to retain only objects with role exactly user or assistant and string content', () => {
+    const storage = new ConversationStorage('test');
+    const validUser = { id: 'm1', role: 'user' as const, content: 'Hello', timestamp: 100 };
+    const validAssistant = { id: 'm2', role: 'assistant' as const, content: 'Hi there!', timestamp: 200 };
+    const validEmptyContent = { id: 'm7', role: 'assistant' as const, content: '', timestamp: 700 };
+    const conversationData = {
+      id: 'conv-1',
+      updatedAt: 123456789,
+      metadata: { topic: 'support' },
+      messages: [
+        validUser,
+        null,
+        'not an object',
+        123,
+        [],
+        {},
+        { id: 'm3', role: 'system', content: 'system message', timestamp: 300 },
+        { id: 'm4', role: 'USER', content: 'cased role', timestamp: 400 },
+        { id: 'm5', role: 'assistant', content: 42, timestamp: 500 },
+        { id: 'm6', role: 'user' },
+        validAssistant,
+        validEmptyContent,
+      ],
+    };
+
+    localStorage.setItem('chatcops_conversation_test', JSON.stringify(conversationData));
+
+    const loaded = storage.load();
+    expect(loaded).not.toBeNull();
+    expect(loaded?.id).toBe('conv-1');
+    expect(loaded?.updatedAt).toBe(123456789);
+    expect((loaded as unknown as Record<string, unknown> | null)?.metadata).toEqual({ topic: 'support' });
+    expect(loaded?.messages).toEqual([validUser, validAssistant, validEmptyContent]);
+    expect(localStorage.getItem('chatcops_conversation_test')).not.toBeNull();
+  });
 });
