@@ -18,11 +18,9 @@ import {
 
 const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
 const DEFAULT_EFFORT: ProviderEffort = 'low';
-let toolCallSequence = 0;
 
 function createToolCallId() {
-  toolCallSequence += 1;
-  return `gemini_tool_call_${toolCallSequence}`;
+  return `gemini_call_${crypto.randomUUID()}`;
 }
 
 const THINKING_LEVELS: Record<ProviderEffort, ThinkingLevel> = {

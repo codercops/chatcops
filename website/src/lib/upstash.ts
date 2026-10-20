@@ -33,10 +33,10 @@ async function sha256Hex(input: string): Promise<string> {
  * Increments visitor count and returns today + total in a single EVAL command.
  * Uses one Redis command per call to stay within Upstash free tier (10K/day).
  *
- * With an IP, each visitor is counted once per UTC day: the script only
- * increments when `SET <seen key> 1 NX EX 86400` succeeds. The key holds a
- * SHA-256 hash of the IP and date, never the IP itself. Without an IP
- * (local dev) every call counts.
+ * With an IP and VISITOR_HASH_SALT, each visitor is counted once per UTC day:
+ * the script only increments when `SET <seen key> 1 NX EX 86400` succeeds.
+ * The key holds a salted SHA-256 hash of the IP and date, never the IP itself.
+ * Without an IP or without the salt, every call counts and no seen key is written.
  */
 export async function incrementVisitors(
   site: string,
@@ -47,8 +47,9 @@ export async function incrementVisitors(
   const totalKey = `${site}:total`;
   const ttl = 90 * 24 * 60 * 60; // 90 days TTL on daily keys
 
+  const salt = getSecret('VISITOR_HASH_SALT');
   const keys = [todayKey, totalKey];
-  if (ip) keys.push(`${site}:seen:${date}:${await sha256Hex(`${ip}:${date}`)}`);
+  if (ip && salt) keys.push(`${site}:seen:${date}:${await sha256Hex(`${salt}:${ip}:${date}`)}`);
 
   const script = `
     if KEYS[3] and not redis.call('SET', KEYS[3], '1', 'NX', 'EX', 86400) then

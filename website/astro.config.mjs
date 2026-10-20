@@ -25,6 +25,7 @@ export default defineConfig({
       OPENAI_API_KEY: envField.string({ context: 'server', access: 'secret', optional: true }),
       UPSTASH_REDIS_REST_URL: envField.string({ context: 'server', access: 'secret', optional: true }),
       UPSTASH_REDIS_REST_TOKEN: envField.string({ context: 'server', access: 'secret', optional: true }),
+      VISITOR_HASH_SALT: envField.string({ context: 'server', access: 'secret', optional: true }),
     },
   },
   site: 'https://chat.codercops.com',

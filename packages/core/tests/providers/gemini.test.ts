@@ -172,3 +172,57 @@ describe('GeminiProvider', () => {
     });
   });
 });
+
+describe('Gemini tool call id fallback', () => {
+  const toolDef = [{
+    name: 'lookup_order',
+    description: 'Look up an order',
+    parameters: { orderId: { type: 'string', description: 'id' } },
+    required: ['orderId'],
+  }];
+
+  it('gives two tool calls without ids two distinct gemini_call_<uuid> ids', async () => {
+    const provider = new GeminiProvider({ type: 'gemini', apiKey: 'test-key' });
+    const capturedIds: string[] = [];
+
+    const generate = vi.fn()
+      .mockResolvedValueOnce(streamOf({ candidates: [{ content: { role: 'model', parts: [{ functionCall: { name: 'lookup_order', args: { orderId: '1' } } }] } }] }))
+      .mockResolvedValueOnce(streamOf({ candidates: [{ content: { role: 'model', parts: [{ functionCall: { name: 'lookup_order', args: { orderId: '2' } } }] } }] }))
+      .mockResolvedValueOnce(streamOf(textChunk('done')));
+
+    mockModels(provider, generate);
+
+    const toolExecutor = vi.fn().mockImplementation(({ id }: { id: string }) => {
+      capturedIds.push(id);
+      return Promise.resolve({ success: true, data: {} });
+    });
+
+    await collect(provider.chat(params({ tools: toolDef, toolExecutor })));
+
+    expect(capturedIds).toHaveLength(2);
+    expect(capturedIds[0]).toMatch(/^gemini_call_[0-9a-f-]{36}$/);
+    expect(capturedIds[1]).toMatch(/^gemini_call_[0-9a-f-]{36}$/);
+    expect(capturedIds[0]).not.toBe(capturedIds[1]);
+  });
+
+  it('uses the id the API sends when one is present', async () => {
+    const provider = new GeminiProvider({ type: 'gemini', apiKey: 'test-key' });
+    let capturedId = '';
+
+    const generate = vi.fn()
+      .mockResolvedValueOnce(streamOf({ candidates: [{ content: { role: 'model', parts: [{ functionCall: { id: 'gemini_api_id', name: 'lookup_order', args: { orderId: '1' } } }] } }] }))
+      .mockResolvedValueOnce(streamOf(textChunk('done')));
+
+    mockModels(provider, generate);
+
+    const toolExecutor = vi.fn().mockImplementation(({ id }: { id: string }) => {
+      capturedId = id;
+      return Promise.resolve({ success: true, data: {} });
+    });
+
+    await collect(provider.chat(params({ tools: toolDef, toolExecutor })));
+
+    expect(capturedId).toBe('gemini_api_id');
+  });
+});
+
