@@ -61,7 +61,7 @@ const handler = chatcopsMiddleware({
   webhooks: [
     {
       url: 'https://hooks.example.com/chatcops',
-      events: ['message:received', 'lead:captured'],
+      events: ['lead:captured'],
       secret: process.env.WEBHOOK_SECRET,
     },
   ],
@@ -134,6 +134,8 @@ class RedisConversationStore implements ConversationStore {
 ```
 
 ## Webhooks
+
+`lead:captured` is the only webhook event today. It's sent when the `capture_lead` tool saves a lead.
 
 Each webhook gets a POST with a JSON body for every event it subscribes to:
 
