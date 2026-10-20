@@ -277,6 +277,58 @@ describe('Widget', () => {
     });
   });
 
+  it('marks streamed assistant replies as ai generated, but not user or welcome messages', async () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    getInternals(widget).showChatView();
+    let streamingBubble: HTMLElement | null = null;
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementationOnce(async function* () {
+      yield { content: 'Hel' };
+      streamingBubble = getInternals(widget).shadow.querySelector('.cc-message-assistant[data-status="streaming"]');
+      yield { content: 'lo' };
+      yield { done: true };
+    });
+
+    await getInternals(widget).handleSend('Hi');
+
+    const shadow = getInternals(widget).shadow;
+    expect(streamingBubble!.dataset.aiGenerated).toBe('true');
+    expect((shadow.querySelector('.cc-message-user') as HTMLElement).dataset.aiGenerated).toBeUndefined();
+    const assistant = Array.from(shadow.querySelectorAll<HTMLElement>('.cc-message-assistant'));
+    expect(assistant.find((el) => el.dataset.id === 'welcome')!.dataset.aiGenerated).toBeUndefined();
+    expect(assistant.at(-1)!.dataset.aiGenerated).toBe('true');
+  });
+
+  it('keeps the ai generated mark on failed, retried and regenerated replies', async () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    getInternals(widget).client.sendMessage = vi.fn()
+      .mockImplementationOnce(async function* () {
+        yield { error: 'provider_error' };
+      })
+      .mockImplementationOnce(async function* () {
+        yield { content: 'Recovered' };
+        yield { done: true };
+      })
+      .mockImplementationOnce(async function* () {
+        yield { content: 'Again' };
+        yield { done: true };
+      });
+    const lastBubble = () => Array.from(getInternals(widget).shadow.querySelectorAll<HTMLElement>('.cc-message-assistant')).at(-1)!;
+
+    await getInternals(widget).handleSend('Hi');
+    expect(lastBubble().dataset.status).toBe('error');
+    expect(lastBubble().dataset.aiGenerated).toBe('true');
+
+    await getInternals(widget).handleRetry(getInternals(widget).messages.at(-1)!.id);
+    expect(lastBubble().textContent).toContain('Recovered');
+    expect(lastBubble().dataset.aiGenerated).toBe('true');
+
+    await getInternals(widget).handleRegenerate(getInternals(widget).messages.at(-1)!.id);
+    expect(lastBubble().textContent).toContain('Again');
+    expect(lastBubble().dataset.aiGenerated).toBe('true');
+  });
+
   it('keeps streamed text when an error arrives partway through and shows the error under it', async () => {
     const widget = new Widget({ apiUrl: 'https://api.test/chat' });
     widget.init();
