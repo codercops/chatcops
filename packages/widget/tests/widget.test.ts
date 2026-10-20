@@ -292,11 +292,13 @@ describe('Widget', () => {
     await getInternals(widget).handleSend('Hi');
 
     const shadow = getInternals(widget).shadow;
-    expect(streamingBubble!.dataset.aiGenerated).toBe('true');
+    expect(streamingBubble?.dataset.aiGenerated).toBe('true');
     expect((shadow.querySelector('.cc-message-user') as HTMLElement).dataset.aiGenerated).toBeUndefined();
     const assistant = Array.from(shadow.querySelectorAll<HTMLElement>('.cc-message-assistant'));
-    expect(assistant.find((el) => el.dataset.id === 'welcome')!.dataset.aiGenerated).toBeUndefined();
-    expect(assistant.at(-1)!.dataset.aiGenerated).toBe('true');
+    const welcome = assistant.find((el) => el.dataset.id === 'welcome');
+    expect(welcome).toBeDefined();
+    expect(welcome?.dataset.aiGenerated).toBeUndefined();
+    expect(assistant.at(-1)?.dataset.aiGenerated).toBe('true');
   });
 
   it('keeps the ai generated mark on failed, retried and regenerated replies', async () => {
@@ -314,17 +316,26 @@ describe('Widget', () => {
         yield { content: 'Again' };
         yield { done: true };
       });
-    const lastBubble = () => Array.from(getInternals(widget).shadow.querySelectorAll<HTMLElement>('.cc-message-assistant')).at(-1)!;
+    const lastBubble = () => {
+      const bubble = Array.from(getInternals(widget).shadow.querySelectorAll<HTMLElement>('.cc-message-assistant')).at(-1);
+      if (!bubble) throw new Error('no assistant bubble');
+      return bubble;
+    };
+    const lastMessageId = () => {
+      const id = getInternals(widget).messages.at(-1)?.id;
+      if (!id) throw new Error('no message');
+      return id;
+    };
 
     await getInternals(widget).handleSend('Hi');
     expect(lastBubble().dataset.status).toBe('error');
     expect(lastBubble().dataset.aiGenerated).toBe('true');
 
-    await getInternals(widget).handleRetry(getInternals(widget).messages.at(-1)!.id);
+    await getInternals(widget).handleRetry(lastMessageId());
     expect(lastBubble().textContent).toContain('Recovered');
     expect(lastBubble().dataset.aiGenerated).toBe('true');
 
-    await getInternals(widget).handleRegenerate(getInternals(widget).messages.at(-1)!.id);
+    await getInternals(widget).handleRegenerate(lastMessageId());
     expect(lastBubble().textContent).toContain('Again');
     expect(lastBubble().dataset.aiGenerated).toBe('true');
   });
