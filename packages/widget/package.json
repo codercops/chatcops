@@ -9,8 +9,7 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/chatcops.esm.js",
-      "require": "./dist/chatcops.min.js"
+      "import": "./dist/chatcops.esm.js"
     }
   },
   "files": [
@@ -18,7 +17,7 @@
   ],
   "scripts": {
     "dev": "vite build --watch",
-    "build": "vite build && tsc --emitDeclarationOnly",
+    "build": "vite build && rm -f tsconfig.tsbuildinfo && tsc --emitDeclarationOnly",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

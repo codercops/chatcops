@@ -38,6 +38,10 @@ jobs:
       - name: Build
         run: pnpm -r build
 
+      # Checks each package's exports, types and files the way npm will see them.
+      - name: Package checks
+        run: pnpm publint
+
       - name: Typecheck
         run: pnpm -r typecheck
 
