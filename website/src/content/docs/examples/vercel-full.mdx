@@ -71,7 +71,11 @@ const handler = chatcopsVercelHandler({
 });
 
 export const POST = handler;
+// The handler answers the CORS preflight, so a widget on another origin needs OPTIONS too.
+export const OPTIONS = handler;
 ```
+
+More runtimes (Hono, Bun, Deno) are in [Next.js, Hono, Bun and Deno](/server/fetch-runtimes/).
 
 ## Widget in Next.js Layout
 

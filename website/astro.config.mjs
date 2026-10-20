@@ -122,6 +122,7 @@ export default defineConfig({
             { label: 'Setup', slug: 'server/setup' },
             { label: 'Express', slug: 'server/express' },
             { label: 'Vercel', slug: 'server/vercel' },
+            { label: 'Next.js, Hono, Bun, Deno', slug: 'server/fetch-runtimes' },
             { label: 'Cloudflare Workers', slug: 'server/cloudflare' },
           ],
         },
