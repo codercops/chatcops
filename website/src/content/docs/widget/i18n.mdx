@@ -85,7 +85,7 @@ interface LocaleStrings {
 The server doesn't translate anything itself. When a request has a `locale`, it adds this line to the system prompt:
 
 ```text
-Respond in the user's language. Current locale: es
+Reply in the visitor's language. Their browser locale is es.
 ```
 
 Error messages the visitor sees come from the widget's `strings` (`errorGeneric`, `errorNetwork`, `errorRateLimit`). The server config's `i18n` option is deprecated: the server ignores it and logs a warning when it's set, and it will be removed in a later release.

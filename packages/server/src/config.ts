@@ -6,7 +6,7 @@ export interface ChatCopsServerConfig {
   systemPrompt: string;
   tools?: ChatTool[];
   toolTimeoutMs?: number;
-  /** Most tokens in one reply. Defaults to 1024. */
+  /** Most tokens in one reply. Defaults to 4096 (`DEFAULT_MAX_TOKENS` in @chatcops/core). */
   maxTokens?: number;
   /** Sampling temperature. Defaults to the provider's own; the allowed range depends on the provider. */
   temperature?: number;
