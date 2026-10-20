@@ -50,7 +50,7 @@ export type {
 
 // Providers
 export type { AIProvider, NormalizedMessage, FinishReason, ProviderEvent, ProviderStepParams } from './providers/index.js';
-export { createProvider, normalizeHistory, ClaudeProvider, OpenAIProvider, GeminiProvider } from './providers/index.js';
+export { createProvider, normalizeHistory, trimHistory, estimateTokens, ClaudeProvider, OpenAIProvider, GeminiProvider } from './providers/index.js';
 export { toolInputSchema, legacyParametersToSchema, validateTools, ToolDefinitionError } from './providers/index.js';
 
 // Tools
@@ -64,6 +64,7 @@ export { TextKnowledgeSource, FAQKnowledgeSource } from './knowledge/index.js';
 // Conversation
 export type { ConversationStore } from './conversation/index.js';
 export { ConversationManager, MemoryStore } from './conversation/index.js';
+export type { ConversationManagerOptions, ReleaseTurn } from './conversation/index.js';
 
 // Storage
 export type {

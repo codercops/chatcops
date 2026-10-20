@@ -147,8 +147,8 @@ export function createChatHandler(config: ChatCopsServerConfig) {
       systemPrompt += `\n\nReply in the visitor's language. Their browser locale is ${req.locale}.`;
     }
 
-    // Get conversation messages for context
-    const storedMessages = await conversations.getMessages(req.conversationId);
+    // The history the model sees, trimmed to the token budget
+    const storedMessages = await conversations.getHistory(req.conversationId);
     const messages = withVisitorContext(
       assistantToReplace
         ? storedMessages.filter((message) => message.id !== assistantToReplace.id)

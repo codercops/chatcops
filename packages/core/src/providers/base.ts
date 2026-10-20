@@ -33,38 +33,7 @@ export function toProviderMessages(messages: ChatMessage[]): Array<{ role: strin
     .map((m) => ({ role: m.role, content: m.content }));
 }
 
-export interface NormalizedMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
-
-/**
- * Turns stored messages into a history every provider accepts: it starts with
- * a user turn and alternates between user and assistant.
- *
- * - System messages and empty messages are dropped.
- * - Leading assistant turns are dropped (history trimming can leave one first).
- * - Consecutive turns with the same role are merged with a blank line, for
- *   example a user message saved before a provider call that then failed.
- */
-export function normalizeHistory(messages: ChatMessage[]): NormalizedMessage[] {
-  const normalized: NormalizedMessage[] = [];
-
-  for (const message of messages) {
-    if (message.role !== 'user' && message.role !== 'assistant') continue;
-    if (!message.content.trim()) continue;
-    if (normalized.length === 0 && message.role !== 'user') continue;
-
-    const previous = normalized.at(-1);
-    if (previous && previous.role === message.role) {
-      previous.content += `\n\n${message.content}`;
-    } else {
-      normalized.push({ role: message.role, content: message.content });
-    }
-  }
-
-  return normalized;
-}
+export { normalizeHistory, trimHistory, estimateTokens, type NormalizedMessage } from './history.js';
 
 const warned = new Set<string>();
 

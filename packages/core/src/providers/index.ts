@@ -3,6 +3,8 @@ export type { FinishReason, ProviderEvent, ProviderStepParams } from './types.js
 export {
   createProvider,
   normalizeHistory,
+  trimHistory,
+  estimateTokens,
   toProviderMessages,
   toClaudeTools,
   toOpenAITools,

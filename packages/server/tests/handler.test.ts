@@ -49,6 +49,10 @@ vi.mock('@chatcops/core', () => {
       return [...conversation.messages];
     }
 
+    async getHistory(conversationId: string) {
+      return this.getMessages(conversationId);
+    }
+
     async removeMessage(conversationId: string, messageId: string) {
       const conversation = await this.getOrCreate(conversationId);
       conversation.messages = conversation.messages.filter((message) => message.id !== messageId);

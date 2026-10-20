@@ -110,7 +110,7 @@ interface ChatCopsServerConfig {
 
 ## Custom Conversation Store
 
-By default, the server retains conversation history in memory with `MemoryStore`. For multi-instance deployments or persistent chat history across restarts, pass a custom `conversationStore` that implements the `ConversationStore` interface from `@chatcops/core`:
+By default, the server keeps conversation history in memory, per process. It's bounded: past 1000 conversations the least recently used ones go first, and conversations idle for 7 days are dropped. For multi-instance deployments or persistent chat history across restarts, pass a custom `conversationStore` that implements the `ConversationStore` interface from `@chatcops/core`:
 
 ```typescript
 import type { ConversationStore, Conversation } from '@chatcops/core';
@@ -132,6 +132,10 @@ class RedisConversationStore implements ConversationStore {
   }
 }
 ```
+
+A store with only `get`, `save` and `delete` works, and the server logs one warning at startup: every write saves the whole conversation, so two server instances answering the same conversation at the same moment can lose a message. Stores can also implement `append`, `updateMessage` and `removeMessage` (see the `ConversationStore` type in `@chatcops/core`), which the server then uses instead. Ready-made stores for Redis, SQLite, Postgres and Cloudflare are on the way.
+
+The history sent to the model is trimmed to about 32,000 tokens: the visitor's first message plus as many recent ones as fit. Stored history keeps up to 100 messages per conversation.
 
 ## Webhooks
 
