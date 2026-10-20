@@ -2,6 +2,18 @@
   "name": "@chatcops/core",
   "version": "0.4.0",
   "description": "Core AI provider abstraction, tools, and knowledge base for ChatCops",
+  "keywords": [
+    "chatcops",
+    "ai",
+    "chatbot",
+    "llm",
+    "claude",
+    "openai",
+    "gemini",
+    "tool-calling"
+  ],
+  "homepage": "https://chat.codercops.com",
+  "bugs": "https://github.com/codercops/chatcops/issues",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -33,11 +45,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/codercops/chatcops",
+    "url": "git+https://github.com/codercops/chatcops.git",
     "directory": "packages/core"
   },
   "publishConfig": {
     "access": "public"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "sideEffects": false
 }

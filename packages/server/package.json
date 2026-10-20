@@ -2,6 +2,18 @@
   "name": "@chatcops/server",
   "version": "0.5.0",
   "description": "Server-side handler and adapters for ChatCops",
+  "keywords": [
+    "chatcops",
+    "ai",
+    "chatbot",
+    "llm",
+    "sse",
+    "express",
+    "vercel",
+    "cloudflare-workers"
+  ],
+  "homepage": "https://chat.codercops.com",
+  "bugs": "https://github.com/codercops/chatcops/issues",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -52,11 +64,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/codercops/chatcops",
+    "url": "git+https://github.com/codercops/chatcops.git",
     "directory": "packages/server"
   },
   "publishConfig": {
     "access": "public"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "sideEffects": false
 }
