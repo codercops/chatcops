@@ -1,8 +1,9 @@
-export type { AIProvider, NormalizedMessage } from './base.js';
+export type { AIProvider, NormalizedMessage, NormalizedTurn, TurnPart } from './base.js';
 export type { FinishReason, ProviderEvent, ProviderStepParams } from './types.js';
 export {
   createProvider,
   normalizeHistory,
+  normalizeTurns,
   trimHistory,
   estimateTokens,
   toProviderMessages,

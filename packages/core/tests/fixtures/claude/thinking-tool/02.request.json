@@ -1,0 +1,95 @@
+{
+  "model": "claude-haiku-5-5",
+  "max_tokens": 4096,
+  "system": "You are the support assistant for a small online shop. Keep answers short.",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Orders A-1001 and B-2002 were placed the same day. Look both up, then work out which one reaches me first and why."
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking": "",
+          "signature": "CAQS1gUKEAgTGAI4AUIIdGhpbmtpbmcSDOpAflvUNDzSrYSCsxoMHKm8A28FCLaQPN2/IjAWe2qcEUthQHaxERCS+ziHqJ5ml+TugL1EehykVpMgeXNI0JQ7rnlIJ1nNS3r66EUq8wS5QNziaez7fCnpxIlfptFcZljGy88Z01HN/ALu3A+v74ccenolPGACpZvxbTdaGsiXDVZn9c9wIMabampxBV2DesY/1tU6a3aMbDmCas3h3SlRIOuOARB+GTHfP8m29E9U9UwePMlmqPYz478Ecuj8YKglnGXZfSxRMph0tU+H3OJSjFFUPLsfeSVhLmVNS/5gkZpCJnYay2HrL+G0+yxLF1y34DLHMCw8IFSpNr9D40fL9nMxcljcBt4oYzN3z63W4IpFIbTDgGQqOvb676w6hD1z7hym7RUvNIZnzMiNjnXcb7ZM8Nv6p0lCiEMlW0VRzKv9XdmIIFwzA/dxXqkCDEpYuLZ4Sp8wr2dXIis1p5Drzpp//9RNskEHeWBbeILqRPdmtrirjOMO1v6QDWwm+bB/c5g0gtOEpNR+v+p/fb8bcbwrOpRMzDSuM1ccxPO0E+ueXc64uz4TOZciZnIuu/Gq4pDV78duQtavtPTYY6/ZI6CXXkkywlBw/Z1XMzyV5ss8yHqaIX9xL0Lyy8qxLbT9OcoYWKl+XuUlv3lTpZ76m07SanioZb8I8xjr1aROZpA8AAfug2LZcHSGHWFvR1+dQlNrSTcMfjli2pAGiGRiFa6LLkVnb30B1f6ls17sbK5GoUIjYor8F+sa/uWUnsubOOPffOGZmW6Qy94ajei4MuOcfNxGohgcLsyDYchoLv6dCaZtowzO3YXWbLKxqQRAL3sGu1HuNvtcii8Lk/oPFiX7qhWThKGQstVZE/ROGZiCcqP3CCaypNnrzvlntuPdpNiBoHVLm9lNfRWWDki3posjfa02f0W+dIORVQAV6BEYAQ=="
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_01D1z5M1z9YEPdziN9h8D9c3",
+          "name": "lookup_orders",
+          "input": {
+            "orders": [
+              {
+                "id": "A-1001",
+                "include": [
+                  "tracking"
+                ]
+              },
+              {
+                "id": "B-2002",
+                "include": [
+                  "tracking"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_01D1z5M1z9YEPdziN9h8D9c3",
+          "content": "{\"success\":true,\"data\":{\"orders\":[{\"id\":\"A-1001\",\"status\":\"shipped, arrives Friday\"},{\"id\":\"B-2002\",\"status\":\"packing, arrives Monday\"}]}}",
+          "is_error": false
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "name": "lookup_orders",
+      "description": "Look up one or more orders by id. Can include line items and tracking.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "orders": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "include": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "items",
+                      "tracking"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "id"
+              ]
+            }
+          }
+        },
+        "required": [
+          "orders"
+        ]
+      }
+    }
+  ],
+  "output_config": {
+    "effort": "high"
+  },
+  "stream": true
+}

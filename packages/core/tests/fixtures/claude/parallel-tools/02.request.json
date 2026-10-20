@@ -1,0 +1,70 @@
+{
+  "model": "claude-haiku-5-5",
+  "max_tokens": 4096,
+  "system": "You are the support assistant for a small online shop. Keep answers short.",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is the weather in Paris and in Tokyo right now? Call the tool for both cities at once."
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01RHrxsPW7igEHqe2hS2EB6m",
+          "name": "get_weather",
+          "input": {
+            "city": "Paris"
+          }
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_018FjWYsHLx9wW8yiDX38foP",
+          "name": "get_weather",
+          "input": {
+            "city": "Tokyo"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_01RHrxsPW7igEHqe2hS2EB6m",
+          "content": "{\"success\":true,\"data\":{\"city\":\"Paris\",\"tempC\":14}}",
+          "is_error": false
+        },
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_018FjWYsHLx9wW8yiDX38foP",
+          "content": "{\"success\":true,\"data\":{\"city\":\"Tokyo\",\"tempC\":19}}",
+          "is_error": false
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "name": "get_weather",
+      "description": "Current weather for one city.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "city"
+        ]
+      }
+    }
+  ],
+  "output_config": {
+    "effort": "low"
+  },
+  "stream": true
+}

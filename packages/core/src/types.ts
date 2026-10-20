@@ -245,6 +245,12 @@ export interface ProviderConfig {
    * OpenAI-compatible servers that only accept the old name.
    */
   maxTokensParam?: 'max_completion_tokens' | 'max_tokens';
+  /**
+   * The `fetch` the provider SDK sends requests with. Defaults to the global
+   * one. Set it to route requests through a proxy or to replay recorded
+   * responses in tests.
+   */
+  fetch?: typeof fetch;
 }
 
 export interface ProviderChatParams {

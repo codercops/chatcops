@@ -33,7 +33,15 @@ export function toProviderMessages(messages: ChatMessage[]): Array<{ role: strin
     .map((m) => ({ role: m.role, content: m.content }));
 }
 
-export { normalizeHistory, trimHistory, estimateTokens, type NormalizedMessage } from './history.js';
+export {
+  normalizeHistory,
+  normalizeTurns,
+  trimHistory,
+  estimateTokens,
+  type NormalizedMessage,
+  type NormalizedTurn,
+  type TurnPart,
+} from './history.js';
 
 const warned = new Set<string>();
 

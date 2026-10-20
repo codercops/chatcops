@@ -42,6 +42,7 @@ export class OpenAIProvider implements AIProvider {
       apiKey: config.apiKey,
       ...(config.baseURL ? { baseURL: config.baseURL } : {}),
       ...(config.organization ? { organization: config.organization } : {}),
+      ...(config.fetch ? { fetch: config.fetch } : {}),
     });
     this.model = config.model ?? DEFAULT_MODEL;
     this.reasoning = isOpenAIReasoningModel(this.model, config.baseURL);

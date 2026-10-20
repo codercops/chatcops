@@ -76,7 +76,14 @@ export class GeminiProvider implements AIProvider {
   constructor(config: ProviderConfig) {
     this.ai = new GoogleGenAI({
       apiKey: config.apiKey,
-      ...(config.baseURL ? { httpOptions: { baseUrl: config.baseURL } } : {}),
+      ...(config.baseURL || config.fetch
+        ? {
+            httpOptions: {
+              ...(config.baseURL ? { baseUrl: config.baseURL } : {}),
+              ...(config.fetch ? { fetch: config.fetch } : {}),
+            },
+          }
+        : {}),
     });
     this.model = config.model ?? DEFAULT_MODEL;
     this.effort = config.effort ?? DEFAULT_EFFORT;

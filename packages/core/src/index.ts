@@ -49,8 +49,16 @@ export type {
 } from './protocol/index.js';
 
 // Providers
-export type { AIProvider, NormalizedMessage, FinishReason, ProviderEvent, ProviderStepParams } from './providers/index.js';
-export { createProvider, normalizeHistory, trimHistory, estimateTokens, ClaudeProvider, OpenAIProvider, GeminiProvider } from './providers/index.js';
+export type {
+  AIProvider,
+  NormalizedMessage,
+  NormalizedTurn,
+  TurnPart,
+  FinishReason,
+  ProviderEvent,
+  ProviderStepParams,
+} from './providers/index.js';
+export { createProvider, normalizeHistory, normalizeTurns, trimHistory, estimateTokens, ClaudeProvider, OpenAIProvider, GeminiProvider } from './providers/index.js';
 export { toolInputSchema, legacyParametersToSchema, validateTools, ToolDefinitionError } from './providers/index.js';
 
 // Tools

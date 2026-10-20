@@ -1,0 +1,53 @@
+{
+  "model": "claude-haiku-5-5",
+  "max_tokens": 4096,
+  "system": "You are the support assistant for a small online shop. Keep answers short.",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Where is order A-1001? Include tracking. Use the tool."
+    }
+  ],
+  "tools": [
+    {
+      "name": "lookup_orders",
+      "description": "Look up one or more orders by id. Can include line items and tracking.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "orders": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "include": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "items",
+                      "tracking"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "id"
+              ]
+            }
+          }
+        },
+        "required": [
+          "orders"
+        ]
+      }
+    }
+  ],
+  "output_config": {
+    "effort": "low"
+  },
+  "stream": true
+}
