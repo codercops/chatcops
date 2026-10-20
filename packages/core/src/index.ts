@@ -8,6 +8,8 @@ export type {
   LeadData,
   ToolParameter,
   ToolDefinition,
+  ToolAnnotations,
+  ToolContext,
   ToolResult,
   ProviderToolCall,
   ProviderToolExecutor,
@@ -49,6 +51,7 @@ export type {
 // Providers
 export type { AIProvider, NormalizedMessage, FinishReason, ProviderEvent, ProviderStepParams } from './providers/index.js';
 export { createProvider, normalizeHistory, ClaudeProvider, OpenAIProvider, GeminiProvider } from './providers/index.js';
+export { toolInputSchema, legacyParametersToSchema, validateTools, ToolDefinitionError } from './providers/index.js';
 
 // Tools
 export type { ChatTool, LeadCaptureCallback } from './tools/index.js';

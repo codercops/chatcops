@@ -3,6 +3,7 @@ import {
   ConversationManager,
   AnalyticsCollector,
   toolToDefinition,
+  validateTools,
   type ChatMessage,
 } from '@chatcops/core';
 import type { ChatCopsServerConfig, ValidatedChatRequest } from './config.js';
@@ -29,6 +30,9 @@ export function createChatHandler(config: ChatCopsServerConfig) {
   const analytics = config.analytics ? new AnalyticsCollector() : null;
   const webhooks = config.webhooks?.length ? new WebhookDispatcher(config.webhooks) : null;
   const toolDefs = config.tools?.map(toolToDefinition) ?? [];
+  // A broken tool definition is a code mistake, so fail here, at startup,
+  // rather than as a provider error on the first message.
+  validateTools(toolDefs);
   const toolsByName = new Map((config.tools ?? []).map((tool) => [tool.name, tool]));
 
   // Periodic cleanup
@@ -174,7 +178,10 @@ export function createChatHandler(config: ChatCopsServerConfig) {
             };
           }
 
-          const result = await tool.execute(toolCall.input);
+          const result = await tool.execute(toolCall.input, {
+            conversationId: req.conversationId,
+            signal: signal ?? new AbortController().signal,
+          });
 
           if (tool.name === 'capture_lead' && result.success) {
             analytics?.track('lead:captured', { conversationId: req.conversationId });

@@ -93,6 +93,7 @@ vi.mock('@chatcops/core', () => {
       parameters: tool.parameters,
       required: tool.required,
     }),
+    validateTools: vi.fn(),
   };
 });
 
@@ -203,7 +204,10 @@ describe('createChatHandler', () => {
       events.push(JSON.parse(chunk));
     }
 
-    expect(weatherTool.execute).toHaveBeenCalledWith({ city: 'Boston' });
+    expect(weatherTool.execute).toHaveBeenCalledWith(
+      { city: 'Boston' },
+      { conversationId: 'conv-1', signal: expect.any(AbortSignal) }
+    );
     expect(events).toEqual([
       { content: 'Forecast: sunny' },
       { done: true },
@@ -363,7 +367,10 @@ describe('createChatHandler', () => {
       // Drain the stream.
     }
 
-    expect(leadTool.execute).toHaveBeenCalledWith({ email: 'lead@example.com' });
+    expect(leadTool.execute).toHaveBeenCalledWith(
+      { email: 'lead@example.com' },
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
     expect(getAnalytics()).toMatchObject({
       totalConversations: 1,
       leadsCapture: 1,
@@ -494,7 +501,10 @@ describe('createChatHandler', () => {
     // Advance to first chunk: tool executor returns immediately without waiting for unresolved fetch
     const firstChunk = await generator.next();
 
-    expect(leadTool.execute).toHaveBeenCalledWith({ email: 'lead@example.com' });
+    expect(leadTool.execute).toHaveBeenCalledWith(
+      { email: 'lead@example.com' },
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
     expect(fetchSpy).toHaveBeenCalledOnce();
     expect(executorResult).toEqual({
       success: true,
@@ -668,7 +678,10 @@ describe('createChatHandler', () => {
     })();
 
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(leadTool.execute).toHaveBeenCalledWith({ email: 'lead@example.com' });
+    expect(leadTool.execute).toHaveBeenCalledWith(
+      { email: 'lead@example.com' },
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
     expect(fetchSpy).toHaveBeenCalledOnce();
     expect(executorResult).toEqual({
       success: true,

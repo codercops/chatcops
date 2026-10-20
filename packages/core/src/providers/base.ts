@@ -1,6 +1,7 @@
 import type { Tool as GeminiTool } from '@google/genai';
 import type { ChatMessage, ProviderConfig, ToolDefinition } from '../types.js';
 import type { AIProvider } from './types.js';
+import { toolInputSchema } from './schema.js';
 
 export type { AIProvider } from './types.js';
 
@@ -74,31 +75,27 @@ export function warnOnce(key: string, message: string): void {
   console.warn(`[chatcops] ${message}`);
 }
 
-function toJsonSchemaObject(tool: ToolDefinition) {
-  return {
-    type: 'object' as const,
-    properties: tool.parameters,
-    required: tool.required,
-  };
-}
-
 export function toClaudeTools(tools: ToolDefinition[]) {
   return tools.map((t) => ({
     name: t.name,
     description: t.description,
-    input_schema: toJsonSchemaObject(t),
+    input_schema: toolInputSchema(t) as { type: 'object'; [key: string]: unknown },
   }));
 }
 
 export function toOpenAITools(tools: ToolDefinition[]) {
-  return tools.map((t) => ({
-    type: 'function' as const,
-    function: {
-      name: t.name,
-      description: t.description,
-      parameters: toJsonSchemaObject(t),
-    },
-  }));
+  return tools.map((t) => {
+    const schema = toolInputSchema(t);
+    return {
+      type: 'function' as const,
+      function: {
+        name: t.name,
+        description: t.description,
+        // OpenAI rejects an object schema without `properties`.
+        parameters: 'properties' in schema ? schema : { ...schema, properties: {} },
+      },
+    };
+  });
 }
 
 export function toGeminiTools(tools: ToolDefinition[]): GeminiTool[] {
@@ -106,7 +103,7 @@ export function toGeminiTools(tools: ToolDefinition[]): GeminiTool[] {
     functionDeclarations: tools.map((t) => ({
       name: t.name,
       description: t.description,
-      parametersJsonSchema: toJsonSchemaObject(t),
+      parametersJsonSchema: toolInputSchema(t),
     })),
   }];
 }

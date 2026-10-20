@@ -162,11 +162,35 @@ export interface ToolParameter {
   enum?: string[];
 }
 
+/** Hints about what a tool does, in the shape MCP uses. Not enforced. */
+export interface ToolAnnotations {
+  title?: string;
+  /** The tool only reads; calling it changes nothing. */
+  readOnlyHint?: boolean;
+  /** The tool can change or delete something that matters. */
+  destructiveHint?: boolean;
+}
+
 export interface ToolDefinition {
   name: string;
   description: string;
-  parameters: Record<string, ToolParameter>;
-  required: string[];
+  /**
+   * JSON Schema for the tool's input. The root must be `type: 'object'`.
+   * Nested objects, arrays, `enum`, `anyOf` and `$ref` all work.
+   */
+  inputSchema?: JSONSchema;
+  /** The 0.4 flat form, used when there's no `inputSchema`. */
+  parameters?: Record<string, ToolParameter>;
+  /** Required keys of `parameters`. Ignored with `inputSchema`, which has its own `required`. */
+  required?: string[];
+  annotations?: ToolAnnotations;
+}
+
+/** What a running tool gets besides its input. */
+export interface ToolContext {
+  conversationId: string;
+  /** Aborts when the visitor leaves or the tool times out. */
+  signal: AbortSignal;
 }
 
 export interface ToolResult {
