@@ -1,6 +1,10 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
+// Node 25 turned on its own localStorage, which hides happy-dom's in the tests
+// ("localStorage.clear is not a function"). Older versions don't have it on.
+const nodeMajor = Number(process.versions.node.split('.')[0]);
+
 export default defineConfig({
   build: {
     lib: {
@@ -22,5 +26,6 @@ export default defineConfig({
   },
   test: {
     environment: 'happy-dom',
+    execArgv: nodeMajor >= 25 ? ['--no-experimental-webstorage'] : [],
   },
 });
