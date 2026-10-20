@@ -19,7 +19,7 @@ const faq = new FAQKnowledgeSource([
   {
     question: 'What AI providers are supported?',
     answer:
-      'ChatCops supports Claude (Anthropic), OpenAI (GPT-4, GPT-3.5), and Google Gemini. You configure the provider on the server side — the widget is provider-agnostic.',
+      'ChatCops supports Claude (Anthropic), OpenAI, and Google Gemini. You configure the provider and model on the server side — the widget is provider-agnostic.',
   },
   {
     question: 'Is ChatCops free?',
@@ -34,12 +34,12 @@ const faq = new FAQKnowledgeSource([
   {
     question: 'Can I customize the widget appearance?',
     answer:
-      'Absolutely. You can customize the accent color, text color, background, font, border radius, and position. The widget supports full theming and dark/light modes.',
+      'The widget uses a dark theme by default. You can customize the accent color, text and background colors, font, border radius, and position through the theme configuration.',
   },
   {
     question: 'Does ChatCops support multiple languages?',
     answer:
-      'Yes. ChatCops has built-in i18n support with translations for English, Spanish, French, German, Japanese, Chinese, Hindi, and Arabic. You can also provide custom strings.',
+      'The widget text is in English by default. To show it in another language, pass your translations in the widget\'s `strings` option. When the widget sends a `locale`, the server also asks the model to reply in that language.',
   },
   {
     question: 'How does the lead capture tool work?',
