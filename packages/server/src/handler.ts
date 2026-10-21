@@ -3,9 +3,13 @@ import {
   isAIProvider,
   ConversationManager,
   AnalyticsCollector,
+  runTurn,
+  toLegacyChunk,
+  toolRegistry,
   toolToDefinition,
   validateTools,
   type ChatMessage,
+  type WirePart,
 } from '@chatcops/core';
 import type { ChatCopsServerConfig, ValidatedChatRequest } from './config.js';
 import { chatRequestSchema } from './config.js';
@@ -36,7 +40,7 @@ export function createChatHandler(config: ChatCopsServerConfig) {
   // A broken tool definition is a code mistake, so fail here, at startup,
   // rather than as a provider error on the first message.
   validateTools(toolDefs);
-  const toolsByName = new Map((config.tools ?? []).map((tool) => [tool.name, tool]));
+  const tools = toolRegistry(config.tools);
 
   // Periodic cleanup
   const cleanupInterval = setInterval(() => rateLimiter.cleanup(), 60_000);
@@ -79,6 +83,31 @@ export function createChatHandler(config: ChatCopsServerConfig) {
       return;
     }
 
+    // One reply per conversation at a time: a second request while a reply
+    // is being written would otherwise answer the same history twice.
+    const release = await conversations.acquireTurn(req.conversationId);
+    if (!release) {
+      yield legacy({ type: 'error', code: 'conversation_busy', retryable: true });
+      return;
+    }
+
+    const pendingWebhooks = new Set<Promise<void>>();
+    try {
+      yield* reply(provider, req, signal, pendingWebhooks);
+    } finally {
+      await release();
+    }
+    // Keeping the generator open until lead webhooks finish keeps serverless
+    // runtimes from cutting them off once the response ends.
+    await awaitPendingWebhooks(pendingWebhooks);
+  }
+
+  async function* reply(
+    provider: Awaited<typeof providerPromise>,
+    req: ValidatedChatRequest,
+    signal: AbortSignal | undefined,
+    pendingWebhooks: Set<Promise<void>>
+  ): AsyncGenerator<string> {
     // Get or create conversation
     await conversations.getOrCreate(req.conversationId);
 
@@ -125,29 +154,23 @@ export function createChatHandler(config: ChatCopsServerConfig) {
       await conversations.addMessage(req.conversationId, userMessage);
     }
 
-    // Build system prompt
-    let systemPrompt = config.systemPrompt;
-
-    // Add knowledge context
+    // The system prompt is the operator's text and nothing else, so it's the
+    // same on every request and providers can cache it. Everything that
+    // changes per request goes in the context after it.
+    const context: string[] = [];
     if (config.knowledge?.length) {
-      const contexts = await Promise.all(
-        config.knowledge.map((k) => k.getContext(req.message))
-      );
+      const contexts = await Promise.all(config.knowledge.map((k) => k.getContext(req.message)));
       const combined = contexts.filter(Boolean).join('\n\n');
-      if (combined) {
-        systemPrompt += '\n\n' + combined;
-      }
+      if (combined) context.push(combined);
     }
 
     // Visitor-supplied page context and pre-chat answers never go into the
     // system prompt; see visitor-context.ts.
     const visitorContext = buildVisitorContext(req);
-    if (visitorContext) {
-      systemPrompt += `\n\n${VISITOR_CONTEXT_INSTRUCTION}`;
-    }
+    if (visitorContext) context.push(VISITOR_CONTEXT_INSTRUCTION);
 
     if (req.locale && isLocaleTag(req.locale)) {
-      systemPrompt += `\n\nReply in the visitor's language. Their browser locale is ${req.locale}.`;
+      context.push(`Reply in the visitor's language. Their browser locale is ${req.locale}.`);
     }
 
     // The history the model sees, trimmed to the token budget
@@ -159,106 +182,76 @@ export function createChatHandler(config: ChatCopsServerConfig) {
       visitorContext
     );
 
-    // Stream response
-    let fullResponse = '';
-    const pendingEvents: string[] = [];
-    const pendingWebhooks = new Set<Promise<void>>();
-    try {
-      for await (const chunk of provider.chat({
-        messages,
-        systemPrompt,
-        tools: toolDefs.length > 0 ? toolDefs : undefined,
-        toolTimeoutMs: config.toolTimeoutMs,
-        maxTokens: config.maxTokens,
-        temperature: config.temperature,
-        signal,
-        toolExecutor: async (toolCall) => {
-          const tool = toolsByName.get(toolCall.name);
-          if (!tool) {
-            return {
-              success: false,
-              message: `Unknown tool: ${toolCall.name}`,
-            };
-          }
-
-          const result = await tool.execute(toolCall.input, {
-            conversationId: req.conversationId,
-            signal: signal ?? new AbortController().signal,
+    // The reply is saved as it grows: appended after the first tool round,
+    // updated after each one. A reply that fails before anything was saved
+    // isn't saved at all, so a failed regenerate keeps the old answer.
+    let saved = false;
+    const turn = runTurn({
+      provider,
+      messages,
+      systemPrompt: config.systemPrompt,
+      ...(context.length ? { systemContext: context.join('\n\n') } : {}),
+      tools,
+      conversationId: req.conversationId,
+      toolTimeoutMs: config.toolTimeoutMs,
+      maxTokens: config.maxTokens,
+      temperature: config.temperature,
+      signal,
+      onPart: (part) => {
+        if (part.type !== 'lead-captured') return;
+        analytics?.track('lead:captured', { conversationId: req.conversationId });
+        if (!webhooks) return;
+        const delivery = webhooks
+          .dispatch('lead:captured', { lead: part.lead, conversationId: req.conversationId })
+          .catch((err) => {
+            console.error('[chatcops] Webhook delivery failed:', err);
+          })
+          .finally(() => {
+            pendingWebhooks.delete(delivery);
           });
-
-          if (tool.name === 'capture_lead' && result.success) {
-            analytics?.track('lead:captured', { conversationId: req.conversationId });
-            pendingEvents.push(JSON.stringify({
-              leadCaptured: true,
-              leadData: result.data,
-            }));
-            if (webhooks) {
-              const delivery = webhooks
-                .dispatch('lead:captured', {
-                  lead: result.data,
-                  conversationId: req.conversationId,
-                })
-                .catch((err) => {
-                  console.error('[chatcops] Webhook delivery failed:', err);
-                })
-                .finally(() => {
-                  pendingWebhooks.delete(delivery);
-                });
-              pendingWebhooks.add(delivery);
-            }
-          }
-
-          return result;
-        },
-      })) {
-        if (signal?.aborted) break;
-        while (pendingEvents.length > 0) {
-          yield pendingEvents.shift()!;
+        pendingWebhooks.add(delivery);
+      },
+      onPersist: async (message, { final }) => {
+        const complete = message.status === 'complete';
+        if (!saved) {
+          if (final && (!complete || (!message.content && !message.parts?.length))) return;
+          await conversations.appendMessages(req.conversationId, [message]);
+          saved = true;
+        } else {
+          await conversations.updateMessage(req.conversationId, message);
         }
-        fullResponse += chunk;
-        yield JSON.stringify({ content: chunk });
-      }
+        if (final && complete) {
+          if (assistantToReplace) await conversations.removeMessage(req.conversationId, assistantToReplace.id);
+          if (message.content) analytics?.track('message:received', { conversationId: req.conversationId });
+        }
+      },
+    });
 
-      while (pendingEvents.length > 0) {
-        yield pendingEvents.shift()!;
+    // Old widgets read the 0.5 chunk format. An error is held back until the
+    // turn has ended, so it goes out after pending lead webhooks, as before.
+    let failure: Extract<WirePart, { type: 'error' }> | undefined;
+    let next = await turn.next();
+    while (!next.done) {
+      const part = next.value;
+      if (part.type === 'error') failure = part;
+      else {
+        const chunk = toLegacyChunk(part);
+        if (chunk) yield JSON.stringify(chunk);
       }
-    } catch (err) {
-      if (signal?.aborted) {
-        // The visitor left. Let lead webhooks finish, but write nothing else.
-        await awaitPendingWebhooks(pendingWebhooks);
-        return;
-      }
-      console.error('[chatcops] Provider error:', err);
+      next = await turn.next();
+    }
+
+    const result = next.value;
+    if (result.status === 'aborted') {
+      // The visitor left. Let lead webhooks finish, but write nothing else.
       await awaitPendingWebhooks(pendingWebhooks);
-      yield JSON.stringify({ error: 'provider_error' });
       return;
     }
-
-    if (signal?.aborted) {
+    if (failure) {
+      console.error('[chatcops] Provider error:', result.error);
       await awaitPendingWebhooks(pendingWebhooks);
-      return;
+      yield legacy(failure);
     }
-
-    // Save assistant message
-    if (fullResponse) {
-      const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: fullResponse,
-        timestamp: Date.now(),
-      };
-      await conversations.addMessage(req.conversationId, assistantMessage);
-      if (assistantToReplace) {
-        await conversations.removeMessage(req.conversationId, assistantToReplace.id);
-      }
-      analytics?.track('message:received', { conversationId: req.conversationId });
-    }
-
-    // The reply is finished for the visitor, so say so first. Keeping the generator
-    // open until lead webhooks finish keeps serverless runtimes from cutting
-    // them off once the response ends.
-    yield JSON.stringify({ done: true });
-    await awaitPendingWebhooks(pendingWebhooks);
   }
 
   function cleanup() {
@@ -270,6 +263,10 @@ export function createChatHandler(config: ChatCopsServerConfig) {
     getAnalytics: () => analytics?.getStats() ?? null,
     cleanup,
   };
+}
+
+function legacy(part: WirePart): string {
+  return JSON.stringify(toLegacyChunk(part) ?? { error: 'provider_error' });
 }
 
 async function awaitPendingWebhooks(pendingWebhooks: Set<Promise<void>>): Promise<void> {

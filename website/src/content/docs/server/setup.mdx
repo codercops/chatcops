@@ -248,11 +248,15 @@ The stream can contain these event shapes:
 - `{"content":"..."}` for each text chunk.
 - `{"leadCaptured":true,"leadData":{...}}` when the lead capture tool succeeds.
 - `{"error":"rate_limit","retryAfter":12}` when the client is rate limited.
-- `{"error":"provider_error"}` when the provider fails while generating a reply.
+- `{"error":"provider_error"}` when the provider fails while generating a reply, when the model keeps calling tools past the limit (5 rounds), or when a reply is already being written for the same conversation.
 - `{"error":"Invalid request","details":{...}}` when the request fails schema validation.
 - `{"error":"internal_error"}` when an adapter encounters an unexpected error.
 - `{"done":true}` at the end of a successful reply.
 - `data: [DONE]` as the final line written by the Vercel, Cloudflare, and Express adapters.
+
+The server writes one reply per conversation at a time. A second message sent while a reply is still streaming gets `provider_error` instead of a second answer to the same history. The widget doesn't let visitors send while a reply streams, so this only shows up with custom clients.
+
+Each reply is saved as one assistant message with its parts: the text, and every tool call and result in order. It's saved after each tool round, so a reply cut off partway still has the finished tool steps.
 
 Rate-limit and request-validation errors are stream events in an HTTP 200
 response, followed by `data: [DONE]`. Invalid JSON cannot be parsed as a
