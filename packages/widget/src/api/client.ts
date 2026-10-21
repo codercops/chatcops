@@ -1,3 +1,4 @@
+import type { WirePart } from './protocol.js';
 import type { WidgetChatRequest, WidgetChatChunk } from './types.js';
 
 export interface ChatClientOptions {
@@ -72,7 +73,8 @@ export class ChatClient {
       const response = await fetch(this.apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request),
+        // Servers before 0.6 ignore `protocol` and answer in the old format.
+        body: JSON.stringify({ protocol: 1, ...request }),
         signal: controller.signal,
       });
 
@@ -95,6 +97,10 @@ export class ChatClient {
 
       const decoder = new TextDecoder();
       let buffer = '';
+      // Protocol v1 parts have a `type`; 0.5 chunks never do. A v1 stream
+      // ends with `finish`, so ending without one means it was cut off.
+      let v1 = false;
+      let finished = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -114,14 +120,23 @@ export class ChatClient {
           const data = trimmed.slice(6);
           if (data === '[DONE]') {
             await cleanup();
-            yield { done: true };
+            yield v1 && !finished ? { error: 'network' } : { done: true };
             return;
           }
 
+          let chunk: WidgetChatChunk | WirePart;
           try {
-            yield JSON.parse(data) as WidgetChatChunk;
+            chunk = JSON.parse(data);
           } catch {
-            // Skip malformed chunks
+            continue; // Skip malformed chunks
+          }
+          if ('type' in chunk) {
+            v1 = true;
+            if (chunk.type === 'finish') finished = true;
+            const mapped = fromPart(chunk);
+            if (mapped) yield mapped;
+          } else {
+            yield chunk;
           }
         }
       }
@@ -141,5 +156,27 @@ export class ChatClient {
     } finally {
       await cleanup();
     }
+  }
+}
+
+/**
+ * A protocol v1 part as the chunk the widget already handles, or null for
+ * parts it doesn't use (and part types added later).
+ */
+function fromPart(part: WirePart): WidgetChatChunk | null {
+  switch (part.type) {
+    case 'start':
+      return { messageId: part.messageId };
+    case 'text-delta':
+      return { content: part.delta };
+    case 'lead-captured':
+      return { leadCaptured: true, leadData: part.lead };
+    case 'error':
+      return { error: part.code === 'rate_limited' ? 'rate_limit' : part.code === 'timeout' ? 'timeout' : 'provider_error' };
+    case 'finish':
+      // An error part already went out, or nobody is listening.
+      return part.reason === 'error' || part.reason === 'aborted' ? null : { done: true };
+    default:
+      return null;
   }
 }
