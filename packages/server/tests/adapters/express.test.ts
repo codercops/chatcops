@@ -121,7 +121,7 @@ describe('express analytics sharing', () => {
 
   it('writes an internal_error event and ends when the handler throws', async () => {
     vi.mocked(createChatHandler).mockImplementationOnce(() => ({
-      async *handleChat() {
+      startChat: async () => {
         throw new Error('Unexpected handler failure');
       },
       getAnalytics: () => null,
@@ -156,7 +156,7 @@ describe('express analytics sharing', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const failure = new Error('Unexpected handler failure');
     vi.mocked(createChatHandler).mockImplementationOnce(() => ({
-      async *handleChat() {
+      startChat: async () => {
         throw failure;
       },
       getAnalytics: () => null,
@@ -184,11 +184,14 @@ describe('express analytics sharing', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const { fake, res } = createResponse();
     vi.mocked(createChatHandler).mockImplementationOnce(() => ({
-      async *handleChat() {
-        yield JSON.stringify({ content: 'Hi' });
-        fake.disconnect();
-        throw new DOMException('Aborted', 'AbortError');
-      },
+      startChat: async () => ({
+        ok: true as const,
+        parts: (async function* () {
+          yield { type: 'text-delta' as const, id: 't1', delta: 'Hi' };
+          fake.disconnect();
+          throw new DOMException('Aborted', 'AbortError');
+        })(),
+      }),
       getAnalytics: () => null,
       cleanup: () => undefined,
     }));
@@ -227,7 +230,7 @@ describe('express analytics sharing', () => {
     expect(fake.headers).toMatchObject({
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-ChatCops-Protocol',
       'Access-Control-Max-Age': '86400',
     });
     expect(fake.ended).toBe(true);
@@ -318,11 +321,12 @@ describe('express analytics sharing', () => {
     );
 
     expect(fake.headers).toMatchObject({
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'X-Accel-Buffering': 'no',
       'Access-Control-Allow-Origin': '*',
     });
+    expect(fake.headers).not.toHaveProperty('Connection');
     expect(fake.chunks).toContain('data: {"content":"Hello"}\n\n');
     expect(fake.chunks.at(-1)).toBe('data: [DONE]\n\n');
     expect(fake.ended).toBe(true);

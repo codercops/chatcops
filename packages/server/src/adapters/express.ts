@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { expressClientIp } from '../client-ip.js';
 import { createChatHandler } from '../handler.js';
+import { PROTOCOL_HEADER, chatReply } from '../http.js';
 import { originPolicy } from '../security/origin-policy.js';
 import type { ChatCopsServerConfig } from '../config.js';
 
@@ -18,7 +19,7 @@ function getOrCreateChatHandler(config: ChatCopsServerConfig): ChatHandler {
 }
 
 export function chatcopsMiddleware(config: ChatCopsServerConfig) {
-  const { handleChat } = getOrCreateChatHandler(config);
+  const chat = getOrCreateChatHandler(config);
   const origins = originPolicy(config);
 
   return async function chatcopsHandler(req: Request, res: Response, _next: NextFunction) {
@@ -50,27 +51,28 @@ export function chatcopsMiddleware(config: ChatCopsServerConfig) {
 
     const clientIp = expressClientIp(req);
 
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    setHeaders(origins.headers(origin));
-
     // Stop the reply when the visitor goes away before it's done.
     const abort = new AbortController();
     res.on('close', () => {
       if (!res.writableFinished) abort.abort();
     });
 
+    const protocolHeader = req.headers?.[PROTOCOL_HEADER];
+    const reply = await chatReply(chat, req.body, clientIp, {
+      signal: abort.signal,
+      protocolHeader: typeof protocolHeader === 'string' ? protocolHeader : null,
+    });
+    if (reply.kind === 'json') {
+      setHeaders({ ...origins.headers(origin), ...reply.headers });
+      res.status(reply.status).json(reply.body);
+      return;
+    }
+
+    setHeaders({ ...reply.headers, ...origins.headers(origin) });
     try {
-      for await (const chunk of handleChat(req.body, clientIp, { signal: abort.signal })) {
+      for await (const frame of reply.frames) {
         if (abort.signal.aborted) break;
-        res.write(`data: ${chunk}\n\n`);
-      }
-      if (!abort.signal.aborted) res.write('data: [DONE]\n\n');
-    } catch (err) {
-      if (!abort.signal.aborted) {
-        console.error('[chatcops] Unhandled error while handling chat:', err);
-        res.write(`data: ${JSON.stringify({ error: 'internal_error' })}\n\n`);
+        res.write(frame);
       }
     } finally {
       res.end();

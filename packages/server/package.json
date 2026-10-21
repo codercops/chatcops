@@ -58,9 +58,10 @@
     }
   },
   "devDependencies": {
+    "@types/express": "^5.0.0",
+    "ai": "7.0.122",
     "typescript": "^5.7.0",
-    "vitest": "^4.1.11",
-    "@types/express": "^5.0.0"
+    "vitest": "^4.1.11"
   },
   "repository": {
     "type": "git",
