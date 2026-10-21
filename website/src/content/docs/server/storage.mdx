@@ -105,25 +105,6 @@ const handler = chatcopsMiddleware({
 });
 ```
 
-## Retention
-
-The handler exposes `purge()` for retention cleanup. Configure retention on the handler and call `purge()` from a scheduled job or deploy task. It returns the number of deleted conversations, or `null` when a custom store does not implement `purge`:
-
-```typescript
-import { createChatHandler } from '@chatcops/server';
-
-const handler = createChatHandler({
-  // ...provider and systemPrompt
-  storage,
-  retention: { conversationsDays: 30 },
-});
-
-const deleted = await handler.purge();
-if (typeof deleted === 'number') {
-  console.log(`Purged ${deleted} old conversations`);
-}
-```
-
 ### ioredis
 
 ```bash
@@ -189,3 +170,22 @@ Implement `append` when the backing system can perform an atomic append. The ser
 The history sent to the model is trimmed to about 32,000 tokens: the visitor's first message plus as many recent ones as fit. Stored history keeps up to 100 messages per conversation.
 
 The complete interface is defined by [`ConversationStore`](https://github.com/codercops/chatcops/blob/dev/packages/core/src/storage/types.ts). The broader `ChatCopsStorage` object can also provide optional counter, KV, and event stores for distributed rate limits, turn locks, and analytics.
+
+## Retention
+
+The handler exposes `purge()` for retention cleanup. `retention.conversationsDays` defaults to 30 days. Call `purge()` from a scheduled job or deploy task; it returns the number of deleted conversations, or `null` when the store can't purge:
+
+```typescript
+import { createChatHandler } from '@chatcops/server';
+
+const handler = createChatHandler({
+  // ...provider and systemPrompt
+  storage,
+  retention: { conversationsDays: 30 },
+});
+
+const deleted = await handler.purge();
+if (typeof deleted === 'number') {
+  console.log(`Purged ${deleted} old conversations`);
+}
+```
