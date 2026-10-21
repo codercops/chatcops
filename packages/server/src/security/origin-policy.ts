@@ -61,7 +61,7 @@ export function originPolicy(config: Pick<ChatCopsServerConfig, 'allowedOrigins'
     preflightHeaders: (origin) => ({
       ...headers(origin),
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-ChatCops-Protocol',
       'Access-Control-Max-Age': '86400',
     }),
   };

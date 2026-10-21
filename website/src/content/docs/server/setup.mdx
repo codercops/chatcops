@@ -108,6 +108,7 @@ interface ChatCopsServerConfig {
   /** @deprecated Use `allowedOrigins`. */
   cors?: string;
   clientIp?: (request: Request) => string | null | undefined;   // fetch handlers, see the fetch runtimes page
+  exposeUsage?: boolean;   // token usage in protocol v1 finish parts; default false
   /** @deprecated Ignored by the server. Use the widget's `strings` option. */
   i18n?: {
     defaultLocale: string;
@@ -290,7 +291,8 @@ The server validates incoming requests with Zod:
   conversationId: string,  // 1-128 chars
   message: string,         // 1-10000 chars
   messageId?: string,      // Optional, 1-128 chars
-  regenerate?: boolean,    // Optional
+  protocol?: 1,            // Optional, asks for protocol v1 (see Response format)
+  regenerate?: boolean | { assistantMessageId: string },  // Optional
   pageContext?: {           // Optional page context
     url: string,           // Valid URL (the prompt gets the first 2000 chars)
     title: string,         // Max 500 chars
@@ -304,45 +306,89 @@ The server validates incoming requests with Zod:
 }
 ```
 
-## Response Format
+## Response format
 
-The server responds with SSE (Server-Sent Events) for streaming. Each event is a
-`data: <json>` line followed by a blank line. A successful response can include
-text chunks, lead-capture events, and a final completion event:
+The server answers in one of two formats. The widget from 0.6 on sends `"protocol": 1` in the request body and gets protocol v1. Requests without it, from widgets before 0.6 or older custom clients, get the 0.5 format, which keeps working until 1.0. A client can also ask for v1 with an `x-chatcops-protocol: 1` header. The server logs one line the first time it answers in the 0.5 format, so you can tell when old widgets are still around.
+
+The server writes one reply per conversation at a time, so a second message sent while a reply is streaming is refused instead of answering the same history twice. The widget doesn't let visitors send while a reply streams, so this only shows up with custom clients.
+
+Each reply is saved as one assistant message with its parts: the text, and every tool call and result in order. It's saved after each tool round, so a reply cut off partway still has the finished tool steps. A retry of a message that already has a finished reply gets that reply again, without calling the model.
+
+### Protocol v1
+
+A reply is a stream of typed parts, one SSE event each:
 
 ```
-Content-Type: text/event-stream
+Content-Type: text/event-stream; charset=utf-8
+Cache-Control: no-cache, no-transform
+X-Accel-Buffering: no
+x-chatcops-protocol: 1
 
+data: {"type":"start","protocol":1,"conversationId":"c_8f2","messageId":"m_91"}
+
+data: {"type":"text-start","id":"t1"}
+
+data: {"type":"text-delta","id":"t1","delta":"Our Starter plan is "}
+
+data: {"type":"text-delta","id":"t1","delta":"$19 a month."}
+
+data: {"type":"text-end","id":"t1"}
+
+data: {"type":"finish","reason":"stop"}
+
+data: [DONE]
+```
+
+- `start` comes first, with the id the reply is saved under.
+- `text-start`, `text-delta` and `text-end` carry the text. `tool-call` and `tool-result` show the server's tool steps, and `lead-captured` comes when the lead capture tool succeeds.
+- `error` reports a failure after the stream has started, such as `{"type":"error","code":"provider_error","retryable":true}`. The codes are `provider_error`, `budget_exceeded` (with the budget's `scope`), `content_filtered`, `tool_error` and `internal_error`.
+- `finish` always comes last, with a `reason`: `stop`, `length`, `error` or `aborted`. With `exposeUsage: true` it also has the reply's token `usage`. Visitors can read the stream, so it's off by default.
+
+Then `data: [DONE]` ends the stream. A stream that ends without `finish` was cut off, and the widget shows an error with a Retry button. Clients should ignore part types they don't know, since new ones can be added without a new protocol version.
+
+When nothing has been sent for 10 seconds, during a slow tool for example, the server sends a `: ping` comment line. SSE clients ignore it, and it keeps proxies and the widget's inactivity timer from closing a healthy connection.
+
+A request that can't be answered gets a real HTTP status before any stream, with CORS headers and a JSON body:
+
+```json
+{ "error": { "code": "rate_limited", "retryAfterMs": 42000 } }
+```
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_request` | The body isn't valid. The message names the fields, never their values. |
+| 409 | `conversation_busy` | A reply for this conversation is still being written. |
+| 413 | `payload_too_large` | The body is over 256 KB. With Express, `express.json()` sets the limit (100 KB by default) and answers 413 itself. |
+| 429 | `rate_limited` | Too many requests from this IP. `Retry-After` has the seconds, and `retryAfterMs` the milliseconds. |
+| 500 | `internal_error` | An unexpected error in the server. |
+| 503 | `provider_unavailable` | The provider couldn't be set up, such as a missing API key. The server logged why at startup. |
+
+`403` for a site that isn't in `allowedOrigins` and `405` for anything but `POST` keep their `{"error":"..."}` bodies, since they're answered before the body is read. `OPTIONS` requests are answered as CORS preflights.
+
+### The 0.5 format
+
+Requests without `protocol` get plain chunks:
+
+```
 data: {"content":"Hello"}
 
 data: {"content":" there"}
 
 data: {"leadCaptured":true,"leadData":{"name":"Ada","email":"ada@example.com","projectDetails":"Support bot for an online store","source":"chatcops-widget"}}
 
-data: {"content":"!"}
-
 data: {"done":true}
 
 data: [DONE]
 ```
 
-The stream can contain these event shapes:
+The stream can contain these chunks:
 
 - `{"content":"..."}` for each text chunk.
 - `{"leadCaptured":true,"leadData":{...}}` when the lead capture tool succeeds.
 - `{"error":"rate_limit","retryAfter":12}` when the client is rate limited.
-- `{"error":"provider_error"}` when the provider fails while generating a reply, when the model keeps calling tools past the limit (5 rounds), or when a reply is already being written for the same conversation.
+- `{"error":"provider_error"}` when the provider fails or can't be set up, when the model keeps calling tools past the limit, or when a reply is already being written for the same conversation.
 - `{"error":"Invalid request","details":{...}}` when the request fails schema validation.
-- `{"error":"internal_error"}` when an adapter encounters an unexpected error.
+- `{"error":"internal_error"}` when the server hits an unexpected error.
 - `{"done":true}` at the end of a successful reply.
-- `data: [DONE]` as the final line written by the Vercel, Cloudflare, and Express adapters.
 
-The server writes one reply per conversation at a time. A second message sent while a reply is still streaming gets `provider_error` instead of a second answer to the same history. The widget doesn't let visitors send while a reply streams, so this only shows up with custom clients.
-
-Each reply is saved as one assistant message with its parts: the text, and every tool call and result in order. It's saved after each tool round, so a reply cut off partway still has the finished tool steps.
-
-Rate-limit and request-validation errors are stream events in an HTTP 200
-response, followed by `data: [DONE]`. Invalid JSON cannot be parsed as a
-request, so the Vercel and Cloudflare adapters return HTTP 400 instead.
-Non-`POST` requests return HTTP 405 (and `OPTIONS` requests are handled as CORS
-preflight requests).
+Errors in this format are chunks in an HTTP 200 response, followed by `data: [DONE]`. A body that isn't JSON gets HTTP 400 `{"error":"Invalid JSON body"}`.

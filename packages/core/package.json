@@ -22,6 +22,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./protocol": {
+      "types": "./dist/protocol/index.d.ts",
+      "import": "./dist/protocol/index.js"
+    },
     "./testing": {
       "types": "./dist/testing/index.d.ts",
       "import": "./dist/testing/index.js"

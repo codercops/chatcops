@@ -83,6 +83,11 @@ export interface ChatCopsServerConfig {
    * Express uses `req.ip`, which follows its `trust proxy` setting.
    */
   clientIp?: ClientIpResolver;
+  /**
+   * Adds the reply's token usage to the `finish` part of protocol v1
+   * streams. Off by default, since visitors can read the stream.
+   */
+  exposeUsage?: boolean;
   /** @deprecated The server ignores this. Set the widget's text with its `strings` option. */
   i18n?: { defaultLocale: string; locales: Record<string, LocaleStrings> };
 }

@@ -1,4 +1,5 @@
 export { createChatHandler } from './handler.js';
+export type { ChatHandler, ChatStart, StartChatOptions } from './handler.js';
 export type { ChatCopsServerConfig, ValidatedChatRequest } from './config.js';
 export type { ClientIpResolver } from './client-ip.js';
 export { chatRequestSchema } from './config.js';

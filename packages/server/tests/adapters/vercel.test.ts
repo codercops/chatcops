@@ -135,7 +135,7 @@ describe('chatcopsVercelHandler', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
       const failure = new Error('Unexpected handler failure');
       vi.mocked(createChatHandler).mockImplementationOnce(() => ({
-        async *handleChat() {
+        startChat: async () => {
           throw failure;
         },
         getAnalytics: () => null,
