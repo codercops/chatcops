@@ -33,7 +33,17 @@ export function createChatHandler(config: ChatCopsServerConfig) {
   providerPromise.catch((err) => {
     console.error('[chatcops] Provider setup failed:', err instanceof Error ? err.message : String(err));
   });
-  const conversations = new ConversationManager({ store: config.conversationStore });
+  if (config.storage && config.conversationStore) {
+    throw new Error('Set `storage` or `conversationStore`, not both. `storage.conversations` replaces `conversationStore`.');
+  }
+  if (!config.storage && !config.conversationStore && onServerless() && !warnedMemoryStorage) {
+    warnedMemoryStorage = true;
+    console.warn(
+      '[chatcops] No `storage` is set, so conversations are kept in memory. On serverless each instance has its own memory, so a conversation can lose its history between messages. Use a store package such as @chatcops/store-postgres or @chatcops/store-redis.'
+    );
+  }
+  const storage = config.storage ?? (config.conversationStore ? { conversations: config.conversationStore } : undefined);
+  const conversations = new ConversationManager(storage ? { storage } : {});
   const rateLimiter = config.rateLimit ? new RateLimiter(config.rateLimit) : new RateLimiter();
   const analytics = config.analytics ? new AnalyticsCollector() : null;
   const webhooks = config.webhooks?.length ? new WebhookDispatcher(config.webhooks) : null;
@@ -279,12 +289,25 @@ export function createChatHandler(config: ChatCopsServerConfig) {
     }
   }
 
+  /**
+   * Deletes conversations last updated more than `retention.conversationsDays`
+   * (default 30) days ago. Resolves how many, or `null` when the store can't
+   * purge.
+   */
+  async function purge(now = Date.now()): Promise<number | null> {
+    const store = storage?.conversations;
+    if (!store?.purge) return null;
+    const days = config.retention?.conversationsDays ?? 30;
+    return store.purge(now - days * DAY_MS);
+  }
+
   function cleanup() {
     clearInterval(cleanupInterval);
   }
 
   return {
     handleChat,
+    purge,
     getAnalytics: () => analytics?.getStats() ?? null,
     cleanup,
   };
@@ -297,6 +320,18 @@ function* replay(message: ChatMessage): Generator<string> {
     else if (part.type === 'lead-captured') yield JSON.stringify({ leadCaptured: true, leadData: part.lead });
   }
   yield JSON.stringify({ done: true });
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Once per process (per isolate on Workers), not once per handler. */
+let warnedMemoryStorage = false;
+
+/** Vercel, AWS Lambda, Netlify and Cloudflare Workers, where memory doesn't last. */
+function onServerless(): boolean {
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
+  if (env.VERCEL || env.AWS_LAMBDA_FUNCTION_NAME || env.NETLIFY || env.K_SERVICE) return true;
+  return (globalThis as { navigator?: { userAgent?: string } }).navigator?.userAgent === 'Cloudflare-Workers';
 }
 
 function legacy(part: WirePart): string {

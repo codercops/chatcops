@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type {
   AIProvider,
+  ChatCopsStorage,
   ChatTool,
   ConversationStore,
   KnowledgeSource,
@@ -28,8 +29,23 @@ export interface ChatCopsServerConfig {
   analytics?: boolean;
   /** Bearer token required to read the analytics endpoint. When unset, the endpoint is public. */
   analyticsToken?: string;
-  /** Storage backend for conversation history. Defaults to an in-memory store (`MemoryStore`). */
+  /**
+   * Where conversations (and, with stores that have them, counters, turn
+   * locks and events) live: `postgresStorage(...)`, `redisStorage(...)` and
+   * so on. Defaults to memory, which doesn't survive a restart and isn't
+   * shared between serverless instances.
+   */
+  storage?: ChatCopsStorage;
+  /**
+   * @deprecated Use `storage`. A conversation store on its own, as in 0.4.
+   * Setting both is an error.
+   */
   conversationStore?: ConversationStore;
+  /**
+   * How long to keep conversations. `purge()` on the handler deletes older
+   * ones; call it on a schedule (a cron job, a Workers cron trigger).
+   */
+  retention?: { conversationsDays?: number };
   /** Allowed CORS origin. Defaults to `'*'`. */
   cors?: string;
   /** @deprecated The server ignores this. Set the widget's text with its `strings` option. */
