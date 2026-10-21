@@ -36,7 +36,7 @@ export type {
 export { partsOf, messageText } from './parts.js';
 
 // Wire protocol
-export { PROTOCOL_VERSION } from './protocol/index.js';
+export { PROTOCOL_VERSION, encodeSSE, SSE_PING, SSE_DONE, SSE_HEADERS } from './protocol/index.js';
 export type {
   WirePart,
   WirePartType,
