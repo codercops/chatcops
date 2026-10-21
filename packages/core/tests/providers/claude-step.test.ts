@@ -1,75 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { ClaudeProvider, toClaudeStepMessages } from '../../src/providers/claude.js';
-import type { ProviderEvent, ProviderStepParams } from '../../src/providers/types.js';
-import type { ChatMessage, MessagePart, ToolCallPart, ToolDefinition } from '../../src/types.js';
+import type { ChatMessage, ToolCallPart } from '../../src/types.js';
 import { replayFetch, type ReplayOptions } from '../helpers/replay-fetch.js';
-
-const SYSTEM = 'You are the support assistant for a small online shop. Keep answers short.';
-const user = (content: string): ChatMessage => ({ id: 'u1', role: 'user', content, timestamp: 0 });
+import { ORDERS_TOOL, run, SYSTEM, user, WEATHER_TOOL, withResults } from '../helpers/step.js';
 
 function provider(name: string, options?: ReplayOptions & { effort?: 'high' }) {
   const replay = replayFetch('claude', name, options);
   const claude = new ClaudeProvider({ type: 'claude', apiKey: 'test-key', fetch: replay.fetch, effort: options?.effort });
   return { claude, replay };
 }
-
-async function run(claude: ClaudeProvider, params: ProviderStepParams) {
-  const events: ProviderEvent[] = [];
-  for await (const event of claude.step(params)) events.push(event);
-  const finish = events.at(-1);
-  if (finish?.type !== 'finish') throw new Error('step did not end with finish');
-  const text = events.flatMap((e) => (e.type === 'text-delta' ? [e.delta] : [])).join('');
-  return { events, finish, text };
-}
-
-/** The assistant message after a step, with a result for every call. */
-function withResults(parts: MessagePart[], data: (call: ToolCallPart) => unknown): ChatMessage {
-  const calls = parts.filter((part): part is ToolCallPart => part.type === 'tool-call');
-  return {
-    id: 'a1',
-    role: 'assistant',
-    content: '',
-    timestamp: 0,
-    parts: [
-      ...parts,
-      ...calls.map((call) => ({
-        type: 'tool-result' as const,
-        toolCallId: call.toolCallId,
-        toolName: call.toolName,
-        output: { success: true, data: data(call) },
-      })),
-    ],
-  };
-}
-
-// The same tools the fixtures were recorded with (scripts/record-fixtures.mjs).
-const ORDERS_TOOL: ToolDefinition = {
-  name: 'lookup_orders',
-  description: 'Look up one or more orders by id. Can include line items and tracking.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      orders: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            id: { type: 'string' },
-            include: { type: 'array', items: { type: 'string', enum: ['items', 'tracking'] } },
-          },
-          required: ['id'],
-        },
-      },
-    },
-    required: ['orders'],
-  },
-};
-
-const WEATHER_TOOL: ToolDefinition = {
-  name: 'get_weather',
-  description: 'Current weather for one city.',
-  inputSchema: { type: 'object', properties: { city: { type: 'string' } }, required: ['city'] },
-};
 
 describe('ClaudeProvider.step with recorded responses', () => {
   it('streams a plain reply and reports why it stopped and what it used', async () => {

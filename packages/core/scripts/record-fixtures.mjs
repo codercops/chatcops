@@ -1,7 +1,7 @@
 // Records real provider responses for the replay tests in tests/fixtures.
 //
 //   pnpm --filter @chatcops/core build
-//   cd packages/core && node --env-file=../../.env scripts/record-fixtures.mjs claude
+//   cd packages/core && node --env-file=../../.env scripts/record-fixtures.mjs [claude] [openai]
 //
 // Only request and response bodies are written, never headers, and the script
 // stops if a body contains an API key. Recording costs a few cents per run.
@@ -9,7 +9,7 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ClaudeProvider } from '../dist/index.js';
+import { ClaudeProvider, OpenAIProvider } from '../dist/index.js';
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), '..', 'tests', 'fixtures');
 const SECRETS = ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GEMINI_API_KEY']
@@ -145,7 +145,11 @@ async function recordThinkingTool(providerName, provider) {
 const claude = (name, extra = {}) =>
   new ClaudeProvider({ type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY, fetch: recorder('claude', name), ...extra });
 
+const openai = (name) =>
+  new OpenAIProvider({ type: 'openai', apiKey: process.env.OPENAI_API_KEY, fetch: recorder('openai', name) });
+
 const providers = {
+  openai: () => recordCases('openai', openai),
   claude: async () => {
     await recordCases('claude', (name) => claude(name));
     await recordThinkingTool('claude', claude('thinking-tool', { effort: 'high' }));
