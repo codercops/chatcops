@@ -28,6 +28,7 @@ const config = {
   systemPrompt: 'You are a helpful assistant.',
   cors: '*',
   analytics: true,
+  analyticsToken: process.env.CHATCOPS_ANALYTICS_TOKEN,
 };
 
 const app = express();
@@ -38,6 +39,14 @@ app.get('/analytics', chatcopsAnalyticsHandler(config));
 
 app.listen(3001);
 ```
+
+When `analyticsToken` is set, requests must include a bearer token:
+
+```bash
+curl -H "Authorization: Bearer <token>" http://localhost:3001/analytics
+```
+
+When unset, the endpoint is public and logs a warning the first time it is hit.
 
 `GET /analytics` responds with the aggregated stats (or `null` if `analytics` is not enabled):
 

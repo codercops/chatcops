@@ -1,10 +1,16 @@
 import {
   createProvider,
+  isAIProvider,
   ConversationManager,
   AnalyticsCollector,
+  partsOf,
+  runTurn,
+  toLegacyChunk,
+  toolRegistry,
   toolToDefinition,
   validateTools,
   type ChatMessage,
+  type WirePart,
 } from '@chatcops/core';
 import type { ChatCopsServerConfig, ValidatedChatRequest } from './config.js';
 import { chatRequestSchema } from './config.js';
@@ -17,7 +23,9 @@ export function createChatHandler(config: ChatCopsServerConfig) {
     console.warn('[chatcops] The `i18n` option is deprecated and ignored. Set the widget text with its `strings` option.');
   }
 
-  const providerPromise = createProvider(config.provider);
+  const providerPromise = isAIProvider(config.provider)
+    ? Promise.resolve(config.provider)
+    : createProvider(config.provider);
   // A failed setup (unknown provider type, SDK that throws on a missing key)
   // is logged once here and reported to visitors per request below. Without
   // this handler it would be an unhandled rejection and stop the process.
@@ -25,7 +33,17 @@ export function createChatHandler(config: ChatCopsServerConfig) {
   providerPromise.catch((err) => {
     console.error('[chatcops] Provider setup failed:', err instanceof Error ? err.message : String(err));
   });
-  const conversations = new ConversationManager({ store: config.conversationStore });
+  if (config.storage && config.conversationStore) {
+    throw new Error('Set `storage` or `conversationStore`, not both. `storage.conversations` replaces `conversationStore`.');
+  }
+  if (!config.storage && !config.conversationStore && onServerless() && !warnedMemoryStorage) {
+    warnedMemoryStorage = true;
+    console.warn(
+      '[chatcops] No `storage` is set, so conversations are kept in memory. On serverless each instance has its own memory, so a conversation can lose its history between messages. Use a store package such as @chatcops/store-postgres or @chatcops/store-redis.'
+    );
+  }
+  const storage = config.storage ?? (config.conversationStore ? { conversations: config.conversationStore } : undefined);
+  const conversations = new ConversationManager(storage ? { storage } : {});
   const rateLimiter = config.rateLimit ? new RateLimiter(config.rateLimit) : new RateLimiter();
   const analytics = config.analytics ? new AnalyticsCollector() : null;
   const webhooks = config.webhooks?.length ? new WebhookDispatcher(config.webhooks) : null;
@@ -33,7 +51,7 @@ export function createChatHandler(config: ChatCopsServerConfig) {
   // A broken tool definition is a code mistake, so fail here, at startup,
   // rather than as a provider error on the first message.
   validateTools(toolDefs);
-  const toolsByName = new Map((config.tools ?? []).map((tool) => [tool.name, tool]));
+  const tools = toolRegistry(config.tools);
 
   // Periodic cleanup
   const cleanupInterval = setInterval(() => rateLimiter.cleanup(), 60_000);
@@ -76,13 +94,42 @@ export function createChatHandler(config: ChatCopsServerConfig) {
       return;
     }
 
+    // One reply per conversation at a time: a second request while a reply
+    // is being written would otherwise answer the same history twice.
+    const release = await conversations.acquireTurn(req.conversationId);
+    if (!release) {
+      yield legacy({ type: 'error', code: 'conversation_busy', retryable: true });
+      return;
+    }
+
+    const pendingWebhooks = new Set<Promise<void>>();
+    try {
+      yield* reply(provider, req, signal, pendingWebhooks);
+    } finally {
+      await release();
+    }
+    // Keeping the generator open until lead webhooks finish keeps serverless
+    // runtimes from cutting them off once the response ends.
+    await awaitPendingWebhooks(pendingWebhooks);
+  }
+
+  async function* reply(
+    provider: Awaited<typeof providerPromise>,
+    req: ValidatedChatRequest,
+    signal: AbortSignal | undefined,
+    pendingWebhooks: Set<Promise<void>>
+  ): AsyncGenerator<string> {
     // Get or create conversation
     await conversations.getOrCreate(req.conversationId);
 
     const conversationMessages = await conversations.getMessages(req.conversationId);
 
     let assistantToReplace: ChatMessage | undefined;
-    if (req.regenerate) {
+    if (typeof req.regenerate === 'object') {
+      const id = req.regenerate.assistantMessageId;
+      assistantToReplace = conversationMessages.find((message) => message.id === id && message.role === 'assistant');
+    }
+    if (req.regenerate && !assistantToReplace) {
       const userIndex = req.messageId
         ? conversationMessages.findIndex((message) => message.id === req.messageId)
         : findLastIndex(conversationMessages, (message) => message.role === 'user');
@@ -91,6 +138,21 @@ export function createChatHandler(config: ChatCopsServerConfig) {
         assistantToReplace = conversationMessages.slice(userIndex + 1).find((message) => message.role === 'assistant');
       } else if (!req.messageId) {
         assistantToReplace = [...conversationMessages].reverse().find((message) => message.role === 'assistant');
+      }
+    }
+
+    // A retry of a message that already has a finished reply (the network
+    // dropped after the server saved it) gets that reply again instead of a
+    // second one. A partial reply is replaced once the new one succeeds.
+    if (!req.regenerate && req.messageId) {
+      const index = conversationMessages.findIndex((message) => message.id === req.messageId && message.role === 'user');
+      const answer = index === -1 ? undefined : conversationMessages[index + 1];
+      if (answer?.role === 'assistant') {
+        if (answer.status === undefined || answer.status === 'complete') {
+          yield* replay(answer);
+          return;
+        }
+        assistantToReplace = answer;
       }
     }
 
@@ -122,29 +184,23 @@ export function createChatHandler(config: ChatCopsServerConfig) {
       await conversations.addMessage(req.conversationId, userMessage);
     }
 
-    // Build system prompt
-    let systemPrompt = config.systemPrompt;
-
-    // Add knowledge context
+    // The system prompt is the operator's text and nothing else, so it's the
+    // same on every request and providers can cache it. Everything that
+    // changes per request goes in the context after it.
+    const context: string[] = [];
     if (config.knowledge?.length) {
-      const contexts = await Promise.all(
-        config.knowledge.map((k) => k.getContext(req.message))
-      );
+      const contexts = await Promise.all(config.knowledge.map((k) => k.getContext(req.message)));
       const combined = contexts.filter(Boolean).join('\n\n');
-      if (combined) {
-        systemPrompt += '\n\n' + combined;
-      }
+      if (combined) context.push(combined);
     }
 
     // Visitor-supplied page context and pre-chat answers never go into the
     // system prompt; see visitor-context.ts.
     const visitorContext = buildVisitorContext(req);
-    if (visitorContext) {
-      systemPrompt += `\n\n${VISITOR_CONTEXT_INSTRUCTION}`;
-    }
+    if (visitorContext) context.push(VISITOR_CONTEXT_INSTRUCTION);
 
     if (req.locale && isLocaleTag(req.locale)) {
-      systemPrompt += `\n\nReply in the visitor's language. Their browser locale is ${req.locale}.`;
+      context.push(`Reply in the visitor's language. Their browser locale is ${req.locale}.`);
     }
 
     // The history the model sees, trimmed to the token budget
@@ -156,106 +212,93 @@ export function createChatHandler(config: ChatCopsServerConfig) {
       visitorContext
     );
 
-    // Stream response
-    let fullResponse = '';
-    const pendingEvents: string[] = [];
-    const pendingWebhooks = new Set<Promise<void>>();
-    try {
-      for await (const chunk of provider.chat({
-        messages,
-        systemPrompt,
-        tools: toolDefs.length > 0 ? toolDefs : undefined,
-        toolTimeoutMs: config.toolTimeoutMs,
-        maxTokens: config.maxTokens,
-        temperature: config.temperature,
-        signal,
-        toolExecutor: async (toolCall) => {
-          const tool = toolsByName.get(toolCall.name);
-          if (!tool) {
-            return {
-              success: false,
-              message: `Unknown tool: ${toolCall.name}`,
-            };
-          }
-
-          const result = await tool.execute(toolCall.input, {
-            conversationId: req.conversationId,
-            signal: signal ?? new AbortController().signal,
+    // The reply is saved as it grows: appended after the first tool round,
+    // updated after each one. A reply that fails before anything was saved
+    // isn't saved at all, so a failed regenerate keeps the old answer.
+    let saved = false;
+    const turn = runTurn({
+      provider,
+      messages,
+      systemPrompt: config.systemPrompt,
+      ...(context.length ? { systemContext: context.join('\n\n') } : {}),
+      tools,
+      conversationId: req.conversationId,
+      toolTimeoutMs: config.toolTimeoutMs,
+      maxTokens: config.maxTokens,
+      temperature: config.temperature,
+      signal,
+      onPart: (part) => {
+        if (part.type !== 'lead-captured') return;
+        analytics?.track('lead:captured', { conversationId: req.conversationId });
+        if (!webhooks) return;
+        const delivery = webhooks
+          .dispatch('lead:captured', { lead: part.lead, conversationId: req.conversationId })
+          .catch((err) => {
+            console.error('[chatcops] Webhook delivery failed:', err);
+          })
+          .finally(() => {
+            pendingWebhooks.delete(delivery);
           });
-
-          if (tool.name === 'capture_lead' && result.success) {
-            analytics?.track('lead:captured', { conversationId: req.conversationId });
-            pendingEvents.push(JSON.stringify({
-              leadCaptured: true,
-              leadData: result.data,
-            }));
-            if (webhooks) {
-              const delivery = webhooks
-                .dispatch('lead:captured', {
-                  lead: result.data,
-                  conversationId: req.conversationId,
-                })
-                .catch((err) => {
-                  console.error('[chatcops] Webhook delivery failed:', err);
-                })
-                .finally(() => {
-                  pendingWebhooks.delete(delivery);
-                });
-              pendingWebhooks.add(delivery);
-            }
-          }
-
-          return result;
-        },
-      })) {
-        if (signal?.aborted) break;
-        while (pendingEvents.length > 0) {
-          yield pendingEvents.shift()!;
+        pendingWebhooks.add(delivery);
+      },
+      onPersist: async (message, { final }) => {
+        const complete = message.status === 'complete';
+        if (!saved) {
+          if (final && !message.content && !message.parts?.length) return;
+          // A reply the visitor walked away from is kept, marked `aborted`,
+          // so the conversation shows what they saw (the model doesn't see
+          // it). When regenerating, the old answer stands instead. A reply
+          // that failed isn't kept.
+          if (final && !complete && (message.status !== 'aborted' || assistantToReplace)) return;
+          await conversations.appendMessages(req.conversationId, [message]);
+          saved = true;
+        } else {
+          await conversations.updateMessage(req.conversationId, message);
         }
-        fullResponse += chunk;
-        yield JSON.stringify({ content: chunk });
-      }
+        if (final && complete) {
+          if (assistantToReplace) await conversations.removeMessage(req.conversationId, assistantToReplace.id);
+          if (message.content) analytics?.track('message:received', { conversationId: req.conversationId });
+        }
+      },
+    });
 
-      while (pendingEvents.length > 0) {
-        yield pendingEvents.shift()!;
+    // Old widgets read the 0.5 chunk format. An error is held back until the
+    // turn has ended, so it goes out after pending lead webhooks, as before.
+    let failure: Extract<WirePart, { type: 'error' }> | undefined;
+    let next = await turn.next();
+    while (!next.done) {
+      const part = next.value;
+      if (part.type === 'error') failure = part;
+      else {
+        const chunk = toLegacyChunk(part);
+        if (chunk) yield JSON.stringify(chunk);
       }
-    } catch (err) {
-      if (signal?.aborted) {
-        // The visitor left. Let lead webhooks finish, but write nothing else.
-        await awaitPendingWebhooks(pendingWebhooks);
-        return;
-      }
-      console.error('[chatcops] Provider error:', err);
+      next = await turn.next();
+    }
+
+    const result = next.value;
+    if (result.status === 'aborted') {
+      // The visitor left. Let lead webhooks finish, but write nothing else.
       await awaitPendingWebhooks(pendingWebhooks);
-      yield JSON.stringify({ error: 'provider_error' });
       return;
     }
-
-    if (signal?.aborted) {
+    if (failure) {
+      console.error('[chatcops] Provider error:', result.error);
       await awaitPendingWebhooks(pendingWebhooks);
-      return;
+      yield legacy(failure);
     }
+  }
 
-    // Save assistant message
-    if (fullResponse) {
-      const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: fullResponse,
-        timestamp: Date.now(),
-      };
-      await conversations.addMessage(req.conversationId, assistantMessage);
-      if (assistantToReplace) {
-        await conversations.removeMessage(req.conversationId, assistantToReplace.id);
-      }
-      analytics?.track('message:received', { conversationId: req.conversationId });
-    }
-
-    // The reply is finished for the visitor, so say so first. Keeping the generator
-    // open until lead webhooks finish keeps serverless runtimes from cutting
-    // them off once the response ends.
-    yield JSON.stringify({ done: true });
-    await awaitPendingWebhooks(pendingWebhooks);
+  /**
+   * Deletes conversations last updated more than `retention.conversationsDays`
+   * (default 30) days ago. Resolves how many, or `null` when the store can't
+   * purge.
+   */
+  async function purge(now = Date.now()): Promise<number | null> {
+    const store = storage?.conversations;
+    if (!store?.purge) return null;
+    const days = config.retention?.conversationsDays ?? 30;
+    return store.purge(now - days * DAY_MS);
   }
 
   function cleanup() {
@@ -264,9 +307,35 @@ export function createChatHandler(config: ChatCopsServerConfig) {
 
   return {
     handleChat,
+    purge,
     getAnalytics: () => analytics?.getStats() ?? null,
     cleanup,
   };
+}
+
+/** A saved reply, sent again as the 0.5 stream. */
+function* replay(message: ChatMessage): Generator<string> {
+  for (const part of partsOf(message)) {
+    if (part.type === 'text' && part.text) yield JSON.stringify({ content: part.text });
+    else if (part.type === 'lead-captured') yield JSON.stringify({ leadCaptured: true, leadData: part.lead });
+  }
+  yield JSON.stringify({ done: true });
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Once per process (per isolate on Workers), not once per handler. */
+let warnedMemoryStorage = false;
+
+/** Vercel, AWS Lambda, Netlify and Cloudflare Workers, where memory doesn't last. */
+function onServerless(): boolean {
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
+  if (env.VERCEL || env.AWS_LAMBDA_FUNCTION_NAME || env.NETLIFY || env.K_SERVICE) return true;
+  return (globalThis as { navigator?: { userAgent?: string } }).navigator?.userAgent === 'Cloudflare-Workers';
+}
+
+function legacy(part: WirePart): string {
+  return JSON.stringify(toLegacyChunk(part) ?? { error: 'provider_error' });
 }
 
 async function awaitPendingWebhooks(pendingWebhooks: Set<Promise<void>>): Promise<void> {

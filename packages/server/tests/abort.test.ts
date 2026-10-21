@@ -58,7 +58,7 @@ afterEach(() => {
 });
 
 describe('handleChat with a signal', () => {
-  it('passes the signal to the provider, stops quietly and does not save the partial reply', async () => {
+  it('passes the signal to the provider, stops quietly and saves the partial reply as aborted', async () => {
     const store = new MemoryStore();
     const { handleChat, cleanup } = createChatHandler({
       provider: { type: 'claude', apiKey: 'k' },
@@ -78,7 +78,10 @@ describe('handleChat with a signal', () => {
     expect(seen.aborted).toBe(true);
     expect(chunks).toEqual([JSON.stringify({ content: 'First words' })]);
     const saved = await store.get('conv-abort');
-    expect(saved?.messages.map((m) => m.role)).toEqual(['user']);
+    expect(saved?.messages.map((m) => m.role)).toEqual(['user', 'assistant']);
+    // Kept so the conversation shows what the visitor saw, but marked, so the
+    // model never takes it for a finished answer.
+    expect(saved?.messages[1]).toMatchObject({ content: 'First words', status: 'aborted' });
   });
 });
 

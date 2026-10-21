@@ -325,7 +325,9 @@ export async function* runTurn(options: RunTurnOptions): AsyncGenerator<WirePart
 
     try {
       for await (const chunk of provider.chat({
-        messages: options.messages,
+        // Providers written for 0.4 read `content` only, so a reply the
+        // visitor walked away from would look finished. Leave it out.
+        messages: options.messages.filter((m) => m.status !== 'aborted'),
         systemPrompt: joinSystem(options.systemPrompt, options.systemContext),
         ...(tools.definitions.length ? { tools: tools.definitions } : {}),
         toolExecutor,

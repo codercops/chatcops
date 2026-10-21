@@ -438,6 +438,32 @@ describe('Widget', () => {
     });
   });
 
+  it("keeps the server's id for a v1 reply and regenerates it by that id", async () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    const sendMessage = vi.fn()
+      .mockImplementationOnce(async function* () {
+        yield { messageId: 'srv-1' };
+        yield { content: 'First' };
+        yield { done: true };
+      })
+      .mockImplementationOnce(async function* () {
+        yield { messageId: 'srv-2' };
+        yield { content: 'Second' };
+        yield { done: true };
+      });
+    getInternals(widget).client.sendMessage = sendMessage;
+
+    await getInternals(widget).handleSend('Hi');
+    const reply = getInternals(widget).messages.at(-1);
+    expect(reply?.id).toBe('srv-1');
+    expect(getInternals(widget).shadow.querySelector('[data-id="srv-1"]')).toBeTruthy();
+
+    await getInternals(widget).handleRegenerate('srv-1');
+    expect(sendMessage.mock.calls[1]?.[0]).toMatchObject({ regenerate: { assistantMessageId: 'srv-1' } });
+    expect(getInternals(widget).messages.at(-1)).toMatchObject({ id: 'srv-2', content: 'Second' });
+  });
+
   it('blocks retry and regenerate while streaming is active', async () => {
     const widget = new Widget({
       apiUrl: 'https://api.test/chat',

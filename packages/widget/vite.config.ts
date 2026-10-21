@@ -22,5 +22,11 @@ export default defineConfig({
   },
   test: {
     environment: 'happy-dom',
+    // Type-level tests: the protocol types the widget copies from core.
+    typecheck: {
+      enabled: true,
+      include: ['tests/**/*.test-d.ts'],
+      tsconfig: './tsconfig.test.json',
+    },
   },
 });

@@ -55,11 +55,14 @@ interface ChatTool {
   required?: string[];                          // with parameters only
   annotations?: { title?: string; readOnlyHint?: boolean; destructiveHint?: boolean };
   execute(input: Record<string, unknown>, context?: ToolContext): Promise<ToolResult>;
+  // Optional: parts to add to the reply after the tool runs.
+  // LeadCaptureTool adds a `lead-captured` part, which the widget reports.
+  emits?(result: ToolResult): MessagePart[];
 }
 
 interface ToolContext {
   conversationId: string;
-  signal: AbortSignal;   // aborts when the visitor leaves; pass it to fetch()
+  signal: AbortSignal;   // aborts when the visitor leaves or the tool times out; pass it to fetch()
 }
 
 interface ToolResult {
@@ -149,4 +152,6 @@ const weatherTool: ChatTool = {
 2. ChatCops converts tool definitions to the provider's native format
 3. When the AI invokes a tool, `execute()` runs server-side
 4. The result is fed back to the AI, which formulates a response
-5. Tool calls are transparent to the user — they only see the final message
+5. Visitors only see the final message. The tool calls and their results are saved with it, so the next reply knows what the tools returned.
+
+All the calls the model makes in one step run at the same time. A tool that takes longer than `toolTimeoutMs` (default 30 seconds) gets an error result, and its `signal` aborts.

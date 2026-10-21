@@ -1,8 +1,21 @@
 import { z } from 'zod';
-import type { ChatTool, KnowledgeSource, WebhookConfig, ProviderConfig, LocaleStrings, ConversationStore } from '@chatcops/core';
+import type {
+  AIProvider,
+  ChatCopsStorage,
+  ChatTool,
+  ConversationStore,
+  KnowledgeSource,
+  LocaleStrings,
+  ProviderConfig,
+  WebhookConfig,
+} from '@chatcops/core';
 
 export interface ChatCopsServerConfig {
-  provider: ProviderConfig;
+  /**
+   * Which model to use: a config like `{ type: 'claude', apiKey }`, or a
+   * provider object you built yourself (anything with `step()` or `chat()`).
+   */
+  provider: ProviderConfig | AIProvider;
   systemPrompt: string;
   tools?: ChatTool[];
   toolTimeoutMs?: number;
@@ -14,8 +27,25 @@ export interface ChatCopsServerConfig {
   rateLimit?: { maxRequests: number; windowMs: number };
   webhooks?: WebhookConfig[];
   analytics?: boolean;
-  /** Storage backend for conversation history. Defaults to an in-memory store (`MemoryStore`). */
+  /** Bearer token required to read the analytics endpoint. When unset, the endpoint is public. */
+  analyticsToken?: string;
+  /**
+   * Where conversations (and, with stores that have them, counters, turn
+   * locks and events) live: `postgresStorage(...)`, `redisStorage(...)` and
+   * so on. Defaults to memory, which doesn't survive a restart and isn't
+   * shared between serverless instances.
+   */
+  storage?: ChatCopsStorage;
+  /**
+   * @deprecated Use `storage`. A conversation store on its own, as in 0.4.
+   * Setting both is an error.
+   */
   conversationStore?: ConversationStore;
+  /**
+   * How long to keep conversations. `purge()` on the handler deletes older
+   * ones; call it on a schedule (a cron job, a Workers cron trigger).
+   */
+  retention?: { conversationsDays?: number };
   /** Allowed CORS origin. Defaults to `'*'`. */
   cors?: string;
   /** @deprecated The server ignores this. Set the widget's text with its `strings` option. */
@@ -32,7 +62,11 @@ export const chatRequestSchema = z.object({
   conversationId: z.string().min(1).max(128),
   message: z.string().min(1).max(10000),
   messageId: z.string().min(1).max(128).optional(),
-  regenerate: z.boolean().optional(),
+  /**
+   * `{ assistantMessageId }` replaces that reply. `true` (the 0.5 form)
+   * replaces the reply to `messageId`, or the latest one.
+   */
+  regenerate: z.union([z.boolean(), z.object({ assistantMessageId: z.string().min(1).max(128) })]).optional(),
   pageContext: z.object({
     url: z.string().url(),
     title: z.string().max(500),

@@ -81,11 +81,10 @@ const handler = chatcopsMiddleware({
 
 ```typescript
 interface ChatCopsServerConfig {
-  provider: {
-    type: 'claude' | 'openai' | 'gemini';
-    apiKey: string;
-    model?: string;
-  };
+  // A config (see Providers for every option), or a provider object.
+  provider:
+    | { type: 'claude' | 'openai' | 'gemini'; apiKey: string; model?: string }
+    | AIProvider;
   systemPrompt: string;
   tools?: ChatTool[];
   toolTimeoutMs?: number;
@@ -98,6 +97,9 @@ interface ChatCopsServerConfig {
   };
   webhooks?: WebhookConfig[];
   analytics?: boolean;
+  storage?: ChatCopsStorage;            // where conversations, counters and locks live
+  retention?: { conversationsDays?: number };   // for purge(); default 30
+  /** @deprecated Use `storage`. */
   conversationStore?: ConversationStore;
   cors?: string;
   /** @deprecated Ignored by the server. Use the widget's `strings` option. */
@@ -108,9 +110,46 @@ interface ChatCopsServerConfig {
 }
 ```
 
+### A provider object instead of a config
+
+`provider` also takes an object you built yourself: anything with `step()` or `chat()` (the [AIProvider interface](/core/providers/#aiprovider-interface)). Use it for a provider ChatCops doesn't have, or in tests with `scriptedProvider()`, which plays back a script instead of calling a model:
+
+```typescript
+import { scriptedProvider, textStep } from '@chatcops/core/testing/provider';
+
+const handler = createChatHandler({
+  provider: scriptedProvider([textStep('Hello from a test.')]),
+  systemPrompt: 'Be brief.',
+});
+```
+
+## Storage
+
+By default everything lives in memory, per process. That's fine on one long-running server, but on Vercel, Lambda or Workers each instance has its own memory, so the server logs a warning there. Pass a store package as `storage`:
+
+```typescript
+import pg from 'pg';
+import { postgresStorage } from '@chatcops/store-postgres';
+
+const handler = chatcopsMiddleware({
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+  systemPrompt: 'You are a helpful assistant.',
+  storage: postgresStorage({ db: new pg.Pool({ connectionString: process.env.DATABASE_URL }) }),
+});
+```
+
+With a storage that has key-value support, the rule that only one reply is written per conversation at a time holds across all your server instances, not just within one. Setting both `storage` and the older `conversationStore` is an error.
+
+Nothing is deleted on its own. The handler's `purge()` deletes conversations last updated more than `retention.conversationsDays` (default 30) days ago. Call it on a schedule, from a cron job or a Workers cron trigger:
+
+```typescript
+const { purge } = createChatHandler(config);
+await purge(); // resolves how many were deleted
+```
+
 ## Custom Conversation Store
 
-By default, the server keeps conversation history in memory, per process. It's bounded: past 1000 conversations the least recently used ones go first, and conversations idle for 7 days are dropped. For multi-instance deployments or persistent chat history across restarts, pass a custom `conversationStore` that implements the `ConversationStore` interface from `@chatcops/core`:
+By default, the server keeps conversation history in memory, per process. It's bounded: past 1000 conversations the least recently used ones go first, and conversations idle for 7 days are dropped. For multi-instance deployments or persistent chat history across restarts, pass a custom store that implements the `ConversationStore` interface from `@chatcops/core`, as `storage: { conversations: yourStore }`:
 
 ```typescript
 import type { ConversationStore, Conversation } from '@chatcops/core';
@@ -236,11 +275,15 @@ The stream can contain these event shapes:
 - `{"content":"..."}` for each text chunk.
 - `{"leadCaptured":true,"leadData":{...}}` when the lead capture tool succeeds.
 - `{"error":"rate_limit","retryAfter":12}` when the client is rate limited.
-- `{"error":"provider_error"}` when the provider fails while generating a reply.
+- `{"error":"provider_error"}` when the provider fails while generating a reply, when the model keeps calling tools past the limit (5 rounds), or when a reply is already being written for the same conversation.
 - `{"error":"Invalid request","details":{...}}` when the request fails schema validation.
 - `{"error":"internal_error"}` when an adapter encounters an unexpected error.
 - `{"done":true}` at the end of a successful reply.
 - `data: [DONE]` as the final line written by the Vercel, Cloudflare, and Express adapters.
+
+The server writes one reply per conversation at a time. A second message sent while a reply is still streaming gets `provider_error` instead of a second answer to the same history. The widget doesn't let visitors send while a reply streams, so this only shows up with custom clients.
+
+Each reply is saved as one assistant message with its parts: the text, and every tool call and result in order. It's saved after each tool round, so a reply cut off partway still has the finished tool steps.
 
 Rate-limit and request-validation errors are stream events in an HTTP 200
 response, followed by `data: [DONE]`. Invalid JSON cannot be parsed as a

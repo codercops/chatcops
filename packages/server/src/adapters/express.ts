@@ -70,9 +70,38 @@ export function chatcopsMiddleware(config: ChatCopsServerConfig) {
   };
 }
 
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
+
 export function chatcopsAnalyticsHandler(config: ChatCopsServerConfig) {
   const { getAnalytics } = getOrCreateChatHandler(config);
-  return (_req: Request, res: Response) => {
+  let warned = false;
+
+  return (req: Request, res: Response) => {
+    if (config.analyticsToken) {
+      const auth = req.headers?.authorization;
+      const token = typeof auth === 'string' && auth.startsWith('Bearer ') ? auth.slice(7) : undefined;
+
+      if (!token || !constantTimeEqual(token, config.analyticsToken)) {
+        res.setHeader('WWW-Authenticate', 'Bearer');
+        res.status(401).json({ error: 'unauthorized' });
+        return;
+      }
+    } else if (!warned) {
+      warned = true;
+      console.warn(
+        '[chatcops] The analytics endpoint is public and anyone can read your stats. Set `analyticsToken` in your ChatCopsServerConfig to require a bearer token.'
+      );
+    }
+
     res.json(getAnalytics());
   };
 }
