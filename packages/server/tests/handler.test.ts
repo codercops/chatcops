@@ -998,6 +998,12 @@ describe('chatRequestSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('accepts regenerate naming the reply to replace, and rejects an empty id', () => {
+    const ok = chatRequestSchema.safeParse({ conversationId: 'c', message: 'Hi', regenerate: { assistantMessageId: 'a1' } });
+    expect(ok.success && ok.data.regenerate).toEqual({ assistantMessageId: 'a1' });
+    expect(chatRequestSchema.safeParse({ conversationId: 'c', message: 'Hi', regenerate: { assistantMessageId: '' } }).success).toBe(false);
+  });
+
   it('accepts regenerate metadata', () => {
     const result = chatRequestSchema.safeParse({
       conversationId: 'conv-1',

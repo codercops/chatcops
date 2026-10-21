@@ -3,6 +3,7 @@ import {
   isAIProvider,
   ConversationManager,
   AnalyticsCollector,
+  partsOf,
   runTurn,
   toLegacyChunk,
   toolRegistry,
@@ -114,7 +115,11 @@ export function createChatHandler(config: ChatCopsServerConfig) {
     const conversationMessages = await conversations.getMessages(req.conversationId);
 
     let assistantToReplace: ChatMessage | undefined;
-    if (req.regenerate) {
+    if (typeof req.regenerate === 'object') {
+      const id = req.regenerate.assistantMessageId;
+      assistantToReplace = conversationMessages.find((message) => message.id === id && message.role === 'assistant');
+    }
+    if (req.regenerate && !assistantToReplace) {
       const userIndex = req.messageId
         ? conversationMessages.findIndex((message) => message.id === req.messageId)
         : findLastIndex(conversationMessages, (message) => message.role === 'user');
@@ -123,6 +128,21 @@ export function createChatHandler(config: ChatCopsServerConfig) {
         assistantToReplace = conversationMessages.slice(userIndex + 1).find((message) => message.role === 'assistant');
       } else if (!req.messageId) {
         assistantToReplace = [...conversationMessages].reverse().find((message) => message.role === 'assistant');
+      }
+    }
+
+    // A retry of a message that already has a finished reply (the network
+    // dropped after the server saved it) gets that reply again instead of a
+    // second one. A partial reply is replaced once the new one succeeds.
+    if (!req.regenerate && req.messageId) {
+      const index = conversationMessages.findIndex((message) => message.id === req.messageId && message.role === 'user');
+      const answer = index === -1 ? undefined : conversationMessages[index + 1];
+      if (answer?.role === 'assistant') {
+        if (answer.status === undefined || answer.status === 'complete') {
+          yield* replay(answer);
+          return;
+        }
+        assistantToReplace = answer;
       }
     }
 
@@ -214,7 +234,12 @@ export function createChatHandler(config: ChatCopsServerConfig) {
       onPersist: async (message, { final }) => {
         const complete = message.status === 'complete';
         if (!saved) {
-          if (final && (!complete || (!message.content && !message.parts?.length))) return;
+          if (final && !message.content && !message.parts?.length) return;
+          // A reply the visitor walked away from is kept, marked `aborted`,
+          // so the conversation shows what they saw (the model doesn't see
+          // it). When regenerating, the old answer stands instead. A reply
+          // that failed isn't kept.
+          if (final && !complete && (message.status !== 'aborted' || assistantToReplace)) return;
           await conversations.appendMessages(req.conversationId, [message]);
           saved = true;
         } else {
@@ -263,6 +288,15 @@ export function createChatHandler(config: ChatCopsServerConfig) {
     getAnalytics: () => analytics?.getStats() ?? null,
     cleanup,
   };
+}
+
+/** A saved reply, sent again as the 0.5 stream. */
+function* replay(message: ChatMessage): Generator<string> {
+  for (const part of partsOf(message)) {
+    if (part.type === 'text' && part.text) yield JSON.stringify({ content: part.text });
+    else if (part.type === 'lead-captured') yield JSON.stringify({ leadCaptured: true, leadData: part.lead });
+  }
+  yield JSON.stringify({ done: true });
 }
 
 function legacy(part: WirePart): string {

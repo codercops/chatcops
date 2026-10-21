@@ -136,3 +136,72 @@ describe('the handler on runTurn', () => {
     error.mockRestore();
   });
 });
+
+describe('regenerate, retry and aborted replies', () => {
+  function setup(script: Parameters<typeof scriptedProvider>[0]) {
+    const provider = scriptedProvider(script);
+    const conversationStore = memoryStorage().conversations;
+    const handler = createChatHandler({ provider, systemPrompt: 'Be brief.', conversationStore });
+    const stored = async () => (await conversationStore.get('c1'))?.messages ?? [];
+    return { provider, handler, stored };
+  }
+
+  it('sends a saved reply again, without calling the model, when an answered message is retried', async () => {
+    const { provider, handler, stored } = setup([textStep('The answer.')]);
+    const first = await chunks(handler.handleChat({ ...request('Question?'), messageId: 'u1' }));
+    const again = await chunks(handler.handleChat({ ...request('Question?'), messageId: 'u1' }));
+    handler.cleanup();
+
+    expect(provider.calls).toHaveLength(1);
+    expect(again).toEqual([{ content: 'The answer.' }, { done: true }]);
+    expect(first.at(-1)).toEqual({ done: true });
+    expect((await stored()).map((m) => m.role)).toEqual(['user', 'assistant']);
+  });
+
+  it('regenerates the reply named by assistantMessageId and swaps it in', async () => {
+    const { provider, handler, stored } = setup([textStep('First answer.'), textStep('Better answer.')]);
+    await chunks(handler.handleChat({ ...request('Question?'), messageId: 'u1' }));
+    const firstReply = (await stored())[1];
+
+    await chunks(handler.handleChat({ ...request('Question?'), messageId: 'u1', regenerate: { assistantMessageId: firstReply.id } }));
+    handler.cleanup();
+
+    const messages = await stored();
+    expect(messages.map((m) => m.content)).toEqual(['Question?', 'Better answer.']);
+    // The model didn't see the answer it's replacing. (The last message a
+    // step gets is the reply being written.)
+    expect(provider.calls[1].messages.slice(0, -1).map((m) => m.content)).toEqual(['Question?']);
+  });
+
+  it('keeps an aborted reply out of what the model sees next, and replaces it on retry', async () => {
+    const { provider, handler, stored } = setup(['hang', textStep('Full answer.')]);
+    const controller = new AbortController();
+    const pending = chunks(handler.handleChat({ ...request('Question?'), messageId: 'u1' }, undefined, { signal: controller.signal }));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    controller.abort();
+    await pending;
+    // Nothing streamed, so nothing was kept.
+    expect((await stored()).map((m) => m.role)).toEqual(['user']);
+
+    await chunks(handler.handleChat({ ...request('Question?'), messageId: 'u1' }));
+    handler.cleanup();
+    expect((await stored()).map((m) => m.content)).toEqual(['Question?', 'Full answer.']);
+    expect(provider.calls).toHaveLength(2);
+  });
+
+  it('replaces a partial reply that was kept when the visitor left', async () => {
+    const provider = scriptedProvider([textStep('Full answer.')]);
+    const conversationStore = memoryStorage().conversations;
+    await conversationStore.append?.('c1', [
+      { id: 'u1', role: 'user', content: 'Question?', timestamp: 1 },
+      { id: 'a1', role: 'assistant', content: 'Full ans', status: 'aborted', timestamp: 2 },
+    ]);
+    const handler = createChatHandler({ provider, systemPrompt: 'Be brief.', conversationStore });
+    await chunks(handler.handleChat({ ...request('Question?'), messageId: 'u1' }));
+    handler.cleanup();
+
+    expect((await conversationStore.get('c1'))?.messages.map((m) => m.content)).toEqual(['Question?', 'Full answer.']);
+    // The partial being replaced isn't sent to the model.
+    expect(provider.calls[0].messages.slice(0, -1).map((m) => m.content)).toEqual(['Question?']);
+  });
+});

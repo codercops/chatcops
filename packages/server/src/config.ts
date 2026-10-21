@@ -44,7 +44,11 @@ export const chatRequestSchema = z.object({
   conversationId: z.string().min(1).max(128),
   message: z.string().min(1).max(10000),
   messageId: z.string().min(1).max(128).optional(),
-  regenerate: z.boolean().optional(),
+  /**
+   * `{ assistantMessageId }` replaces that reply. `true` (the 0.5 form)
+   * replaces the reply to `messageId`, or the latest one.
+   */
+  regenerate: z.union([z.boolean(), z.object({ assistantMessageId: z.string().min(1).max(128) })]).optional(),
   pageContext: z.object({
     url: z.string().url(),
     title: z.string().max(500),

@@ -293,6 +293,17 @@ describe('runTurn with a provider written for 0.4 (chat only)', () => {
     expect(chat.mock.calls[0][0]).toMatchObject({ toolTimeoutMs: 1234, maxTokens: 99, temperature: 0.3, toolExecutor: expect.any(Function) });
   });
 
+  it('leaves aborted replies out of the history it passes, since 0.4 providers read content only', async () => {
+    const chat = vi.fn(async function* () {
+      yield 'ok';
+    });
+    await drain({
+      provider: legacyProvider(chat),
+      messages: [user, { id: 'a0', role: 'assistant', content: 'Half a sen', status: 'aborted', timestamp: 0 }, { ...user, id: 'u2' }],
+    });
+    expect(chat.mock.calls[0][0].messages.map((m: ChatMessage) => m.id)).toEqual(['u1', 'u2']);
+  });
+
   it("doesn't stream recorded tool parts when the provider then fails", async () => {
     const provider = legacyProvider(async function* (params) {
       await params.toolExecutor?.({ id: 'l1', name: 'capture_lead', input: { name: 'Ada', email: 'ada@example.com', projectDetails: 'x' } });
