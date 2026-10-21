@@ -8,6 +8,7 @@ import {
   type ListQuery,
 } from '@chatcops/core';
 import type { Queryable } from './queryable.js';
+import type { RowHook } from './row-hook.js';
 import type { TableNames } from './schema.js';
 import { json, ms, param, toTime } from './sql.js';
 
@@ -73,29 +74,55 @@ export class PostgresConversationStore implements ConversationStore {
   constructor(
     private readonly db: Queryable,
     private readonly t: TableNames,
-    private readonly now: () => number
+    private readonly now: () => number,
+    private readonly hook?: RowHook
   ) {}
+
+  /** The hook's extra columns for one new row, as SQL and bound params. */
+  private extraFor(
+    table: 'conversations' | 'messages',
+    context: { conversationId: string; metadata?: Record<string, unknown>; message?: ChatMessage },
+    params: unknown[]
+  ): { columns: string; values: string } {
+    if (!this.hook) return { columns: '', values: '' };
+    const row = this.hook.values({ table, ...context });
+    const values = this.hook.columns.map(([name, type]) => {
+      params.push(row[name] ?? null);
+      return `$${params.length}::${type}`;
+    });
+    return { columns: this.hook.columnList, values: values.map((v) => `, ${v}`).join('') };
+  }
 
   /**
    * Inserts `messages` after the conversation's last sequence number. `conv`
    * is a CTE returning `next_seq` after the upsert, which already counts
    * these messages, so the first one gets `next_seq - count + 1`.
    */
-  private insertMessages(messages: ChatMessage[], params: unknown[], idParam: string): string {
+  private insertMessages(
+    conversationId: string,
+    metadata: Record<string, unknown> | undefined,
+    messages: ChatMessage[],
+    params: unknown[],
+    idParam: string
+  ): string {
+    let hookColumns = '';
     const rows = messages.map((message, i) => {
       const placeholders = messageValues(message).map((value) => {
         params.push(value);
         return `$${params.length}`;
       });
-      const [id, role, content, parts, status, usage, ai, metadata, extra, sent] = placeholders;
-      return `(${i + 1}, ${id}::text, ${role}::text, ${content}::text, ${parts}::text::jsonb, ${status}::text, ${usage}::text::jsonb, ${ai}::boolean, ${metadata}::text::jsonb, ${extra}::text::jsonb, ${toTime(sent)})`;
+      const [id, role, content, parts, status, usage, ai, meta, extra, sent] = placeholders;
+      const hooked = this.extraFor('messages', { conversationId, metadata, message }, params);
+      hookColumns = hooked.columns;
+      return `(${i + 1}, ${id}::text, ${role}::text, ${content}::text, ${parts}::text::jsonb, ${status}::text, ${usage}::text::jsonb, ${ai}::boolean, ${meta}::text::jsonb, ${extra}::text::jsonb, ${toTime(sent)}${hooked.values})`;
     });
     params.push(messages.length);
     const count = `$${params.length}::int`;
+    const hookSelect = (this.hook?.columns ?? []).map(([name]) => `, v.${name}`).join('');
     return `ins AS (
-      INSERT INTO ${this.t.messages} (conversation_id, seq, ${MESSAGE_COLUMNS})
-      SELECT ${idParam}, conv.next_seq - ${count} + v.ord, v.id, v.role, v.content, v.parts, v.status, v.usage, v.ai_generated, v.metadata, v.extra, v.sent_at
-      FROM conv, (VALUES ${rows.join(', ')}) AS v (ord, ${MESSAGE_COLUMNS})
+      INSERT INTO ${this.t.messages} (conversation_id, seq, ${MESSAGE_COLUMNS}${hookColumns})
+      SELECT ${idParam}, conv.next_seq - ${count} + v.ord, v.id, v.role, v.content, v.parts, v.status, v.usage, v.ai_generated, v.metadata, v.extra, v.sent_at${hookSelect}
+      FROM conv, (VALUES ${rows.join(', ')}) AS v (ord, ${MESSAGE_COLUMNS}${hookColumns})
     )`;
   }
 
@@ -124,11 +151,14 @@ export class PostgresConversationStore implements ConversationStore {
   /** Replaces the whole conversation, as 0.4 stores did. */
   async save(conversation: Conversation): Promise<void> {
     const params: unknown[] = [conversation.id, json(conversation.metadata), conversation.messages.length, conversation.createdAt, this.now()];
-    const insert = conversation.messages.length ? `, ${this.insertMessages(conversation.messages, params, '$1')}` : '';
+    const hooked = this.extraFor('conversations', { conversationId: conversation.id, metadata: conversation.metadata }, params);
+    const insert = conversation.messages.length
+      ? `, ${this.insertMessages(conversation.id, conversation.metadata, conversation.messages, params, '$1')}`
+      : '';
     await this.db.query(
       `WITH conv AS (
-        INSERT INTO ${this.t.conversations} AS c (id, metadata, version, next_seq, created_at, updated_at)
-        VALUES ($1, $2::text::jsonb, 1, $3::int, ${toTime('$4')}, ${toTime('$5')})
+        INSERT INTO ${this.t.conversations} AS c (id, metadata, version, next_seq, created_at, updated_at${hooked.columns})
+        VALUES ($1, $2::text::jsonb, 1, $3::int, ${toTime('$4')}, ${toTime('$5')}${hooked.values})
         ON CONFLICT (id) DO UPDATE SET
           metadata = EXCLUDED.metadata,
           version = c.version + 1,
@@ -153,7 +183,8 @@ export class PostgresConversationStore implements ConversationStore {
   async append(id: string, messages: ChatMessage[], options: AppendOptions = {}): Promise<{ version: number }> {
     const expected = options.expectedVersion ?? null;
     const params: unknown[] = [id, json(options.metadata), messages.length, this.now(), expected];
-    const insert = messages.length ? `, ${this.insertMessages(messages, params, '$1')}` : '';
+    const hooked = this.extraFor('conversations', { conversationId: id, metadata: options.metadata }, params);
+    const insert = messages.length ? `, ${this.insertMessages(id, options.metadata, messages, params, '$1')}` : '';
 
     // One statement, so it's atomic without a transaction. The upsert locks
     // the conversation row, and a concurrent append waits for it and then
@@ -161,8 +192,8 @@ export class PostgresConversationStore implements ConversationStore {
     // created when no version, or version 0, was expected.
     const { rows } = await this.db.query<{ version: number }>(
       `WITH conv AS (
-        INSERT INTO ${this.t.conversations} AS c (id, metadata, version, next_seq, created_at, updated_at)
-        SELECT $1, $2::text::jsonb, 1, $3::int, ${toTime('$4')}, ${toTime('$4')}
+        INSERT INTO ${this.t.conversations} AS c (id, metadata, version, next_seq, created_at, updated_at${hooked.columns})
+        SELECT $1, $2::text::jsonb, 1, $3::int, ${toTime('$4')}, ${toTime('$4')}${hooked.values}
         WHERE $5::int IS NULL OR $5::int = 0
           OR EXISTS (SELECT 1 FROM ${this.t.conversations} WHERE id = $1)
         ON CONFLICT (id) DO UPDATE SET

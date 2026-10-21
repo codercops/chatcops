@@ -67,6 +67,22 @@ chatcopsMiddleware({
 | `db` | required | A `pg` `Pool`, or a client wrapped with `fromNeon` or `fromPostgresJs`. Anything with `query(text, params)` that returns `{ rows }` works. |
 | `tablePrefix` | `'chatcops_'` | Table name prefix, so several apps can share a database. Use the same one with `migrate`. |
 
+## Your own columns
+
+To stamp your own columns on every new conversation and message row (a tenant id, a site id), add them with your own migration, declare them, and say how to fill them:
+
+```ts
+// ALTER TABLE chatcops_conversations ADD COLUMN workspace_id uuid;
+// ALTER TABLE chatcops_messages ADD COLUMN workspace_id uuid;
+const storage = postgresStorage({
+  db: pool,
+  extraColumns: { workspace_id: 'uuid' },
+  rowHook: ({ table, metadata }) => ({ workspace_id: metadata?.workspaceId }),
+});
+```
+
+The hook runs when a row is created, never on updates. It gets the table, the conversation id, the metadata passed with the write, and the message for message rows. Returning a key that isn't in `extraColumns` throws, and values are sent as query parameters, never put into the SQL. Reads aren't filtered by these columns; that's up to your own queries or row-level security.
+
 ## Tables
 
 | Table | Holds |
