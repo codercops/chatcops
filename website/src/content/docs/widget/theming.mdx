@@ -73,6 +73,14 @@ You can override widget styles by targeting the host element. The first widget o
 }
 ```
 
+## AI-generated replies
+
+Replies written by the model carry `data-ai-generated="true"`. User messages and the welcome message don't. The messages are inside the widget's shadow root, so the page's CSS can't select them, but scripts can:
+
+```js
+document.getElementById('chatcops-root').shadowRoot.querySelectorAll('[data-ai-generated]');
+```
+
 ## ThemeConfig Interface
 
 ```typescript

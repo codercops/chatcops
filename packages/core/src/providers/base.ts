@@ -8,6 +8,16 @@ export type { AIProvider } from './types.js';
 /** Output token limit used when neither the server config nor the request sets one. */
 export const DEFAULT_MAX_TOKENS = 4096;
 
+/**
+ * True for a provider object, false for a provider config. A config never
+ * has functions, so an object with a `step` or `chat` function is a provider.
+ */
+export function isAIProvider(value: unknown): value is AIProvider {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Partial<AIProvider>;
+  return typeof candidate.step === 'function' || typeof candidate.chat === 'function';
+}
+
 export async function createProvider(config: ProviderConfig): Promise<AIProvider> {
   switch (config.type) {
     case 'claude': {
@@ -33,7 +43,15 @@ export function toProviderMessages(messages: ChatMessage[]): Array<{ role: strin
     .map((m) => ({ role: m.role, content: m.content }));
 }
 
-export { normalizeHistory, trimHistory, estimateTokens, type NormalizedMessage } from './history.js';
+export {
+  normalizeHistory,
+  normalizeTurns,
+  trimHistory,
+  estimateTokens,
+  type NormalizedMessage,
+  type NormalizedTurn,
+  type TurnPart,
+} from './history.js';
 
 const warned = new Set<string>();
 

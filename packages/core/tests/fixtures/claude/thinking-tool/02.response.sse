@@ -1,0 +1,57 @@
+event: message_start
+data: {"type":"message_start","message":{"model":"claude-haiku-5-5","id":"msg_011CgEcmxyvjaXss31nz93Cm","type":"message","role":"assistant","content":[],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":730,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":2,"service_tier":"standard","inference_geo":"global","speed":"standard"},"diagnostics":null}           }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}   }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":""}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"CAQS6AYKEAgTGAI4AUIIdGhpbmtpbmcSDIfGSVp4WQ5XWe6FRRoMSUkjtv5vl653sK9fIjAFWXLwMV55OjAf0xQpvJ+7TvtSgo3OFGLibeAmBMOvZ9nWi3wHfHvCevZy6/TLewQqhQa2jHHdnH10FopKQxORCJ2F0BGSUG47nWI9lOGzkEW3BS6b2nLRZhZJP4Mec7YFyChuAzmF1ETAMXIXYSTxbMRqLPlfbdiwb6Rc27jGZABYR/zta2kcw+mHRfOviLOXssMoFLGfLiGOCiTQYLm4ubQ1SMd047WiFm5riUJo8dq2WbSwosyjJMIyoCYJoRBwjq1jDAFBo3bxDr0izKyayw+hST4+8REc7qq2m9mEgMHk0PoZ91DavMG15OSrTt21s+lAOFFzs61CogwkbKqEa6P+Mz/HH8zbl7avb8gdUURief0fRrssQmGhhO7u0Mh9EgO7eidgRt9T4eIhLPXuBHYXNx7dH7nDlK/rMtrjnzTRO/6hG5DxAX9xa3/uHMbs/OScJbBIoXqmtgEy30kfiAqfPBpxvwY+wuLwrjvbdt2KLtV/8ehivU7FIjXlbw9wF+oNQ2LywxsP1HW3pY/FVNAecg5DRd2hc/gD1hLWPBqeNJiYMZdGM8n+Nz82k/lZxdId76dQuCxdhFs5mO08D6GKi9suo0M9n+voLwgVsKxLtVhusrKyrqagwCen8VLC3gW+Ky0V+35DnaBI7t57UtZg7PflRZggJbFGG6dV54tm+IAjnoPI39CPfGN12o/uQuTSPEU+275caMlVVSaPNNZV5cPv/t23o8lBl4g8PG3tPBAW9YGedPkVNpoiDo5orozNbpqcOetYLP7CJq/HlMp+UF5bHqoVYzQp3wxhy2y3wvpPJdr25zQlUSZ9ffSRROXs8OhxS8G5dsY6Yx2b6L+oB5ZvgV1jV1h8dtKZP/PEv1tnjWSxQw5AOfU1qNy/tWjj8ZQn9ZARGr/Hx/HbStlpXQaJOxFRFMwczQFJ7ZApyXCmxt+16qbXzPOEnOTl9UQnAh83UsjLM0lRkxf7FVWaF1/8U63X6mE84eB1AP0YEdBag4BaWHjCJQ8ahZyTHgHjBoqat+cM9Eup84+JtDpQMzf7z2OSc0Rj1PhZ9bCVhHrsQWaKawLcJq7LRSiN24BMcmP3xBgB"}       }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0             }
+
+event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":""} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"**A"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"-1001** re"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"aches you first, on"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Friday. It has"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" already shipped."}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" **"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"B-2002** is still being"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" packed and arrives"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Monday."}               }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":1               }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null,"container":null},"usage":{"input_tokens":730,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":145,"output_tokens_details":{"thinking_tokens":100}}   }
+
+event: message_stop
+data: {"type":"message_stop" }
+

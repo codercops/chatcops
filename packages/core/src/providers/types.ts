@@ -23,8 +23,12 @@ export type FinishReason = 'stop' | 'tool-calls' | 'length' | 'content-filter' |
 export type ProviderEvent =
   | { type: 'text-delta'; delta: string }
   | { type: 'reasoning-delta'; delta: string }
-  /** Sent once the call's input is complete. */
-  | { type: 'tool-call'; call: ProviderToolCall; providerMetadata?: ProviderMetadata }
+  /**
+   * Sent once the call's input is complete. `inputError` is set when the
+   * model sent input that isn't a JSON object; the call then can't run, and
+   * the error goes back to the model as the tool's result.
+   */
+  | { type: 'tool-call'; call: ProviderToolCall; providerMetadata?: ProviderMetadata; inputError?: string }
   | {
       type: 'finish';
       reason: FinishReason;
@@ -40,7 +44,14 @@ export type ProviderEvent =
 export interface ProviderStepParams {
   /** Stored history. Messages with `parts` include earlier tool calls and results. */
   messages: ChatMessage[];
+  /** The operator's instructions. The same on every request, so providers can cache it. */
   systemPrompt: string;
+  /**
+   * Instructions that change per request (knowledge base excerpts, the
+   * visitor's language), sent after `systemPrompt` and outside the cached
+   * prefix.
+   */
+  systemContext?: string;
   tools?: ToolDefinition[];
   maxTokens?: number;
   /** Dropped, with a warning once, for models that don't accept it. */

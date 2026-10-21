@@ -1,8 +1,20 @@
 import { z } from 'zod';
-import type { ChatTool, KnowledgeSource, WebhookConfig, ProviderConfig, LocaleStrings, ConversationStore } from '@chatcops/core';
+import type {
+  AIProvider,
+  ChatTool,
+  ConversationStore,
+  KnowledgeSource,
+  LocaleStrings,
+  ProviderConfig,
+  WebhookConfig,
+} from '@chatcops/core';
 
 export interface ChatCopsServerConfig {
-  provider: ProviderConfig;
+  /**
+   * Which model to use: a config like `{ type: 'claude', apiKey }`, or a
+   * provider object you built yourself (anything with `step()` or `chat()`).
+   */
+  provider: ProviderConfig | AIProvider;
   systemPrompt: string;
   tools?: ChatTool[];
   toolTimeoutMs?: number;

@@ -126,6 +126,9 @@ export class Messages {
   private renderMessageElement(el: HTMLDivElement, msg: MessageData): void {
     el.className = `cc-message cc-message-${msg.role}`;
     el.dataset.id = msg.id;
+    if (msg.role === 'assistant' && msg.id !== 'welcome') {
+      el.dataset.aiGenerated = 'true';
+    }
 
     if (msg.status) {
       el.dataset.status = msg.status;

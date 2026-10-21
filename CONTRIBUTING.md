@@ -275,9 +275,10 @@ The site runs without any secrets. Only the live chat demo on the landing page n
 OPENAI_API_KEY=sk-...
 UPSTASH_REDIS_REST_URL=https://your-endpoint.upstash.io
 UPSTASH_REDIS_REST_TOKEN=your-token-here
+VISITOR_HASH_SALT=any-long-random-string
 ```
 
-The visitor counter shows `-` without Upstash credentials. Google Analytics (`G-GLYL9J6QYX`) is hardcoded in the layout and Starlight config.
+The visitor counter shows `-` without Upstash credentials, and counts each visitor once per day only when `VISITOR_HASH_SALT` is set. Without it, every call increments the count. Google Analytics (`G-GLYL9J6QYX`) is hardcoded in the layout and Starlight config.
 
 ## Commit convention
 

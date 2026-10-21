@@ -132,30 +132,30 @@ describe('provider tool execution loops', () => {
 
   it('OpenAIProvider chatSync loops through tool calls before returning text', async () => {
     const provider = new OpenAIProvider({ type: 'openai', apiKey: 'test-key' });
+    // chatSync collects chat(), so it streams like chat() does.
     const create = vi.fn()
       .mockResolvedValueOnce({
-        choices: [{
-          finish_reason: 'tool_calls',
-          message: {
-            content: null,
-            tool_calls: [{
-              id: 'call_sync',
-              type: 'function',
-              function: {
-                name: 'lookup_order',
-                arguments: '{"orderId":"123"}',
+        async *[Symbol.asyncIterator]() {
+          yield {
+            choices: [{
+              delta: {
+                tool_calls: [{
+                  index: 0,
+                  id: 'call_sync',
+                  type: 'function',
+                  function: { name: 'lookup_order', arguments: '{"orderId":"123"}' },
+                }],
               },
             }],
-          },
-        }],
+          };
+          yield { choices: [{ delta: {}, finish_reason: 'tool_calls' }] };
+        },
       })
       .mockResolvedValueOnce({
-        choices: [{
-          finish_reason: 'stop',
-          message: {
-            content: 'Order 123 is shipped.',
-          },
-        }],
+        async *[Symbol.asyncIterator]() {
+          yield { choices: [{ delta: { content: 'Order 123 is shipped.' } }] };
+          yield { choices: [{ delta: {}, finish_reason: 'stop' }] };
+        },
       });
 
     (provider as unknown as { client: { chat: { completions: { create: typeof create } } } }).client.chat.completions.create = create;
