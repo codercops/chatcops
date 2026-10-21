@@ -1,3 +1,4 @@
+import { fetchClientIp } from '../client-ip.js';
 import { createChatHandler } from '../handler.js';
 import type { ChatCopsServerConfig } from '../config.js';
 
@@ -33,7 +34,7 @@ export function chatcopsVercelHandler(config: ChatCopsServerConfig) {
       return errorResponse(405, 'Method not allowed');
     }
 
-    const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+    const clientIp = fetchClientIp(req, config.clientIp);
     let body: unknown;
     try {
       body = await req.json();

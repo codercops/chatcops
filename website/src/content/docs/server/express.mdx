@@ -38,6 +38,16 @@ app.listen(PORT, () => {
 Cross-origin deployments must let `OPTIONS` preflight requests reach the Express adapter by registering the chat handler with `app.all('/chat', handler)`.
 :::
 
+### Behind a proxy
+
+Rate limits and the per-IP budget use `req.ip`. Behind a reverse proxy or a load balancer, `req.ip` is the proxy's address unless you tell Express to trust it, and then every visitor shares one limit. With one proxy in front:
+
+```typescript
+app.set('trust proxy', 1);
+```
+
+The server logs a warning when requests carry `X-Forwarded-For` but `trust proxy` is off. Don't set it to `true` unless every request comes through your proxy: Express would then believe any `X-Forwarded-For` a visitor sends.
+
 ## With Lead Capture
 
 ```typescript

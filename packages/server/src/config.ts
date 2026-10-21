@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { ClientIpResolver } from './client-ip.js';
 import type {
   AIProvider,
   Budgets,
@@ -65,6 +66,15 @@ export interface ChatCopsServerConfig {
   retention?: { conversationsDays?: number };
   /** Allowed CORS origin. Defaults to `'*'`. */
   cors?: string;
+  /**
+   * Reads the visitor's IP for per-IP rate limits and budgets, in the fetch
+   * handlers (`chatcopsVercelHandler`, `chatcopsCloudflareHandler`). Needed
+   * where the handler can't tell on its own: any host other than Vercel or
+   * Cloudflare. Read only a header your platform or proxy sets, never one a
+   * visitor can send. Return `undefined` to skip per-IP limits for a request.
+   * Express uses `req.ip`, which follows its `trust proxy` setting.
+   */
+  clientIp?: ClientIpResolver;
   /** @deprecated The server ignores this. Set the widget's text with its `strings` option. */
   i18n?: { defaultLocale: string; locales: Record<string, LocaleStrings> };
 }

@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import { expressClientIp } from '../client-ip.js';
 import { createChatHandler } from '../handler.js';
 import type { ChatCopsServerConfig } from '../config.js';
 
@@ -40,7 +41,7 @@ export function chatcopsMiddleware(config: ChatCopsServerConfig) {
       return;
     }
 
-    const clientIp = req.ip ?? req.socket.remoteAddress ?? 'unknown';
+    const clientIp = expressClientIp(req);
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
