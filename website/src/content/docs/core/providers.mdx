@@ -48,6 +48,7 @@ Set `model` to use any other model the provider offers.
 | `effort` | all | `'low'` | How much effort the model spends per reply: `'low'`, `'medium'`, `'high'`, `'xhigh'` or `'max'`. Lower is faster and cheaper, which suits chat. Sent as `output_config.effort` to Claude 4.6 and later, `reasoning_effort` to OpenAI reasoning models, and `thinkingLevel` to Gemini 3 models. Models without an effort setting ignore it. |
 | `baseURL` | all | provider default | A custom API endpoint: a proxy, a gateway, or an OpenAI-compatible server. |
 | `fetch` | all | the global `fetch` | The `fetch` the provider SDK sends requests with. Use it to route requests through a proxy, or to replay recorded responses in tests. |
+| `promptCaching` | Claude | `true` | Marks the system prompt and tools as a cached prefix, so later requests read them from Claude's prompt cache at about a tenth of the input price. Prompts shorter than the model's cache minimum aren't cached either way. OpenAI and Gemini cache long prompts on their own. |
 | `organization` | OpenAI | none | Your OpenAI organization id. |
 | `maxTokensParam` | OpenAI | `'max_completion_tokens'` | Set to `'max_tokens'` for OpenAI-compatible servers that only accept the old parameter name. |
 

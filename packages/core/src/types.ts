@@ -251,6 +251,13 @@ export interface ProviderConfig {
    * responses in tests.
    */
   fetch?: typeof fetch;
+  /**
+   * Claude only: mark the system prompt and tools as a cached prefix, so
+   * later requests read them from the prompt cache at a tenth of the price.
+   * On by default. Prompts shorter than the model's minimum aren't cached
+   * either way.
+   */
+  promptCaching?: boolean;
 }
 
 export interface ProviderChatParams {

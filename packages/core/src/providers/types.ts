@@ -44,7 +44,14 @@ export type ProviderEvent =
 export interface ProviderStepParams {
   /** Stored history. Messages with `parts` include earlier tool calls and results. */
   messages: ChatMessage[];
+  /** The operator's instructions. The same on every request, so providers can cache it. */
   systemPrompt: string;
+  /**
+   * Instructions that change per request (knowledge base excerpts, the
+   * visitor's language), sent after `systemPrompt` and outside the cached
+   * prefix.
+   */
+  systemContext?: string;
   tools?: ToolDefinition[];
   maxTokens?: number;
   /** Dropped, with a warning once, for models that don't accept it. */

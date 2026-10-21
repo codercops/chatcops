@@ -69,6 +69,12 @@ describe('GeminiProvider.step with recorded responses', () => {
     expect(replay.requests[1]).toEqual(replay.recordedRequests[1]);
   });
 
+  it('sends per-request context after the system prompt', async () => {
+    const { gemini, replay } = provider('text');
+    await run(gemini, { messages: [user(PROMPTS.text)], systemPrompt: SYSTEM, systemContext: 'Reply in German.' });
+    expect(JSON.stringify(replay.requests[0].systemInstruction)).toContain('Reply in German.');
+  });
+
   it('reports a reply cut off by the token limit as length', async () => {
     const { gemini } = provider('max-tokens');
     const { finish } = await run(gemini, { messages: [user(PROMPTS.maxTokens)], systemPrompt: SYSTEM, maxTokens: 16 });

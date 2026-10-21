@@ -78,3 +78,8 @@ export const weatherResult = (call: ToolCallPart) => {
   const city = (call.input as { city: string }).city;
   return { city, tempC: city === 'Paris' ? 14 : 19 };
 };
+
+/** The long system prompt of the prompt-cache case. */
+export const LONG_POLICY = Array.from({ length: 120 }, (_, i) =>
+  `Policy ${i + 1}: orders placed before 2pm ship the same day, returns are free within 30 days, and support answers within one business day. Rule ${i + 1} applies to region ${i % 7}.`
+).join('\n');

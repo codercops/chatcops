@@ -137,6 +137,17 @@ describe('OpenAIProvider.step edge cases', () => {
     warn.mockRestore();
   });
 
+  it('sends per-request context after the system prompt, in the same system message', async () => {
+    const bodies: { messages: { role: string; content: string }[] }[] = [];
+    const fetch = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return sse([chunk({ content: 'Hi' }), chunk({}, 'stop')]);
+    });
+    const openai = new OpenAIProvider({ type: 'openai', apiKey: 'test-key', fetch });
+    await run(openai, { messages: [user('hi')], systemPrompt: SYSTEM, systemContext: 'Reply in German.' });
+    expect(bodies[0].messages[0]).toEqual({ role: 'system', content: `${SYSTEM}\n\nReply in German.` });
+  });
+
   it("marks a call whose arguments aren't JSON instead of running it", async () => {
     const fetch = vi.fn(async () => sse([
       chunk({ tool_calls: [{ index: 0, id: 'call_bad', type: 'function', function: { name: 'lookup_orders', arguments: '{"orders": [' } }] }),

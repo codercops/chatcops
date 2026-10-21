@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ClaudeProvider, toClaudeStepMessages } from '../../src/providers/claude.js';
 import type { ChatMessage, ToolCallPart } from '../../src/types.js';
 import { replayFetch, type ReplayOptions } from '../helpers/replay-fetch.js';
-import { ORDERS_TOOL, run, SYSTEM, user, WEATHER_TOOL, withResults } from '../helpers/step.js';
+import { LONG_POLICY, ORDERS_TOOL, run, SYSTEM, user, WEATHER_TOOL, withResults } from '../helpers/step.js';
 
 function provider(name: string, options?: ReplayOptions & { effort?: 'high' }) {
   const replay = replayFetch('claude', name, options);
@@ -97,6 +97,30 @@ describe('ClaudeProvider.step with recorded responses', () => {
     const results = (replay.requests[1].messages as { content: { type: string; tool_use_id?: string }[] }[])[2].content;
     expect(results.map((block) => block.tool_use_id)).toEqual(calls.map((c) => c.id));
     expect(replay.requests[1]).toEqual(replay.recordedRequests[1]);
+  });
+
+  it('caches the system prompt and tools, and keeps per-request context outside the cache', async () => {
+    const { claude, replay } = provider('prompt-cache');
+    const systemPrompt = `${SYSTEM}\n\n${LONG_POLICY}`;
+    const first = await run(claude, { messages: [user('When does my order ship?')], systemPrompt, systemContext: 'The visitor writes in English.' });
+    const second = await run(claude, { messages: [user('Can I return a jacket?')], systemPrompt, systemContext: 'The visitor writes in German.' });
+
+    expect(replay.requests[0].system).toEqual([
+      { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
+      { type: 'text', text: 'The visitor writes in English.' },
+    ]);
+    expect(replay.requests).toEqual(replay.recordedRequests);
+    expect(first.finish.usage.cacheWriteTokens).toBeGreaterThan(0);
+    expect(second.finish.usage.cacheReadTokens).toBe(first.finish.usage.cacheWriteTokens);
+    // Cached tokens still count as input.
+    expect(second.finish.usage.inputTokens).toBeGreaterThan(second.finish.usage.cacheReadTokens ?? 0);
+  });
+
+  it('sends the system prompt as one string when caching is off', async () => {
+    const replay = replayFetch('claude', 'text');
+    const claude = new ClaudeProvider({ type: 'claude', apiKey: 'test-key', fetch: replay.fetch, promptCaching: false });
+    await run(claude, { messages: [user('Say hello in five words.')], systemPrompt: SYSTEM, systemContext: 'Reply in English.' });
+    expect(replay.requests[0].system).toBe(`${SYSTEM}\n\nReply in English.`);
   });
 
   it('reports a reply cut off by the token limit as length', async () => {

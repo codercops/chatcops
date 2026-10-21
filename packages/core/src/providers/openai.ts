@@ -9,6 +9,7 @@ import type {
 } from '../types.js';
 import type { AIProvider } from './base.js';
 import { chatSyncViaTurn, chatViaTurn } from '../agent/chat.js';
+import { joinSystem } from '../agent/run-turn.js';
 import { DEFAULT_MAX_TOKENS, toOpenAITools, warnOnce } from './base.js';
 import { normalizeTurns } from './history.js';
 import type { FinishReason, ProviderEvent, ProviderStepParams } from './types.js';
@@ -169,7 +170,8 @@ export class OpenAIProvider implements AIProvider {
   }
 
   private async openStream(params: ProviderStepParams) {
-    const body = { ...this.request(params, toOpenAIStepMessages(params.systemPrompt, params.messages)), stream: true as const };
+    const system = joinSystem(params.systemPrompt, params.systemContext);
+    const body = { ...this.request(params, toOpenAIStepMessages(system, params.messages)), stream: true as const };
     if (this.streamUsage) {
       try {
         return await this.client.chat.completions.create(

@@ -142,6 +142,22 @@ async function recordThinkingTool(providerName, provider) {
   await runStep(provider, { messages: [...messages, withResults(first.parts, results)], systemPrompt: SYSTEM, tools: [ORDERS_TOOL] });
 }
 
+/**
+ * Two requests with the same long system prompt: the first writes the prompt
+ * cache, the second reads it. Long enough for every current Claude model's
+ * cache minimum.
+ */
+const LONG_POLICY = Array.from({ length: 120 }, (_, i) =>
+  `Policy ${i + 1}: orders placed before 2pm ship the same day, returns are free within 30 days, and support answers within one business day. Rule ${i + 1} applies to region ${i % 7}.`
+).join('\n');
+
+async function recordPromptCache(provider) {
+  const systemPrompt = `${SYSTEM}\n\n${LONG_POLICY}`;
+  await runStep(provider, { messages: [user('When does my order ship?')], systemPrompt, systemContext: 'The visitor writes in English.' });
+  const second = await runStep(provider, { messages: [user('Can I return a jacket?')], systemPrompt, systemContext: 'The visitor writes in German.' });
+  if (!second.usage.cacheReadTokens) throw new Error('claude/prompt-cache: the second request read nothing from the cache');
+}
+
 const claude = (name, extra = {}) =>
   new ClaudeProvider({ type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY, fetch: recorder('claude', name), ...extra });
 
@@ -159,6 +175,7 @@ const providers = {
   claude: async () => {
     await recordCases('claude', (name) => claude(name));
     await recordThinkingTool('claude', claude('thinking-tool', { effort: 'high' }));
+    await recordPromptCache(claude('prompt-cache'));
   },
 };
 

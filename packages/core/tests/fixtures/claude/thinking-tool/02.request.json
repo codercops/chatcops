@@ -1,7 +1,15 @@
 {
   "model": "claude-haiku-5-5",
   "max_tokens": 4096,
-  "system": "You are the support assistant for a small online shop. Keep answers short.",
+  "system": [
+    {
+      "type": "text",
+      "text": "You are the support assistant for a small online shop. Keep answers short.",
+      "cache_control": {
+        "type": "ephemeral"
+      }
+    }
+  ],
   "messages": [
     {
       "role": "user",
@@ -13,23 +21,25 @@
         {
           "type": "thinking",
           "thinking": "",
-          "signature": "CAQS1gUKEAgTGAI4AUIIdGhpbmtpbmcSDOpAflvUNDzSrYSCsxoMHKm8A28FCLaQPN2/IjAWe2qcEUthQHaxERCS+ziHqJ5ml+TugL1EehykVpMgeXNI0JQ7rnlIJ1nNS3r66EUq8wS5QNziaez7fCnpxIlfptFcZljGy88Z01HN/ALu3A+v74ccenolPGACpZvxbTdaGsiXDVZn9c9wIMabampxBV2DesY/1tU6a3aMbDmCas3h3SlRIOuOARB+GTHfP8m29E9U9UwePMlmqPYz478Ecuj8YKglnGXZfSxRMph0tU+H3OJSjFFUPLsfeSVhLmVNS/5gkZpCJnYay2HrL+G0+yxLF1y34DLHMCw8IFSpNr9D40fL9nMxcljcBt4oYzN3z63W4IpFIbTDgGQqOvb676w6hD1z7hym7RUvNIZnzMiNjnXcb7ZM8Nv6p0lCiEMlW0VRzKv9XdmIIFwzA/dxXqkCDEpYuLZ4Sp8wr2dXIis1p5Drzpp//9RNskEHeWBbeILqRPdmtrirjOMO1v6QDWwm+bB/c5g0gtOEpNR+v+p/fb8bcbwrOpRMzDSuM1ccxPO0E+ueXc64uz4TOZciZnIuu/Gq4pDV78duQtavtPTYY6/ZI6CXXkkywlBw/Z1XMzyV5ss8yHqaIX9xL0Lyy8qxLbT9OcoYWKl+XuUlv3lTpZ76m07SanioZb8I8xjr1aROZpA8AAfug2LZcHSGHWFvR1+dQlNrSTcMfjli2pAGiGRiFa6LLkVnb30B1f6ls17sbK5GoUIjYor8F+sa/uWUnsubOOPffOGZmW6Qy94ajei4MuOcfNxGohgcLsyDYchoLv6dCaZtowzO3YXWbLKxqQRAL3sGu1HuNvtcii8Lk/oPFiX7qhWThKGQstVZE/ROGZiCcqP3CCaypNnrzvlntuPdpNiBoHVLm9lNfRWWDki3posjfa02f0W+dIORVQAV6BEYAQ=="
+          "signature": "CAQSkAUKEAgTGAI4AUIIdGhpbmtpbmcSDPKR10dfWQL0ietdShoM6HryHHytPUwGqgOWIjCAYUKvVW9wzUNxc4qFkLB8gJguRSUh7wxwH2RbIxbrF1PCjcTNtxnDmoA7HMSIiTIqrQSpGz7sgw4Vb7yyo5VoK7Ssdwinilwg6WU7nGTMWg9Fo3xZn10gekHSMKI/oAXH5j+FYAKPtaJduO0Mq/jDF+HL3h0hqFrB0wsIxVl4Q7MGOA/Bw6/KopCEZCn4oJODYCI325SWeLwIm3HI7mR30Et8zMCQxc2G0KbGHGGub8pUCXlYEjvRPx/MicvwPTnLz8MCcdGiLlLx6vDRGP1jZGRev69SNLbQ4WyOsFYnQ/VmA5yrt647LLzXWnfZlNfEz73Nn3hHgWZfwOlDennw6j3BGYRqzGfXEZCfpbIU+GhDWMYx5d7H2EiyeqXmkieM8TG++ZVqCAuk/1++GiW6rqqONXrztg1SDnQ3yLcjEo06PanzjFbXQNeIyJ0W6X+3+YHlounJYJRB+CociL+EG43Yj4HGm6qc5n2jxUr5yXq6CDl2oEPnD9JYehb8u+B6i3pj01Q0Q4BBD2XZ03TWEXuVpQrHTAyx0M3MvkdaWxUzE+QmzjGkUZtvP4piF7aiUWLubtTNvzu8zJxw/A1pUR2tCHydAfO699w8dwBi6g2Egaxk3XBLgdOxqYYP20ZEp2VLRjMDJCF3kxKPCcfCd10KJPGsdduF848W/aFlU1cdXzhvmkB2ejveZJIPCgX8TX0RAvJJfEvdPi6JPu/2BoXZyJTFdo3ybZbZ8UPAfdTo5DkUdi4CQfQqNP+t1klBN13MEqzKmelfQGp3KPITL3irX33A5pK4zOaaTmWlfhgB"
         },
         {
           "type": "tool_use",
-          "id": "toolu_01D1z5M1z9YEPdziN9h8D9c3",
+          "id": "toolu_01BYrwSqg279VuSRHko4xdcN",
           "name": "lookup_orders",
           "input": {
             "orders": [
               {
                 "id": "A-1001",
                 "include": [
+                  "items",
                   "tracking"
                 ]
               },
               {
                 "id": "B-2002",
                 "include": [
+                  "items",
                   "tracking"
                 ]
               }
@@ -43,7 +53,7 @@
       "content": [
         {
           "type": "tool_result",
-          "tool_use_id": "toolu_01D1z5M1z9YEPdziN9h8D9c3",
+          "tool_use_id": "toolu_01BYrwSqg279VuSRHko4xdcN",
           "content": "{\"success\":true,\"data\":{\"orders\":[{\"id\":\"A-1001\",\"status\":\"shipped, arrives Friday\"},{\"id\":\"B-2002\",\"status\":\"packing, arrives Monday\"}]}}",
           "is_error": false
         }

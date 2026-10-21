@@ -10,6 +10,7 @@ import type {
 } from '../types.js';
 import type { AIProvider } from './base.js';
 import { chatSyncViaTurn, chatViaTurn } from '../agent/chat.js';
+import { joinSystem } from '../agent/run-turn.js';
 import { DEFAULT_MAX_TOKENS, toClaudeTools, warnOnce } from './base.js';
 import { normalizeTurns, type TurnPart } from './history.js';
 import type { FinishReason, ProviderEvent, ProviderStepParams } from './types.js';
@@ -207,6 +208,7 @@ export class ClaudeProvider implements AIProvider {
   private client: Anthropic;
   readonly model: string;
   private effort: ProviderEffort | undefined;
+  private promptCaching: boolean;
 
   constructor(config: ProviderConfig) {
     this.client = new Anthropic({
@@ -215,6 +217,7 @@ export class ClaudeProvider implements AIProvider {
       ...(config.fetch ? { fetch: config.fetch } : {}),
     });
     this.model = config.model ?? DEFAULT_MODEL;
+    this.promptCaching = config.promptCaching ?? true;
 
     if (claudeSupportsEffort(this.model)) {
       this.effort = config.effort ?? DEFAULT_EFFORT;
@@ -223,8 +226,21 @@ export class ClaudeProvider implements AIProvider {
     }
   }
 
+  /**
+   * The system prompt, with a cache breakpoint after it. Claude caches tools
+   * and system together, in that order, so both are read from the cache on
+   * later requests. Per-request context goes after the breakpoint.
+   */
+  private system(params: Pick<ProviderStepParams, 'systemPrompt' | 'systemContext'>) {
+    if (!this.promptCaching) return joinSystem(params.systemPrompt, params.systemContext);
+    return [
+      { type: 'text' as const, text: params.systemPrompt, cache_control: { type: 'ephemeral' as const } },
+      ...(params.systemContext ? [{ type: 'text' as const, text: params.systemContext }] : []),
+    ];
+  }
+
   private request(
-    params: Pick<ProviderStepParams, 'systemPrompt' | 'tools' | 'maxTokens' | 'temperature'>,
+    params: Pick<ProviderStepParams, 'systemPrompt' | 'systemContext' | 'tools' | 'maxTokens' | 'temperature'>,
     messages: Anthropic.Messages.MessageParam[]
   ) {
     let temperature = params.temperature;
@@ -239,7 +255,7 @@ export class ClaudeProvider implements AIProvider {
     return {
       model: this.model,
       max_tokens: params.maxTokens ?? DEFAULT_MAX_TOKENS,
-      system: params.systemPrompt,
+      system: this.system(params),
       messages,
       ...(params.tools?.length ? { tools: toClaudeTools(params.tools) } : {}),
       ...(temperature != null ? { temperature } : {}),

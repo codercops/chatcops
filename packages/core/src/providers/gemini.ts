@@ -20,6 +20,7 @@ import type {
 } from '../types.js';
 import type { AIProvider } from './base.js';
 import { chatSyncViaTurn, chatViaTurn } from '../agent/chat.js';
+import { joinSystem } from '../agent/run-turn.js';
 import { DEFAULT_MAX_TOKENS, toGeminiTools } from './base.js';
 import { normalizeTurns, type TurnPart } from './history.js';
 import type { FinishReason, ProviderEvent, ProviderStepParams } from './types.js';
@@ -192,10 +193,10 @@ export class GeminiProvider implements AIProvider {
   }
 
   private config(
-    params: Pick<ProviderStepParams, 'systemPrompt' | 'tools' | 'maxTokens' | 'temperature' | 'signal'>
+    params: Pick<ProviderStepParams, 'systemPrompt' | 'systemContext' | 'tools' | 'maxTokens' | 'temperature' | 'signal'>
   ): GenerateContentConfig {
     return {
-      systemInstruction: params.systemPrompt,
+      systemInstruction: joinSystem(params.systemPrompt, params.systemContext),
       maxOutputTokens: params.maxTokens ?? DEFAULT_MAX_TOKENS,
       ...(params.temperature != null ? { temperature: params.temperature } : {}),
       ...(params.tools?.length ? { tools: toGeminiTools(params.tools) } : {}),

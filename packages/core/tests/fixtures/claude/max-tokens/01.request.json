@@ -1,7 +1,15 @@
 {
   "model": "claude-haiku-5-5",
   "max_tokens": 16,
-  "system": "You are the support assistant for a small online shop. Keep answers short.",
+  "system": [
+    {
+      "type": "text",
+      "text": "You are the support assistant for a small online shop. Keep answers short.",
+      "cache_control": {
+        "type": "ephemeral"
+      }
+    }
+  ],
   "messages": [
     {
       "role": "user",

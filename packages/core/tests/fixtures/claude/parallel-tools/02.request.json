@@ -1,7 +1,15 @@
 {
   "model": "claude-haiku-5-5",
   "max_tokens": 4096,
-  "system": "You are the support assistant for a small online shop. Keep answers short.",
+  "system": [
+    {
+      "type": "text",
+      "text": "You are the support assistant for a small online shop. Keep answers short.",
+      "cache_control": {
+        "type": "ephemeral"
+      }
+    }
+  ],
   "messages": [
     {
       "role": "user",
@@ -12,7 +20,7 @@
       "content": [
         {
           "type": "tool_use",
-          "id": "toolu_01RHrxsPW7igEHqe2hS2EB6m",
+          "id": "toolu_01QKy92Xp2dpvYaJw29ZUsm6",
           "name": "get_weather",
           "input": {
             "city": "Paris"
@@ -20,7 +28,7 @@
         },
         {
           "type": "tool_use",
-          "id": "toolu_018FjWYsHLx9wW8yiDX38foP",
+          "id": "toolu_01LZeAVKaFR7yv47ZJHY4XXs",
           "name": "get_weather",
           "input": {
             "city": "Tokyo"
@@ -33,13 +41,13 @@
       "content": [
         {
           "type": "tool_result",
-          "tool_use_id": "toolu_01RHrxsPW7igEHqe2hS2EB6m",
+          "tool_use_id": "toolu_01QKy92Xp2dpvYaJw29ZUsm6",
           "content": "{\"success\":true,\"data\":{\"city\":\"Paris\",\"tempC\":14}}",
           "is_error": false
         },
         {
           "type": "tool_result",
-          "tool_use_id": "toolu_018FjWYsHLx9wW8yiDX38foP",
+          "tool_use_id": "toolu_01LZeAVKaFR7yv47ZJHY4XXs",
           "content": "{\"success\":true,\"data\":{\"city\":\"Tokyo\",\"tempC\":19}}",
           "is_error": false
         }

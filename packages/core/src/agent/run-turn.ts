@@ -22,6 +22,8 @@ export interface RunTurnOptions {
   /** The history to send, oldest first, ending with the visitor's message. */
   messages: ChatMessage[];
   systemPrompt: string;
+  /** Per-request instructions, sent after the system prompt and outside the cached prefix. */
+  systemContext?: string;
   tools?: ToolRegistry;
   conversationId: string;
   /** The id to save the reply under. A new one by default. */
@@ -55,6 +57,11 @@ export interface TurnResult {
 }
 
 const NO_TOOLS: ToolRegistry = executorRegistry([]);
+
+/** One system prompt, for providers that take only one. */
+export function joinSystem(systemPrompt: string, systemContext?: string): string {
+  return systemContext ? `${systemPrompt}\n\n${systemContext}` : systemPrompt;
+}
 
 type ErrorPart = { code: WireErrorCode; retryable: boolean; message?: string };
 
@@ -197,6 +204,7 @@ export async function* runTurn(options: RunTurnOptions): AsyncGenerator<WirePart
       for await (const event of step({
         messages: [...options.messages, message],
         systemPrompt: options.systemPrompt,
+        ...(options.systemContext ? { systemContext: options.systemContext } : {}),
         ...(tools.definitions.length ? { tools: tools.definitions } : {}),
         maxTokens: options.maxTokens,
         temperature: options.temperature,
@@ -318,7 +326,7 @@ export async function* runTurn(options: RunTurnOptions): AsyncGenerator<WirePart
     try {
       for await (const chunk of provider.chat({
         messages: options.messages,
-        systemPrompt: options.systemPrompt,
+        systemPrompt: joinSystem(options.systemPrompt, options.systemContext),
         ...(tools.definitions.length ? { tools: tools.definitions } : {}),
         toolExecutor,
         toolTimeoutMs: options.toolTimeoutMs,
