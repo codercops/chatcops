@@ -144,7 +144,7 @@ const handler = chatcopsMiddleware({
 });
 ```
 
-With a storage that has key-value support, the rule that only one reply is written per conversation at a time holds across all your server instances, not just within one. Configure one storage mechanism at a time.
+With a storage that has key-value support, the rule that only one reply is written per conversation at a time holds across all your server instances, not just within one. Setting both `storage` and the older `conversationStore` is an error.
 
 Nothing is deleted on its own. The handler's `purge()` deletes conversations last updated more than `retention.conversationsDays` (default 30) days ago. Call it on a schedule, from a cron job or a Workers cron trigger:
 
@@ -203,7 +203,7 @@ Tokens count input and output at face value, and every request sends the convers
 
 The per-IP budget needs the visitor's IP, so it's skipped for requests where the adapter can't tell.
 
-For persistent conversations, custom stores, Postgres, Redis, and the storage capabilities available to the server, see [Server Storage](/server/storage/).
+For persistent conversations, custom stores, Postgres, Redis, and the storage capabilities available to the server, see [the storage page](/server/storage/).
 
 ## Webhooks
 

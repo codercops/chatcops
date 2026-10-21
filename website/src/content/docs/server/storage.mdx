@@ -1,11 +1,11 @@
 ---
-title: Server Storage
+title: Storage
 description: Persist conversations and coordinate ChatCops across instances with a server-side storage provider.
 ---
 
 The server uses storage for conversation history and, when the configured store provides the capability, counters, turn locks, and analytics events.
 
-By default, conversations are kept in memory for one server process. That is useful for local development, but it is not reliable for Vercel, Lambda, Workers, or any multi-instance deployment: instances do not share memory, and a restart removes the data. Use a persistent store when conversations must survive restarts or be available to every instance.
+By default, conversations are kept in memory for one server process. The memory store holds up to 1000 conversations, evicting the least recently used first, and drops conversations that have been idle for 7 days. That is useful for local development, but it is not reliable for Vercel, Lambda, Workers, or any multi-instance deployment: instances do not share memory, and a restart removes the data. Use a persistent store when conversations must survive restarts or be available to every instance.
 
 ## Postgres
 
@@ -14,8 +14,6 @@ The Postgres store is provided by `@chatcops/store-postgres`. It is currently pr
 ```bash
 npm install @chatcops/server @chatcops/store-postgres pg
 ```
-
-The package is currently private and ships with the next release.
 
 Create a `pg` client, run the store migration once, and pass the resulting store through the `storage` option:
 
@@ -75,21 +73,6 @@ const handler = chatcopsMiddleware({
 });
 ```
 
-The handler exposes `purge()` for retention cleanup. Configure retention on the handler and call `purge()` from a scheduled job or deploy task:
-
-```typescript
-import { createChatHandler } from '@chatcops/server';
-
-const handler = createChatHandler({
-  // ...provider and systemPrompt
-  storage,
-  retention: { conversationsDays: 30 },
-});
-
-const deleted = await handler.purge();
-console.log(`Purged ${deleted} old conversations`);
-```
-
 ## Redis
 
 The Redis store is provided by `@chatcops/store-redis`. It is currently private and will ship with the next release. The package supports both Upstash and `ioredis` clients and implements conversations, counters, KV locks, and events.
@@ -120,6 +103,25 @@ const handler = chatcopsMiddleware({
   systemPrompt: 'You are a helpful customer support assistant.',
   storage,
 });
+```
+
+## Retention
+
+The handler exposes `purge()` for retention cleanup. Configure retention on the handler and call `purge()` from a scheduled job or deploy task. It returns the number of deleted conversations, or `null` when a custom store does not implement `purge`:
+
+```typescript
+import { createChatHandler } from '@chatcops/server';
+
+const handler = createChatHandler({
+  // ...provider and systemPrompt
+  storage,
+  retention: { conversationsDays: 30 },
+});
+
+const deleted = await handler.purge();
+if (typeof deleted === 'number') {
+  console.log(`Purged ${deleted} old conversations`);
+}
 ```
 
 ### ioredis
@@ -183,5 +185,7 @@ const handler = chatcopsMiddleware({
 A store with only `get`, `save`, and `delete` works, but the server logs one warning at startup. In that mode, each write saves the complete conversation, so two instances writing the same conversation concurrently can overwrite one another and lose a message.
 
 Implement `append` when the backing system can perform an atomic append. The server uses it to make concurrent writes safe across instances. `updateMessage`, `removeMessage`, `list`, and `purge` are optional capabilities; implement them when the application needs those operations.
+
+The history sent to the model is trimmed to about 32,000 tokens: the visitor's first message plus as many recent ones as fit. Stored history keeps up to 100 messages per conversation.
 
 The complete interface is defined by [`ConversationStore`](https://github.com/codercops/chatcops/blob/dev/packages/core/src/storage/types.ts). The broader `ChatCopsStorage` object can also provide optional counter, KV, and event stores for distributed rate limits, turn locks, and analytics.
