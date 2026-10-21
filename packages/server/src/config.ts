@@ -1,8 +1,23 @@
 import { z } from 'zod';
-import type { ChatTool, KnowledgeSource, WebhookConfig, ProviderConfig, LocaleStrings, ConversationStore } from '@chatcops/core';
+import type { ClientIpResolver } from './client-ip.js';
+import type {
+  AIProvider,
+  Budgets,
+  ChatCopsStorage,
+  ChatTool,
+  ConversationStore,
+  KnowledgeSource,
+  LocaleStrings,
+  ProviderConfig,
+  WebhookConfig,
+} from '@chatcops/core';
 
 export interface ChatCopsServerConfig {
-  provider: ProviderConfig;
+  /**
+   * Which model to use: a config like `{ type: 'claude', apiKey }`, or a
+   * provider object you built yourself (anything with `step()` or `chat()`).
+   */
+  provider: ProviderConfig | AIProvider;
   systemPrompt: string;
   tools?: ChatTool[];
   toolTimeoutMs?: number;
@@ -12,12 +27,62 @@ export interface ChatCopsServerConfig {
   temperature?: number;
   knowledge?: KnowledgeSource[];
   rateLimit?: { maxRequests: number; windowMs: number };
+  /**
+   * Token, reply and dollar limits per conversation, per IP per day and
+   * overall per day, counted in `storage` so they hold across instances. A
+   * reply that would go over ends with an error instead of calling the model.
+   * On by default (`DEFAULT_BUDGETS`: 200 replies per conversation, 2M tokens
+   * per IP per day). A scope you set replaces its default, `false` turns a
+   * scope off, and `budgets: false` turns them all off.
+   */
+  budgets?: Budgets | false;
+  /**
+   * The pre-chat form fields to keep (the `name`s in the widget's
+   * `preChatForm.fields`). Other fields a request sends are dropped. Unset
+   * keeps every field. Answers are stored with the conversation from its
+   * first message and can't change after that.
+   */
+  preChatFields?: string[];
   webhooks?: WebhookConfig[];
   analytics?: boolean;
-  /** Storage backend for conversation history. Defaults to an in-memory store (`MemoryStore`). */
+  /** Bearer token required to read the analytics endpoint. When unset, the endpoint is public. */
+  analyticsToken?: string;
+  /**
+   * Where conversations (and, with stores that have them, counters, turn
+   * locks and events) live: `postgresStorage(...)`, `redisStorage(...)` and
+   * so on. Defaults to memory, which doesn't survive a restart and isn't
+   * shared between serverless instances.
+   */
+  storage?: ChatCopsStorage;
+  /**
+   * @deprecated Use `storage`. A conversation store on its own, as in 0.4.
+   * Setting both is an error.
+   */
   conversationStore?: ConversationStore;
-  /** Allowed CORS origin. Defaults to `'*'`. */
+  /**
+   * How long to keep conversations. `purge()` on the handler deletes older
+   * ones; call it on a schedule (a cron job, a Workers cron trigger).
+   */
+  retention?: { conversationsDays?: number };
+  /**
+   * The sites that can use the chat: exact origins (`'https://acme.com'`) or
+   * subdomain wildcards (`'https://*.acme.com'`). A browser request from any
+   * other page gets 403 `origin_not_allowed` before the model is called.
+   * Requests without an `Origin` header (curl, your own server) pass: this
+   * stops other sites embedding your bot, not scripts. Defaults to `['*']`.
+   */
+  allowedOrigins?: string[];
+  /** @deprecated Use `allowedOrigins`. Read as a one-item `allowedOrigins`. */
   cors?: string;
+  /**
+   * Reads the visitor's IP for per-IP rate limits and budgets, in the fetch
+   * handlers (`chatcopsVercelHandler`, `chatcopsCloudflareHandler`). Needed
+   * where the handler can't tell on its own: any host other than Vercel or
+   * Cloudflare. Read only a header your platform or proxy sets, never one a
+   * visitor can send. Return `undefined` to skip per-IP limits for a request.
+   * Express uses `req.ip`, which follows its `trust proxy` setting.
+   */
+  clientIp?: ClientIpResolver;
   /** @deprecated The server ignores this. Set the widget's text with its `strings` option. */
   i18n?: { defaultLocale: string; locales: Record<string, LocaleStrings> };
 }
@@ -32,7 +97,11 @@ export const chatRequestSchema = z.object({
   conversationId: z.string().min(1).max(128),
   message: z.string().min(1).max(10000),
   messageId: z.string().min(1).max(128).optional(),
-  regenerate: z.boolean().optional(),
+  /**
+   * `{ assistantMessageId }` replaces that reply. `true` (the 0.5 form)
+   * replaces the reply to `messageId`, or the latest one.
+   */
+  regenerate: z.union([z.boolean(), z.object({ assistantMessageId: z.string().min(1).max(128) })]).optional(),
   pageContext: z.object({
     url: z.string().url(),
     title: z.string().max(500),

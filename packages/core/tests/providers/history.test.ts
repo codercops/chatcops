@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { estimateTokens, normalizeHistory, trimHistory } from '../../src/providers/history.js';
-import type { ChatMessage } from '../../src/types.js';
+import { estimateTokens, normalizeHistory, normalizeTurns, trimHistory } from '../../src/providers/history.js';
+import type { ChatMessage, MessagePart, ToolCallPart, ToolResultPart } from '../../src/types.js';
 
 const m = (role: ChatMessage['role'], content: string, id = content): ChatMessage => ({ id, role, content, timestamp: 0 });
 /** A message that costs exactly `tokens` by estimateTokens. */
@@ -66,5 +66,68 @@ describe('trimHistory', () => {
 
   it('returns nothing when there is no user turn', () => {
     expect(trimHistory([sized('assistant', 'a1', 100)], 10)).toEqual([]);
+  });
+});
+
+describe('normalizeTurns', () => {
+  const call = (id: string): ToolCallPart => ({
+    type: 'tool-call', toolCallId: id, toolName: 'lookup', input: { id }, executor: 'server', state: 'done',
+  });
+  const result = (id: string): ToolResultPart => ({ type: 'tool-result', toolCallId: id, toolName: 'lookup', output: { success: true } });
+  const assistant = (parts: MessagePart[], extra: Partial<ChatMessage> = {}): ChatMessage => ({
+    id: 'a', role: 'assistant', content: '', parts, timestamp: 0, ...extra,
+  });
+
+  it('keeps tool calls and their results in order', () => {
+    const turns = normalizeTurns([m('user', 'hi'), assistant([call('t1'), result('t1'), { type: 'text', text: 'done' }])]);
+    expect(turns).toEqual([
+      { role: 'user', parts: [{ type: 'text', text: 'hi' }] },
+      { role: 'assistant', parts: [call('t1'), result('t1'), { type: 'text', text: 'done' }] },
+    ]);
+  });
+
+  it('gives a call without a result a "not run" result, before the next step starts', () => {
+    const turns = normalizeTurns([
+      m('user', 'hi'),
+      assistant([call('t1'), call('t2'), result('t1'), { type: 'text', text: 'next' }]),
+    ]);
+    expect(turns[1].parts.map((p) => (p.type === 'tool-result' ? `${p.toolCallId}:${p.error ?? 'ok'}` : p.type))).toEqual([
+      'tool-call', 'tool-call', 't1:ok', 't2:The tool was not run.', 'text',
+    ]);
+  });
+
+  it('closes calls left open at the end of a message, and drops results with no call', () => {
+    const turns = normalizeTurns([m('user', 'hi'), assistant([result('stray'), call('t1')])]);
+    expect(turns[1].parts).toEqual([call('t1'), { ...result('t1'), output: undefined, error: 'The tool was not run.' }]);
+  });
+
+  it('drops the half-finished text of an aborted reply but keeps the tool steps before it', () => {
+    const turns = normalizeTurns([
+      m('user', 'hi'),
+      assistant([call('t1'), result('t1'), { type: 'text', text: 'The order is on its wa' }], { status: 'aborted' }),
+    ]);
+    expect(turns[1].parts).toEqual([call('t1'), result('t1')]);
+    expect(normalizeTurns([m('user', 'hi'), assistant([{ type: 'text', text: 'Half a sen' }], { status: 'aborted' })])).toHaveLength(1);
+  });
+
+  it('drops system messages, sources, leads and leading assistant turns, and merges same-role text', () => {
+    const turns = normalizeTurns([
+      m('assistant', 'welcome'),
+      m('system', 'note'),
+      m('user', 'one'),
+      { ...m('user', 'two'), parts: [{ type: 'text', text: 'two' }, { type: 'source', sourceId: 's', url: 'https://x.test' }] },
+      assistant([{ type: 'lead-captured', lead: { email: 'a@b.test' } }, { type: 'text', text: '  ' }]),
+    ]);
+    expect(turns).toEqual([{ role: 'user', parts: [{ type: 'text', text: 'one\n\ntwo' }] }]);
+  });
+});
+
+describe('estimateTokens with parts', () => {
+  it('counts tool input and output, not just the text', () => {
+    const parts: MessagePart[] = [
+      { type: 'tool-call', toolCallId: 't', toolName: 'lookup', input: { q: 'x'.repeat(70) }, executor: 'server', state: 'done' },
+    ];
+    expect(estimateTokens({ content: '', parts })).toBeGreaterThan(20);
+    expect(estimateTokens({ content: 'ignored when there are parts', parts: [] })).toBe(4);
   });
 });

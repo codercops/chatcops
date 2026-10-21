@@ -1,39 +1,31 @@
+import { fetchClientIp } from '../client-ip.js';
 import { createChatHandler } from '../handler.js';
+import { originPolicy } from '../security/origin-policy.js';
 import type { ChatCopsServerConfig } from '../config.js';
 
 export function chatcopsVercelHandler(config: ChatCopsServerConfig) {
   const { handleChat } = createChatHandler(config);
-  const corsOrigin = config.cors ?? '*';
-
-  function errorResponse(status: number, error: string): Response {
-    return new Response(JSON.stringify({ error }), {
-      status,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': corsOrigin,
-      },
-    });
-  }
+  const origins = originPolicy(config);
 
   return async function handler(req: Request): Promise<Response> {
+    const origin = req.headers.get('origin');
+    const cors = origins.headers(origin);
+    const errorResponse = (status: number, error: string) =>
+      new Response(JSON.stringify({ error }), { status, headers: { 'Content-Type': 'application/json', ...cors } });
+
     // Handle CORS preflight
     if (req.method === 'OPTIONS') {
-      return new Response(null, {
-        status: 204,
-        headers: {
-          'Access-Control-Allow-Origin': corsOrigin,
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
-          'Access-Control-Max-Age': '86400',
-        },
-      });
+      return new Response(null, { status: 204, headers: origins.preflightHeaders(origin) });
     }
 
     if (req.method !== 'POST') {
       return errorResponse(405, 'Method not allowed');
     }
+    if (!origins.allows(origin)) {
+      return errorResponse(403, 'origin_not_allowed');
+    }
 
-    const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+    const clientIp = fetchClientIp(req, config.clientIp);
     let body: unknown;
     try {
       body = await req.json();
@@ -72,7 +64,7 @@ export function chatcopsVercelHandler(config: ChatCopsServerConfig) {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
-        'Access-Control-Allow-Origin': corsOrigin,
+        ...cors,
       },
     });
   };

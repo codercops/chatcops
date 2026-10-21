@@ -47,6 +47,8 @@ Set `model` to use any other model the provider offers.
 | `model` | all | see above | The model id. |
 | `effort` | all | `'low'` | How much effort the model spends per reply: `'low'`, `'medium'`, `'high'`, `'xhigh'` or `'max'`. Lower is faster and cheaper, which suits chat. Sent as `output_config.effort` to Claude 4.6 and later, `reasoning_effort` to OpenAI reasoning models, and `thinkingLevel` to Gemini 3 models. Models without an effort setting ignore it. |
 | `baseURL` | all | provider default | A custom API endpoint: a proxy, a gateway, or an OpenAI-compatible server. |
+| `fetch` | all | the global `fetch` | The `fetch` the provider SDK sends requests with. Use it to route requests through a proxy, or to replay recorded responses in tests. |
+| `promptCaching` | Claude | `true` | Marks the system prompt and tools as a cached prefix, so later requests read them from Claude's prompt cache at about a tenth of the input price. Prompts shorter than the model's cache minimum aren't cached either way. OpenAI and Gemini cache long prompts on their own. |
 | `organization` | OpenAI | none | Your OpenAI organization id. |
 | `maxTokensParam` | OpenAI | `'max_completion_tokens'` | Set to `'max_tokens'` for OpenAI-compatible servers that only accept the old parameter name. |
 
@@ -89,6 +91,11 @@ Before each request ChatCops cleans up the stored history so every provider acce
 ```typescript
 interface AIProvider {
   name: string;
+  model?: string;
+  // One model request: streams text, then reports tool calls, token usage
+  // and why the model stopped. Runs no tools. Optional, so providers written
+  // for 0.4 with only chat() keep working.
+  step?(params: ProviderStepParams): AsyncGenerator<ProviderEvent>;
   chat(params: ProviderChatParams): AsyncGenerator<string>;
   chatSync(params: ProviderChatParams): Promise<string>;
 }
@@ -129,6 +136,31 @@ const response = await provider.chatSync({
 });
 console.log(response);
 ```
+
+## Running a turn
+
+`runTurn()` is what sits between a provider and the server: it calls `step()`, runs the tools the model asks for, and repeats until the model answers, up to 5 tool rounds. It yields the parts the widget receives (`text-delta`, `tool-call`, `lead-captured`, `finish` and so on) and returns the reply as a `ChatMessage`.
+
+```typescript
+import { createProvider, runTurn, toolRegistry } from '@chatcops/core';
+
+const provider = await createProvider({ type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! });
+const turn = runTurn({
+  provider,
+  messages: [{ id: '1', role: 'user', content: 'Where is order A-1001?', timestamp: Date.now() }],
+  systemPrompt: 'You are helpful.',
+  tools: toolRegistry([lookupOrderTool]),
+  conversationId: 'c1',
+});
+
+for await (const part of turn) {
+  if (part.type === 'text-delta') process.stdout.write(part.delta);
+}
+```
+
+Provider errors don't throw. They end the turn with an `error` part and a `finish` part with reason `error`. `chat()` and `chatSync()` on the built-in providers are now thin wrappers over `runTurn()` that still throw as they did in 0.5.
+
+For tests, `@chatcops/core/testing/provider` has `scriptedProvider()`, which plays back a script of steps instead of calling a model.
 
 ## Tool support
 

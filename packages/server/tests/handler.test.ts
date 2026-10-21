@@ -1,105 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@chatcops/core', () => {
-  type ChatMessage = {
-    id: string;
-    role: 'user' | 'assistant' | 'system';
-    content: string;
-    timestamp: number;
-    metadata?: Record<string, unknown>;
-  };
-
-  type Conversation = {
-    id: string;
-    messages: ChatMessage[];
-    metadata?: Record<string, unknown>;
-    createdAt: number;
-    updatedAt: number;
-  };
-
-  class ConversationManager {
-    private readonly conversations = new Map<string, Conversation>();
-
-    async getOrCreate(id: string) {
-      const existing = this.conversations.get(id);
-      if (existing) {
-        return existing;
-      }
-
-      const now = Date.now();
-      const conversation: Conversation = {
-        id,
-        messages: [],
-        createdAt: now,
-        updatedAt: now,
-      };
-      this.conversations.set(id, conversation);
-      return conversation;
-    }
-
-    async addMessage(conversationId: string, message: ChatMessage) {
-      const conversation = await this.getOrCreate(conversationId);
-      conversation.messages.push(message);
-      conversation.updatedAt = Date.now();
-      return conversation;
-    }
-
-    async getMessages(conversationId: string) {
-      const conversation = await this.getOrCreate(conversationId);
-      return [...conversation.messages];
-    }
-
-    async getHistory(conversationId: string) {
-      return this.getMessages(conversationId);
-    }
-
-    async removeMessage(conversationId: string, messageId: string) {
-      const conversation = await this.getOrCreate(conversationId);
-      conversation.messages = conversation.messages.filter((message) => message.id !== messageId);
-      conversation.updatedAt = Date.now();
-    }
-  }
-
-  class AnalyticsCollector {
-    private totalConversations = 0;
-    private leadsCapture = 0;
-
-    track(event: string) {
-      if (event === 'conversation:started') {
-        this.totalConversations += 1;
-      }
-
-      if (event === 'lead:captured') {
-        this.leadsCapture += 1;
-      }
-    }
-
-    getStats() {
-      return {
-        totalConversations: this.totalConversations,
-        leadsCapture: this.leadsCapture,
-      };
-    }
-  }
-
-  return {
-    createProvider: vi.fn(),
-    ConversationManager,
-    AnalyticsCollector,
-    toolToDefinition: (tool: {
-      name: string;
-      description: string;
-      parameters: Record<string, { type: 'string' | 'number' | 'boolean'; description: string; enum?: string[] }>;
-      required: string[];
-    }) => ({
-      name: tool.name,
-      description: tool.description,
-      parameters: tool.parameters,
-      required: tool.required,
-    }),
-    validateTools: vi.fn(),
-  };
-});
+// Only provider creation is replaced; conversations, analytics and tool
+// validation are the real ones from core, so these tests cover the handler
+// together with what it builds on.
+vi.mock('@chatcops/core', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@chatcops/core')>()),
+  createProvider: vi.fn(),
+}));
 
 import { createProvider } from '@chatcops/core';
 import { chatRequestSchema } from '../src/config.js';
@@ -123,8 +30,9 @@ describe('createChatHandler', () => {
     vi.restoreAllMocks();
   });
 
-  it('cleanup function clears interval', () => {
-    const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
+  it('starts no timers, so it can be created at global scope on Workers', () => {
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
 
     const { cleanup } = createChatHandler({
       provider: { type: 'claude', apiKey: 'test-key' },
@@ -132,8 +40,10 @@ describe('createChatHandler', () => {
       cors: '*',
     });
 
-    cleanup();
-    expect(clearIntervalSpy).toHaveBeenCalledOnce();
+    expect(setIntervalSpy).not.toHaveBeenCalled();
+    expect(setTimeoutSpy).not.toHaveBeenCalled();
+    // Still there for code written for 0.5.
+    expect(() => cleanup()).not.toThrow();
   });
 
   it('warns once when the deprecated i18n option is set', () => {
@@ -1089,6 +999,12 @@ describe('chatRequestSchema', () => {
       locale: 'en',
     });
     expect(result.success).toBe(true);
+  });
+
+  it('accepts regenerate naming the reply to replace, and rejects an empty id', () => {
+    const ok = chatRequestSchema.safeParse({ conversationId: 'c', message: 'Hi', regenerate: { assistantMessageId: 'a1' } });
+    expect(ok.success && ok.data.regenerate).toEqual({ assistantMessageId: 'a1' });
+    expect(chatRequestSchema.safeParse({ conversationId: 'c', message: 'Hi', regenerate: { assistantMessageId: '' } }).success).toBe(false);
   });
 
   it('accepts regenerate metadata', () => {

@@ -1,19 +1,11 @@
+import { cloudflareClientIp } from '../client-ip.js';
 import { createChatHandler } from '../handler.js';
+import { originPolicy } from '../security/origin-policy.js';
 import type { ChatCopsServerConfig } from '../config.js';
 
 export function chatcopsCloudflareHandler(config: ChatCopsServerConfig) {
   const { handleChat } = createChatHandler(config);
-  const corsOrigin = config.cors ?? '*';
-
-  function errorResponse(status: number, error: string): Response {
-    return new Response(JSON.stringify({ error }), {
-      status,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': corsOrigin,
-      },
-    });
-  }
+  const origins = originPolicy(config);
 
   // Workers call fetch(request, env, ctx); ctx.waitUntil keeps lead webhooks
   // running after a visitor disconnects.
@@ -22,24 +14,24 @@ export function chatcopsCloudflareHandler(config: ChatCopsServerConfig) {
     _env?: unknown,
     ctx?: { waitUntil?(promise: Promise<unknown>): void }
   ): Promise<Response> {
+    const origin = request.headers.get('origin');
+    const cors = origins.headers(origin);
+    const errorResponse = (status: number, error: string) =>
+      new Response(JSON.stringify({ error }), { status, headers: { 'Content-Type': 'application/json', ...cors } });
+
     // Handle CORS preflight
     if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        status: 204,
-        headers: {
-          'Access-Control-Allow-Origin': corsOrigin,
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
-          'Access-Control-Max-Age': '86400',
-        },
-      });
+      return new Response(null, { status: 204, headers: origins.preflightHeaders(origin) });
     }
 
     if (request.method !== 'POST') {
       return errorResponse(405, 'Method not allowed');
     }
+    if (!origins.allows(origin)) {
+      return errorResponse(403, 'origin_not_allowed');
+    }
 
-    const clientIp = request.headers.get('cf-connecting-ip') ?? 'unknown';
+    const clientIp = cloudflareClientIp(request, config.clientIp);
     let body: unknown;
     try {
       body = await request.json();
@@ -89,7 +81,7 @@ export function chatcopsCloudflareHandler(config: ChatCopsServerConfig) {
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
-        'Access-Control-Allow-Origin': corsOrigin,
+        ...cors,
       },
     });
   };

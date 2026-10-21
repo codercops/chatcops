@@ -1,5 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
+import { expressClientIp } from '../client-ip.js';
 import { createChatHandler } from '../handler.js';
+import { originPolicy } from '../security/origin-policy.js';
 import type { ChatCopsServerConfig } from '../config.js';
 
 type ChatHandler = ReturnType<typeof createChatHandler>;
@@ -17,35 +19,41 @@ function getOrCreateChatHandler(config: ChatCopsServerConfig): ChatHandler {
 
 export function chatcopsMiddleware(config: ChatCopsServerConfig) {
   const { handleChat } = getOrCreateChatHandler(config);
-  const corsOrigin = config.cors ?? '*';
-
-  function sendError(res: Response, status: number, error: string) {
-    res.setHeader('Access-Control-Allow-Origin', corsOrigin);
-    res.status(status).json({ error });
-  }
+  const origins = originPolicy(config);
 
   return async function chatcopsHandler(req: Request, res: Response, _next: NextFunction) {
+    const header = req.headers?.origin;
+    const origin = typeof header === 'string' ? header : null;
+    const setHeaders = (headers: Record<string, string>) => {
+      for (const [name, value] of Object.entries(headers)) res.setHeader(name, value);
+    };
+    const sendError = (status: number, error: string) => {
+      setHeaders(origins.headers(origin));
+      res.status(status).json({ error });
+    };
+
     // Handle CORS preflight
     if (req.method === 'OPTIONS') {
-      res.setHeader('Access-Control-Allow-Origin', corsOrigin);
-      res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-      res.setHeader('Access-Control-Max-Age', '86400');
+      setHeaders(origins.preflightHeaders(origin));
       res.status(204).end();
       return;
     }
 
     if (req.method !== 'POST') {
-      sendError(res, 405, 'Method not allowed');
+      sendError(405, 'Method not allowed');
+      return;
+    }
+    if (!origins.allows(origin)) {
+      sendError(403, 'origin_not_allowed');
       return;
     }
 
-    const clientIp = req.ip ?? req.socket.remoteAddress ?? 'unknown';
+    const clientIp = expressClientIp(req);
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
-    res.setHeader('Access-Control-Allow-Origin', corsOrigin);
+    setHeaders(origins.headers(origin));
 
     // Stop the reply when the visitor goes away before it's done.
     const abort = new AbortController();
@@ -70,9 +78,38 @@ export function chatcopsMiddleware(config: ChatCopsServerConfig) {
   };
 }
 
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
+
 export function chatcopsAnalyticsHandler(config: ChatCopsServerConfig) {
   const { getAnalytics } = getOrCreateChatHandler(config);
-  return (_req: Request, res: Response) => {
+  let warned = false;
+
+  return (req: Request, res: Response) => {
+    if (config.analyticsToken) {
+      const auth = req.headers?.authorization;
+      const token = typeof auth === 'string' && auth.startsWith('Bearer ') ? auth.slice(7) : undefined;
+
+      if (!token || !constantTimeEqual(token, config.analyticsToken)) {
+        res.setHeader('WWW-Authenticate', 'Bearer');
+        res.status(401).json({ error: 'unauthorized' });
+        return;
+      }
+    } else if (!warned) {
+      warned = true;
+      console.warn(
+        '[chatcops] The analytics endpoint is public and anyone can read your stats. Set `analyticsToken` in your ChatCopsServerConfig to require a bearer token.'
+      );
+    }
+
     res.json(getAnalytics());
   };
 }

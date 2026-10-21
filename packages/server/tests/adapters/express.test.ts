@@ -29,10 +29,19 @@ vi.mock('@chatcops/core', async (importOriginal) => {
 import { chatcopsAnalyticsHandler, chatcopsMiddleware } from '../../src/adapters/express.js';
 import type { ChatCopsServerConfig } from '../../src/config.js';
 
-function createRequest(method: string, body?: unknown): Request {
+function createRequest(method: string, body?: unknown, headers?: Record<string, string>): Request {
+  const normalizedHeaders: Record<string, string> = {};
+  if (headers) {
+    for (const [key, value] of Object.entries(headers)) {
+      normalizedHeaders[key.toLowerCase()] = value;
+    }
+  }
   return {
     method,
     body,
+    headers: normalizedHeaders,
+    header: (name: string) => normalizedHeaders[name.toLowerCase()],
+    get: (name: string) => normalizedHeaders[name.toLowerCase()],
     ip: '127.0.0.1',
     socket: { remoteAddress: '127.0.0.1' },
   } as unknown as Request;
@@ -278,7 +287,7 @@ describe('express analytics sharing', () => {
     const { fake, res } = createResponse();
 
     await middleware(
-      createRequest('GET'),
+      createRequest('GET', undefined, { Origin: 'https://example.com' }),
       res,
       (() => undefined) as NextFunction,
     );
@@ -326,6 +335,7 @@ describe('express analytics sharing', () => {
       cors: '*',
       analytics: true,
     };
+    vi.mocked(createChatHandler).mockClear();
 
     const middleware = chatcopsMiddleware(config);
 
@@ -344,6 +354,70 @@ describe('express analytics sharing', () => {
     chatcopsAnalyticsHandler(config)(createRequest('GET'), statsRes);
 
     expect(statsFake.body).toMatchObject({ totalConversations: 2 });
-    expect(setIntervalSpy).toHaveBeenCalledTimes(1);
+    // One handler for the config, shared by the middleware and the stats route.
+    expect(createChatHandler).toHaveBeenCalledTimes(1);
+  });
+
+  it('warns once across several requests when analyticsToken is not configured', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const config: ChatCopsServerConfig = {
+      provider: { type: 'claude', apiKey: 'test-key' },
+      systemPrompt: 'Test',
+      analytics: true,
+    };
+    const handler = chatcopsAnalyticsHandler(config);
+
+    const { fake: firstFake, res: firstRes } = createResponse();
+    handler(createRequest('GET'), firstRes);
+    expect(firstFake.statusCode).toBe(200);
+
+    const { fake: secondFake, res: secondRes } = createResponse();
+    handler(createRequest('GET'), secondRes);
+    expect(secondFake.statusCode).toBe(200);
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('analyticsToken')
+    );
+  });
+
+  it('requires a bearer token when analyticsToken is configured', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const config: ChatCopsServerConfig = {
+      provider: { type: 'claude', apiKey: 'test-key' },
+      systemPrompt: 'Test',
+      analytics: true,
+      analyticsToken: 'secret-token',
+    };
+    const handler = chatcopsAnalyticsHandler(config);
+
+    // Missing token
+    const { fake: missingFake, res: missingRes } = createResponse();
+    handler(createRequest('GET'), missingRes);
+    expect(missingFake.statusCode).toBe(401);
+    expect(missingFake.headers['WWW-Authenticate']).toBe('Bearer');
+    expect(missingFake.body).toEqual({ error: 'unauthorized' });
+
+    // Wrong token of different length
+    const { fake: diffLengthFake, res: diffLengthRes } = createResponse();
+    handler(createRequest('GET', undefined, { authorization: 'Bearer short' }), diffLengthRes);
+    expect(diffLengthFake.statusCode).toBe(401);
+    expect(diffLengthFake.headers['WWW-Authenticate']).toBe('Bearer');
+    expect(diffLengthFake.body).toEqual({ error: 'unauthorized' });
+
+    // Wrong token of same length
+    const { fake: wrongFake, res: wrongRes } = createResponse();
+    handler(createRequest('GET', undefined, { authorization: 'Bearer secret-tokeX' }), wrongRes);
+    expect(wrongFake.statusCode).toBe(401);
+    expect(wrongFake.headers['WWW-Authenticate']).toBe('Bearer');
+    expect(wrongFake.body).toEqual({ error: 'unauthorized' });
+
+    // Right token
+    const { fake: rightFake, res: rightRes } = createResponse();
+    handler(createRequest('GET', undefined, { authorization: 'Bearer secret-token' }), rightRes);
+    expect(rightFake.statusCode).toBe(200);
+    expect(rightFake.body).toMatchObject({ totalConversations: 0 });
+
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 });

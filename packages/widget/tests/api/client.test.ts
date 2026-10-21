@@ -307,3 +307,73 @@ describe('ChatClient inactivity timeout', () => {
     await stream.return(undefined);
   });
 });
+
+describe('ChatClient with protocol v1', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function respond(lines: string[]) {
+    const body = lines.map((line) => `data: ${line}\n\n`).join('');
+    return vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(body, { status: 200 }));
+  }
+
+  async function collect(request = { conversationId: 'c1', message: 'Hi' }) {
+    const chunks: WidgetChatChunk[] = [];
+    for await (const chunk of new ChatClient({ apiUrl: 'https://api.test/chat' }).sendMessage(request)) chunks.push(chunk);
+    return chunks;
+  }
+
+  const part = (value: Record<string, unknown>) => JSON.stringify(value);
+
+  it('asks for v1, and reads parts as the chunks the widget handles', async () => {
+    const fetch = respond([
+      part({ type: 'start', protocol: 1, conversationId: 'c1', messageId: 'srv-1' }),
+      part({ type: 'text-start', id: 't1' }),
+      part({ type: 'text-delta', id: 't1', delta: 'Hello' }),
+      part({ type: 'lead-captured', lead: { email: 'a@b.test' } }),
+      part({ type: 'text-end', id: 't1' }),
+      part({ type: 'tool-call', toolCallId: 'x', toolName: 'y', input: {}, executor: 'server' }),
+      part({ type: 'a-part-from-the-future', anything: true }),
+      part({ type: 'finish', reason: 'stop' }),
+      '[DONE]',
+    ]);
+
+    const chunks = await collect();
+
+    expect(JSON.parse(String(fetch.mock.calls[0][1]?.body))).toMatchObject({ protocol: 1, conversationId: 'c1' });
+    expect(chunks).toEqual([
+      { messageId: 'srv-1' },
+      { content: 'Hello' },
+      { leadCaptured: true, leadData: { email: 'a@b.test' } },
+      { done: true },
+      { done: true },
+    ]);
+  });
+
+  it('maps error codes to the errors the widget knows, and ignores the finish after one', async () => {
+    respond([
+      part({ type: 'start', protocol: 1, conversationId: 'c1', messageId: 'm' }),
+      part({ type: 'error', code: 'rate_limited', retryable: true, retryAfterMs: 5000 }),
+      part({ type: 'finish', reason: 'error' }),
+      '[DONE]',
+    ]);
+    expect((await collect()).slice(1, 2)).toEqual([{ error: 'rate_limit' }]);
+
+    respond([part({ type: 'error', code: 'timeout', retryable: true }), part({ type: 'finish', reason: 'error' }), '[DONE]']);
+    expect((await collect())[0]).toEqual({ error: 'timeout' });
+
+    respond([part({ type: 'error', code: 'budget_exceeded', retryable: false }), part({ type: 'finish', reason: 'error' }), '[DONE]']);
+    expect((await collect())[0]).toEqual({ error: 'provider_error' });
+  });
+
+  it('reports a v1 stream that ends without finish as cut off', async () => {
+    respond([part({ type: 'start', protocol: 1, conversationId: 'c1', messageId: 'm' }), part({ type: 'text-delta', id: 't', delta: 'Half' }), '[DONE]']);
+    expect((await collect()).at(-1)).toEqual({ error: 'network' });
+  });
+
+  it('still reads the 0.5 format from older servers', async () => {
+    respond([part({ content: 'Old' }), part({ done: true }), '[DONE]']);
+    expect((await collect()).slice(0, 2)).toEqual([{ content: 'Old' }, { done: true }]);
+  });
+});

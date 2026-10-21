@@ -277,6 +277,69 @@ describe('Widget', () => {
     });
   });
 
+  it('marks streamed assistant replies as ai generated, but not user or welcome messages', async () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    getInternals(widget).showChatView();
+    let streamingBubble: HTMLElement | null = null;
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementationOnce(async function* () {
+      yield { content: 'Hel' };
+      streamingBubble = getInternals(widget).shadow.querySelector('.cc-message-assistant[data-status="streaming"]');
+      yield { content: 'lo' };
+      yield { done: true };
+    });
+
+    await getInternals(widget).handleSend('Hi');
+
+    const shadow = getInternals(widget).shadow;
+    expect(streamingBubble?.dataset.aiGenerated).toBe('true');
+    expect((shadow.querySelector('.cc-message-user') as HTMLElement).dataset.aiGenerated).toBeUndefined();
+    const assistant = Array.from(shadow.querySelectorAll<HTMLElement>('.cc-message-assistant'));
+    const welcome = assistant.find((el) => el.dataset.id === 'welcome');
+    expect(welcome).toBeDefined();
+    expect(welcome?.dataset.aiGenerated).toBeUndefined();
+    expect(assistant.at(-1)?.dataset.aiGenerated).toBe('true');
+  });
+
+  it('keeps the ai generated mark on failed, retried and regenerated replies', async () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    getInternals(widget).client.sendMessage = vi.fn()
+      .mockImplementationOnce(async function* () {
+        yield { error: 'provider_error' };
+      })
+      .mockImplementationOnce(async function* () {
+        yield { content: 'Recovered' };
+        yield { done: true };
+      })
+      .mockImplementationOnce(async function* () {
+        yield { content: 'Again' };
+        yield { done: true };
+      });
+    const lastBubble = () => {
+      const bubble = Array.from(getInternals(widget).shadow.querySelectorAll<HTMLElement>('.cc-message-assistant')).at(-1);
+      if (!bubble) throw new Error('no assistant bubble');
+      return bubble;
+    };
+    const lastMessageId = () => {
+      const id = getInternals(widget).messages.at(-1)?.id;
+      if (!id) throw new Error('no message');
+      return id;
+    };
+
+    await getInternals(widget).handleSend('Hi');
+    expect(lastBubble().dataset.status).toBe('error');
+    expect(lastBubble().dataset.aiGenerated).toBe('true');
+
+    await getInternals(widget).handleRetry(lastMessageId());
+    expect(lastBubble().textContent).toContain('Recovered');
+    expect(lastBubble().dataset.aiGenerated).toBe('true');
+
+    await getInternals(widget).handleRegenerate(lastMessageId());
+    expect(lastBubble().textContent).toContain('Again');
+    expect(lastBubble().dataset.aiGenerated).toBe('true');
+  });
+
   it('keeps streamed text when an error arrives partway through and shows the error under it', async () => {
     const widget = new Widget({ apiUrl: 'https://api.test/chat' });
     widget.init();
@@ -373,6 +436,32 @@ describe('Widget', () => {
       content: 'Second response',
       status: 'complete',
     });
+  });
+
+  it("keeps the server's id for a v1 reply and regenerates it by that id", async () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    const sendMessage = vi.fn()
+      .mockImplementationOnce(async function* () {
+        yield { messageId: 'srv-1' };
+        yield { content: 'First' };
+        yield { done: true };
+      })
+      .mockImplementationOnce(async function* () {
+        yield { messageId: 'srv-2' };
+        yield { content: 'Second' };
+        yield { done: true };
+      });
+    getInternals(widget).client.sendMessage = sendMessage;
+
+    await getInternals(widget).handleSend('Hi');
+    const reply = getInternals(widget).messages.at(-1);
+    expect(reply?.id).toBe('srv-1');
+    expect(getInternals(widget).shadow.querySelector('[data-id="srv-1"]')).toBeTruthy();
+
+    await getInternals(widget).handleRegenerate('srv-1');
+    expect(sendMessage.mock.calls[1]?.[0]).toMatchObject({ regenerate: { assistantMessageId: 'srv-1' } });
+    expect(getInternals(widget).messages.at(-1)).toMatchObject({ id: 'srv-2', content: 'Second' });
   });
 
   it('blocks retry and regenerate while streaming is active', async () => {
@@ -516,7 +605,27 @@ describe('Widget', () => {
     widget2.destroy();
   });
 
-  it('sends userData with every request, not just the first', async () => {
+  it('stops sending userData once a v1 server has answered, since it keeps the answers', async () => {
+    const widget = new Widget({
+      apiUrl: 'https://api.test/chat',
+      preChatForm: { enabled: true, fields: [{ name: 'name', label: 'Name', type: 'text' as const }] },
+    });
+    widget.init();
+    getInternals(widget).handlePreChatSubmit({ name: 'Taylor' });
+    const sendMessage = vi.fn().mockImplementation(async function* () {
+      yield { messageId: crypto.randomUUID() };
+      yield { content: 'Echo' };
+      yield { done: true };
+    });
+    getInternals(widget).client.sendMessage = sendMessage;
+
+    await getInternals(widget).handleSend('First');
+    await getInternals(widget).handleSend('Second');
+    expect(sendMessage.mock.calls[0]?.[0]).toMatchObject({ userData: { name: 'Taylor' } });
+    expect(sendMessage.mock.calls[1]?.[0]).not.toHaveProperty('userData');
+  });
+
+  it('sends userData with every request to a 0.5 server, which needs it each time', async () => {
     const widget = new Widget({
       apiUrl: 'https://api.test/chat',
       preChatForm: {

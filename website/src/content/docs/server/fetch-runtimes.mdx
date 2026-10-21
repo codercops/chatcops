@@ -23,7 +23,7 @@ const handler = chatcopsVercelHandler({
     apiKey: process.env.ANTHROPIC_API_KEY!,
   },
   systemPrompt: 'You are a helpful assistant.',
-  cors: '*',
+  allowedOrigins: ['*'],
 });
 
 export const POST = handler;
@@ -46,7 +46,7 @@ const chat = chatcopsVercelHandler({
     apiKey: process.env.ANTHROPIC_API_KEY!,
   },
   systemPrompt: 'You are a helpful assistant.',
-  cors: '*',
+  allowedOrigins: ['*'],
 });
 
 const app = new Hono();
@@ -69,7 +69,9 @@ const chat = chatcopsVercelHandler({
     apiKey: process.env.ANTHROPIC_API_KEY!,
   },
   systemPrompt: 'You are a helpful assistant.',
-  cors: '*',
+  allowedOrigins: ['*'],
+  // Set below from the socket, so a visitor can't choose it.
+  clientIp: (req) => req.headers.get('x-client-ip'),
 });
 
 Bun.serve({
@@ -80,10 +82,10 @@ Bun.serve({
     const { pathname } = new URL(req.url);
     if (pathname !== '/api/chat') return new Response('Not found', { status: 404 });
 
-    // Rate limiting keys on x-forwarded-for. Without a proxy in front, set it
-    // to the socket address so each visitor gets their own limit.
+    // The visitor's IP, for per-IP rate limits and budgets. set() replaces
+    // any x-client-ip the visitor sent.
     const headers = new Headers(req.headers);
-    headers.set('x-forwarded-for', server.requestIP(req)?.address ?? 'unknown');
+    headers.set('x-client-ip', server.requestIP(req)?.address ?? '');
     return chat(new Request(req, { headers }));
   },
 });
@@ -100,28 +102,49 @@ const chat = chatcopsVercelHandler({
     apiKey: Deno.env.get('ANTHROPIC_API_KEY')!,
   },
   systemPrompt: 'You are a helpful assistant.',
-  cors: '*',
+  allowedOrigins: ['*'],
+  // Set below from the socket, so a visitor can't choose it.
+  clientIp: (req) => req.headers.get('x-client-ip'),
 });
 
 Deno.serve({ port: 8000 }, (req, info) => {
   const { pathname } = new URL(req.url);
   if (pathname !== '/api/chat') return new Response('Not found', { status: 404 });
 
-  // Rate limiting keys on x-forwarded-for. Without a proxy in front, set it
-  // to the socket address so each visitor gets their own limit.
+  // The visitor's IP, for per-IP rate limits and budgets. set() replaces
+  // any x-client-ip the visitor sent.
   const headers = new Headers(req.headers);
-  headers.set('x-forwarded-for', (info.remoteAddr as Deno.NetAddr).hostname);
+  headers.set('x-client-ip', (info.remoteAddr as Deno.NetAddr).hostname);
   return chat(new Request(req, { headers }));
 });
 ```
 
 Run it with `deno run --allow-net --allow-env --allow-read --allow-sys server.ts`. Pin the version in the `npm:` specifier as above. Deno also skips npm versions published in the last 24 hours by default, so right after a ChatCops release it may resolve the previous version for a day.
 
-## Rate limiting and the client IP
+## The visitor's IP
 
-The built-in rate limiter keys each visitor on the first IP in the `x-forwarded-for` header. Platforms with a proxy in front (Vercel, most hosts, a reverse proxy you run) set that header for you, and the Next.js example needs nothing extra there.
+Rate limits and the per-IP budget key on the visitor's IP. The handler only reads it from a header that the platform sets itself, because a visitor can send any `X-Forwarded-For` they like and get a fresh limit with every request.
 
-When you run Bun or Deno directly, nothing sets the header. Every request then shares one `"unknown"` key, so a single busy visitor can use up the limit for everyone. Worse, a visitor can send their own `x-forwarded-for` and get a fresh limit with every request. That's why the Bun and Deno examples overwrite the header with the socket address. If you put a proxy in front instead, make it set the header and drop the override.
+| Where it runs | Where the IP comes from |
+|---|---|
+| Vercel | Vercel's own headers (`x-vercel-forwarded-for`, `x-real-ip`, `x-forwarded-for`), which Vercel overwrites. Nothing to set. |
+| Cloudflare Workers (`chatcopsCloudflareHandler`) | `CF-Connecting-IP`. Nothing to set. |
+| Express | `req.ip`, which follows Express's `trust proxy` setting. Behind one proxy, call `app.set('trust proxy', 1)`. |
+| Anywhere else | Your `clientIp` function. |
+
+Anywhere else, set `clientIp` to read the header your host or proxy sets:
+
+```typescript
+const handler = chatcopsVercelHandler({
+  // ...
+  clientIp: (req) => req.headers.get('x-nf-client-connection-ip'), // Netlify
+  // clientIp: (req) => req.headers.get('x-real-ip'),            // your nginx, with proxy_set_header X-Real-IP $remote_addr
+});
+```
+
+Bun and Deno have no proxy in front, so the examples above copy the socket address into a header and read that. With Hono, do the same in the route with Hono's `getConnInfo`, or read your proxy's header.
+
+Without a way to tell the IP, per-IP limits are skipped and the server logs one warning saying so. Visitors never share one limit: that used to happen with an `"unknown"` key, where one busy visitor could use up the limit for everyone.
 
 ## Checking your setup
 

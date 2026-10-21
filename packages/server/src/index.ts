@@ -1,5 +1,6 @@
 export { createChatHandler } from './handler.js';
 export type { ChatCopsServerConfig, ValidatedChatRequest } from './config.js';
+export type { ClientIpResolver } from './client-ip.js';
 export { chatRequestSchema } from './config.js';
 export { RateLimiter } from './rate-limit.js';
 export type { RateLimitConfig } from './rate-limit.js';
