@@ -46,9 +46,8 @@ const storage = redisStorage({
   conversationTtlMs: 30 * 24 * 60 * 60 * 1000, // default: 30 days
 });
 
-// Pass storage.conversations to conversationStore. The full `storage` option is coming in a future release.
 export const POST = chatcopsVercelHandler({
-  conversationStore: storage.conversations,
+  storage,
   provider: { type: 'openai', apiKey: process.env.OPENAI_API_KEY },
   systemPrompt: 'You are a helpful assistant.',
 });
@@ -73,9 +72,8 @@ const storage = redisStorage({
   prefix: 'chatcops',
 });
 
-// Pass storage.conversations to conversationStore. The full `storage` option is coming in a future release.
 export const POST = chatcopsVercelHandler({
-  conversationStore: storage.conversations,
+  storage,
   provider: { type: 'openai', apiKey: process.env.OPENAI_API_KEY },
   systemPrompt: 'You are a helpful assistant.',
 });

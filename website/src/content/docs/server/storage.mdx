@@ -1,0 +1,187 @@
+---
+title: Server Storage
+description: Persist conversations and coordinate ChatCops across instances with a server-side storage provider.
+---
+
+The server uses storage for conversation history and, when the configured store provides the capability, counters, turn locks, and analytics events.
+
+By default, conversations are kept in memory for one server process. That is useful for local development, but it is not reliable for Vercel, Lambda, Workers, or any multi-instance deployment: instances do not share memory, and a restart removes the data. Use a persistent store when conversations must survive restarts or be available to every instance.
+
+## Postgres
+
+The Postgres store is provided by `@chatcops/store-postgres`. It is currently private and will ship with the next release, so install it alongside the server package when that release is available:
+
+```bash
+npm install @chatcops/server @chatcops/store-postgres pg
+```
+
+The package is currently private and ships with the next release.
+
+Create a `pg` client, run the store migration once, and pass the resulting store through the `storage` option:
+
+```typescript
+import { Pool } from 'pg';
+import { chatcopsMiddleware } from '@chatcops/server';
+import { migrate, postgresStorage } from '@chatcops/store-postgres';
+
+const db = new Pool({ connectionString: process.env.DATABASE_URL });
+
+await migrate(db);
+
+const storage = postgresStorage({ db, tablePrefix: 'chatcops_' });
+
+const handler = chatcopsMiddleware({
+  provider: {
+    type: 'claude',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  },
+  systemPrompt: 'You are a helpful customer support assistant.',
+  storage,
+});
+```
+
+`tablePrefix` is optional and is useful when several applications share one database. Pass the same prefix to `migrate` and `postgresStorage`, and run migrations before the server handles traffic. Migrations are safe to run on every deploy because already-applied migrations are skipped:
+
+```typescript
+await migrate(db, { tablePrefix: 'chatcops_' });
+```
+
+### Neon
+
+For Neon, use the adapter exported by the Postgres store with Neon's serverless SQL client:
+
+```bash
+npm install @chatcops/server @chatcops/store-postgres @neondatabase/serverless
+```
+
+```typescript
+import { neon } from '@neondatabase/serverless';
+import { chatcopsMiddleware } from '@chatcops/server';
+import { fromNeon, migrate, postgresStorage } from '@chatcops/store-postgres';
+
+const db = fromNeon(neon(process.env.DATABASE_URL!));
+
+await migrate(db);
+
+const storage = postgresStorage({ db, tablePrefix: 'chatcops_' });
+
+const handler = chatcopsMiddleware({
+  provider: {
+    type: 'claude',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  },
+  systemPrompt: 'You are a helpful customer support assistant.',
+  storage,
+});
+```
+
+The handler exposes `purge()` for retention cleanup. Configure retention on the handler and call `purge()` from a scheduled job or deploy task:
+
+```typescript
+import { createChatHandler } from '@chatcops/server';
+
+const handler = createChatHandler({
+  // ...provider and systemPrompt
+  storage,
+  retention: { conversationsDays: 30 },
+});
+
+const deleted = await handler.purge();
+console.log(`Purged ${deleted} old conversations`);
+```
+
+## Redis
+
+The Redis store is provided by `@chatcops/store-redis`. It is currently private and will ship with the next release. The package supports both Upstash and `ioredis` clients and implements conversations, counters, KV locks, and events.
+
+### Upstash
+
+```bash
+npm install @chatcops/server @chatcops/store-redis @upstash/redis
+```
+
+```typescript
+import { Redis } from '@upstash/redis';
+import { chatcopsMiddleware } from '@chatcops/server';
+import { redisStorage } from '@chatcops/store-redis';
+
+const redis = Redis.fromEnv();
+const storage = redisStorage({
+  redis,
+  prefix: 'chatcops',
+  conversationTtlMs: 30 * 24 * 60 * 60 * 1000,
+});
+
+const handler = chatcopsMiddleware({
+  provider: {
+    type: 'claude',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  },
+  systemPrompt: 'You are a helpful customer support assistant.',
+  storage,
+});
+```
+
+### ioredis
+
+```bash
+npm install @chatcops/server @chatcops/store-redis ioredis
+```
+
+```typescript
+import Redis from 'ioredis';
+import { chatcopsMiddleware } from '@chatcops/server';
+import { fromIoRedis, redisStorage } from '@chatcops/store-redis';
+
+const redis = new Redis(process.env.REDIS_URL);
+const storage = redisStorage({
+  redis: fromIoRedis(redis),
+  prefix: 'chatcops',
+});
+
+const handler = chatcopsMiddleware({
+  provider: {
+    type: 'claude',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  },
+  systemPrompt: 'You are a helpful customer support assistant.',
+  storage,
+});
+```
+
+## Coming soon
+
+- SQLite for single-server deployments ([#247](https://github.com/codercops/chatcops/issues/247)).
+- Cloudflare storage for D1, KV, and Durable Objects counters ([#249](https://github.com/codercops/chatcops/issues/249)).
+
+## Custom stores
+
+The server accepts a custom conversation store through `storage`:
+
+```typescript
+import type { Conversation, ConversationStore } from '@chatcops/core';
+
+const myStore: ConversationStore = {
+  async get(id: string): Promise<Conversation | null> {
+    // Read the conversation from your database.
+    return null;
+  },
+  async save(conversation: Conversation): Promise<void> {
+    // Persist the complete conversation.
+  },
+  async delete(id: string): Promise<void> {
+    // Delete the conversation.
+  },
+};
+
+const handler = chatcopsMiddleware({
+  // ...provider and systemPrompt
+  storage: { conversations: myStore },
+});
+```
+
+A store with only `get`, `save`, and `delete` works, but the server logs one warning at startup. In that mode, each write saves the complete conversation, so two instances writing the same conversation concurrently can overwrite one another and lose a message.
+
+Implement `append` when the backing system can perform an atomic append. The server uses it to make concurrent writes safe across instances. `updateMessage`, `removeMessage`, `list`, and `purge` are optional capabilities; implement them when the application needs those operations.
+
+The complete interface is defined by [`ConversationStore`](https://github.com/codercops/chatcops/blob/dev/packages/core/src/storage/types.ts). The broader `ChatCopsStorage` object can also provide optional counter, KV, and event stores for distributed rate limits, turn locks, and analytics.

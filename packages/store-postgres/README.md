@@ -50,13 +50,13 @@ const storage = postgresStorage({ db: fromNeon(neon(process.env.DATABASE_URL!)) 
 
 With postgres.js, wrap the client the same way: `fromPostgresJs(postgres(url))`.
 
-Until the server takes the whole `storage` object (ChatCops 0.7), pass the conversations to it:
+Pass the complete storage object to the server:
 
 ```ts
 chatcopsMiddleware({
   provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
   systemPrompt: 'You are a helpful assistant.',
-  conversationStore: storage.conversations,
+  storage,
 });
 ```
 

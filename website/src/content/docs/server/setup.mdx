@@ -70,8 +70,8 @@ const handler = chatcopsMiddleware({
   // Optional: Analytics
   analytics: true,
 
-  // Optional: Conversation store (defaults to in-memory)
-  conversationStore: new RedisConversationStore(redisClient),
+  // Optional: Persistent storage. See /server/storage.
+  storage: { conversations: myStore },
 
   // Optional: the sites that can use the chat (see Allowed origins below)
   allowedOrigins: ['https://acme.com', 'https://*.acme.com'],
@@ -144,7 +144,7 @@ const handler = chatcopsMiddleware({
 });
 ```
 
-With a storage that has key-value support, the rule that only one reply is written per conversation at a time holds across all your server instances, not just within one. Setting both `storage` and the older `conversationStore` is an error.
+With a storage that has key-value support, the rule that only one reply is written per conversation at a time holds across all your server instances, not just within one. Configure one storage mechanism at a time.
 
 Nothing is deleted on its own. The handler's `purge()` deletes conversations last updated more than `retention.conversationsDays` (default 30) days ago. Call it on a schedule, from a cron job or a Workers cron trigger:
 
@@ -203,34 +203,7 @@ Tokens count input and output at face value, and every request sends the convers
 
 The per-IP budget needs the visitor's IP, so it's skipped for requests where the adapter can't tell.
 
-## Custom Conversation Store
-
-By default, the server keeps conversation history in memory, per process. It's bounded: past 1000 conversations the least recently used ones go first, and conversations idle for 7 days are dropped. For multi-instance deployments or persistent chat history across restarts, pass a custom store that implements the `ConversationStore` interface from `@chatcops/core`, as `storage: { conversations: yourStore }`:
-
-```typescript
-import type { ConversationStore, Conversation } from '@chatcops/core';
-
-class RedisConversationStore implements ConversationStore {
-  constructor(private redis: RedisClient) {}
-
-  async get(id: string): Promise<Conversation | null> {
-    const raw = await this.redis.get(`chat:${id}`);
-    return raw ? JSON.parse(raw) : null;
-  }
-
-  async save(conversation: Conversation): Promise<void> {
-    await this.redis.set(`chat:${conversation.id}`, JSON.stringify(conversation));
-  }
-
-  async delete(id: string): Promise<void> {
-    await this.redis.del(`chat:${id}`);
-  }
-}
-```
-
-A store with only `get`, `save` and `delete` works, and the server logs one warning at startup: every write saves the whole conversation, so two server instances answering the same conversation at the same moment can lose a message. Stores can also implement `append`, `updateMessage` and `removeMessage` (see the `ConversationStore` type in `@chatcops/core`), which the server then uses instead. Ready-made stores for Redis, SQLite, Postgres and Cloudflare are on the way.
-
-The history sent to the model is trimmed to about 32,000 tokens: the visitor's first message plus as many recent ones as fit. Stored history keeps up to 100 messages per conversation.
+For persistent conversations, custom stores, Postgres, Redis, and the storage capabilities available to the server, see [Server Storage](/server/storage/).
 
 ## Webhooks
 
