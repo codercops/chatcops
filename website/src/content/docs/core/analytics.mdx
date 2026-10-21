@@ -26,7 +26,7 @@ import { chatcopsMiddleware, chatcopsAnalyticsHandler } from '@chatcops/server';
 const config = {
   provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
   systemPrompt: 'You are a helpful assistant.',
-  cors: '*',
+  allowedOrigins: ['*'],
   analytics: true,
   analyticsToken: process.env.CHATCOPS_ANALYTICS_TOKEN,
 };

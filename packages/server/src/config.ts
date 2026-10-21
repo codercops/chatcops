@@ -64,7 +64,15 @@ export interface ChatCopsServerConfig {
    * ones; call it on a schedule (a cron job, a Workers cron trigger).
    */
   retention?: { conversationsDays?: number };
-  /** Allowed CORS origin. Defaults to `'*'`. */
+  /**
+   * The sites that can use the chat: exact origins (`'https://acme.com'`) or
+   * subdomain wildcards (`'https://*.acme.com'`). A browser request from any
+   * other page gets 403 `origin_not_allowed` before the model is called.
+   * Requests without an `Origin` header (curl, your own server) pass: this
+   * stops other sites embedding your bot, not scripts. Defaults to `['*']`.
+   */
+  allowedOrigins?: string[];
+  /** @deprecated Use `allowedOrigins`. Read as a one-item `allowedOrigins`. */
   cors?: string;
   /**
    * Reads the visitor's IP for per-IP rate limits and budgets, in the fetch

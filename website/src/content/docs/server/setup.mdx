@@ -73,8 +73,8 @@ const handler = chatcopsMiddleware({
   // Optional: Conversation store (defaults to in-memory)
   conversationStore: new RedisConversationStore(redisClient),
 
-  // Optional: CORS origin
-  cors: '*',
+  // Optional: the sites that can use the chat (see Allowed origins below)
+  allowedOrigins: ['https://acme.com', 'https://*.acme.com'],
 });
 ```
 
@@ -104,7 +104,10 @@ interface ChatCopsServerConfig {
   retention?: { conversationsDays?: number };   // for purge(); default 30
   /** @deprecated Use `storage`. */
   conversationStore?: ConversationStore;
+  allowedOrigins?: string[];   // default ['*']
+  /** @deprecated Use `allowedOrigins`. */
   cors?: string;
+  clientIp?: (request: Request) => string | null | undefined;   // fetch handlers, see the fetch runtimes page
   /** @deprecated Ignored by the server. Use the widget's `strings` option. */
   i18n?: {
     defaultLocale: string;
@@ -149,6 +152,22 @@ Nothing is deleted on its own. The handler's `purge()` deletes conversations las
 const { purge } = createChatHandler(config);
 await purge(); // resolves how many were deleted
 ```
+
+## Allowed origins
+
+`allowedOrigins` lists the sites whose pages can use the chat. Each entry is an exact origin, or a wildcard for subdomains:
+
+```typescript
+allowedOrigins: ['https://acme.com', 'https://*.acme.com'],
+```
+
+A browser request from any other page gets `403 {"error":"origin_not_allowed"}` before the model is called, and the server logs the origin it refused. Without the list (or with `['*']`), any site can put your chat on its pages and spend your tokens. Set it in production.
+
+Entries need the scheme and no path: `https://acme.com`, not `acme.com` or `https://acme.com/`. `https://*.acme.com` matches `https://docs.acme.com` but not `https://acme.com` itself, so list both if you need both. Include the port when it isn't the default, as in `http://localhost:4321`.
+
+Requests without an `Origin` header, such as `curl` or a call from your own server, still go through. The list stops other sites embedding your bot. It doesn't stop scripts, which can send any `Origin` they like. Rate limits and budgets are what stop those.
+
+`cors` is the older option for one origin. It still works as a one-item `allowedOrigins`, with a deprecation warning.
 
 ## Budgets
 

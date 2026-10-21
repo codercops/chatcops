@@ -20,7 +20,7 @@ export default chatcopsVercelHandler({
     apiKey: process.env.ANTHROPIC_API_KEY!,
   },
   systemPrompt: 'You are a helpful assistant.',
-  cors: '*',
+  allowedOrigins: ['*'],
 });
 ```
 
@@ -76,7 +76,7 @@ export default chatcopsVercelHandler({
       { question: 'Pricing?', answer: 'Plans start at $29/mo.' },
     ]),
   ],
-  cors: '*',
+  allowedOrigins: ['*'],
 });
 ```
 

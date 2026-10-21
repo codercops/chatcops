@@ -287,7 +287,7 @@ describe('express analytics sharing', () => {
     const { fake, res } = createResponse();
 
     await middleware(
-      createRequest('GET'),
+      createRequest('GET', undefined, { Origin: 'https://example.com' }),
       res,
       (() => undefined) as NextFunction,
     );

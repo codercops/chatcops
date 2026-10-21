@@ -58,7 +58,7 @@ function getHandler(env: Env) {
       ]),
     ],
 
-    cors: '*',
+    allowedOrigins: ['*'],
     rateLimit: { maxRequests: 20, windowMs: 60_000 },
     analytics: true,
   });

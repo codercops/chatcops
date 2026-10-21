@@ -23,7 +23,7 @@ app.all('/chat', chatcopsMiddleware({
   systemPrompt: `You are a helpful customer support assistant for our website.
     Be concise, friendly, and helpful. If the user wants to contact us,
     use the lead capture tool to collect their information.`,
-  cors: '*',
+  allowedOrigins: ['*'],
   rateLimit: { maxRequests: 30, windowMs: 60_000 },
   analytics: true,
 }));
