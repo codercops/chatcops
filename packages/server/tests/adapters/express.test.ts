@@ -335,6 +335,7 @@ describe('express analytics sharing', () => {
       cors: '*',
       analytics: true,
     };
+    vi.mocked(createChatHandler).mockClear();
 
     const middleware = chatcopsMiddleware(config);
 
@@ -353,7 +354,8 @@ describe('express analytics sharing', () => {
     chatcopsAnalyticsHandler(config)(createRequest('GET'), statsRes);
 
     expect(statsFake.body).toMatchObject({ totalConversations: 2 });
-    expect(setIntervalSpy).toHaveBeenCalledTimes(1);
+    // One handler for the config, shared by the middleware and the stats route.
+    expect(createChatHandler).toHaveBeenCalledTimes(1);
   });
 
   it('warns once across several requests when analyticsToken is not configured', () => {

@@ -84,3 +84,34 @@ describe('purge', () => {
     cleanup();
   });
 });
+
+describe('rate limits on the storage counters', () => {
+  it('holds a limit across handlers that share the storage, and says when to retry', async () => {
+    const storage = memoryStorage();
+    const make = () =>
+      createChatHandler({
+        provider: scriptedProvider(Array.from({ length: 5 }, () => textStep('ok'))),
+        systemPrompt: 'x',
+        storage,
+        rateLimit: { maxRequests: 2, windowMs: 60_000 },
+      });
+    const a = make();
+    const b = make();
+
+    expect((await chunks(a.handleChat({ conversationId: 'c1', message: 'one' }, '1.2.3.4'))).at(-1)).toEqual({ done: true });
+    expect((await chunks(b.handleChat({ conversationId: 'c2', message: 'two' }, '1.2.3.4'))).at(-1)).toEqual({ done: true });
+    const third = await chunks(a.handleChat({ conversationId: 'c3', message: 'three' }, '1.2.3.4'));
+
+    expect(third).toEqual([{ error: 'rate_limit', retryAfter: expect.any(Number) }]);
+    expect((third[0] as { retryAfter: number }).retryAfter).toBeGreaterThanOrEqual(1);
+    expect((third[0] as { retryAfter: number }).retryAfter).toBeLessThanOrEqual(60);
+    // Another visitor isn't affected.
+    expect((await chunks(b.handleChat({ conversationId: 'c4', message: 'hi' }, '5.6.7.8'))).at(-1)).toEqual({ done: true });
+  });
+
+  it('still refuses a limit of zero', () => {
+    expect(() => createChatHandler({ provider: scriptedProvider([]), systemPrompt: 'x', rateLimit: { maxRequests: 0, windowMs: 1000 } })).toThrow(
+      'maxRequests must be greater than 0'
+    );
+  });
+});

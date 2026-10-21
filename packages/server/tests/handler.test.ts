@@ -30,8 +30,9 @@ describe('createChatHandler', () => {
     vi.restoreAllMocks();
   });
 
-  it('cleanup function clears interval', () => {
-    const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
+  it('starts no timers, so it can be created at global scope on Workers', () => {
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
 
     const { cleanup } = createChatHandler({
       provider: { type: 'claude', apiKey: 'test-key' },
@@ -39,8 +40,10 @@ describe('createChatHandler', () => {
       cors: '*',
     });
 
-    cleanup();
-    expect(clearIntervalSpy).toHaveBeenCalledOnce();
+    expect(setIntervalSpy).not.toHaveBeenCalled();
+    expect(setTimeoutSpy).not.toHaveBeenCalled();
+    // Still there for code written for 0.5.
+    expect(() => cleanup()).not.toThrow();
   });
 
   it('warns once when the deprecated i18n option is set', () => {

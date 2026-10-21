@@ -3,6 +3,8 @@ import {
   isAIProvider,
   ConversationManager,
   AnalyticsCollector,
+  createRateLimiter,
+  memoryStorage,
   partsOf,
   runTurn,
   toLegacyChunk,
@@ -10,12 +12,12 @@ import {
   toolToDefinition,
   validateTools,
   type ChatMessage,
+  type CounterStore,
   type WirePart,
 } from '@chatcops/core';
 import type { ChatCopsServerConfig, ValidatedChatRequest } from './config.js';
 import { chatRequestSchema } from './config.js';
 import { VISITOR_CONTEXT_INSTRUCTION, buildVisitorContext, isLocaleTag, withVisitorContext } from './visitor-context.js';
-import { RateLimiter } from './rate-limit.js';
 import { WebhookDispatcher } from './webhook.js';
 
 export function createChatHandler(config: ChatCopsServerConfig) {
@@ -44,7 +46,15 @@ export function createChatHandler(config: ChatCopsServerConfig) {
   }
   const storage = config.storage ?? (config.conversationStore ? { conversations: config.conversationStore } : undefined);
   const conversations = new ConversationManager(storage ? { storage } : {});
-  const rateLimiter = config.rateLimit ? new RateLimiter(config.rateLimit) : new RateLimiter();
+  // Counted in the storage's counters when it has them, so a limit holds
+  // across every server instance; otherwise in this process. Nothing runs on
+  // a timer, which Workers don't allow at global scope.
+  const rateLimit = { maxRequests: 30, windowMs: 60_000, ...config.rateLimit };
+  if (rateLimit.maxRequests <= 0) throw new Error('maxRequests must be greater than 0');
+  const rateLimiter = createRateLimiter((storage?.counters ?? memoryStorage().counters) as CounterStore, {
+    limit: rateLimit.maxRequests,
+    windowMs: rateLimit.windowMs,
+  });
   const analytics = config.analytics ? new AnalyticsCollector() : null;
   const webhooks = config.webhooks?.length ? new WebhookDispatcher(config.webhooks) : null;
   const toolDefs = config.tools?.map(toolToDefinition) ?? [];
@@ -53,8 +63,6 @@ export function createChatHandler(config: ChatCopsServerConfig) {
   validateTools(toolDefs);
   const tools = toolRegistry(config.tools);
 
-  // Periodic cleanup
-  const cleanupInterval = setInterval(() => rateLimiter.cleanup(), 60_000);
 
   /**
    * Streams one reply. Pass `options.signal` to stop when the visitor goes
@@ -78,9 +86,10 @@ export function createChatHandler(config: ChatCopsServerConfig) {
 
     // Rate limit
     if (clientIp) {
-      const limit = rateLimiter.check(clientIp);
+      const limit = await rateLimiter.check(clientIp);
       if (!limit.allowed) {
-        yield JSON.stringify({ error: 'rate_limit', retryAfter: limit.retryAfter });
+        // 0.5 widgets read seconds.
+        yield JSON.stringify({ error: 'rate_limit', retryAfter: Math.ceil((limit.retryAfterMs ?? 1000) / 1000) });
         return;
       }
     }
@@ -301,9 +310,8 @@ export function createChatHandler(config: ChatCopsServerConfig) {
     return store.purge(now - days * DAY_MS);
   }
 
-  function cleanup() {
-    clearInterval(cleanupInterval);
-  }
+  /** Kept for compatibility: the handler no longer holds timers, so there's nothing to clean up. */
+  function cleanup() {}
 
   return {
     handleChat,

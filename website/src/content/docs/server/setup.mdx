@@ -51,7 +51,8 @@ const handler = chatcopsMiddleware({
     ]),
   ],
 
-  // Optional: Rate limiting
+  // Optional: Rate limiting per visitor IP, a sliding window. Counted in
+  // `storage` when it has counters, so the limit holds across instances.
   rateLimit: {
     maxRequests: 30,     // Max requests per window
     windowMs: 60_000,    // Window duration in ms
