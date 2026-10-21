@@ -7,8 +7,8 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['packages/*/src/**'],
-      // Sample apps, not library code.
-      exclude: ['packages/server/src/examples/**'],
+      // Sample apps, and the two-line command entry points (their logic is in cli.ts).
+      exclude: ['packages/server/src/examples/**', 'packages/store-*/src/bin.ts'],
       reporter: ['text', 'lcov'],
       // Measured coverage rounded down to the nearest 5 (Oct 2026), so CI fails
       // if coverage drops. Raise these when coverage goes up.
