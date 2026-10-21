@@ -1,7 +1,7 @@
 // Records real provider responses for the replay tests in tests/fixtures.
 //
 //   pnpm --filter @chatcops/core build
-//   cd packages/core && node --env-file=../../.env scripts/record-fixtures.mjs [claude] [openai]
+//   cd packages/core && node --env-file=../../.env scripts/record-fixtures.mjs [claude] [openai] [gemini]
 //
 // Only request and response bodies are written, never headers, and the script
 // stops if a body contains an API key. Recording costs a few cents per run.
@@ -9,7 +9,7 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ClaudeProvider, OpenAIProvider } from '../dist/index.js';
+import { ClaudeProvider, GeminiProvider, OpenAIProvider } from '../dist/index.js';
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), '..', 'tests', 'fixtures');
 const SECRETS = ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GEMINI_API_KEY']
@@ -148,8 +148,14 @@ const claude = (name, extra = {}) =>
 const openai = (name) =>
   new OpenAIProvider({ type: 'openai', apiKey: process.env.OPENAI_API_KEY, fetch: recorder('openai', name) });
 
+const gemini = (name) =>
+  new GeminiProvider({ type: 'gemini', apiKey: process.env.GEMINI_API_KEY, fetch: recorder('gemini', name) });
+
 const providers = {
   openai: () => recordCases('openai', openai),
+  // Gemini sends no thought text unless asked; its signature rides on the
+  // function call part, which the one-tool case covers.
+  gemini: () => recordCases('gemini', gemini),
   claude: async () => {
     await recordCases('claude', (name) => claude(name));
     await recordThinkingTool('claude', claude('thinking-tool', { effort: 'high' }));

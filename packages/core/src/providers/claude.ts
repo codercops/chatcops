@@ -73,7 +73,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 function toClaudeBlock(part: TurnPart): ContentBlockParam | null {
   switch (part.type) {
     case 'text':
-      return { type: 'text', text: part.text };
+      return part.text ? { type: 'text', text: part.text } : null;
     case 'reasoning': {
       // Reasoning from another provider has no Claude signature, and Claude
       // rejects thinking blocks without one, so it isn't sent.

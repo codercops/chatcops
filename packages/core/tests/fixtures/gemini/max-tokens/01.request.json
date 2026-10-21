@@ -1,0 +1,26 @@
+{
+  "contents": [
+    {
+      "parts": [
+        {
+          "text": "Write a long poem about the sea."
+        }
+      ],
+      "role": "user"
+    }
+  ],
+  "systemInstruction": {
+    "parts": [
+      {
+        "text": "You are the support assistant for a small online shop. Keep answers short."
+      }
+    ],
+    "role": "user"
+  },
+  "generationConfig": {
+    "maxOutputTokens": 16,
+    "thinkingConfig": {
+      "thinkingLevel": "LOW"
+    }
+  }
+}

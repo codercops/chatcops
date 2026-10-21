@@ -55,7 +55,8 @@ const NOT_RUN = 'The tool was not run.';
 function isTurnPart(part: MessagePart): part is TurnPart {
   switch (part.type) {
     case 'text':
-      return part.text.trim() !== '';
+      // Blank text is dropped unless it carries a signature the provider wants back.
+      return part.text.trim() !== '' || part.providerMetadata !== undefined;
     case 'reasoning':
     case 'tool-call':
     case 'tool-result':
