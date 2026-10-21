@@ -2,6 +2,8 @@
 
 SQLite storage for ChatCops single-server deployments. It uses Node.js 22.13+'s built-in `node:sqlite`, so no native database dependency is required.
 
+Node may print an `ExperimentalWarning` the first time `node:sqlite` loads; this is expected from Node and is not an error.
+
 ```bash
 pnpm add @chatcops/store-sqlite
 ```

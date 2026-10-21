@@ -103,24 +103,116 @@ class SqliteConversations implements ConversationStore {
 
 class SqliteCounters implements CounterStore {
   constructor(private readonly db: SqliteDatabase, private readonly clock: () => number) {}
-  increment(key: string, by: number, ttlMs: number): Promise<{ value: number; expiresAt: number }> { const time = this.clock(); const row = get<{ value: number; expires_at: number }>(this.db, `INSERT INTO chatcops_counters (key,value,expires_at) VALUES (?, ?, ?)
-    ON CONFLICT(key) DO UPDATE SET value=CASE WHEN chatcops_counters.expires_at <= excluded.expires_at - ? THEN excluded.value ELSE chatcops_counters.value + excluded.value END,
-    expires_at=CASE WHEN chatcops_counters.expires_at <= excluded.expires_at - ? THEN excluded.expires_at ELSE chatcops_counters.expires_at END RETURNING value, expires_at`, key, by, time + ttlMs, ttlMs, ttlMs); if (!row) throw new Error('SQLite counter upsert did not return a row'); return Promise.resolve({ value: Number(row.value), expiresAt: Number(row.expires_at) }); }
-  get(key: string): Promise<{ value: number; expiresAt: number } | null> { const row = get<{ value: number; expires_at: number }>(this.db, 'SELECT value, expires_at FROM chatcops_counters WHERE key = ? AND expires_at > ?', key, this.clock()); return Promise.resolve(row ? { value: Number(row.value), expiresAt: Number(row.expires_at) } : null); }
+  increment(key: string, by: number, ttlMs: number): Promise<{ value: number; expiresAt: number }> {
+    const time = this.clock();
+    const row = get<{ value: number; expires_at: number }>(
+      this.db,
+      `INSERT INTO chatcops_counters (key, value, expires_at)
+       VALUES (?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET
+         value = CASE WHEN chatcops_counters.expires_at <= ?
+           THEN excluded.value ELSE chatcops_counters.value + excluded.value END,
+         expires_at = CASE WHEN chatcops_counters.expires_at <= ?
+           THEN excluded.expires_at ELSE chatcops_counters.expires_at END
+       RETURNING value, expires_at`,
+      key,
+      by,
+      time + ttlMs,
+      time,
+      time
+    );
+    if (!row) throw new Error('SQLite counter upsert did not return a row');
+    return Promise.resolve({ value: Number(row.value), expiresAt: Number(row.expires_at) });
+  }
+
+  get(key: string): Promise<{ value: number; expiresAt: number } | null> {
+    const row = get<{ value: number; expires_at: number }>(
+      this.db,
+      'SELECT value, expires_at FROM chatcops_counters WHERE key = ? AND expires_at > ?',
+      key,
+      this.clock()
+    );
+    return Promise.resolve(row ? { value: Number(row.value), expiresAt: Number(row.expires_at) } : null);
+  }
 }
 
 class SqliteKv implements KeyValueStore {
   constructor(private readonly db: SqliteDatabase, private readonly clock: () => number) {}
-  get<T = unknown>(key: string): Promise<T | null> { const row = get<{ value: string }>(this.db, 'SELECT value FROM chatcops_kv WHERE key = ? AND (expires_at IS NULL OR expires_at > ?)', key, this.clock()); return Promise.resolve(row ? JSON.parse(row.value) as T : null); }
-  set(key: string, value: unknown, options: { ttlMs?: number } = {}): Promise<void> { run(this.db, 'INSERT INTO chatcops_kv (key,value,expires_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, expires_at=excluded.expires_at', key, JSON.stringify(value), options.ttlMs === undefined ? null : this.clock() + options.ttlMs); return Promise.resolve(); }
-  setIfAbsent(key: string, value: unknown, options: { ttlMs?: number } = {}): Promise<boolean> { const result = run<RunResult>(this.db, `INSERT INTO chatcops_kv (key,value,expires_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, expires_at=excluded.expires_at WHERE chatcops_kv.expires_at IS NOT NULL AND chatcops_kv.expires_at <= ?`, key, JSON.stringify(value), options.ttlMs === undefined ? null : this.clock() + options.ttlMs, this.clock()); return Promise.resolve(changes(result) > 0); }
-  delete(key: string): Promise<void> { run(this.db, 'DELETE FROM chatcops_kv WHERE key = ?', key); return Promise.resolve(); }
+  get<T = unknown>(key: string): Promise<T | null> {
+    const row = get<{ value: string }>(
+      this.db,
+      'SELECT value FROM chatcops_kv WHERE key = ? AND (expires_at IS NULL OR expires_at > ?)',
+      key,
+      this.clock()
+    );
+    return Promise.resolve(row ? (JSON.parse(row.value) as T) : null);
+  }
+
+  set(key: string, value: unknown, options: { ttlMs?: number } = {}): Promise<void> {
+    run(
+      this.db,
+      'INSERT INTO chatcops_kv (key, value, expires_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, expires_at = excluded.expires_at',
+      key,
+      JSON.stringify(value),
+      options.ttlMs === undefined ? null : this.clock() + options.ttlMs
+    );
+    return Promise.resolve();
+  }
+
+  setIfAbsent(key: string, value: unknown, options: { ttlMs?: number } = {}): Promise<boolean> {
+    const result = run<RunResult>(
+      this.db,
+      `INSERT INTO chatcops_kv (key, value, expires_at)
+       VALUES (?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, expires_at = excluded.expires_at
+       WHERE chatcops_kv.expires_at IS NOT NULL AND chatcops_kv.expires_at <= ?`,
+      key,
+      JSON.stringify(value),
+      options.ttlMs === undefined ? null : this.clock() + options.ttlMs,
+      this.clock()
+    );
+    return Promise.resolve(changes(result) > 0);
+  }
+
+  delete(key: string): Promise<void> {
+    run(this.db, 'DELETE FROM chatcops_kv WHERE key = ?', key);
+    return Promise.resolve();
+  }
 }
 
 class SqliteEvents implements EventSink {
   constructor(private readonly db: SqliteDatabase) {}
-  write(events: AnalyticsEvent[]): Promise<void> { for (const event of events) run(this.db, 'INSERT INTO chatcops_events (type,data,created_at) VALUES (?, ?, ?)', event.type, json(event.data), event.timestamp); return Promise.resolve(); }
-  query(query: EventQuery): Promise<Array<{ bucket: number; type: string; count: number }>> { const size = query.groupBy === 'hour' ? 3_600_000 : 86_400_000; const rows = all<{ bucket: number; type: string; count: number }>(this.db, `SELECT CAST((created_at / ?) AS INTEGER) * ? AS bucket, type, COUNT(*) AS count FROM chatcops_events WHERE created_at >= ? AND created_at < ? AND (? IS NULL OR type = ?) GROUP BY bucket,type ORDER BY bucket,type`, size, size, query.from, query.to, query.type ?? null, query.type ?? null); return Promise.resolve(rows.map((row) => ({ bucket: Number(row.bucket), type: row.type, count: Number(row.count) }))); }
+  write(events: AnalyticsEvent[]): Promise<void> {
+    for (const event of events) {
+      run(
+        this.db,
+        'INSERT INTO chatcops_events (type, data, created_at) VALUES (?, ?, ?)',
+        event.type,
+        json(event.data),
+        event.timestamp
+      );
+    }
+    return Promise.resolve();
+  }
+
+  query(query: EventQuery): Promise<Array<{ bucket: number; type: string; count: number }>> {
+    const size = query.groupBy === 'hour' ? 3_600_000 : 86_400_000;
+    const rows = all<{ bucket: number; type: string; count: number }>(
+      this.db,
+      `SELECT CAST((created_at / ?) AS INTEGER) * ? AS bucket, type, COUNT(*) AS count
+       FROM chatcops_events
+       WHERE created_at >= ? AND created_at < ? AND (? IS NULL OR type = ?)
+       GROUP BY bucket, type
+       ORDER BY bucket, type`,
+      size,
+      size,
+      query.from,
+      query.to,
+      query.type ?? null,
+      query.type ?? null
+    );
+    return Promise.resolve(rows.map((row) => ({ bucket: Number(row.bucket), type: row.type, count: Number(row.count) })));
+  }
 }
 
 export function sqliteStorage(options: SqliteStorageOptions): ChatCopsStorage {
@@ -128,7 +220,13 @@ export function sqliteStorage(options: SqliteStorageOptions): ChatCopsStorage {
   const database = options.database ?? openDatabase(options.path ?? '');
   initializeSchema(database);
   const clock = now;
-  return { conversations: new SqliteConversations(database, clock), counters: new SqliteCounters(database, clock), kv: new SqliteKv(database, clock), events: new SqliteEvents(database), close: async () => database.close?.() };
+  return {
+    conversations: new SqliteConversations(database, clock),
+    counters: new SqliteCounters(database, clock),
+    kv: new SqliteKv(database, clock),
+    events: new SqliteEvents(database),
+    close: options.database ? async () => {} : async () => database.close?.(),
+  };
 }
 
 export type { SqliteDatabase } from './database.js';
