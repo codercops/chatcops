@@ -1,5 +1,15 @@
-import { SSE_DONE, SSE_HEADERS, SSE_PING, encodeSSE, errorBody, type WirePart } from '@chatcops/core';
-import { toLegacyStream, type ChatHandler, type ChatStart } from './handler.js';
+import {
+  AI_SDK_STREAM_HEADER,
+  SSE_DONE,
+  SSE_HEADERS,
+  SSE_PING,
+  aiSdkEncoder,
+  encodeSSE,
+  errorBody,
+  fromAiSdkRequest,
+  type WirePart,
+} from '@chatcops/core';
+import { toLegacyStream, type ChatFormat, type ChatHandler, type ChatStart } from './handler.js';
 import type { OriginPolicy } from './security/origin-policy.js';
 
 /**
@@ -33,6 +43,8 @@ export interface ChatReplyOptions {
   /** The `x-chatcops-protocol` request header. */
   protocolHeader?: string | null;
   pingIntervalMs?: number;
+  /** Answer in the AI SDK's UI message stream instead of choosing by the request. */
+  aiSdk?: boolean;
 }
 
 export type ChatReply =
@@ -46,44 +58,56 @@ export async function chatReply(
   clientIp: string | undefined,
   options: ChatReplyOptions
 ): Promise<ChatReply> {
-  const v1 = wantsProtocolV1(body, options.protocolHeader);
+  const format: ChatFormat = options.aiSdk ? 'ai-sdk' : wantsProtocolV1(body, options.protocolHeader) ? 'v1' : 'legacy';
+  // Both typed formats refuse with a status; only 0.5 clients need a 200 stream.
+  const typed = format !== 'legacy';
   const { signal } = options;
   const pingIntervalMs = options.pingIntervalMs ?? PING_INTERVAL_MS;
 
   let start: ChatStart;
   try {
-    start = await handler.startChat(body, clientIp, { signal, format: v1 ? 'v1' : 'legacy' });
+    start = await handler.startChat(body, clientIp, { signal, format });
   } catch (err) {
     if (!signal.aborted) console.error('[chatcops] Unhandled error while handling chat:', err);
-    if (v1) return { kind: 'json', status: 500, headers: EXPOSE_HEADERS, body: errorBody('internal_error') };
+    if (typed) return { kind: 'json', status: 500, headers: EXPOSE_HEADERS, body: errorBody('internal_error') };
     // What 0.5 servers send, with no [DONE] after it.
-    return stream(false, only(LEGACY_INTERNAL_ERROR));
+    return stream(format, only(LEGACY_INTERNAL_ERROR));
   }
 
   if (!start.ok) {
-    if (v1) {
+    if (typed) {
       const headers: Record<string, string> = { ...EXPOSE_HEADERS };
       if (start.error.retryAfterMs !== undefined) headers['Retry-After'] = String(Math.ceil(start.error.retryAfterMs / 1000));
       return { kind: 'json', status: start.status, headers, body: { error: start.error } };
     }
     // 0.5 widgets read refusals from a 200 stream.
-    return stream(false, only(`data: ${JSON.stringify(start.legacy)}\n\n`, SSE_DONE));
+    return stream(format, only(`data: ${JSON.stringify(start.legacy)}\n\n`, SSE_DONE));
   }
 
-  const source = v1 ? encodeParts(start.parts) : encodeLegacy(start.parts);
-  return stream(v1, frames(source, v1, signal, pingIntervalMs));
+  const source =
+    format === 'v1' ? encodeParts(start.parts) : format === 'ai-sdk' ? encodeAiSdk(start.parts) : encodeLegacy(start.parts);
+  return stream(format, frames(source, format, signal, pingIntervalMs));
 }
 
-function stream(v1: boolean, frames: AsyncGenerator<string, void>): ChatReply {
-  return {
-    kind: 'stream',
-    headers: { ...SSE_HEADERS, ...EXPOSE_HEADERS, ...(v1 ? { [PROTOCOL_HEADER]: '1' } : {}) },
-    frames,
-  };
+const FORMAT_HEADERS: Record<ChatFormat, Record<string, string>> = {
+  v1: { [PROTOCOL_HEADER]: '1' },
+  'ai-sdk': { [AI_SDK_STREAM_HEADER]: 'v1' },
+  legacy: {},
+};
+
+function stream(format: ChatFormat, frames: AsyncGenerator<string, void>): ChatReply {
+  return { kind: 'stream', headers: { ...SSE_HEADERS, ...EXPOSE_HEADERS, ...FORMAT_HEADERS[format] }, frames };
 }
 
 async function* encodeParts(parts: AsyncIterable<WirePart>): AsyncGenerator<string> {
   for await (const part of parts) yield encodeSSE(part);
+}
+
+async function* encodeAiSdk(parts: AsyncIterable<WirePart>): AsyncGenerator<string> {
+  const encode = aiSdkEncoder();
+  for await (const part of parts) {
+    for (const chunk of encode(part)) yield encodeSSE(chunk);
+  }
 }
 
 async function* encodeLegacy(parts: AsyncIterable<WirePart>): AsyncGenerator<string> {
@@ -102,7 +126,7 @@ async function* only(...frames: string[]): AsyncGenerator<string, void> {
  */
 async function* frames(
   source: AsyncGenerator<string>,
-  v1: boolean,
+  format: ChatFormat,
   signal: AbortSignal,
   pingIntervalMs: number
 ): AsyncGenerator<string, void> {
@@ -115,9 +139,13 @@ async function* frames(
   } catch (err) {
     if (signal.aborted) return;
     console.error('[chatcops] Unhandled error while handling chat:', err);
-    if (v1) {
-      yield encodeSSE({ type: 'error', code: 'internal_error', retryable: true });
-      yield encodeSSE({ type: 'finish', reason: 'error' });
+    if (format !== 'legacy') {
+      const tail: WirePart[] = [
+        { type: 'error', code: 'internal_error', retryable: true },
+        { type: 'finish', reason: 'error' },
+      ];
+      const encode = format === 'ai-sdk' ? aiSdkEncoder() : (part: WirePart) => [part];
+      for (const part of tail) for (const chunk of encode(part)) yield encodeSSE(chunk);
       yield SSE_DONE;
     } else {
       yield LEGACY_INTERNAL_ERROR;
@@ -197,6 +225,8 @@ export interface FetchChatOptions {
   /** Workers' `ctx.waitUntil`, so lead webhooks finish after the visitor leaves. */
   waitUntil?(promise: Promise<unknown>): void;
   pingIntervalMs?: number;
+  /** Read `useChat` requests and answer in the AI SDK's UI message stream. */
+  aiSdk?: boolean;
 }
 
 /** The whole request for Fetch API runtimes (Vercel, Cloudflare, Next.js, Bun, Deno). */
@@ -226,15 +256,16 @@ export async function fetchChatResponse(
     }
     return json(
       400,
-      wantsProtocolV1(undefined, protocolHeader) ? errorBody('invalid_request', { message: 'Invalid JSON body' }) : { error: 'Invalid JSON body' }
+      options.aiSdk || wantsProtocolV1(undefined, protocolHeader) ? errorBody('invalid_request', { message: 'Invalid JSON body' }) : { error: 'Invalid JSON body' }
     );
   }
 
   const abort = new AbortController();
-  const reply = await chatReply(handler, read.body, clientIp, {
+  const reply = await chatReply(handler, options.aiSdk ? fromAiSdkRequest(read.body) : read.body, clientIp, {
     signal: abort.signal,
     protocolHeader,
     pingIntervalMs: options.pingIntervalMs,
+    aiSdk: options.aiSdk,
   });
   if (reply.kind === 'json') return json(reply.status, reply.body, reply.headers);
   return sseResponse(reply.frames, { ...reply.headers, ...cors }, abort, options.waitUntil);

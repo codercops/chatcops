@@ -308,7 +308,7 @@ The server validates incoming requests with Zod:
 
 ## Response format
 
-The server answers in one of two formats. The widget from 0.6 on sends `"protocol": 1` in the request body and gets protocol v1. Requests without it, from widgets before 0.6 or older custom clients, get the 0.5 format, which keeps working until 1.0. A client can also ask for v1 with an `x-chatcops-protocol: 1` header. The server logs one line the first time it answers in the 0.5 format, so you can tell when old widgets are still around.
+The server answers in one of two formats. The widget from 0.6 on sends `"protocol": 1` in the request body and gets protocol v1. Requests without it, from widgets before 0.6 or older custom clients, get the 0.5 format, which keeps working until 1.0. A client can also ask for v1 with an `x-chatcops-protocol: 1` header. The server logs one line the first time it answers in the 0.5 format, so you can tell when old widgets are still around. `chatcopsAiSdkHandler` answers in a third format, the AI SDK's, for apps built on `useChat` (see [AI SDK](/server/ai-sdk/)).
 
 The server writes one reply per conversation at a time, so a second message sent while a reply is streaming is refused instead of answering the same history twice. The widget doesn't let visitors send while a reply streams, so this only shows up with custom clients.
 

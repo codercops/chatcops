@@ -82,7 +82,7 @@ export function createChatHandler(config: ChatCopsServerConfig) {
   const tools = toolRegistry(config.tools);
 
 
-  const requests = { v1: 0, legacy: 0 };
+  const requests: Record<ChatFormat, number> = { v1: 0, legacy: 0, 'ai-sdk': 0 };
 
   /**
    * Starts one reply. Resolves a refusal for a request that can't be
@@ -383,10 +383,13 @@ export function createChatHandler(config: ChatCopsServerConfig) {
   };
 }
 
+/** The stream a caller writes: protocol v1, the 0.5 chunks, or the AI SDK's UI message stream. */
+export type ChatFormat = 'v1' | 'legacy' | 'ai-sdk';
+
 export interface StartChatOptions {
   signal?: AbortSignal;
   /** Which stream the caller writes, for `protocolStats()`. Defaults to `'v1'`. */
-  format?: 'v1' | 'legacy';
+  format?: ChatFormat;
 }
 
 /** A request the handler won't answer, or the reply's parts. */

@@ -1,0 +1,84 @@
+---
+title: AI SDK (useChat)
+description: Point the AI SDK's useChat hook at a ChatCops server.
+---
+
+`chatcopsAiSdkHandler` answers in the [AI SDK](https://ai-sdk.dev)'s UI message stream, so an app that already uses `useChat` can use a ChatCops server instead of its own route. You keep your chat UI and get ChatCops on the server: stored conversations, rate limits, budgets, allowed origins and tools.
+
+It's a Fetch API handler like `chatcopsVercelHandler`, so it works as a Next.js route handler and in any runtime from the [fetch runtimes page](/server/fetch-runtimes/). It's tested against `ai` 7.
+
+## Next.js
+
+Create `app/api/chat/route.ts`, the path `useChat` calls by default:
+
+```typescript
+import { chatcopsAiSdkHandler } from '@chatcops/server';
+
+const handler = chatcopsAiSdkHandler({
+  provider: {
+    type: 'claude',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  },
+  systemPrompt: 'You are a helpful assistant.',
+});
+
+export const POST = handler;
+export const OPTIONS = handler;
+```
+
+Then use `useChat` as usual:
+
+```tsx
+'use client';
+import { useChat } from '@ai-sdk/react';
+import { useState } from 'react';
+
+export function Chat({ chatId }: { chatId: string }) {
+  const { messages, sendMessage, status, error } = useChat({ id: chatId });
+  const [input, setInput] = useState('');
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        sendMessage({ text: input });
+        setInput('');
+      }}
+    >
+      {messages.map((message) => (
+        <p key={message.id}>
+          {message.role}:{' '}
+          {message.parts.map((part, i) => (part.type === 'text' ? <span key={i}>{part.text}</span> : null))}
+        </p>
+      ))}
+      {error && <p>Something went wrong. Try again.</p>}
+      <input value={input} onChange={(event) => setInput(event.target.value)} disabled={status !== 'ready'} />
+    </form>
+  );
+}
+```
+
+The chat `id` is the ChatCops conversation id. `useChat` makes up a new one each time the component mounts, so pass a stable `id` (one per conversation, saved however your app saves things) to keep talking in the same conversation after a reload.
+
+## How it differs from an AI SDK route
+
+The server keeps the history. A typical AI SDK route takes the whole `messages` array from the client and sends it to the model. ChatCops reads only the last user message and answers from the conversation it has stored, so a visitor can't edit the history or add assistant turns the model never wrote. Changing an earlier message in the client changes what's on screen, not what the model sees.
+
+The rest maps over directly:
+
+- `regenerate()` replaces the answer on the server too. The old answer stays until the new one has finished.
+- A retry of a message that already has an answer gets that answer again, without calling the model.
+- Tools run on the server. They show up as `tool-<name>` parts with `providerExecuted: true`, so `useChat` doesn't try to run them or wait for their output.
+- A lead from the lead capture tool arrives as a `data-lead-captured` part.
+- Each assistant message has `metadata.conversationId`. With `exposeUsage: true` the metadata also has the reply's token `usage`.
+- A request the server won't answer (rate limited, invalid, a reply already streaming) gets an HTTP status with a JSON body. An error after the reply has started, such as `provider_error` or `budget_exceeded`, is an `error` chunk with the code as its text. Both set `useChat`'s `error` and call its `onError`.
+
+To send ChatCops' visitor context, put it in the request body. `pageContext`, `locale` and `userData` pass through:
+
+```tsx
+sendMessage({ text: input }, { body: { locale: navigator.language } });
+```
+
+## The visitor's IP
+
+Per-IP rate limits and budgets need the visitor's IP. On Vercel and Cloudflare Workers the handler reads it from the platform's own headers. Anywhere else, set `clientIp` as on the [fetch runtimes page](/server/fetch-runtimes/#the-visitors-ip).
