@@ -246,7 +246,7 @@ A new package needs:
   else describe.skip('redis conformance (set CHATCOPS_TEST_REDIS_URL to run)', () => {});
   ```
 
-CI runs Redis, the Upstash REST emulator and Postgres next to the tests and sets `CHATCOPS_TEST_REDIS_URL`, `CHATCOPS_TEST_UPSTASH_URL` with `CHATCOPS_TEST_UPSTASH_TOKEN`, and `CHATCOPS_TEST_POSTGRES_URL` (see `.github/workflows/ci.yml`). Locally, start the same containers with Docker and export the variables, or let those tests skip. The root `vitest.config.ts` and `pnpm publint` pick up a new package by themselves, and store packages need 90% line and 80% branch coverage.
+CI runs Redis, the Upstash REST emulator and Postgres next to the tests and sets `CHATCOPS_TEST_REDIS_URL`, `CHATCOPS_TEST_UPSTASH_URL` with `CHATCOPS_TEST_UPSTASH_TOKEN`, and `CHATCOPS_TEST_POSTGRES_URL` (see `.github/workflows/ci.yml`). Locally, start the same containers with Docker and export the variables, or let those tests skip. The root `vitest.config.ts` and `pnpm publint` pick up a new package by themselves, and store packages need 90% line and 80% branch coverage, checked in CI (locally the database tests skip, so the store floor only applies there).
 
 ## Adding a new locale
 
