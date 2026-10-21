@@ -605,7 +605,27 @@ describe('Widget', () => {
     widget2.destroy();
   });
 
-  it('sends userData with every request, not just the first', async () => {
+  it('stops sending userData once a v1 server has answered, since it keeps the answers', async () => {
+    const widget = new Widget({
+      apiUrl: 'https://api.test/chat',
+      preChatForm: { enabled: true, fields: [{ name: 'name', label: 'Name', type: 'text' as const }] },
+    });
+    widget.init();
+    getInternals(widget).handlePreChatSubmit({ name: 'Taylor' });
+    const sendMessage = vi.fn().mockImplementation(async function* () {
+      yield { messageId: crypto.randomUUID() };
+      yield { content: 'Echo' };
+      yield { done: true };
+    });
+    getInternals(widget).client.sendMessage = sendMessage;
+
+    await getInternals(widget).handleSend('First');
+    await getInternals(widget).handleSend('Second');
+    expect(sendMessage.mock.calls[0]?.[0]).toMatchObject({ userData: { name: 'Taylor' } });
+    expect(sendMessage.mock.calls[1]?.[0]).not.toHaveProperty('userData');
+  });
+
+  it('sends userData with every request to a 0.5 server, which needs it each time', async () => {
     const widget = new Widget({
       apiUrl: 'https://api.test/chat',
       preChatForm: {

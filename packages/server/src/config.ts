@@ -32,6 +32,13 @@ export interface ChatCopsServerConfig {
    * reply that would go over ends with an error instead of calling the model.
    */
   budgets?: Budgets;
+  /**
+   * The pre-chat form fields to keep (the `name`s in the widget's
+   * `preChatForm.fields`). Other fields a request sends are dropped. Unset
+   * keeps every field. Answers are stored with the conversation from its
+   * first message and can't change after that.
+   */
+  preChatFields?: string[];
   webhooks?: WebhookConfig[];
   analytics?: boolean;
   /** Bearer token required to read the analytics endpoint. When unset, the endpoint is public. */

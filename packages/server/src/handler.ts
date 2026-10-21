@@ -132,10 +132,14 @@ export function createChatHandler(config: ChatCopsServerConfig) {
     pendingWebhooks: Set<Promise<void>>,
     clientIp: string | undefined
   ): AsyncGenerator<string> {
-    // Get or create conversation
-    await conversations.getOrCreate(req.conversationId);
+    const conversation = await conversations.getOrCreate(req.conversationId);
+    const conversationMessages = conversation.messages;
 
-    const conversationMessages = await conversations.getMessages(req.conversationId);
+    // Pre-chat answers are kept from the first message on, so the widget
+    // doesn't have to send them again and they can't change mid-conversation.
+    const storedVisitor = conversation.metadata?.visitor as Record<string, string> | undefined;
+    const newVisitor = storedVisitor ? undefined : allowedUserData(req.userData, config.preChatFields);
+    const userData = storedVisitor ?? newVisitor;
 
     let assistantToReplace: ChatMessage | undefined;
     if (typeof req.regenerate === 'object') {
@@ -194,7 +198,11 @@ export function createChatHandler(config: ChatCopsServerConfig) {
         content: req.message,
         timestamp: Date.now(),
       };
-      await conversations.addMessage(req.conversationId, userMessage);
+      await conversations.appendMessages(
+        req.conversationId,
+        [userMessage],
+        newVisitor ? { metadata: { visitor: newVisitor } } : undefined
+      );
     }
 
     // The system prompt is the operator's text and nothing else, so it's the
@@ -209,7 +217,7 @@ export function createChatHandler(config: ChatCopsServerConfig) {
 
     // Visitor-supplied page context and pre-chat answers never go into the
     // system prompt; see visitor-context.ts.
-    const visitorContext = buildVisitorContext(req);
+    const visitorContext = buildVisitorContext({ pageContext: req.pageContext, userData });
     if (visitorContext) context.push(VISITOR_CONTEXT_INSTRUCTION);
 
     if (req.locale && isLocaleTag(req.locale)) {
@@ -339,6 +347,16 @@ function* replay(message: ChatMessage): Generator<string> {
     else if (part.type === 'lead-captured') yield JSON.stringify({ leadCaptured: true, leadData: part.lead });
   }
   yield JSON.stringify({ done: true });
+}
+
+/** The pre-chat answers to keep: all of them, or only the configured fields. */
+function allowedUserData(
+  userData: Record<string, string> | undefined,
+  fields: string[] | undefined
+): Record<string, string> | undefined {
+  if (!userData) return undefined;
+  const kept = fields ? Object.fromEntries(Object.entries(userData).filter(([key]) => fields.includes(key))) : userData;
+  return Object.keys(kept).length ? kept : undefined;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;

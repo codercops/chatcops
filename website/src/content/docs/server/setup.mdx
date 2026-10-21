@@ -93,6 +93,7 @@ interface ChatCopsServerConfig {
   temperature?: number;
   knowledge?: KnowledgeSource[];
   budgets?: Budgets;   // see Budgets below
+  preChatFields?: string[];   // pre-chat form fields to keep; kept from the first message on
   rateLimit?: {
     maxRequests: number;
     windowMs: number;

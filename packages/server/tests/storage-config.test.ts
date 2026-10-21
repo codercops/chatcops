@@ -131,3 +131,42 @@ describe('budgets', () => {
     expect(warn).toHaveBeenCalledWith('[chatcops] The conversation budget is used up, so a reply was refused.');
   });
 });
+
+describe('pre-chat answers', () => {
+  const lastUserText = (provider: ReturnType<typeof scriptedProvider>, call: number) =>
+    provider.calls[call].messages.filter((m) => m.role === 'user').at(-1)?.content ?? '';
+
+  it('keeps them from the first message, and later requests cannot change them', async () => {
+    const storage = memoryStorage();
+    const provider = scriptedProvider([textStep('Hi Ada.'), textStep('Sure.')]);
+    const { handleChat, cleanup } = createChatHandler({ provider, systemPrompt: 'x', storage });
+
+    await chunks(handleChat({ conversationId: 'c1', message: 'Hello', userData: { name: 'Ada' } }));
+    await chunks(handleChat({ conversationId: 'c1', message: 'Again', userData: { name: 'Mallory' } }));
+    cleanup();
+
+    expect((await storage.conversations.get('c1'))?.metadata).toEqual({ visitor: { name: 'Ada' } });
+    expect(lastUserText(provider, 1)).toContain('name: Ada');
+    expect(lastUserText(provider, 1)).not.toContain('Mallory');
+  });
+
+  it('uses the stored answers when the widget stops sending them', async () => {
+    const provider = scriptedProvider([textStep('Hi.'), textStep('Yes.')]);
+    const { handleChat, cleanup } = createChatHandler({ provider, systemPrompt: 'x', storage: memoryStorage() });
+    await chunks(handleChat({ conversationId: 'c1', message: 'Hello', userData: { company: 'Acme' } }));
+    await chunks(handleChat({ conversationId: 'c1', message: 'Next' }));
+    cleanup();
+    expect(lastUserText(provider, 1)).toContain('company: Acme');
+  });
+
+  it('keeps only the fields the server lists', async () => {
+    const storage = memoryStorage();
+    const provider = scriptedProvider([textStep('Hi.')]);
+    const { handleChat, cleanup } = createChatHandler({ provider, systemPrompt: 'x', storage, preChatFields: ['name'] });
+    await chunks(handleChat({ conversationId: 'c1', message: 'Hello', userData: { name: 'Ada', isAdmin: 'true' } }));
+    cleanup();
+
+    expect((await storage.conversations.get('c1'))?.metadata).toEqual({ visitor: { name: 'Ada' } });
+    expect(lastUserText(provider, 0)).not.toContain('isAdmin');
+  });
+});

@@ -600,7 +600,8 @@ export class Widget {
       ? { url: window.location.href, title: document.title }
       : undefined;
 
-    const includeUserData = Boolean(this.config.preChatForm?.enabled && this.userData);
+    // A v1 server keeps the answers from the first message; 0.5 servers need them every time.
+    const includeUserData = Boolean(this.config.preChatForm?.enabled && this.userData && !this.v1);
 
     return {
       conversationId: this.conversationId,
