@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ToolResult, LeadData } from '../types.js';
+import type { LeadData, MessagePart, ToolResult } from '../types.js';
 import type { ChatTool } from './base.js';
 
 export type LeadCaptureCallback = (lead: LeadData) => void | Promise<void>;
@@ -28,6 +28,11 @@ export class LeadCaptureTool implements ChatTool {
 
   constructor(onCapture?: LeadCaptureCallback) {
     this.onCapture = onCapture;
+  }
+
+  /** A captured lead shows up in the reply as a `lead-captured` part. */
+  emits(result: ToolResult): MessagePart[] {
+    return result.success && result.data ? [{ type: 'lead-captured', lead: result.data as Record<string, unknown> }] : [];
   }
 
   async execute(input: Record<string, unknown>): Promise<ToolResult> {

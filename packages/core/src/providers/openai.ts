@@ -6,24 +6,16 @@ import type {
   ProviderConfig,
   ProviderEffort,
   TokenUsage,
-  ToolResult,
 } from '../types.js';
 import type { AIProvider } from './base.js';
-import { DEFAULT_MAX_TOKENS, normalizeHistory, toOpenAITools, warnOnce } from './base.js';
+import { chatSyncViaTurn, chatViaTurn } from '../agent/chat.js';
+import { DEFAULT_MAX_TOKENS, toOpenAITools, warnOnce } from './base.js';
 import { normalizeTurns } from './history.js';
 import type { FinishReason, ProviderEvent, ProviderStepParams } from './types.js';
-import {
-  MAX_TOOL_ROUNDS,
-  executeToolCall,
-  parseToolInput,
-  serializeToolResult,
-  toToolFailure,
-} from './tool-execution.js';
+import { parseToolInput } from './tool-execution.js';
 
 const DEFAULT_MODEL = 'gpt-5-mini';
 const DEFAULT_EFFORT: ProviderEffort = 'low';
-
-type FunctionToolCall = OpenAI.Chat.ChatCompletionMessageFunctionToolCall;
 
 function createToolCallId() {
   return `call_${crypto.randomUUID()}`;
@@ -176,16 +168,6 @@ export class OpenAIProvider implements AIProvider {
     };
   }
 
-  private toMessages(params: ProviderChatParams): OpenAI.Chat.ChatCompletionMessageParam[] {
-    return [
-      { role: 'system', content: params.systemPrompt },
-      ...normalizeHistory(params.messages).map((message) => ({
-        role: message.role,
-        content: message.content,
-      })),
-    ];
-  }
-
   private async openStream(params: ProviderStepParams) {
     const body = { ...this.request(params, toOpenAIStepMessages(params.systemPrompt, params.messages)), stream: true as const };
     if (this.streamUsage) {
@@ -284,136 +266,13 @@ export class OpenAIProvider implements AIProvider {
     };
   }
 
-  async *chat(params: ProviderChatParams): AsyncGenerator<string> {
-    const messages = this.toMessages(params);
-    let toolRounds = 0;
-
-    while (true) {
-      params.signal?.throwIfAborted();
-      const stream = await this.client.chat.completions.create(
-        { ...this.request(params, messages), stream: true },
-        { signal: params.signal }
-      );
-
-      let finishReason: OpenAI.Chat.Completions.ChatCompletion.Choice['finish_reason'] | null = null;
-      let assistantText = '';
-      const toolCalls = new Map<number, FunctionToolCall>();
-
-      for await (const chunk of stream) {
-        const choice = chunk.choices[0];
-        if (!choice) continue;
-
-        finishReason = choice.finish_reason ?? finishReason;
-
-        const deltaText = choice.delta?.content;
-        if (deltaText) {
-          assistantText += deltaText;
-          yield deltaText;
-        }
-
-        for (const toolCallDelta of choice.delta?.tool_calls ?? []) {
-          if (toolCallDelta.type && toolCallDelta.type !== 'function') continue;
-
-          const existing = toolCalls.get(toolCallDelta.index) ?? {
-            id: toolCallDelta.id ?? createToolCallId(),
-            type: 'function' as const,
-            function: { name: '', arguments: '' },
-          };
-
-          if (toolCallDelta.id) {
-            existing.id = toolCallDelta.id;
-          }
-          if (toolCallDelta.function?.name) {
-            existing.function.name = toolCallDelta.function.name;
-          }
-          if (toolCallDelta.function?.arguments) {
-            existing.function.arguments += toolCallDelta.function.arguments;
-          }
-
-          toolCalls.set(toolCallDelta.index, existing);
-        }
-      }
-
-      const completedToolCalls = Array.from(toolCalls.entries())
-        .sort(([left], [right]) => left - right)
-        .map(([, toolCall]) => toolCall);
-
-      if (finishReason === 'length') {
-        console.warn('[chatcops] OpenAI reply cut off at the token limit. Raise `maxTokens` if this keeps happening.');
-      }
-
-      if (finishReason !== 'tool_calls' || completedToolCalls.length === 0) {
-        return;
-      }
-
-      if (toolRounds >= MAX_TOOL_ROUNDS) {
-        throw new Error(`Exceeded maximum tool rounds (${MAX_TOOL_ROUNDS}).`);
-      }
-      toolRounds += 1;
-
-      messages.push({
-        role: 'assistant',
-        content: assistantText || null,
-        tool_calls: completedToolCalls,
-      });
-      messages.push(...await this.runTools(params, completedToolCalls));
-    }
+  /** Deprecated: use `runTurn()`. A turn with tools run through `params.toolExecutor`, as text. */
+  chat(params: ProviderChatParams): AsyncGenerator<string> {
+    return chatViaTurn(this, params);
   }
 
-  async chatSync(params: ProviderChatParams): Promise<string> {
-    const messages = this.toMessages(params);
-    let toolRounds = 0;
-
-    while (true) {
-      params.signal?.throwIfAborted();
-      const response = await this.client.chat.completions.create(this.request(params, messages), { signal: params.signal });
-
-      const choice = response.choices[0];
-      const assistantMessage = choice?.message;
-      const toolCalls = (assistantMessage?.tool_calls ?? []).filter(
-        (toolCall): toolCall is FunctionToolCall => toolCall.type === 'function'
-      );
-
-      if (choice?.finish_reason !== 'tool_calls' || toolCalls.length === 0) {
-        return assistantMessage?.content ?? '';
-      }
-
-      if (toolRounds >= MAX_TOOL_ROUNDS) {
-        throw new Error(`Exceeded maximum tool rounds (${MAX_TOOL_ROUNDS}).`);
-      }
-      toolRounds += 1;
-
-      messages.push({
-        role: 'assistant',
-        content: assistantMessage.content,
-        tool_calls: toolCalls,
-      });
-      messages.push(...await this.runTools(params, toolCalls));
-    }
-  }
-
-  /** Runs tool calls in parallel and returns the tool messages in call order. */
-  private async runTools(
-    params: ProviderChatParams,
-    toolCalls: FunctionToolCall[]
-  ): Promise<OpenAI.Chat.ChatCompletionToolMessageParam[]> {
-    return Promise.all(toolCalls.map(async (toolCall) => {
-      let result: ToolResult;
-      try {
-        result = await executeToolCall(params, {
-          id: toolCall.id,
-          name: toolCall.function.name,
-          input: parseToolInput(toolCall.function.arguments),
-        });
-      } catch (error) {
-        result = toToolFailure(error);
-      }
-
-      return {
-        role: 'tool' as const,
-        tool_call_id: toolCall.id,
-        content: JSON.stringify(serializeToolResult(result)),
-      };
-    }));
+  /** Deprecated: use `runTurn()`. */
+  chatSync(params: ProviderChatParams): Promise<string> {
+    return chatSyncViaTurn(this, params);
   }
 }

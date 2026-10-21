@@ -61,6 +61,20 @@ export type {
 export { createProvider, normalizeHistory, normalizeTurns, trimHistory, estimateTokens, ClaudeProvider, OpenAIProvider, GeminiProvider } from './providers/index.js';
 export { toolInputSchema, legacyParametersToSchema, validateTools, ToolDefinitionError } from './providers/index.js';
 
+// Turn engine
+export {
+  runTurn,
+  DEFAULT_MAX_STEPS,
+  toolRegistry,
+  executorRegistry,
+  toolOutput,
+  MAX_TOOL_OUTPUT_CHARS,
+  RefusalError,
+  ContentFilterError,
+  MaxStepsError,
+} from './agent/index.js';
+export type { RunTurnOptions, TurnResult, ToolRegistry, ToolRunContext } from './agent/index.js';
+
 // Tools
 export type { ChatTool, LeadCaptureCallback } from './tools/index.js';
 export { toolToDefinition, LeadCaptureTool } from './tools/index.js';

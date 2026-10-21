@@ -9,14 +9,10 @@ import type {
   ToolCallPart,
 } from '../types.js';
 import type { AIProvider } from './base.js';
-import { DEFAULT_MAX_TOKENS, normalizeHistory, toClaudeTools, warnOnce } from './base.js';
+import { chatSyncViaTurn, chatViaTurn } from '../agent/chat.js';
+import { DEFAULT_MAX_TOKENS, toClaudeTools, warnOnce } from './base.js';
 import { normalizeTurns, type TurnPart } from './history.js';
 import type { FinishReason, ProviderEvent, ProviderStepParams } from './types.js';
-import {
-  MAX_TOOL_ROUNDS,
-  executeToolCall,
-  serializeToolResult,
-} from './tool-execution.js';
 
 const DEFAULT_MODEL = 'claude-haiku-5-5';
 const DEFAULT_EFFORT: ProviderEffort = 'low';
@@ -206,51 +202,6 @@ function toUsage(usage: Anthropic.Messages.Usage | undefined): TokenUsage {
   };
 }
 
-function toClaudeMessages(params: ProviderChatParams): Anthropic.Messages.MessageParam[] {
-  return normalizeHistory(params.messages).map((message) => ({
-    role: message.role,
-    content: message.content,
-  }));
-}
-
-/**
- * Sends the assistant turn back for the next tool round. Thinking blocks must
- * go back unchanged (including the signature), or the API rejects the request.
- */
-function toAssistantContentBlocks(
-  content: Anthropic.Messages.Message['content']
-): Anthropic.Messages.ContentBlockParam[] {
-  const blocks: Anthropic.Messages.ContentBlockParam[] = [];
-
-  for (const block of content) {
-    switch (block.type) {
-      case 'text':
-        blocks.push({ type: 'text', text: block.text });
-        break;
-      case 'thinking':
-        blocks.push({ type: 'thinking', thinking: block.thinking, signature: block.signature });
-        break;
-      case 'redacted_thinking':
-        blocks.push({ type: 'redacted_thinking', data: block.data });
-        break;
-      case 'tool_use':
-        blocks.push({ type: 'tool_use', id: block.id, name: block.name, input: block.input });
-        break;
-      default:
-        break;
-    }
-  }
-
-  return blocks;
-}
-
-function textOf(content: Anthropic.Messages.Message['content']): string {
-  return content
-    .filter((block): block is Anthropic.Messages.TextBlock => block.type === 'text')
-    .map((block) => block.text)
-    .join('');
-}
-
 export class ClaudeProvider implements AIProvider {
   name = 'claude';
   private client: Anthropic;
@@ -296,19 +247,6 @@ export class ClaudeProvider implements AIProvider {
     } satisfies Anthropic.Messages.MessageCreateParamsNonStreaming;
   }
 
-  /** Throws on stop reasons that mean the reply can't be used. */
-  private checkStopReason(message: Anthropic.Messages.Message): void {
-    if (message.stop_reason === 'refusal') {
-      throw new Error('Claude declined to answer this request (stop_reason: refusal).');
-    }
-    if (message.stop_reason === 'model_context_window_exceeded') {
-      throw new Error('The conversation is longer than the model context window.');
-    }
-    if (message.stop_reason === 'max_tokens') {
-      console.warn(`[chatcops] Claude reply cut off at max_tokens (${message.usage.output_tokens} tokens). Raise \`maxTokens\` if this keeps happening.`);
-    }
-  }
-
   /** One model request: streams text and reasoning, then reports tool calls and why it stopped. */
   async *step(params: ProviderStepParams): AsyncGenerator<ProviderEvent> {
     params.signal?.throwIfAborted();
@@ -345,81 +283,13 @@ export class ClaudeProvider implements AIProvider {
     };
   }
 
-  async *chat(params: ProviderChatParams): AsyncGenerator<string> {
-    const messages = toClaudeMessages(params);
-    let toolRounds = 0;
-
-    while (true) {
-      params.signal?.throwIfAborted();
-      const stream = this.client.messages.stream(this.request(params, messages), { signal: params.signal });
-
-      for await (const event of stream) {
-        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-          yield event.delta.text;
-        }
-      }
-
-      const message = await stream.finalMessage();
-      this.checkStopReason(message);
-      const toolUses = message.content.filter((block) => block.type === 'tool_use');
-
-      if (message.stop_reason !== 'tool_use' || toolUses.length === 0) {
-        return;
-      }
-
-      if (toolRounds >= MAX_TOOL_ROUNDS) {
-        throw new Error(`Exceeded maximum tool rounds (${MAX_TOOL_ROUNDS}).`);
-      }
-      toolRounds += 1;
-
-      messages.push({ role: 'assistant', content: toAssistantContentBlocks(message.content) });
-      messages.push({ role: 'user', content: await this.runTools(params, toolUses) });
-    }
+  /** Deprecated: use `runTurn()`. A turn with tools run through `params.toolExecutor`, as text. */
+  chat(params: ProviderChatParams): AsyncGenerator<string> {
+    return chatViaTurn(this, params);
   }
 
-  async chatSync(params: ProviderChatParams): Promise<string> {
-    const messages = toClaudeMessages(params);
-    let toolRounds = 0;
-    let text = '';
-
-    while (true) {
-      params.signal?.throwIfAborted();
-      const response = await this.client.messages.create(this.request(params, messages), { signal: params.signal });
-      this.checkStopReason(response);
-      text += textOf(response.content);
-
-      const toolUses = response.content.filter((block) => block.type === 'tool_use');
-      if (response.stop_reason !== 'tool_use' || toolUses.length === 0) {
-        return text;
-      }
-
-      if (toolRounds >= MAX_TOOL_ROUNDS) {
-        throw new Error(`Exceeded maximum tool rounds (${MAX_TOOL_ROUNDS}).`);
-      }
-      toolRounds += 1;
-
-      messages.push({ role: 'assistant', content: toAssistantContentBlocks(response.content) });
-      messages.push({ role: 'user', content: await this.runTools(params, toolUses) });
-    }
-  }
-
-  private async runTools(
-    params: ProviderChatParams,
-    toolUses: Anthropic.Messages.ToolUseBlock[]
-  ): Promise<Anthropic.Messages.ToolResultBlockParam[]> {
-    return Promise.all(toolUses.map(async (toolUse) => {
-      const result = await executeToolCall(params, {
-        id: toolUse.id,
-        name: toolUse.name,
-        input: toolUse.input as Record<string, unknown>,
-      });
-
-      return {
-        type: 'tool_result' as const,
-        tool_use_id: toolUse.id,
-        content: JSON.stringify(serializeToolResult(result)),
-        is_error: !result.success,
-      };
-    }));
+  /** Deprecated: use `runTurn()`. */
+  chatSync(params: ProviderChatParams): Promise<string> {
+    return chatSyncViaTurn(this, params);
   }
 }

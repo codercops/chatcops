@@ -25,6 +25,10 @@
     "./testing": {
       "types": "./dist/testing/index.d.ts",
       "import": "./dist/testing/index.js"
+    },
+    "./testing/provider": {
+      "types": "./dist/testing/provider.d.ts",
+      "import": "./dist/testing/provider.js"
     }
   },
   "files": [

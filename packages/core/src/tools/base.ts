@@ -1,4 +1,12 @@
-import type { JSONSchema, ToolAnnotations, ToolContext, ToolDefinition, ToolParameter, ToolResult } from '../types.js';
+import type {
+  JSONSchema,
+  MessagePart,
+  ToolAnnotations,
+  ToolContext,
+  ToolDefinition,
+  ToolParameter,
+  ToolResult,
+} from '../types.js';
 
 export interface ChatTool {
   name: string;
@@ -11,6 +19,11 @@ export interface ChatTool {
   annotations?: ToolAnnotations;
   /** `context` is new in 0.6; tools written for 0.4 can ignore it. */
   execute(input: Record<string, unknown>, context?: ToolContext): Promise<ToolResult>;
+  /**
+   * Parts to add to the reply after this tool runs, for things the widget
+   * shows besides text. `LeadCaptureTool` adds a `lead-captured` part.
+   */
+  emits?(result: ToolResult): MessagePart[];
 }
 
 export function toolToDefinition(tool: ChatTool): ToolDefinition {
