@@ -30,8 +30,11 @@ export interface ChatCopsServerConfig {
    * Token, reply and dollar limits per conversation, per IP per day and
    * overall per day, counted in `storage` so they hold across instances. A
    * reply that would go over ends with an error instead of calling the model.
+   * On by default (`DEFAULT_BUDGETS`: 200 replies per conversation, 2M tokens
+   * per IP per day). A scope you set replaces its default, `false` turns a
+   * scope off, and `budgets: false` turns them all off.
    */
-  budgets?: Budgets;
+  budgets?: Budgets | false;
   /**
    * The pre-chat form fields to keep (the `name`s in the widget's
    * `preChatForm.fields`). Other fields a request sends are dropped. Unset

@@ -1,7 +1,7 @@
 import { memoryStorage, MemoryStore } from '@chatcops/core';
 import { scriptedProvider, textStep } from '@chatcops/core/testing/provider';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createChatHandler } from '../src/handler.js';
+import { createChatHandler, describeBudgets } from '../src/handler.js';
 
 async function chunks(stream: AsyncGenerator<string>) {
   const out: unknown[] = [];
@@ -129,6 +129,70 @@ describe('budgets', () => {
 
     expect(provider.calls).toHaveLength(1);
     expect(warn).toHaveBeenCalledWith('[chatcops] The conversation budget is used up, so a reply was refused.');
+  });
+});
+
+describe('default budgets', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  it('caps a conversation at 200 replies when no budgets are set', async () => {
+    const storage = memoryStorage();
+    await storage.counters?.increment('budget:c:c1:messages', 200, 30 * DAY);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const provider = scriptedProvider([textStep('never')]);
+    const { handleChat, cleanup } = createChatHandler({ provider, systemPrompt: 'x', storage });
+
+    expect(await chunks(handleChat({ conversationId: 'c1', message: 'one more' }))).toEqual([{ error: 'provider_error' }]);
+    cleanup();
+    expect(provider.calls).toHaveLength(0);
+  });
+
+  it('caps tokens per IP per day by default', async () => {
+    const storage = memoryStorage();
+    const day = Math.floor(Date.now() / DAY);
+    await storage.counters?.increment(`budget:ip:1.2.3.4:${day}:tokens`, 2_000_000, 2 * DAY);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const provider = scriptedProvider([textStep('Hi.')]);
+    const { handleChat, cleanup } = createChatHandler({ provider, systemPrompt: 'x', storage });
+
+    expect(await chunks(handleChat({ conversationId: 'c1', message: 'Hello' }, '1.2.3.4'))).toEqual([{ error: 'provider_error' }]);
+    expect((await chunks(handleChat({ conversationId: 'c2', message: 'Hello' }, '5.6.7.8'))).at(-1)).toEqual({ done: true });
+    cleanup();
+  });
+
+  it('turns off with budgets: false', async () => {
+    const storage = memoryStorage();
+    await storage.counters?.increment('budget:c:c1:messages', 200, 30 * DAY);
+    const { handleChat, cleanup } = createChatHandler({ provider: scriptedProvider([textStep('Hi.')]), systemPrompt: 'x', storage, budgets: false });
+    expect((await chunks(handleChat({ conversationId: 'c1', message: 'Hello' }))).at(-1)).toEqual({ done: true });
+    cleanup();
+  });
+
+  it('logs the budgets in force once at startup', async () => {
+    vi.resetModules();
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const { createChatHandler: fresh } = await import('../src/handler.js');
+    fresh({ provider: scriptedProvider([]), systemPrompt: 'x' }).cleanup();
+    fresh({ provider: scriptedProvider([]), systemPrompt: 'x' }).cleanup();
+    expect(info.mock.calls).toEqual([
+      [
+        '[chatcops] Budgets: 200 replies per conversation (default), 2M tokens per IP per day (default). No daily total is set; `budgets.globalPerDay` caps your whole bill. Set `budgets` to change them, or `budgets: false` to turn them off.',
+      ],
+    ]);
+  });
+
+  it("doesn't log when budgets are off", async () => {
+    vi.resetModules();
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const { createChatHandler: fresh } = await import('../src/handler.js');
+    fresh({ provider: scriptedProvider([]), systemPrompt: 'x', budgets: false }).cleanup();
+    expect(info).not.toHaveBeenCalled();
+  });
+
+  it('describes budgets you set', () => {
+    expect(describeBudgets({ perConversation: { tokens: 400_000, messages: 50 }, perIpPerDay: false, globalPerDay: { usd: 20 } })).toBe(
+      '[chatcops] Budgets: 400k tokens and 50 replies per conversation, $20 per day in total. Set `budgets` to change them, or `budgets: false` to turn them off.'
+    );
   });
 });
 

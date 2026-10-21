@@ -114,7 +114,7 @@ export {
 } from './storage/index.js';
 
 // Budgets
-export { createBudgetGuard, BudgetExceededError } from './limits/budget.js';
+export { createBudgetGuard, BudgetExceededError, DEFAULT_BUDGETS, withDefaultBudgets } from './limits/budget.js';
 export type { Budgets, BudgetLimit, BudgetContext, BudgetGuard, BudgetScope } from './limits/budget.js';
 
 // Rate limiting

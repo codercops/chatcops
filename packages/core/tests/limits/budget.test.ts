@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { runTurn } from '../../src/agent/run-turn.js';
-import { BudgetExceededError, createBudgetGuard } from '../../src/limits/budget.js';
+import { BudgetExceededError, DEFAULT_BUDGETS, createBudgetGuard, withDefaultBudgets } from '../../src/limits/budget.js';
 import type { WirePart } from '../../src/protocol/v1.js';
 import { memoryStorage } from '../../src/storage/memory.js';
 import { scriptedProvider, textStep } from '../../src/testing/provider.js';
@@ -91,5 +91,39 @@ describe('runTurn with a budget', () => {
     const provider = scriptedProvider([textStep('ok')]);
     await parts(runTurn({ provider, messages: [], systemPrompt: 's', conversationId: 'c1', budget: { guard, context: c1 } }));
     expect(provider.calls[0].maxTokens).toBe(256);
+  });
+});
+
+describe('withDefaultBudgets', () => {
+  it('fills the scopes you leave out, and says which ones', () => {
+    expect(withDefaultBudgets()).toEqual({ budgets: DEFAULT_BUDGETS, defaulted: ['conversation', 'ip'] });
+    expect(withDefaultBudgets({ perIpPerDay: { tokens: 500_000 }, globalPerDay: { messages: 10_000 } })).toEqual({
+      budgets: { perConversation: DEFAULT_BUDGETS.perConversation, perIpPerDay: { tokens: 500_000 }, globalPerDay: { messages: 10_000 } },
+      defaulted: ['conversation'],
+    });
+  });
+
+  it('replaces a default whole rather than merging into it', () => {
+    expect(withDefaultBudgets({ perConversation: { tokens: 50_000 } })?.budgets.perConversation).toEqual({ tokens: 50_000 });
+  });
+
+  it('turns a scope off with false, and everything off with false', () => {
+    expect(withDefaultBudgets({ perConversation: false })).toEqual({
+      budgets: { perConversation: false, perIpPerDay: DEFAULT_BUDGETS.perIpPerDay },
+      defaulted: ['ip'],
+    });
+    expect(withDefaultBudgets({ perConversation: false, perIpPerDay: false })).toBeUndefined();
+    expect(withDefaultBudgets(false)).toBeUndefined();
+  });
+
+  it('gives a guard that skips the scopes turned off', async () => {
+    const guard = createBudgetGuard(counters(), { perConversation: false, perIpPerDay: { tokens: 100 }, globalPerDay: false });
+    await guard.after(c1, usage(100, 0));
+    await expect(guard.before(c1, 1)).rejects.toEqual(new BudgetExceededError('ip'));
+    expect(await guard.before({ conversationId: 'c1', ip: '5.6.7.8' }, 1)).toEqual({ tokensLeft: 100 });
+  });
+
+  it('still refuses a scope that is not an object', () => {
+    expect(() => createBudgetGuard(counters(), { perConversation: 5 as never })).toThrow('budgets.perConversation must be an object or false.');
   });
 });

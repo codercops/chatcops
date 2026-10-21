@@ -9,16 +9,19 @@ export interface BudgetLimit {
   messages?: number;
 }
 
+/** `false` turns a scope off, including its default. */
 export interface Budgets {
   /** Over a conversation's lifetime (counters kept 30 days). */
-  perConversation?: BudgetLimit;
+  perConversation?: BudgetLimit | false;
   /** Per visitor IP, per UTC day. Skipped for requests without a known IP. */
-  perIpPerDay?: BudgetLimit;
+  perIpPerDay?: BudgetLimit | false;
   /** Everything together, per UTC day: the backstop for a bill you didn't expect. */
-  globalPerDay?: BudgetLimit & {
-    /** Dollars, priced with `price`. */
-    usd?: number;
-  };
+  globalPerDay?:
+    | (BudgetLimit & {
+        /** Dollars, priced with `price`. */
+        usd?: number;
+      })
+    | false;
   /**
    * What a step cost in dollars, for `globalPerDay.usd`. Price cached input
    * at its discount here; token budgets count it in full.
@@ -55,6 +58,40 @@ export interface BudgetGuard {
   after(context: BudgetContext, usage: TokenUsage): Promise<void>;
 }
 
+/**
+ * What applies when a scope isn't set. Replies, not tokens, per conversation:
+ * the widget keeps a conversation across visits, and a token count there
+ * would grow with the size of your system prompt. Tokens per IP per day are
+ * the cost backstop, since a script can start new conversations at will.
+ * There's no global default, because no number fits every site.
+ */
+export const DEFAULT_BUDGETS = {
+  perConversation: { messages: 200 },
+  perIpPerDay: { tokens: 2_000_000 },
+} as const satisfies Budgets;
+
+const SCOPE_KEYS = ['perConversation', 'perIpPerDay', 'globalPerDay'] as const;
+
+/**
+ * Fills the scopes you didn't set with `DEFAULT_BUDGETS`. A scope you set
+ * replaces its default whole; `false` turns it off. `false` for the whole
+ * option turns budgets off and resolves `undefined`.
+ */
+export function withDefaultBudgets(budgets?: Budgets | false): { budgets: Budgets; defaulted: BudgetScope[] } | undefined {
+  if (budgets === false) return undefined;
+  const out: Budgets = { ...budgets };
+  const defaulted: BudgetScope[] = [];
+  if (out.perConversation === undefined) {
+    out.perConversation = DEFAULT_BUDGETS.perConversation;
+    defaulted.push('conversation');
+  }
+  if (out.perIpPerDay === undefined) {
+    out.perIpPerDay = DEFAULT_BUDGETS.perIpPerDay;
+    defaulted.push('ip');
+  }
+  return SCOPE_KEYS.some((key) => out[key]) ? { budgets: out, defaulted } : undefined;
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 const CONVERSATION_TTL_MS = 30 * DAY_MS;
 
@@ -77,11 +114,13 @@ export function createBudgetGuard(
 ): BudgetGuard {
   const prefix = options.prefix ?? 'budget';
   const now = options.now ?? Date.now;
-  if (budgets.globalPerDay?.usd !== undefined && !budgets.price) {
+  if (budgets.globalPerDay && budgets.globalPerDay.usd !== undefined && !budgets.price) {
     throw new Error('budgets.globalPerDay.usd needs budgets.price to know what a request costs.');
   }
-  for (const [name, limit] of Object.entries(budgets)) {
-    if (typeof limit !== 'object' || limit === null) continue;
+  for (const name of SCOPE_KEYS) {
+    const limit = budgets[name];
+    if (limit === undefined || limit === false) continue;
+    if (typeof limit !== 'object' || limit === null) throw new Error(`budgets.${name} must be an object or false.`);
     for (const [field, value] of Object.entries(limit)) {
       if (typeof value !== 'number' || !(value > 0)) throw new Error(`budgets.${name}.${field} must be a positive number.`);
     }

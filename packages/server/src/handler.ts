@@ -4,6 +4,7 @@ import {
   ConversationManager,
   AnalyticsCollector,
   createBudgetGuard,
+  withDefaultBudgets,
   createRateLimiter,
   memoryStorage,
   partsOf,
@@ -12,6 +13,8 @@ import {
   toolRegistry,
   toolToDefinition,
   validateTools,
+  type BudgetScope,
+  type Budgets,
   type ChatMessage,
   type CounterStore,
   type WirePart,
@@ -51,7 +54,12 @@ export function createChatHandler(config: ChatCopsServerConfig) {
   // budgets hold across every server instance; otherwise in this process.
   // Nothing runs on a timer, which Workers don't allow at global scope.
   const counters = (storage?.counters ?? memoryStorage().counters) as CounterStore;
-  const budgetGuard = config.budgets ? createBudgetGuard(counters, config.budgets) : undefined;
+  const budgets = withDefaultBudgets(config.budgets);
+  const budgetGuard = budgets ? createBudgetGuard(counters, budgets.budgets) : undefined;
+  if (budgets && !loggedBudgets) {
+    loggedBudgets = true;
+    console.info(describeBudgets(budgets.budgets, budgets.defaulted));
+  }
   const rateLimit = { maxRequests: 30, windowMs: 60_000, ...config.rateLimit };
   if (rateLimit.maxRequests <= 0) throw new Error('maxRequests must be greater than 0');
   const rateLimiter = createRateLimiter(counters, {
@@ -363,6 +371,35 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Once per process (per isolate on Workers), not once per handler. */
 let warnedMemoryStorage = false;
+let loggedBudgets = false;
+
+const SCOPE_LABELS: Record<BudgetScope, string> = { conversation: 'per conversation', ip: 'per IP per day', global: 'per day in total' };
+
+function amount(value: number, unit: string): string {
+  const short = value >= 1_000_000 ? `${value / 1_000_000}M` : value >= 1_000 ? `${value / 1_000}k` : String(value);
+  return `${short} ${unit}`;
+}
+
+/** The startup line, so the limits in force are never a surprise. */
+export function describeBudgets(budgets: Budgets, defaulted: BudgetScope[] = []): string {
+  const scopes: [BudgetScope, Budgets['globalPerDay']][] = [
+    ['conversation', budgets.perConversation],
+    ['ip', budgets.perIpPerDay],
+    ['global', budgets.globalPerDay],
+  ];
+  const parts: string[] = [];
+  for (const [scope, limit] of scopes) {
+    if (!limit) continue;
+    const caps = [
+      ...(limit.tokens !== undefined ? [amount(limit.tokens, 'tokens')] : []),
+      ...(limit.messages !== undefined ? [amount(limit.messages, 'replies')] : []),
+      ...(limit.usd !== undefined ? [`$${limit.usd}`] : []),
+    ];
+    parts.push(`${caps.join(' and ')} ${SCOPE_LABELS[scope]}${defaulted.includes(scope) ? ' (default)' : ''}`);
+  }
+  const noTotal = budgets.globalPerDay ? '' : ' No daily total is set; `budgets.globalPerDay` caps your whole bill.';
+  return `[chatcops] Budgets: ${parts.join(', ')}.${noTotal} Set \`budgets\` to change them, or \`budgets: false\` to turn them off.`;
+}
 
 /** Vercel, AWS Lambda, Netlify and Cloudflare Workers, where memory doesn't last. */
 function onServerless(): boolean {

@@ -92,7 +92,7 @@ interface ChatCopsServerConfig {
   maxTokens?: number;
   temperature?: number;
   knowledge?: KnowledgeSource[];
-  budgets?: Budgets;   // see Budgets below
+  budgets?: Budgets | false;   // on by default, see Budgets below
   preChatFields?: string[];   // pre-chat form fields to keep; kept from the first message on
   rateLimit?: {
     maxRequests: number;
@@ -152,7 +152,23 @@ await purge(); // resolves how many were deleted
 
 ## Budgets
 
-Budgets cap what replies can cost, so a script hammering your endpoint can't run up the bill. They're counted in `storage`, so they hold across instances:
+Budgets cap what replies can cost, so a script hammering your endpoint can't run up the bill. They're counted in `storage`, so they hold across instances.
+
+They're on by default:
+
+| Scope | Default | Why |
+|---|---|---|
+| `perConversation` | 200 replies | The widget keeps a conversation across visits, so this counts replies rather than tokens, which would grow with the size of your system prompt. |
+| `perIpPerDay` | 2M tokens | The cost backstop. A script can start new conversations at will, but not new IPs as easily. |
+| `globalPerDay` | none | No single number fits every site. Set one. |
+
+The server logs the budgets in force once at startup:
+
+```
+[chatcops] Budgets: 200 replies per conversation (default), 2M tokens per IP per day (default). No daily total is set; `budgets.globalPerDay` caps your whole bill. Set `budgets` to change them, or `budgets: false` to turn them off.
+```
+
+A scope you set replaces its default whole. `false` turns a scope off, and `budgets: false` turns them all off:
 
 ```typescript
 budgets: {
@@ -165,6 +181,8 @@ budgets: {
 ```
 
 Tokens count input and output at face value, and every request sends the conversation so far, so a long conversation uses up a token budget faster than its length suggests. Budgets are checked before each model request and charged after it, so a reply can go over by one request, and each request asks for no more output than is left. A used-up budget ends the reply with an error instead of calling the model, and the server logs which one.
+
+The per-IP budget needs the visitor's IP, so it's skipped for requests where the adapter can't tell.
 
 ## Custom Conversation Store
 
