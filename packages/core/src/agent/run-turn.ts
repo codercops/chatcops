@@ -11,6 +11,8 @@ import type {
   ToolResult,
   ToolResultPart,
 } from '../types.js';
+import { BudgetExceededError, type BudgetContext, type BudgetGuard } from '../limits/budget.js';
+import { DEFAULT_MAX_TOKENS } from '../providers/base.js';
 import { ContentFilterError, MaxStepsError, RefusalError } from './errors.js';
 import { executorRegistry, type ToolRegistry, toolOutput } from './tool-registry.js';
 
@@ -38,6 +40,12 @@ export interface RunTurnOptions {
   /** Adds token usage to the `finish` part. */
   exposeUsage?: boolean;
   /**
+   * Checked before each model request and charged after it. A used-up
+   * budget ends the reply with `budget_exceeded`, and the reply length is
+   * capped to the tokens left.
+   */
+  budget?: { guard: BudgetGuard; context: BudgetContext };
+  /**
    * Saves the reply. Called after each tool round with `final: false`, and
    * once at the end with `final: true` and the reply's final status.
    */
@@ -63,7 +71,10 @@ export function joinSystem(systemPrompt: string, systemContext?: string): string
   return systemContext ? `${systemPrompt}\n\n${systemContext}` : systemPrompt;
 }
 
-type ErrorPart = { code: WireErrorCode; retryable: boolean; message?: string };
+type ErrorPart = { code: WireErrorCode; retryable: boolean; message?: string; scope?: 'conversation' | 'session' | 'ip' | 'global' };
+
+/** Never ask for fewer output tokens than this, even with little budget left. */
+const MIN_STEP_TOKENS = 256;
 
 function addUsage(total: TokenUsage, step: TokenUsage): void {
   total.inputTokens += step.inputTokens;
@@ -187,6 +198,30 @@ export async function* runTurn(options: RunTurnOptions): AsyncGenerator<WirePart
           errorPart: { code: 'provider_error', retryable: true },
         });
 
+  /**
+   * Checks the budget before a model request. Ends the turn when one is used
+   * up; otherwise resolves the reply length, capped to the tokens left.
+   */
+  async function* checkBudget(
+    stepNumber: number
+  ): AsyncGenerator<WirePart, { ended?: TurnResult; maxTokens?: number }> {
+    if (!options.budget) return { maxTokens: options.maxTokens };
+    try {
+      const { tokensLeft } = await options.budget.guard.before(options.budget.context, stepNumber);
+      if (tokensLeft === undefined) return { maxTokens: options.maxTokens };
+      const wanted = options.maxTokens ?? DEFAULT_MAX_TOKENS;
+      return { maxTokens: Math.min(wanted, Math.max(MIN_STEP_TOKENS, tokensLeft)) };
+    } catch (error) {
+      if (!(error instanceof BudgetExceededError)) throw error;
+      return {
+        ended: yield* end('incomplete', {
+          error,
+          errorPart: { code: 'budget_exceeded', retryable: false, scope: error.scope },
+        }),
+      };
+    }
+  }
+
   yield { type: 'start', protocol: PROTOCOL_VERSION, conversationId: options.conversationId, messageId: message.id };
 
   if (!provider.step) {
@@ -199,6 +234,9 @@ export async function* runTurn(options: RunTurnOptions): AsyncGenerator<WirePart
     let finish: Extract<ProviderEvent, { type: 'finish' }> | undefined;
     const calls: Extract<ProviderEvent, { type: 'tool-call' }>[] = [];
 
+    const budget = yield* checkBudget(stepNumber);
+    if (budget.ended) return budget.ended;
+
     try {
       signal?.throwIfAborted();
       for await (const event of step({
@@ -206,7 +244,7 @@ export async function* runTurn(options: RunTurnOptions): AsyncGenerator<WirePart
         systemPrompt: options.systemPrompt,
         ...(options.systemContext ? { systemContext: options.systemContext } : {}),
         ...(tools.definitions.length ? { tools: tools.definitions } : {}),
-        maxTokens: options.maxTokens,
+        maxTokens: budget.maxTokens,
         temperature: options.temperature,
         signal,
       })) {
@@ -231,6 +269,7 @@ export async function* runTurn(options: RunTurnOptions): AsyncGenerator<WirePart
     }
     if (textId) yield { type: 'text-end', id: textId };
     addUsage(usage, finish.usage);
+    await options.budget?.guard.after(options.budget.context, finish.usage);
 
     // A refused or filtered step isn't kept: there's nothing in it to send back.
     if (finish.reason === 'refusal' || finish.reason === 'content-filter') {
@@ -303,6 +342,9 @@ export async function* runTurn(options: RunTurnOptions): AsyncGenerator<WirePart
    * streamed before the next text, the way the 0.5 server sent them.
    */
   async function* legacyTurn(): AsyncGenerator<WirePart, TurnResult> {
+    // A 0.4 provider reports no usage, so its replies can only be checked, not charged.
+    const budget = yield* checkBudget(1);
+    if (budget.ended) return budget.ended;
     const queued: WirePart[] = [];
     let textId: string | null = null;
     let text: { type: 'text'; text: string } | null = null;
@@ -332,7 +374,7 @@ export async function* runTurn(options: RunTurnOptions): AsyncGenerator<WirePart
         ...(tools.definitions.length ? { tools: tools.definitions } : {}),
         toolExecutor,
         toolTimeoutMs: options.toolTimeoutMs,
-        maxTokens: options.maxTokens,
+        maxTokens: budget.maxTokens,
         temperature: options.temperature,
         signal,
       })) {

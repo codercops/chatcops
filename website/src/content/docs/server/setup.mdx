@@ -92,6 +92,7 @@ interface ChatCopsServerConfig {
   maxTokens?: number;
   temperature?: number;
   knowledge?: KnowledgeSource[];
+  budgets?: Budgets;   // see Budgets below
   rateLimit?: {
     maxRequests: number;
     windowMs: number;
@@ -147,6 +148,22 @@ Nothing is deleted on its own. The handler's `purge()` deletes conversations las
 const { purge } = createChatHandler(config);
 await purge(); // resolves how many were deleted
 ```
+
+## Budgets
+
+Budgets cap what replies can cost, so a script hammering your endpoint can't run up the bill. They're counted in `storage`, so they hold across instances:
+
+```typescript
+budgets: {
+  perConversation: { tokens: 400_000 },            // over the conversation's lifetime
+  perIpPerDay: { tokens: 2_000_000, messages: 200 },
+  globalPerDay: { usd: 20 },                        // the backstop
+  // What a request cost, for the dollar cap. Price cached input at its discount.
+  price: (usage) => (usage.inputTokens * 1 + usage.outputTokens * 5) / 1_000_000,
+},
+```
+
+Tokens count input and output at face value, and every request sends the conversation so far, so a long conversation uses up a token budget faster than its length suggests. Budgets are checked before each model request and charged after it, so a reply can go over by one request, and each request asks for no more output than is left. A used-up budget ends the reply with an error instead of calling the model, and the server logs which one.
 
 ## Custom Conversation Store
 

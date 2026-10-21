@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type {
   AIProvider,
+  Budgets,
   ChatCopsStorage,
   ChatTool,
   ConversationStore,
@@ -25,6 +26,12 @@ export interface ChatCopsServerConfig {
   temperature?: number;
   knowledge?: KnowledgeSource[];
   rateLimit?: { maxRequests: number; windowMs: number };
+  /**
+   * Token, reply and dollar limits per conversation, per IP per day and
+   * overall per day, counted in `storage` so they hold across instances. A
+   * reply that would go over ends with an error instead of calling the model.
+   */
+  budgets?: Budgets;
   webhooks?: WebhookConfig[];
   analytics?: boolean;
   /** Bearer token required to read the analytics endpoint. When unset, the endpoint is public. */

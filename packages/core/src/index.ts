@@ -113,6 +113,10 @@ export {
   isLegacyConversationStore,
 } from './storage/index.js';
 
+// Budgets
+export { createBudgetGuard, BudgetExceededError } from './limits/budget.js';
+export type { Budgets, BudgetLimit, BudgetContext, BudgetGuard, BudgetScope } from './limits/budget.js';
+
 // Rate limiting
 export { createRateLimiter } from './limits/rate-limit.js';
 export type { RateLimitRule, RateLimitResult, RateLimiterOptions } from './limits/rate-limit.js';

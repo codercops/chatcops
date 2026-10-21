@@ -115,3 +115,19 @@ describe('rate limits on the storage counters', () => {
     );
   });
 });
+
+describe('budgets', () => {
+  it('ends a reply with an error once the conversation budget is used up, without calling the model', async () => {
+    const storage = memoryStorage();
+    const provider = scriptedProvider([textStep('first', { usage: { inputTokens: 900, outputTokens: 200 } }), textStep('never')]);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { handleChat, cleanup } = createChatHandler({ provider, systemPrompt: 'x', storage, budgets: { perConversation: { tokens: 1000 } } });
+
+    expect((await chunks(handleChat({ conversationId: 'c1', message: 'one' }))).at(-1)).toEqual({ done: true });
+    expect(await chunks(handleChat({ conversationId: 'c1', message: 'two' }))).toEqual([{ error: 'provider_error' }]);
+    cleanup();
+
+    expect(provider.calls).toHaveLength(1);
+    expect(warn).toHaveBeenCalledWith('[chatcops] The conversation budget is used up, so a reply was refused.');
+  });
+});

@@ -3,6 +3,7 @@ import {
   isAIProvider,
   ConversationManager,
   AnalyticsCollector,
+  createBudgetGuard,
   createRateLimiter,
   memoryStorage,
   partsOf,
@@ -46,12 +47,14 @@ export function createChatHandler(config: ChatCopsServerConfig) {
   }
   const storage = config.storage ?? (config.conversationStore ? { conversations: config.conversationStore } : undefined);
   const conversations = new ConversationManager(storage ? { storage } : {});
-  // Counted in the storage's counters when it has them, so a limit holds
-  // across every server instance; otherwise in this process. Nothing runs on
-  // a timer, which Workers don't allow at global scope.
+  // Counted in the storage's counters when it has them, so limits and
+  // budgets hold across every server instance; otherwise in this process.
+  // Nothing runs on a timer, which Workers don't allow at global scope.
+  const counters = (storage?.counters ?? memoryStorage().counters) as CounterStore;
+  const budgetGuard = config.budgets ? createBudgetGuard(counters, config.budgets) : undefined;
   const rateLimit = { maxRequests: 30, windowMs: 60_000, ...config.rateLimit };
   if (rateLimit.maxRequests <= 0) throw new Error('maxRequests must be greater than 0');
-  const rateLimiter = createRateLimiter((storage?.counters ?? memoryStorage().counters) as CounterStore, {
+  const rateLimiter = createRateLimiter(counters, {
     limit: rateLimit.maxRequests,
     windowMs: rateLimit.windowMs,
   });
@@ -113,7 +116,7 @@ export function createChatHandler(config: ChatCopsServerConfig) {
 
     const pendingWebhooks = new Set<Promise<void>>();
     try {
-      yield* reply(provider, req, signal, pendingWebhooks);
+      yield* reply(provider, req, signal, pendingWebhooks, clientIp);
     } finally {
       await release();
     }
@@ -126,7 +129,8 @@ export function createChatHandler(config: ChatCopsServerConfig) {
     provider: Awaited<typeof providerPromise>,
     req: ValidatedChatRequest,
     signal: AbortSignal | undefined,
-    pendingWebhooks: Set<Promise<void>>
+    pendingWebhooks: Set<Promise<void>>,
+    clientIp: string | undefined
   ): AsyncGenerator<string> {
     // Get or create conversation
     await conversations.getOrCreate(req.conversationId);
@@ -236,6 +240,9 @@ export function createChatHandler(config: ChatCopsServerConfig) {
       maxTokens: config.maxTokens,
       temperature: config.temperature,
       signal,
+      ...(budgetGuard
+        ? { budget: { guard: budgetGuard, context: { conversationId: req.conversationId, ...(clientIp ? { ip: clientIp } : {}) } } }
+        : {}),
       onPart: (part) => {
         if (part.type !== 'lead-captured') return;
         analytics?.track('lead:captured', { conversationId: req.conversationId });
@@ -292,7 +299,11 @@ export function createChatHandler(config: ChatCopsServerConfig) {
       return;
     }
     if (failure) {
-      console.error('[chatcops] Provider error:', result.error);
+      if (failure.code === 'budget_exceeded') {
+        console.warn(`[chatcops] The ${failure.scope ?? ''} budget is used up, so a reply was refused.`);
+      } else {
+        console.error('[chatcops] Provider error:', result.error);
+      }
       await awaitPendingWebhooks(pendingWebhooks);
       yield legacy(failure);
     }
