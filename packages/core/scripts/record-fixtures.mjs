@@ -9,7 +9,9 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ClaudeProvider, GeminiProvider, OpenAIProvider } from '../dist/index.js';
+import { ClaudeProvider } from '../dist/providers/claude.js';
+import { GeminiProvider } from '../dist/providers/gemini.js';
+import { OpenAIProvider } from '../dist/providers/openai.js';
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), '..', 'tests', 'fixtures');
 const SECRETS = ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GEMINI_API_KEY']

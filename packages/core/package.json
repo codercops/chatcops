@@ -22,6 +22,18 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./providers/claude": {
+      "types": "./dist/providers/claude.d.ts",
+      "import": "./dist/providers/claude.js"
+    },
+    "./providers/openai": {
+      "types": "./dist/providers/openai.d.ts",
+      "import": "./dist/providers/openai.js"
+    },
+    "./providers/gemini": {
+      "types": "./dist/providers/gemini.d.ts",
+      "import": "./dist/providers/gemini.js"
+    },
     "./protocol": {
       "types": "./dist/protocol/index.d.ts",
       "import": "./dist/protocol/index.js"

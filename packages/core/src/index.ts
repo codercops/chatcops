@@ -59,7 +59,7 @@ export type {
   ProviderEvent,
   ProviderStepParams,
 } from './providers/index.js';
-export { createProvider, isAIProvider, normalizeHistory, normalizeTurns, trimHistory, estimateTokens, ClaudeProvider, OpenAIProvider, GeminiProvider } from './providers/index.js';
+export { createProvider, isAIProvider, normalizeHistory, normalizeTurns, trimHistory, estimateTokens } from './providers/index.js';
 export { toolInputSchema, legacyParametersToSchema, validateTools, ToolDefinitionError } from './providers/index.js';
 
 // Turn engine

@@ -13,7 +13,6 @@ export {
   toGeminiTools,
   DEFAULT_MAX_TOKENS,
 } from './base.js';
-export { ClaudeProvider } from './claude.js';
-export { OpenAIProvider } from './openai.js';
-export { GeminiProvider } from './gemini.js';
+// ClaudeProvider, OpenAIProvider and GeminiProvider are deliberately not exported
+// here. Each one imports its SDK, which would load for every importer of core.
 export { toolInputSchema, legacyParametersToSchema, validateTools, ToolDefinitionError } from './schema.js';
