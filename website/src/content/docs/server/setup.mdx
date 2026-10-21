@@ -81,11 +81,10 @@ const handler = chatcopsMiddleware({
 
 ```typescript
 interface ChatCopsServerConfig {
-  provider: {
-    type: 'claude' | 'openai' | 'gemini';
-    apiKey: string;
-    model?: string;
-  };
+  // A config (see Providers for every option), or a provider object.
+  provider:
+    | { type: 'claude' | 'openai' | 'gemini'; apiKey: string; model?: string }
+    | AIProvider;
   systemPrompt: string;
   tools?: ChatTool[];
   toolTimeoutMs?: number;
@@ -106,6 +105,19 @@ interface ChatCopsServerConfig {
     locales: Record<string, LocaleStrings>;
   };
 }
+```
+
+### A provider object instead of a config
+
+`provider` also takes an object you built yourself: anything with `step()` or `chat()` (the [AIProvider interface](/core/providers/#aiprovider-interface)). Use it for a provider ChatCops doesn't have, or in tests with `scriptedProvider()`, which plays back a script instead of calling a model:
+
+```typescript
+import { scriptedProvider, textStep } from '@chatcops/core/testing/provider';
+
+const handler = createChatHandler({
+  provider: scriptedProvider([textStep('Hello from a test.')]),
+  systemPrompt: 'Be brief.',
+});
 ```
 
 ## Custom Conversation Store

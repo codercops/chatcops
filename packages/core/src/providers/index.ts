@@ -2,6 +2,7 @@ export type { AIProvider, NormalizedMessage, NormalizedTurn, TurnPart } from './
 export type { FinishReason, ProviderEvent, ProviderStepParams } from './types.js';
 export {
   createProvider,
+  isAIProvider,
   normalizeHistory,
   normalizeTurns,
   trimHistory,

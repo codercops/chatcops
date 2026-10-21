@@ -1,5 +1,6 @@
 import {
   createProvider,
+  isAIProvider,
   ConversationManager,
   AnalyticsCollector,
   toolToDefinition,
@@ -17,7 +18,9 @@ export function createChatHandler(config: ChatCopsServerConfig) {
     console.warn('[chatcops] The `i18n` option is deprecated and ignored. Set the widget text with its `strings` option.');
   }
 
-  const providerPromise = createProvider(config.provider);
+  const providerPromise = isAIProvider(config.provider)
+    ? Promise.resolve(config.provider)
+    : createProvider(config.provider);
   // A failed setup (unknown provider type, SDK that throws on a missing key)
   // is logged once here and reported to visitors per request below. Without
   // this handler it would be an unhandled rejection and stop the process.
