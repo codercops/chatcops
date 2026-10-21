@@ -8,12 +8,16 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
 const port = Number(process.env.E2E_PORT ?? 4173);
+const apiPort = Number(process.env.E2E_API_PORT ?? 4174);
 
 const files = {
   '/': ['fixtures/index.html', 'text/html'],
   '/index.html': ['fixtures/index.html', 'text/html'],
   '/two-widgets.html': ['fixtures/two-widgets.html', 'text/html'],
+  '/cross-origin.html': ['fixtures/cross-origin.html', 'text/html'],
 };
+
+const apiRequests = [];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -33,13 +37,15 @@ async function readJson(req) {
  * - "cut off": some text, then the connection ends without [DONE]
  * - anything else: a normal streamed reply
  */
-async function chat(req, res) {
+async function chat(req, res, cors = false) {
   const body = await readJson(req);
+  apiRequests.push({ method: req.method });
   const message = String(body.message ?? '');
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive',
+    ...(cors ? { 'Access-Control-Allow-Origin': '*' } : {}),
   });
 
   const send = (data) => res.write(`data: ${JSON.stringify(data)}\n\n`);
@@ -92,7 +98,9 @@ const server = createServer(async (req, res) => {
     const file = files[url.pathname];
     if (file) {
       res.writeHead(200, { 'Content-Type': file[1] });
-      return res.end(await readFile(join(here, file[0])));
+      let content = await readFile(join(here, file[0]), 'utf8');
+      content = content.replaceAll('__E2E_API_PORT__', String(apiPort));
+      return res.end(content);
     }
 
     res.writeHead(404);
@@ -103,4 +111,50 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(port, () => console.log(`e2e server on http://localhost:${port}`));
+const apiServer = createServer(async (req, res) => {
+  const url = new URL(req.url ?? '/', `http://localhost:${apiPort}`);
+  try {
+    if (url.pathname === '/__test__/api-requests' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(apiRequests));
+    }
+
+    if (url.pathname === '/api/chat' && req.method === 'OPTIONS') {
+      const headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      };
+      apiRequests.push({ method: 'OPTIONS', status: 204, headers });
+      res.writeHead(204, headers);
+      return res.end();
+    }
+
+    if (url.pathname === '/api/chat' && req.method === 'POST') return await chat(req, res, true);
+
+    res.writeHead(404);
+    res.end('Not found');
+  } catch (error) {
+    res.writeHead(500);
+    res.end(String(error));
+  }
+});
+
+server.on('error', (error) => console.error('e2e page server error:', error));
+apiServer.on('error', (error) => console.error('e2e API server error:', error));
+
+const serverMode = process.argv[2] ?? 'both';
+if (serverMode === 'page' || serverMode === 'both') {
+  server.listen(port, () => console.log(`e2e page server on http://localhost:${port}`));
+}
+if (serverMode === 'api' || serverMode === 'both') {
+  apiServer.listen(apiPort, () => console.log(`e2e API server on http://localhost:${apiPort}`));
+}
+
+function shutdown() {
+  if (server.listening) server.close();
+  if (apiServer.listening) apiServer.close();
+}
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
