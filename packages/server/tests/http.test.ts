@@ -62,7 +62,7 @@ describe('the 0.5 format', () => {
     for await (const _ of chat.handleChat({ conversationId: 'legacy-3', message: 'Hello' })) {
       // drain
     }
-    expect(chat.protocolStats()).toEqual({ v1: 0, legacy: 1 });
+    expect(chat.protocolStats()).toEqual({ v1: 0, legacy: 1, 'ai-sdk': 0 });
   });
 
   it('still answers refusals inside a 200 stream', async () => {

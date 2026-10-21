@@ -124,6 +124,7 @@ export default defineConfig({
             { label: 'Express', slug: 'server/express' },
             { label: 'Vercel', slug: 'server/vercel' },
             { label: 'Next.js, Hono, Bun, Deno', slug: 'server/fetch-runtimes' },
+            { label: 'AI SDK (useChat)', slug: 'server/ai-sdk' },
             { label: 'Cloudflare Workers', slug: 'server/cloudflare' },
           ],
         },
