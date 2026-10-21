@@ -31,18 +31,51 @@ class SqliteConversations implements ConversationStore {
   get(id: string): Promise<Conversation | null> {
     const row = get<ConversationRow>(this.db, 'SELECT * FROM chatcops_conversations WHERE id = ?', id);
     if (!row) return Promise.resolve(null);
-    const messages = all<MessageRow>(this.db, 'SELECT message FROM chatcops_messages WHERE conversation_id = ? ORDER BY seq', id).map((m) => JSON.parse(m.message) as ChatMessage);
-    return Promise.resolve({ id: row.id, messages, ...(row.metadata ? { metadata: JSON.parse(row.metadata) } : {}), version: row.version, createdAt: row.created_at, updatedAt: row.updated_at });
+    const messages = all<MessageRow>(
+      this.db,
+      'SELECT message FROM chatcops_messages WHERE conversation_id = ? ORDER BY seq',
+      id
+    ).map((m) => JSON.parse(m.message) as ChatMessage);
+    return Promise.resolve({
+      id: row.id,
+      messages,
+      ...(row.metadata ? { metadata: JSON.parse(row.metadata) } : {}),
+      version: row.version,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    });
   }
 
   save(conversation: Conversation): Promise<void> {
     transaction(this.db, () => {
       const current = get<ConversationRow>(this.db, 'SELECT version FROM chatcops_conversations WHERE id = ?', conversation.id);
       const version = (current?.version ?? 0) + 1;
-      run(this.db, `INSERT INTO chatcops_conversations (id, metadata, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET metadata=excluded.metadata, version=excluded.version, created_at=excluded.created_at, updated_at=excluded.updated_at`, conversation.id, json(conversation.metadata), version, conversation.createdAt, this.clock());
+      run(
+        this.db,
+        `INSERT INTO chatcops_conversations (id, metadata, version, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           metadata = excluded.metadata,
+           version = excluded.version,
+           created_at = excluded.created_at,
+           updated_at = excluded.updated_at`,
+        conversation.id,
+        json(conversation.metadata),
+        version,
+        conversation.createdAt,
+        this.clock()
+      );
       run(this.db, 'DELETE FROM chatcops_messages WHERE conversation_id = ?', conversation.id);
-      for (const [index, message] of conversation.messages.entries()) run(this.db, 'INSERT INTO chatcops_messages (conversation_id, seq, id, message) VALUES (?, ?, ?, ?)', conversation.id, index + 1, message.id, JSON.stringify(message));
+      for (const [index, message] of conversation.messages.entries()) {
+        run(
+          this.db,
+          'INSERT INTO chatcops_messages (conversation_id, seq, id, message) VALUES (?, ?, ?, ?)',
+          conversation.id,
+          index + 1,
+          message.id,
+          JSON.stringify(message)
+        );
+      }
     });
     return Promise.resolve();
   }
@@ -55,11 +88,38 @@ class SqliteConversations implements ConversationStore {
       const actual = current?.version ?? 0;
       if (options.expectedVersion !== undefined && options.expectedVersion !== actual) throw new ConflictError(id, options.expectedVersion, actual);
       const time = this.clock();
-      const metadata = options.metadata || current?.metadata ? { ...(current?.metadata ? JSON.parse(current.metadata) : {}), ...(options.metadata ?? {}) } : undefined;
-      if (!current) run(this.db, 'INSERT INTO chatcops_conversations (id, metadata, version, created_at, updated_at) VALUES (?, ?, 1, ?, ?)', id, json(metadata), time, time);
-      else run(this.db, 'UPDATE chatcops_conversations SET metadata = ?, version = version + 1, updated_at = ? WHERE id = ?', json(metadata), time, id);
+      const metadata = options.metadata || current?.metadata
+        ? { ...(current?.metadata ? JSON.parse(current.metadata) : {}), ...(options.metadata ?? {}) }
+        : undefined;
+      if (!current) {
+        run(
+          this.db,
+          'INSERT INTO chatcops_conversations (id, metadata, version, created_at, updated_at) VALUES (?, ?, 1, ?, ?)',
+          id,
+          json(metadata),
+          time,
+          time
+        );
+      } else {
+        run(
+          this.db,
+          'UPDATE chatcops_conversations SET metadata = ?, version = version + 1, updated_at = ? WHERE id = ?',
+          json(metadata),
+          time,
+          id
+        );
+      }
       const last = get<{ seq: number }>(this.db, 'SELECT COALESCE(MAX(seq), 0) AS seq FROM chatcops_messages WHERE conversation_id = ?', id)?.seq ?? 0;
-      for (const [index, message] of messages.entries()) run(this.db, 'INSERT INTO chatcops_messages (conversation_id, seq, id, message) VALUES (?, ?, ?, ?)', id, last + index + 1, message.id, JSON.stringify(message));
+      for (const [index, message] of messages.entries()) {
+        run(
+          this.db,
+          'INSERT INTO chatcops_messages (conversation_id, seq, id, message) VALUES (?, ?, ?, ?)',
+          id,
+          last + index + 1,
+          message.id,
+          JSON.stringify(message)
+        );
+      }
       return actual + 1;
     });
     return { version };
@@ -67,7 +127,13 @@ class SqliteConversations implements ConversationStore {
 
   updateMessage(id: string, message: ChatMessage): Promise<boolean> {
     const result = transaction(this.db, () => {
-      const updated = run<RunResult>(this.db, 'UPDATE chatcops_messages SET message = ? WHERE conversation_id = ? AND id = ?', JSON.stringify(message), id, message.id);
+      const updated = run<RunResult>(
+        this.db,
+        'UPDATE chatcops_messages SET message = ? WHERE conversation_id = ? AND id = ?',
+        JSON.stringify(message),
+        id,
+        message.id
+      );
       if (!changes(updated)) return false;
       run(this.db, 'UPDATE chatcops_conversations SET version = version + 1, updated_at = ? WHERE id = ?', this.clock(), id);
       return true;
@@ -85,20 +151,54 @@ class SqliteConversations implements ConversationStore {
     return Promise.resolve(result);
   }
 
-  list(query: ListQuery): Promise<{ items: Array<{ id: string; createdAt: number; updatedAt: number; messageCount: number; metadata?: Record<string, unknown> }>; cursor?: string }> {
+  list(query: ListQuery): Promise<{
+    items: Array<{
+      id: string;
+      createdAt: number;
+      updatedAt: number;
+      messageCount: number;
+      metadata?: Record<string, unknown>;
+    }>;
+    cursor?: string;
+  }> {
     const separator = query.cursor?.indexOf(':') ?? -1;
     const cursorTime = separator === -1 ? null : Number(query.cursor?.slice(0, separator));
     const cursorId = separator === -1 ? null : query.cursor?.slice(separator + 1) ?? null;
-    const rows = all<ConversationRow & { message_count: number }>(this.db, `SELECT c.*, COUNT(m.seq) AS message_count FROM chatcops_conversations c LEFT JOIN chatcops_messages m ON m.conversation_id = c.id
-      WHERE (? IS NULL OR c.updated_at > ?) AND (? IS NULL OR c.updated_at < ? OR (c.updated_at = ? AND c.id > ?))
-      GROUP BY c.id ORDER BY c.updated_at DESC, c.id ASC LIMIT ?`, query.updatedAfter ?? null, query.updatedAfter ?? null, cursorTime, cursorTime, cursorTime, cursorId, query.limit + 1);
+    const rows = all<ConversationRow & { message_count: number }>(
+      this.db,
+      `SELECT c.*, COUNT(m.seq) AS message_count
+       FROM chatcops_conversations c
+       LEFT JOIN chatcops_messages m ON m.conversation_id = c.id
+       WHERE (? IS NULL OR c.updated_at > ?)
+         AND (? IS NULL OR c.updated_at < ? OR (c.updated_at = ? AND c.id > ?))
+       GROUP BY c.id
+       ORDER BY c.updated_at DESC, c.id ASC
+       LIMIT ?`,
+      query.updatedAfter ?? null,
+      query.updatedAfter ?? null,
+      cursorTime,
+      cursorTime,
+      cursorTime,
+      cursorId,
+      query.limit + 1
+    );
     const page = rows.slice(0, query.limit);
-    const items = page.map((row) => ({ id: row.id, createdAt: row.created_at, updatedAt: row.updated_at, messageCount: Number(row.message_count), ...(row.metadata ? { metadata: JSON.parse(row.metadata) } : {}) }));
+    const items = page.map((row) => ({
+      id: row.id,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      messageCount: Number(row.message_count),
+      ...(row.metadata ? { metadata: JSON.parse(row.metadata) } : {}),
+    }));
     const last = page.at(-1);
     return Promise.resolve(rows.length > query.limit && last ? { items, cursor: `${last.updated_at}:${last.id}` } : { items });
   }
 
-  purge(before: number): Promise<number> { return Promise.resolve(changes(run<RunResult>(this.db, 'DELETE FROM chatcops_conversations WHERE updated_at < ?', before))); }
+  purge(before: number): Promise<number> {
+    return Promise.resolve(
+      changes(run<RunResult>(this.db, 'DELETE FROM chatcops_conversations WHERE updated_at < ?', before))
+    );
+  }
 }
 
 class SqliteCounters implements CounterStore {
@@ -151,7 +251,11 @@ class SqliteKv implements KeyValueStore {
   set(key: string, value: unknown, options: { ttlMs?: number } = {}): Promise<void> {
     run(
       this.db,
-      'INSERT INTO chatcops_kv (key, value, expires_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, expires_at = excluded.expires_at',
+      `INSERT INTO chatcops_kv (key, value, expires_at)
+       VALUES (?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET
+         value = excluded.value,
+         expires_at = excluded.expires_at`,
       key,
       JSON.stringify(value),
       options.ttlMs === undefined ? null : this.clock() + options.ttlMs
