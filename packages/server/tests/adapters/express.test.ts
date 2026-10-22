@@ -355,14 +355,14 @@ describe('express analytics sharing', () => {
     }
 
     const { fake: statsFake, res: statsRes } = createResponse();
-    chatcopsAnalyticsHandler(config)(createRequest('GET'), statsRes);
+    await chatcopsAnalyticsHandler(config)(createRequest('GET'), statsRes);
 
     expect(statsFake.body).toMatchObject({ totalConversations: 2 });
     // One handler for the config, shared by the middleware and the stats route.
     expect(createChatHandler).toHaveBeenCalledTimes(1);
   });
 
-  it('warns once across several requests when analyticsToken is not configured', () => {
+  it('warns once across several requests when analyticsToken is not configured', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const config: ChatCopsServerConfig = {
       provider: { type: 'claude', apiKey: 'test-key' },
@@ -372,11 +372,11 @@ describe('express analytics sharing', () => {
     const handler = chatcopsAnalyticsHandler(config);
 
     const { fake: firstFake, res: firstRes } = createResponse();
-    handler(createRequest('GET'), firstRes);
+    await handler(createRequest('GET'), firstRes);
     expect(firstFake.statusCode).toBe(200);
 
     const { fake: secondFake, res: secondRes } = createResponse();
-    handler(createRequest('GET'), secondRes);
+    await handler(createRequest('GET'), secondRes);
     expect(secondFake.statusCode).toBe(200);
 
     expect(warnSpy).toHaveBeenCalledTimes(1);
@@ -385,7 +385,7 @@ describe('express analytics sharing', () => {
     );
   });
 
-  it('requires a bearer token when analyticsToken is configured', () => {
+  it('requires a bearer token when analyticsToken is configured', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const config: ChatCopsServerConfig = {
       provider: { type: 'claude', apiKey: 'test-key' },
@@ -397,28 +397,28 @@ describe('express analytics sharing', () => {
 
     // Missing token
     const { fake: missingFake, res: missingRes } = createResponse();
-    handler(createRequest('GET'), missingRes);
+    await handler(createRequest('GET'), missingRes);
     expect(missingFake.statusCode).toBe(401);
     expect(missingFake.headers['WWW-Authenticate']).toBe('Bearer');
     expect(missingFake.body).toEqual({ error: 'unauthorized' });
 
     // Wrong token of different length
     const { fake: diffLengthFake, res: diffLengthRes } = createResponse();
-    handler(createRequest('GET', undefined, { authorization: 'Bearer short' }), diffLengthRes);
+    await handler(createRequest('GET', undefined, { authorization: 'Bearer short' }), diffLengthRes);
     expect(diffLengthFake.statusCode).toBe(401);
     expect(diffLengthFake.headers['WWW-Authenticate']).toBe('Bearer');
     expect(diffLengthFake.body).toEqual({ error: 'unauthorized' });
 
     // Wrong token of same length
     const { fake: wrongFake, res: wrongRes } = createResponse();
-    handler(createRequest('GET', undefined, { authorization: 'Bearer secret-tokeX' }), wrongRes);
+    await handler(createRequest('GET', undefined, { authorization: 'Bearer secret-tokeX' }), wrongRes);
     expect(wrongFake.statusCode).toBe(401);
     expect(wrongFake.headers['WWW-Authenticate']).toBe('Bearer');
     expect(wrongFake.body).toEqual({ error: 'unauthorized' });
 
     // Right token
     const { fake: rightFake, res: rightRes } = createResponse();
-    handler(createRequest('GET', undefined, { authorization: 'Bearer secret-token' }), rightRes);
+    await handler(createRequest('GET', undefined, { authorization: 'Bearer secret-token' }), rightRes);
     expect(rightFake.statusCode).toBe(200);
     expect(rightFake.body).toMatchObject({ totalConversations: 0 });
 

@@ -17,7 +17,7 @@ chatcopsMiddleware({
 
 ## Reading Stats with Express
 
-`chatcopsAnalyticsHandler` returns the stats for the traffic handled by `chatcopsMiddleware`. Pass the **same config object** to both so they share one handler and one `AnalyticsCollector`:
+`chatcopsAnalyticsHandler` returns the stats for the traffic handled by `chatcopsMiddleware`. Pass the **same config object** to both so they share one handler:
 
 ```typescript
 import express from 'express';
@@ -34,7 +34,7 @@ const config = {
 const app = express();
 app.use(express.json());
 
-app.all('/chat', chatcopsMiddleware(config));
+app.use('/chat', chatcopsMiddleware(config));
 app.get('/analytics', chatcopsAnalyticsHandler(config));
 
 app.listen(3001);
@@ -47,6 +47,14 @@ curl -H "Authorization: Bearer <token>" http://localhost:3001/analytics
 ```
 
 When unset, the endpoint is public and logs a warning the first time it is hit.
+
+With a `storage` that has an event sink (`memoryStorage()`, Postgres, Redis, SQLite and Cloudflare stores all do), the server writes every event there too, and the endpoint counts from the store. Then the stats cover every server instance, not just the one answering. Pick the range with `from` and `to` in milliseconds. The default is the last 30 days:
+
+```bash
+curl -H "Authorization: Bearer <token>" "http://localhost:3001/analytics?from=1792368000000"
+```
+
+Without a store that can be queried, the stats come from the memory of the process that answers, which on serverless is one instance at a time. A range that isn't a number gets `400 {"error":"invalid_range"}`.
 
 `GET /analytics` responds with the aggregated stats (or `null` if `analytics` is not enabled):
 
@@ -119,7 +127,7 @@ interface AnalyticsEvent {
 
 ## Storage
 
-The built-in collector stores events in memory (max 1000 events). To write events to a storage-backed `EventSink`, use `BufferedEventSink`. It batches up to 50 events by default and flushes every 2 seconds. Call `flush()` when you need to wait for queued writes, such as before a process exits:
+The built-in collector stores events in memory (max 1000 events). With `analytics: true` and a `storage`, the server already writes events to the store's sink, buffered and flushed as each reply ends. To do the same in your own code, use `BufferedEventSink`. It batches up to 50 events by default and flushes every 2 seconds. Call `flush()` when you need to wait for queued writes, such as before a process exits:
 
 ```typescript
 import { BufferedEventSink, memoryStorage, statsFromSink } from '@chatcops/core';
