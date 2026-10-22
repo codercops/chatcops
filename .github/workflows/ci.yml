@@ -117,8 +117,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Build the widget
-        run: pnpm --filter @chatcops/widget build
+      # e2e/server.mjs runs the real server handler, so build it and core too.
+      - name: Build the widget and the server
+        run: pnpm --filter @chatcops/widget --filter "@chatcops/server..." build
 
       - name: Install Chromium
         run: pnpm exec playwright install --with-deps chromium
