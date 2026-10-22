@@ -510,6 +510,8 @@ export class Widget {
           break;
         }
 
+        if (chunk.conversationId) this.conversationId = chunk.conversationId;
+
         // The reply is saved under the server's id, so regenerate can name it.
         if (chunk.messageId) {
           assistantMsg.id = chunk.messageId;

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { NextFunction, Request as ExpressRequest, Response as ExpressResponse } from 'express';
-import type { WirePart } from '@chatcops/core';
+import { memoryStorage, type WirePart } from '@chatcops/core';
 import { scriptedProvider, textStep } from '@chatcops/core/testing/provider';
 import { chatcopsVercelHandler } from '../src/adapters/vercel.js';
 import { chatcopsMiddleware } from '../src/adapters/express.js';
@@ -86,21 +86,27 @@ describe('POST /session', () => {
     expect(partsOf(reply.text)[0]).toMatchObject({ type: 'start', capabilities: { session: true } });
   });
 
-  it('never hands out a guessed conversation id', async () => {
-    const { session } = setup();
-    const minted = await session({ conversationId: 'someone-elses-conversation' });
-    expect(minted.status).toBe(200);
-    expect(minted.body.conversationId).not.toBe('someone-elses-conversation');
+  it("gives out an id with nothing stored, but never one that has messages", async () => {
+    const { session, chat } = setup();
+    const fresh = await session({ conversationId: 'made-up-by-the-widget' });
+    expect(fresh.body.conversationId).toBe('made-up-by-the-widget');
+    expect((await chat('made-up-by-the-widget', fresh.body.token)).status).toBe(200);
 
-    const forged = await session({ conversationId: 'someone-elses-conversation', previousToken: 'eyJ.bad.token' });
-    expect(forged.body.conversationId).not.toBe('someone-elses-conversation');
+    const guessed = await session({ conversationId: 'made-up-by-the-widget' });
+    expect(guessed.status).toBe(200);
+    expect(guessed.body.conversationId).not.toBe('made-up-by-the-widget');
+
+    const forged = await session({ conversationId: 'made-up-by-the-widget', previousToken: 'eyJ.bad.token' });
+    expect(forged.body.conversationId).not.toBe('made-up-by-the-widget');
   });
 
   it('resumes a conversation with its previous token, even expired, within the grace window', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(1_800_000_000_000);
-    const { session } = setup();
+    // A store that keeps the conversation past the grace window.
+    const { session, chat } = setup({ storage: memoryStorage({ conversationTtlMs: 365 * 86_400_000 }) });
     const first = await session();
+    await chat(first.body.conversationId, first.body.token);
 
     vi.setSystemTime(1_800_000_000_000 + 7 * 86_400_000);
     const resumed = await session({ conversationId: first.body.conversationId, previousToken: first.body.token });
@@ -113,10 +119,12 @@ describe('POST /session', () => {
   });
 
   it("doesn't resume with a token from another site, or for another conversation", async () => {
-    const { session } = setup();
+    const { session, chat } = setup();
     const first = await session();
     const second = await session();
 
+    // Only ids with messages are protected, so give the first conversation one.
+    await chat(first.body.conversationId, first.body.token);
     const elsewhere = await session({ conversationId: first.body.conversationId, previousToken: first.body.token }, 'https://other.example');
     expect(elsewhere.body.conversationId).not.toBe(first.body.conversationId);
 

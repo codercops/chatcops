@@ -81,7 +81,7 @@ export function createChatHandler(config: ChatCopsServerConfig) {
   // rather than as a provider error on the first message.
   validateTools(toolDefs);
   const tools = toolRegistry(config.tools);
-  const sessions = createSessions(config);
+  const sessions = createSessions(config, async (id) => (await conversations.getMessages(id)).length === 0);
 
   const requests: Record<ChatFormat, number> = { v1: 0, legacy: 0, 'ai-sdk': 0 };
 

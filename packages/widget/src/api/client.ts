@@ -13,13 +13,32 @@ export interface SendMessageOptions {
   timeout?: number;
 }
 
+/** A session token from `POST <apiUrl>/session`, for servers that have them on. */
+interface Session {
+  token: string;
+  conversationId: string;
+}
+
 export class ChatClient {
   private apiUrl: string;
   private timeout: number;
+  private sessionKey: string;
+  private saved?: Partial<Session>;
 
   constructor(options: ChatClientOptions) {
     this.apiUrl = options.apiUrl;
     this.timeout = options.timeout ?? 30000;
+    this.sessionKey = `chatcops-session:${options.apiUrl}`;
+  }
+
+  /** The last token, kept across page loads so the server can resume the conversation. */
+  private lastSession(): Partial<Session> {
+    try {
+      this.saved ??= JSON.parse(localStorage.getItem(this.sessionKey) || '{}');
+    } catch {
+      this.saved = {};
+    }
+    return this.saved as Partial<Session>;
   }
 
   async *sendMessage(
@@ -70,13 +89,40 @@ export class ChatClient {
     resetTimeout();
 
     try {
-      const response = await fetch(this.apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        // Servers before 0.6 ignore `protocol` and answer in the old format.
-        body: JSON.stringify({ protocol: 1, ...request }),
-        signal: controller.signal,
-      });
+      const post = (url: string, body: object, token?: string) =>
+        fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }) },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+      const saved = this.lastSession();
+      // Servers before 0.6 ignore `protocol` and answer in the old format.
+      let response = await post(this.apiUrl, { protocol: 1, ...request }, saved.conversationId === request.conversationId ? saved.token : undefined);
+
+      // Session tokens are on. Get a token for this conversation and try once
+      // more. The previous token, even expired, lets the server resume the
+      // conversation; without one it may give the conversation a new id.
+      if (response.status === 401) {
+        const minted = await post(this.apiUrl.replace(/\/?(\?.*)?$/, '/session$1'), {
+          conversationId: request.conversationId,
+          previousToken: saved.token,
+        });
+        if (minted.ok) {
+          const session = (await minted.json()) as Session;
+          this.saved = session;
+          try {
+            localStorage.setItem(this.sessionKey, JSON.stringify(session));
+          } catch {
+            // Storage full or unavailable: the token still works on this page.
+          }
+          if (session.conversationId !== request.conversationId) {
+            request = { ...request, conversationId: session.conversationId };
+            yield { conversationId: session.conversationId };
+          }
+          response = await post(this.apiUrl, { protocol: 1, ...request }, session.token);
+        }
+      }
 
       if (!response.ok) {
         await cleanup();

@@ -39,8 +39,15 @@ export interface Sessions {
   check(authorization: string | null | undefined, origin: string | null, conversationId: string): Promise<SessionCheck>;
 }
 
-/** `undefined` when `sessionSecrets` isn't set. Throws at startup on a bad config. */
-export function createSessions(config: SessionConfig, now: () => number = Date.now): Sessions | undefined {
+/**
+ * `undefined` when `sessionSecrets` isn't set. Throws at startup on a bad
+ * config. `isUnused` says whether a conversation has nothing stored yet.
+ */
+export function createSessions(
+  config: SessionConfig,
+  isUnused: (conversationId: string) => Promise<boolean> = async () => false,
+  now: () => number = Date.now
+): Sessions | undefined {
   const secrets = config.sessionSecrets;
   if (secrets === undefined) {
     if (config.requireSession) throw new Error('`requireSession` needs `sessionSecrets` to sign tokens with.');
@@ -72,9 +79,12 @@ export function createSessions(config: SessionConfig, now: () => number = Date.n
       const time = nowSec();
 
       // Resuming a conversation needs a token that was issued for it, from
-      // this origin. Expired is fine within the grace window. Anything else
-      // gets a new conversation, so a guessed id is useless.
+      // this origin. Expired is fine within the grace window. An id with
+      // nothing stored yet (the widget makes its own) is given out as is,
+      // since there's nothing in it to read. Anything else gets a new
+      // conversation, so a guessed or leaked id is useless.
       let resumed: SessionClaims | undefined;
+      let cid: string | undefined;
       if (request.conversationId && request.previousToken) {
         const result = await verifySession(request.previousToken, await getKeys(), {
           origin: org,
@@ -84,11 +94,13 @@ export function createSessions(config: SessionConfig, now: () => number = Date.n
         });
         if (result.ok) resumed = result.claims;
       }
+      if (resumed) cid = resumed.cid;
+      else if (request.conversationId && (await isUnused(request.conversationId))) cid = request.conversationId;
 
       const claims: SessionClaims = {
         v: 1,
         sid: resumed?.sid ?? crypto.randomUUID(),
-        cid: resumed?.cid ?? crypto.randomUUID(),
+        cid: cid ?? crypto.randomUUID(),
         org,
         iat: time,
         exp: time + ttlSec,
