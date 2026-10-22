@@ -158,7 +158,7 @@ chatcopsMiddleware({
 
 ## Direct provider usage
 
-For advanced use cases, you can use providers directly:
+To use a provider outside the server, create it from the same config and run a turn with it (see [Running a turn](#running-a-turn) below):
 
 ```typescript
 import { createProvider } from '@chatcops/core';
@@ -167,21 +167,6 @@ const provider = await createProvider({
   type: 'claude',
   apiKey: process.env.ANTHROPIC_API_KEY!,
 });
-
-// Streaming
-for await (const token of provider.chat({
-  messages: [{ id: '1', role: 'user', content: 'Hello!', timestamp: Date.now() }],
-  systemPrompt: 'You are helpful.',
-})) {
-  process.stdout.write(token);
-}
-
-// Non-streaming
-const response = await provider.chatSync({
-  messages: [{ id: '1', role: 'user', content: 'Hello!', timestamp: Date.now() }],
-  systemPrompt: 'You are helpful.',
-});
-console.log(response);
 ```
 
 The provider classes aren't exported from `@chatcops/core`, so importing core doesn't load all three SDKs. Import them from their own paths:
@@ -215,7 +200,7 @@ for await (const part of turn) {
 }
 ```
 
-Provider errors don't throw. They end the turn with an `error` part and a `finish` part with reason `error`. `chat()` and `chatSync()` on the built-in providers are now thin wrappers over `runTurn()` that still throw as they did in 0.5.
+Provider errors don't throw. They end the turn with an `error` part and a `finish` part with reason `error`. `chat()` and `chatSync()` on the built-in providers are thin wrappers over `runTurn()` that still throw as they did in 0.5. They're deprecated: use `runTurn()`, which also gives you the reply's parts, status and token usage.
 
 For tests, `@chatcops/core/testing/provider` has `scriptedProvider()`, which plays back a script of steps instead of calling a model.
 
