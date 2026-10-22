@@ -190,22 +190,24 @@ if (typeof deleted === 'number') {
 }
 ```
 
-`purge()` returns `null` when the configured store does not implement `ConversationStore.purge`. The built-in Postgres and Redis stores both implement it; the default in-memory store does not.
+`purge()` returns `null` only when a custom conversation store does not implement the optional `purge` capability, such as a custom store with only `get`, `save`, and `delete`. The built-in memory, SQLite, Postgres, and Redis stores all implement `purge()`.
 
 ### Express / Node.js
 
 Use [`node-cron`](https://github.com/node-cron/node-cron) to call `purge()` on a schedule from the same process as your Express server:
 
 ```bash
-npm install node-cron
+npm install node-cron pg @types/pg
 ```
 
 ```typescript
 import express from 'express';
 import cron from 'node-cron';
+import { Pool } from 'pg';
 import { chatcopsMiddleware, createChatHandler, type ChatCopsServerConfig } from '@chatcops/server';
 import { postgresStorage } from '@chatcops/store-postgres';
 
+const db = new Pool({ connectionString: process.env.DATABASE_URL });
 const storage = postgresStorage({ db });
 
 const config: ChatCopsServerConfig = {
@@ -219,7 +221,7 @@ const handler = createChatHandler(config);
 
 const app = express();
 app.use(express.json());
-app.all('/chat', chatcopsMiddleware(config));
+app.use('/api/chat', chatcopsMiddleware(config));
 
 // Run at 03:00 every day.
 cron.schedule('0 3 * * *', async () => {
@@ -228,7 +230,7 @@ cron.schedule('0 3 * * *', async () => {
     if (typeof deleted === 'number') {
       console.log(`[chatcops] Purged ${deleted} old conversations`);
     } else {
-      console.warn('[chatcops] purge() returned null — store does not support purge');
+      console.warn('[chatcops] purge() returned null: store does not support purge');
     }
   } catch (err) {
     console.error('[chatcops] Scheduled purge failed:', err);
@@ -258,7 +260,7 @@ try {
   if (typeof deleted === 'number') {
     console.log(`Purged ${deleted} old conversations`);
   } else {
-    console.warn('purge() returned null — store does not support purge');
+    console.warn('purge() returned null: store does not support purge');
   }
 } catch (err) {
   console.error('Purge failed:', err);
@@ -327,14 +329,14 @@ Register the cron trigger in `vercel.json`. The path must match the route above:
 Vercel automatically sends an `Authorization: Bearer <CRON_SECRET>` header when it invokes the route. Set `CRON_SECRET` in your Vercel project's environment variables. The route rejects any caller whose header doesn't match, and returns 500 when the secret is not configured at all.
 
 :::note
-Vercel Cron Jobs are available on the Pro plan and above. On the Hobby plan, cron jobs run at most once per day.
+Vercel Cron Jobs are available on all plans. On the Hobby plan, each cron job is limited to running at most once per day, which is sufficient for daily retention cleanup.
 :::
 
 ### Cloudflare Workers
 
 Add a `scheduled` export to your Worker. Cloudflare calls it on the cron triggers you define in `wrangler.toml`.
 
-The Cloudflare Workers runtime does not support TCP sockets, so `pg` (node-postgres) cannot connect to Postgres. Use [`@chatcops/store-redis`](/server/storage/#redis) with Upstash's HTTP-based Redis client, which works in the Workers runtime:
+This example uses [`@chatcops/store-redis`](/server/storage/#redis) with Upstash's HTTP-based Redis client because it runs directly in Workers over HTTP without extra database-connection setup:
 
 ```bash
 npm install @chatcops/store-redis @upstash/redis
@@ -359,8 +361,9 @@ function makeStorage(env: Env) {
     url: env.UPSTASH_REDIS_REST_URL,
     token: env.UPSTASH_REDIS_REST_TOKEN,
   });
-  // conversationTtlMs defaults to 30 days (key expiration in Redis).
-  // purge() removes expired conversations from the index sorted set.
+  // retention.conversationsDays determines the cutoff used by purge().
+  // purge() removes old conversations and their corresponding index entries.
+  // conversationTtlMs is an optional Redis key-expiration safety net.
   return redisStorage({ redis, prefix: 'chatcops' });
 }
 
@@ -398,7 +401,7 @@ export default {
           if (typeof deleted === 'number') {
             console.log(`[chatcops] Purged ${deleted} old conversations`);
           } else {
-            console.warn('[chatcops] purge() returned null — store does not support purge');
+            console.warn('[chatcops] purge() returned null: store does not support purge');
           }
         })
         .catch((err) => {
@@ -420,8 +423,8 @@ compatibility_date = "2024-01-01"
 crons = ["0 3 * * *"]
 ```
 
-If your application does not use Upstash Redis and the repository does not yet provide a compatible persistent store for your Cloudflare infrastructure, supply a custom store that implements `ConversationStore.purge`. `purge()` returns `null` when the store does not implement it, and the scheduled event becomes a no-op.
+When using a custom conversation store, the store must implement `ConversationStore.purge` for scheduled cleanup to work. `purge()` returns `null` when the store does not implement it, making scheduled cleanup a no-op.
 
 :::note
-The default in-memory store does not support purge and is not shared between isolates or Workers invocations. A persistent store is required for scheduled cleanup to have any effect.
+The in-memory store implements `purge()`, but each process or Worker instance only purges its own in-memory data. Scheduled cleanup is most useful when the application uses shared, persistent storage.
 :::
