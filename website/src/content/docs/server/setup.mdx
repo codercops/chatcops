@@ -335,58 +335,9 @@ Each reply is saved as one assistant message with its parts: the text, and every
 
 ### Protocol v1
 
-A reply is a stream of typed parts, one SSE event each:
+Protocol v1 is the default stream format for modern ChatCops clients. Replies stream as typed Server-Sent Events (SSE) carrying granular event parts, with pre-stream refusals returned as JSON with standard HTTP error statuses.
 
-```
-Content-Type: text/event-stream; charset=utf-8
-Cache-Control: no-cache, no-transform
-X-Accel-Buffering: no
-x-chatcops-protocol: 1
-
-data: {"type":"start","protocol":1,"conversationId":"c_8f2","messageId":"m_91"}
-
-data: {"type":"text-start","id":"t1"}
-
-data: {"type":"text-delta","id":"t1","delta":"Our Starter plan is "}
-
-data: {"type":"text-delta","id":"t1","delta":"$19 a month."}
-
-data: {"type":"text-end","id":"t1"}
-
-data: {"type":"finish","reason":"stop"}
-
-data: [DONE]
-```
-
-- `start` comes first, with the id the reply is saved under.
-- `text-start`, `text-delta` and `text-end` carry the text. `tool-call` and `tool-result` show the server's tool steps, and `lead-captured` comes when the lead capture tool succeeds.
-- `error` reports a failure after the stream has started, such as `{"type":"error","code":"provider_error","retryable":true}`. The codes are `provider_error`, `budget_exceeded` (with the budget's `scope`), `content_filtered`, `tool_error` and `internal_error`.
-- `finish` always comes last, with a `reason`: `stop`, `length`, `error` or `aborted`. With `exposeUsage: true` it also has the reply's token `usage`. Visitors can read the stream, so it's off by default.
-
-Then `data: [DONE]` ends the stream. A stream that ends without `finish` was cut off, and the widget shows an error with a Retry button. Clients should ignore part types they don't know, since new ones can be added without a new protocol version.
-
-When nothing has been sent for 10 seconds, during a slow tool for example, the server sends a `: ping` comment line. SSE clients ignore it, and it keeps proxies and the widget's inactivity timer from closing a healthy connection.
-
-A request that can't be answered gets a real HTTP status before any stream, with CORS headers and a JSON body:
-
-```json
-{ "error": { "code": "rate_limited", "retryAfterMs": 42000 } }
-```
-
-| Status | Code | When |
-|---|---|---|
-| 400 | `invalid_request` | The body isn't valid. The message names the fields, never their values. |
-| 401 | `session_required` | Session tokens are on and the request has no valid token. |
-| 401 | `token_expired` | The session token has expired. Get a new one from `/session`. |
-| 401 | `conversation_mismatch` | The session token is for a different conversation. |
-| 401 | `turnstile_failed` | `/session` only: the Turnstile token is missing or didn't pass. |
-| 409 | `conversation_busy` | A reply for this conversation is still being written. |
-| 413 | `payload_too_large` | The body is over 256 KB. With Express, `express.json()` sets the limit (100 KB by default) and answers 413 itself. |
-| 429 | `rate_limited` | Too many requests from this IP. `Retry-After` has the seconds, and `retryAfterMs` the milliseconds. |
-| 500 | `internal_error` | An unexpected error in the server. |
-| 503 | `provider_unavailable` | The provider couldn't be set up, such as a missing API key. The server logged why at startup. |
-
-`403` for a site that isn't in `allowedOrigins` and `405` for anything but `POST` keep their `{"error":"..."}` bodies, since they're answered before the body is read. `OPTIONS` requests are answered as CORS preflights.
+For the full specification covering format negotiation, request fields, SSE framing, all 13 wire part variants, and HTTP error mappings, see the [Protocol Reference](/server/protocol/).
 
 ### The 0.5 format
 
