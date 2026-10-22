@@ -189,3 +189,239 @@ if (typeof deleted === 'number') {
   console.log(`Purged ${deleted} old conversations`);
 }
 ```
+
+`purge()` returns `null` when the configured store does not implement `ConversationStore.purge`. The built-in Postgres and Redis stores both implement it; the default in-memory store does not.
+
+### Express / Node.js
+
+Use [`node-cron`](https://github.com/node-cron/node-cron) to call `purge()` on a schedule from the same process as your Express server:
+
+```bash
+npm install node-cron
+```
+
+```typescript
+import express from 'express';
+import cron from 'node-cron';
+import { chatcopsMiddleware, createChatHandler, type ChatCopsServerConfig } from '@chatcops/server';
+import { postgresStorage } from '@chatcops/store-postgres';
+
+const storage = postgresStorage({ db });
+
+const config: ChatCopsServerConfig = {
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+  systemPrompt: 'You are a helpful assistant.',
+  storage,
+  retention: { conversationsDays: 30 },
+};
+
+const handler = createChatHandler(config);
+
+const app = express();
+app.use(express.json());
+app.all('/chat', chatcopsMiddleware(config));
+
+// Run at 03:00 every day.
+cron.schedule('0 3 * * *', async () => {
+  try {
+    const deleted = await handler.purge();
+    if (typeof deleted === 'number') {
+      console.log(`[chatcops] Purged ${deleted} old conversations`);
+    } else {
+      console.warn('[chatcops] purge() returned null — store does not support purge');
+    }
+  } catch (err) {
+    console.error('[chatcops] Scheduled purge failed:', err);
+  }
+});
+```
+
+Alternatively, keep the purge logic in a standalone script and invoke it from an external scheduler (systemd timer, AWS EventBridge, GitHub Actions cron, etc.). Run database migrations separately as part of your deployment, not on every cleanup run:
+
+```typescript
+// scripts/purge.ts
+import { createChatHandler } from '@chatcops/server';
+import { Pool } from 'pg';
+import { postgresStorage } from '@chatcops/store-postgres';
+
+const db = new Pool({ connectionString: process.env.DATABASE_URL });
+
+try {
+  const handler = createChatHandler({
+    provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+    systemPrompt: '',
+    storage: postgresStorage({ db }),
+    retention: { conversationsDays: 30 },
+  });
+
+  const deleted = await handler.purge();
+  if (typeof deleted === 'number') {
+    console.log(`Purged ${deleted} old conversations`);
+  } else {
+    console.warn('purge() returned null — store does not support purge');
+  }
+} catch (err) {
+  console.error('Purge failed:', err);
+  process.exitCode = 1;
+} finally {
+  await db.end();
+}
+```
+
+Run it with `tsx`:
+
+```bash
+npx tsx scripts/purge.ts
+```
+
+### Vercel Cron Jobs
+
+Vercel Cron Jobs call an API route on a schedule. Create a route that runs `purge()` and protect it with a shared secret so only Vercel's cron runner can trigger it:
+
+```typescript
+// app/api/purge/route.ts  (Next.js App Router)
+import { NextRequest, NextResponse } from 'next/server';
+// Import the createChatHandler instance from your application module.
+// Replace '@/lib/chatcops' with the actual path where your handler is created,
+// configured with the same storage and retention settings as your chat route.
+import { handler } from '@/lib/chatcops';
+
+export const runtime = 'nodejs';
+
+export async function GET(req: NextRequest) {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) {
+    return NextResponse.json({ error: 'CRON_SECRET is not configured' }, { status: 500 });
+  }
+  const auth = req.headers.get('authorization');
+  if (auth !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const deleted = await handler.purge();
+    if (typeof deleted === 'number') {
+      return NextResponse.json({ deleted });
+    }
+    return NextResponse.json({ deleted: null, message: 'Store does not support purge' });
+  } catch (err) {
+    console.error('[chatcops] Purge failed:', err);
+    return NextResponse.json({ error: 'Purge failed' }, { status: 500 });
+  }
+}
+```
+
+Register the cron trigger in `vercel.json`. The path must match the route above:
+
+```json
+{
+  "crons": [
+    {
+      "path": "/api/purge",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}
+```
+
+Vercel automatically sends an `Authorization: Bearer <CRON_SECRET>` header when it invokes the route. Set `CRON_SECRET` in your Vercel project's environment variables. The route rejects any caller whose header doesn't match, and returns 500 when the secret is not configured at all.
+
+:::note
+Vercel Cron Jobs are available on the Pro plan and above. On the Hobby plan, cron jobs run at most once per day.
+:::
+
+### Cloudflare Workers
+
+Add a `scheduled` export to your Worker. Cloudflare calls it on the cron triggers you define in `wrangler.toml`.
+
+The Cloudflare Workers runtime does not support TCP sockets, so `pg` (node-postgres) cannot connect to Postgres. Use [`@chatcops/store-redis`](/server/storage/#redis) with Upstash's HTTP-based Redis client, which works in the Workers runtime:
+
+```bash
+npm install @chatcops/store-redis @upstash/redis
+```
+
+Create a fresh handler inside `scheduled()` using the invocation's `env` so that no environment-specific secret is cached at global scope:
+
+```typescript
+// src/index.ts
+import { chatcopsCloudflareHandler, createChatHandler } from '@chatcops/server';
+import { Redis } from '@upstash/redis/cloudflare';
+import { redisStorage } from '@chatcops/store-redis';
+
+interface Env {
+  ANTHROPIC_API_KEY: string;
+  UPSTASH_REDIS_REST_URL: string;
+  UPSTASH_REDIS_REST_TOKEN: string;
+}
+
+function makeStorage(env: Env) {
+  const redis = new Redis({
+    url: env.UPSTASH_REDIS_REST_URL,
+    token: env.UPSTASH_REDIS_REST_TOKEN,
+  });
+  // conversationTtlMs defaults to 30 days (key expiration in Redis).
+  // purge() removes expired conversations from the index sorted set.
+  return redisStorage({ redis, prefix: 'chatcops' });
+}
+
+// The fetch handler is built once per isolate; env is the same on every request.
+let fetchHandler: ReturnType<typeof chatcopsCloudflareHandler> | undefined;
+function getFetchHandler(env: Env) {
+  fetchHandler ??= chatcopsCloudflareHandler({
+    provider: { type: 'claude', apiKey: env.ANTHROPIC_API_KEY },
+    systemPrompt: 'You are a helpful assistant.',
+    storage: makeStorage(env),
+    retention: { conversationsDays: 30 },
+    allowedOrigins: ['*'],
+  });
+  return fetchHandler;
+}
+
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    return getFetchHandler(env)(request, env, ctx);
+  },
+
+  async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
+    // Build a dedicated handler for this invocation using the current env bindings.
+    const purgeHandler = createChatHandler({
+      provider: { type: 'claude', apiKey: env.ANTHROPIC_API_KEY },
+      systemPrompt: '',
+      storage: makeStorage(env),
+      retention: { conversationsDays: 30 },
+    });
+
+    ctx.waitUntil(
+      purgeHandler
+        .purge()
+        .then((deleted) => {
+          if (typeof deleted === 'number') {
+            console.log(`[chatcops] Purged ${deleted} old conversations`);
+          } else {
+            console.warn('[chatcops] purge() returned null — store does not support purge');
+          }
+        })
+        .catch((err) => {
+          console.error('[chatcops] Scheduled purge failed:', err);
+        })
+    );
+  },
+};
+```
+
+Register the cron trigger in `wrangler.toml`:
+
+```toml
+name = "chatcops-worker"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[triggers]
+crons = ["0 3 * * *"]
+```
+
+If your application does not use Upstash Redis and the repository does not yet provide a compatible persistent store for your Cloudflare infrastructure, supply a custom store that implements `ConversationStore.purge`. `purge()` returns `null` when the store does not implement it, and the scheduled event becomes a no-op.
+
+:::note
+The default in-memory store does not support purge and is not shared between isolates or Workers invocations. A persistent store is required for scheduled cleanup to have any effect.
+:::
