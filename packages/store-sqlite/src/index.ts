@@ -13,9 +13,29 @@ import {
   type ListQuery,
 } from '@chatcops/core';
 import { all, get, openDatabase, run, transaction, type SqliteDatabase } from './database.js';
+import { checkRowHook, type ExtraColumns, type RowHook, type RowHookContext, type RowHookFunction } from './row-hook.js';
 import { initializeSchema } from './schema.js';
 
-export interface SqliteStorageOptions { path?: string; database?: SqliteDatabase }
+export type { ExtraColumns, RowHookContext, RowHookFunction } from './row-hook.js';
+
+export interface SqliteStorageOptions {
+  /** A database file, or `:memory:`. */
+  path?: string;
+  /** An open `node:sqlite` `DatabaseSync`, or a compatible better-sqlite3 database. */
+  database?: SqliteDatabase;
+  /**
+   * Columns you've added to the conversations and messages tables (with your
+   * own `ALTER TABLE`), filled in by `rowHook` when a row is created.
+   */
+  extraColumns?: ExtraColumns;
+  /**
+   * Values for `extraColumns` on each new conversation and message row. Runs
+   * on insert only, never on update. Returning a key that isn't declared in
+   * `extraColumns` throws, and nothing from that write is stored. Values are
+   * bound as parameters, never put into the SQL.
+   */
+  rowHook?: RowHookFunction;
+}
 
 interface ConversationRow { id: string; metadata: string | null; version: number; created_at: number; updated_at: number }
 interface MessageRow { message: string }
@@ -26,7 +46,38 @@ const changes = (result: RunResult): number => Number(result.changes ?? 0);
 const now = () => Date.now();
 
 class SqliteConversations implements ConversationStore {
-  constructor(private readonly db: SqliteDatabase, private readonly clock: () => number) {}
+  private readonly conversationInsert: string;
+  private readonly messageInsert: string;
+
+  constructor(
+    private readonly db: SqliteDatabase,
+    private readonly clock: () => number,
+    private readonly hook?: RowHook
+  ) {
+    const extra = hook?.columns.map((name) => `, ${name}`).join('') ?? '';
+    const marks = hook?.columns.map(() => ', ?').join('') ?? '';
+    this.conversationInsert = `INSERT INTO chatcops_conversations (id, metadata, version, created_at, updated_at${extra}) VALUES (?, ?, ?, ?, ?${marks})`;
+    this.messageInsert = `INSERT INTO chatcops_messages (conversation_id, seq, id, message${extra}) VALUES (?, ?, ?, ?${marks})`;
+  }
+
+  /** The hook's values for one new row, or nothing without a hook. */
+  private extra(context: RowHookContext): unknown[] {
+    return this.hook ? this.hook.values(context) : [];
+  }
+
+  private insertMessages(id: string, after: number, messages: ChatMessage[], metadata: Record<string, unknown> | undefined): void {
+    for (const [index, message] of messages.entries()) {
+      run(
+        this.db,
+        this.messageInsert,
+        id,
+        after + index + 1,
+        message.id,
+        JSON.stringify(message),
+        ...this.extra({ table: 'messages', conversationId: id, metadata, message })
+      );
+    }
+  }
 
   get(id: string): Promise<Conversation | null> {
     const row = get<ConversationRow>(this.db, 'SELECT * FROM chatcops_conversations WHERE id = ?', id);
@@ -50,10 +101,10 @@ class SqliteConversations implements ConversationStore {
     transaction(this.db, () => {
       const current = get<ConversationRow>(this.db, 'SELECT version FROM chatcops_conversations WHERE id = ?', conversation.id);
       const version = (current?.version ?? 0) + 1;
+      // The hook's columns are only in the INSERT half, so an update never changes them.
       run(
         this.db,
-        `INSERT INTO chatcops_conversations (id, metadata, version, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?)
+        `${this.conversationInsert}
          ON CONFLICT(id) DO UPDATE SET
            metadata = excluded.metadata,
            version = excluded.version,
@@ -63,24 +114,19 @@ class SqliteConversations implements ConversationStore {
         json(conversation.metadata),
         version,
         conversation.createdAt,
-        this.clock()
+        this.clock(),
+        ...this.extra({ table: 'conversations', conversationId: conversation.id, metadata: conversation.metadata })
       );
       run(this.db, 'DELETE FROM chatcops_messages WHERE conversation_id = ?', conversation.id);
-      for (const [index, message] of conversation.messages.entries()) {
-        run(
-          this.db,
-          'INSERT INTO chatcops_messages (conversation_id, seq, id, message) VALUES (?, ?, ?, ?)',
-          conversation.id,
-          index + 1,
-          message.id,
-          JSON.stringify(message)
-        );
-      }
+      this.insertMessages(conversation.id, 0, conversation.messages, conversation.metadata);
     });
     return Promise.resolve();
   }
 
-  delete(id: string): Promise<void> { run(this.db, 'DELETE FROM chatcops_conversations WHERE id = ?', id); return Promise.resolve(); }
+  delete(id: string): Promise<void> {
+    run(this.db, 'DELETE FROM chatcops_conversations WHERE id = ?', id);
+    return Promise.resolve();
+  }
 
   async append(id: string, messages: ChatMessage[], options: AppendOptions = {}): Promise<{ version: number }> {
     const version = transaction(this.db, () => {
@@ -94,11 +140,13 @@ class SqliteConversations implements ConversationStore {
       if (!current) {
         run(
           this.db,
-          'INSERT INTO chatcops_conversations (id, metadata, version, created_at, updated_at) VALUES (?, ?, 1, ?, ?)',
+          this.conversationInsert,
           id,
           json(metadata),
+          1,
           time,
-          time
+          time,
+          ...this.extra({ table: 'conversations', conversationId: id, metadata: options.metadata })
         );
       } else {
         run(
@@ -110,16 +158,7 @@ class SqliteConversations implements ConversationStore {
         );
       }
       const last = get<{ seq: number }>(this.db, 'SELECT COALESCE(MAX(seq), 0) AS seq FROM chatcops_messages WHERE conversation_id = ?', id)?.seq ?? 0;
-      for (const [index, message] of messages.entries()) {
-        run(
-          this.db,
-          'INSERT INTO chatcops_messages (conversation_id, seq, id, message) VALUES (?, ?, ?, ?)',
-          id,
-          last + index + 1,
-          message.id,
-          JSON.stringify(message)
-        );
-      }
+      this.insertMessages(id, last, messages, options.metadata);
       return actual + 1;
     });
     return { version };
@@ -321,11 +360,12 @@ class SqliteEvents implements EventSink {
 
 export function sqliteStorage(options: SqliteStorageOptions): ChatCopsStorage {
   if ((!options.path && !options.database) || (options.path && options.database)) throw new Error('sqliteStorage requires exactly one of path or database');
+  const hook = checkRowHook(options.extraColumns, options.rowHook);
   const database = options.database ?? openDatabase(options.path ?? '');
   initializeSchema(database);
   const clock = now;
   return {
-    conversations: new SqliteConversations(database, clock),
+    conversations: new SqliteConversations(database, clock, hook),
     counters: new SqliteCounters(database, clock),
     kv: new SqliteKv(database, clock),
     events: new SqliteEvents(database),
