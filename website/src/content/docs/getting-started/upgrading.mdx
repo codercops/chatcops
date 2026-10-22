@@ -1,0 +1,79 @@
+---
+title: Upgrading from 0.5
+description: What changes when you move @chatcops/server and @chatcops/widget from 0.5 to 0.6, and @chatcops/core from 0.4 to 0.5.
+---
+
+This release changes a lot inside the server: how replies are run and stored, how limits are counted, and what goes over the wire. Most apps upgrade without code changes, because old widgets keep working against the new server and the new widget keeps working against an old server. This page lists what can need your attention, then the new options worth turning on.
+
+The versions are `@chatcops/server` 0.6, `@chatcops/widget` 0.6 and `@chatcops/core` 0.5. They need Node.js 22 or later.
+
+## Upgrade the server first
+
+Upgrade the server, deploy it, then update the widget. A widget from 0.5 or earlier sends requests without `"protocol": 1`, and the new server answers those in the exact 0.5 format until 1.0. The server logs one line the first time it does, so you can tell when old widgets are still around (cached pages, a pinned CDN version).
+
+The 0.6 widget also works against a 0.5 server, so the order isn't critical. It just gets more from a 0.6 one: reply ids that regenerate can name, and a clear "cut off" state when a stream ends early.
+
+## Things to check
+
+### Budgets are on by default
+
+The server now caps what replies can cost: 200 replies per conversation and 2 million tokens per IP per UTC day. A visitor who hits a cap gets an error instead of a reply. The server logs the budgets in force when it starts. To change one, set it in `budgets`. To turn one off, set it to `false`. `budgets: false` turns them all off. See [Budgets](/server/setup/#budgets).
+
+### Per-IP limits need the visitor's IP
+
+Rate limits and the per-IP budget key on the visitor's IP. The server now reads it only from headers the platform sets itself. On Vercel and Cloudflare that just works. Express uses `req.ip`, which follows `app.set('trust proxy', ...)`. Anywhere else (Netlify, a Node server behind your own proxy, Bun, Deno), set `clientIp` to read your host's header. Until you do, per-IP limits are skipped, with one warning. The server used to trust the first `X-Forwarded-For` entry, which a visitor can set to anything. See [the visitor's IP](/server/fetch-runtimes/#the-visitors-ip).
+
+### Provider classes moved to subpaths
+
+Importing `@chatcops/core` no longer loads the Claude, OpenAI and Gemini SDKs, which cuts serverless cold starts. If you import the classes directly, change the import:
+
+```typescript
+// 0.4
+import { ClaudeProvider } from '@chatcops/core';
+
+// 0.5
+import { ClaudeProvider } from '@chatcops/core/providers/claude';
+```
+
+The same goes for `@chatcops/core/providers/openai` and `@chatcops/core/providers/gemini`. `createProvider()` and the server's `provider: { type: ... }` config don't change.
+
+### One reply per conversation at a time
+
+A second message sent while a reply for the same conversation is still streaming is refused (`409 conversation_busy` in protocol v1, `provider_error` for 0.5 widgets). The widget doesn't let visitors do this, so it only shows up with custom clients that send in parallel.
+
+### Deprecated options
+
+These still work. `cors` logs a warning once.
+
+| Instead of | Use |
+|---|---|
+| `cors: 'https://acme.com'` | `allowedOrigins: ['https://acme.com']` |
+| `conversationStore` | `storage`, from a store package |
+| `RateLimiter` export | Nothing. Limits are counted in `storage` now, and `cleanup()` does nothing. |
+| `chat()` and `chatSync()` on the built-in providers | `runTurn()` from `@chatcops/core` |
+| `regenerate: true` in custom clients | `regenerate: { assistantMessageId }` |
+
+Setting both `cors` and `allowedOrigins`, or both `conversationStore` and `storage`, is an error. One detail for `cors` users: a request without an `Origin` header no longer gets `Access-Control-Allow-Origin` back. Only browsers read that header, and browsers always send `Origin` on cross-origin requests.
+
+### Smaller changes
+
+- Each reply is saved as one assistant message with its parts (text, then each tool call and result), its status and token usage. A store written for 0.4 that only has `get`, `save` and `delete` keeps working; the server logs one warning that two instances writing the same conversation can lose a message, which stores with `append` avoid.
+- A reply the visitor walked away from is saved and marked `aborted`, and the model doesn't see it next time.
+- Retrying a message that already has a saved reply sends that reply again instead of asking the model for a second one.
+- Knowledge base excerpts, the visitor's page and pre-chat details, and the locale line go after the system prompt instead of into it. That lets Claude's prompt cache hold your system prompt, and keeps visitor text out of the instructions.
+- Pre-chat form answers are stored with the conversation from its first message and can't change after that. `preChatFields` lists the fields to keep.
+- A provider that fails to set up (a missing API key, say) no longer stops the process at startup. It's logged once, and chat requests get `provider_error`.
+- `require('@chatcops/widget')` now fails with `ERR_PACKAGE_PATH_NOT_EXPORTED`. It never worked (it returned an empty object). Use `import`.
+- Tool `execute(input, context)` gets a second argument with the conversation id and an abort signal. Tools that ignore it keep working.
+
+## Worth turning on
+
+None of these are on by default. Each one closes a gap that 0.5 had no answer for.
+
+- `storage`: conversations, limits and the one-reply lock shared by every server instance. On serverless, memory doesn't last between requests, and the server warns about it. See [Storage](/server/storage/).
+- `allowedOrigins`: only your sites can put the chat on their pages. See [Allowed origins](/server/setup/#allowed-origins).
+- `sessionSecrets`, and optionally `turnstile`: a guessed or leaked conversation id is useless, and a script has to pass Turnstile to start a session. Start with `requireSession: false` while 0.5 widgets are still cached, since they don't send tokens. See [Session tokens](/server/setup/#session-tokens).
+- `budgets.globalPerDay`: a daily cap on total spend, in tokens or dollars. There's no default.
+- Tools with `inputSchema`: a full JSON Schema, nested objects and arrays included, instead of the flat `parameters` form. See [Tools](/core/tools/).
+
+For custom clients, the new response format is [protocol v1](/server/setup/#protocol-v1), with typed parts and real HTTP statuses. Apps built on the AI SDK's `useChat` can use [`chatcopsAiSdkHandler`](/server/ai-sdk/).

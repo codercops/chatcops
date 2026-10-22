@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { NextFunction, Request as ExpressRequest, Response as ExpressResponse } from 'express';
-import type { WirePart } from '@chatcops/core';
+import { memoryStorage, type WirePart } from '@chatcops/core';
 import { scriptedProvider, textStep } from '@chatcops/core/testing/provider';
 import { chatcopsVercelHandler } from '../src/adapters/vercel.js';
 import { chatcopsMiddleware } from '../src/adapters/express.js';
@@ -86,21 +86,27 @@ describe('POST /session', () => {
     expect(partsOf(reply.text)[0]).toMatchObject({ type: 'start', capabilities: { session: true } });
   });
 
-  it('never hands out a guessed conversation id', async () => {
-    const { session } = setup();
-    const minted = await session({ conversationId: 'someone-elses-conversation' });
-    expect(minted.status).toBe(200);
-    expect(minted.body.conversationId).not.toBe('someone-elses-conversation');
+  it("gives out an id with nothing stored, but never one that has messages", async () => {
+    const { session, chat } = setup();
+    const fresh = await session({ conversationId: 'made-up-by-the-widget' });
+    expect(fresh.body.conversationId).toBe('made-up-by-the-widget');
+    expect((await chat('made-up-by-the-widget', fresh.body.token)).status).toBe(200);
 
-    const forged = await session({ conversationId: 'someone-elses-conversation', previousToken: 'eyJ.bad.token' });
-    expect(forged.body.conversationId).not.toBe('someone-elses-conversation');
+    const guessed = await session({ conversationId: 'made-up-by-the-widget' });
+    expect(guessed.status).toBe(200);
+    expect(guessed.body.conversationId).not.toBe('made-up-by-the-widget');
+
+    const forged = await session({ conversationId: 'made-up-by-the-widget', previousToken: 'eyJ.bad.token' });
+    expect(forged.body.conversationId).not.toBe('made-up-by-the-widget');
   });
 
   it('resumes a conversation with its previous token, even expired, within the grace window', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(1_800_000_000_000);
-    const { session } = setup();
+    // A store that keeps the conversation past the grace window.
+    const { session, chat } = setup({ storage: memoryStorage({ conversationTtlMs: 365 * 86_400_000 }) });
     const first = await session();
+    await chat(first.body.conversationId, first.body.token);
 
     vi.setSystemTime(1_800_000_000_000 + 7 * 86_400_000);
     const resumed = await session({ conversationId: first.body.conversationId, previousToken: first.body.token });
@@ -113,10 +119,12 @@ describe('POST /session', () => {
   });
 
   it("doesn't resume with a token from another site, or for another conversation", async () => {
-    const { session } = setup();
+    const { session, chat } = setup();
     const first = await session();
     const second = await session();
 
+    // Only ids with messages are protected, so give the first conversation one.
+    await chat(first.body.conversationId, first.body.token);
     const elsewhere = await session({ conversationId: first.body.conversationId, previousToken: first.body.token }, 'https://other.example');
     expect(elsewhere.body.conversationId).not.toBe(first.body.conversationId);
 
@@ -129,6 +137,8 @@ describe('POST /session', () => {
     expect((await session({ conversationId: 42 })).status).toBe(400);
     expect((await session([])).status).toBe(400);
     expect((await session({ previousToken: 'x'.repeat(5000) })).status).toBe(400);
+    expect((await session({ turnstileToken: 7 })).status).toBe(400);
+    expect((await session({ idempotencyKey: 'x'.repeat(200) })).status).toBe(400);
     expect((await session({}, 'https://evil.example')).status).toBe(403);
   });
 
@@ -201,6 +211,79 @@ describe('chat requests with session tokens on', () => {
     expect((await chat('anonymous')).status).toBe(200);
     const minted = await session();
     expect((await chat('not-the-token-conversation', minted.body.token)).status).toBe(401);
+  });
+});
+
+describe('Turnstile when a session is issued', () => {
+  const turnstile = { secretKey: '1x0000000000000000000000000000000AA' };
+
+  function siteverify(...replies: Array<Record<string, unknown> | Error>) {
+    const fetch = vi.spyOn(globalThis, 'fetch');
+    for (const reply of replies) {
+      if (reply instanceof Error) fetch.mockRejectedValueOnce(reply);
+      else fetch.mockResolvedValueOnce(new Response(JSON.stringify(reply), { status: 200 }));
+    }
+    return fetch;
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('checks the token with Cloudflare, with the IP and idempotency key, before signing', async () => {
+    const fetch = siteverify({ success: true, hostname: 'acme.com' });
+    const { session } = setup({ turnstile });
+    const minted = await session({ turnstileToken: 'XXXX.DUMMY.TOKEN', idempotencyKey: 'f0e4c2f7-6a2b-4d3c-9f1e-2a7b8c9d0e1f' });
+
+    expect(minted.status).toBe(200);
+    const [url, init] = fetch.mock.calls[0];
+    expect(String(url)).toBe('https://challenges.cloudflare.com/turnstile/v0/siteverify');
+    expect(JSON.parse(String(init?.body))).toEqual({
+      secret: turnstile.secretKey,
+      response: 'XXXX.DUMMY.TOKEN',
+      remoteip: '203.0.113.7',
+      idempotency_key: 'f0e4c2f7-6a2b-4d3c-9f1e-2a7b8c9d0e1f',
+    });
+  });
+
+  it('refuses a missing or failed token with 401 turnstile_failed', async () => {
+    const fetch = siteverify({ success: false, 'error-codes': ['invalid-input-response'] });
+    const { session } = setup({ turnstile });
+
+    const missing = await session({});
+    expect(missing.status).toBe(401);
+    expect(missing.body.error.code).toBe('turnstile_failed');
+    expect(fetch).not.toHaveBeenCalled();
+
+    const failed = await session({ turnstileToken: 'bad' });
+    expect(failed.status).toBe(401);
+    expect(failed.body.error.code).toBe('turnstile_failed');
+  });
+
+  it('answers 503 when Cloudflare cannot be reached, without issuing a token', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    siteverify(new Error('offline'));
+    const { session } = setup({ turnstile });
+    const res = await session({ turnstileToken: 'XXXX.DUMMY.TOKEN' });
+    expect(res.status).toBe(503);
+    expect(res.body.token).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('Turnstile could not be reached'));
+  });
+
+  it('skips Turnstile when a session is refreshed with its previous token', async () => {
+    const fetch = siteverify({ success: true });
+    const { session } = setup({ turnstile });
+    const first = await session({ turnstileToken: 'XXXX.DUMMY.TOKEN' });
+    const refreshed = await session({ conversationId: first.body.conversationId, previousToken: first.body.token });
+
+    expect(refreshed.status).toBe(200);
+    expect(refreshed.body.conversationId).toBe(first.body.conversationId);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('needs sessionSecrets and a secret key', () => {
+    expect(() => createSessions({ turnstile })).toThrow('needs `sessionSecrets`');
+    expect(() => createSessions({ sessionSecrets: [SECRET], turnstile: { secretKey: '' } })).toThrow('needs its `secretKey`');
   });
 });
 

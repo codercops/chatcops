@@ -207,15 +207,15 @@ The widget has a size budget: 14 kB gzipped for the script tag bundle (`dist/cha
 
 ### Browser tests
 
-The unit tests run in happy-dom. The tests in `e2e/` load the built widget in a real Chromium, against a small mock server that streams canned replies, and run an axe accessibility check:
+The unit tests run in happy-dom. The tests in `e2e/` load the built widget in a real Chromium and run an axe accessibility check. `e2e/server.mjs` serves the pages and runs the real `@chatcops/server` handler, with a stand-in provider that answers by the message text (no API keys needed). A second, cross-origin server stands in for a 0.5 server:
 
 ```bash
-pnpm --filter @chatcops/widget build
+pnpm --filter @chatcops/widget --filter "@chatcops/server..." build
 pnpm exec playwright install chromium   # once
 pnpm e2e
 ```
 
-They cover starting from the script tag, streaming, Escape and the tab order, the phone layout, and accessibility. CI runs them in the `e2e` job. Add a test there when you change how the widget behaves in a browser.
+They cover starting from the script tag, streaming, Escape and the tab order, the phone layout, accessibility, a reply that fails or is cut off, a slow tool kept alive by pings, session tokens, and a chat API on another origin. CI runs them in the `e2e` job. Add a test there when you change how the widget behaves in a browser.
 
 ## Adding a new AI provider
 

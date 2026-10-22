@@ -32,6 +32,11 @@ export interface WidgetConfig {
   apiUrl: string;
   /** Request/stream inactivity timeout in milliseconds. Defaults to 30000. */
   timeout?: number;
+  /**
+   * Your Cloudflare Turnstile site key, when the server has `turnstile` set.
+   * Cloudflare's script loads only when the widget first needs a session.
+   */
+  turnstileSiteKey?: string;
   mode?: 'popup' | 'inline';
   /**
    * Names this widget's saved conversation. Set a different one on each widget
@@ -119,7 +124,7 @@ export class Widget {
 
   constructor(config: WidgetConfig) {
     this.config = config;
-    this.client = new ChatClient({ apiUrl: config.apiUrl, timeout: config.timeout });
+    this.client = new ChatClient({ apiUrl: config.apiUrl, timeout: config.timeout, turnstileSiteKey: config.turnstileSiteKey });
     this.namespace = claimNamespace(
       config.siteId,
       config.mode ?? 'popup',
@@ -509,6 +514,8 @@ export class Widget {
           requestCompleted = true;
           break;
         }
+
+        if (chunk.conversationId) this.conversationId = chunk.conversationId;
 
         // The reply is saved under the server's id, so regenerate can name it.
         if (chunk.messageId) {

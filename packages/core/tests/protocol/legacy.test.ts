@@ -81,6 +81,7 @@ describe('toLegacyChunk', () => {
       'session_required',
       'token_expired',
       'conversation_mismatch',
+      'turnstile_failed',
       'origin_not_allowed',
       'conversation_busy',
       'payload_too_large',

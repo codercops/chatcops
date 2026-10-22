@@ -57,7 +57,7 @@ export function chatcopsMiddleware(config: ChatCopsServerConfig) {
         res.status(404).json(errorBody('invalid_request', { message: 'Session tokens are off. Set `sessionSecrets` to turn them on.' }));
         return;
       }
-      const reply = await chat.startSession(req.body, origin);
+      const reply = await chat.startSession(req.body, origin, expressClientIp(req));
       res.status(reply.status).json(reply.body);
       return;
     }

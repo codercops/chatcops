@@ -300,12 +300,15 @@ export class ClaudeProvider implements AIProvider {
     };
   }
 
-  /** Deprecated: use `runTurn()`. A turn with tools run through `params.toolExecutor`, as text. */
+  /**
+   * A turn with tools run through `params.toolExecutor`, as text.
+   * @deprecated Use `runTurn()`, which also returns the reply's parts, status and usage.
+   */
   chat(params: ProviderChatParams): AsyncGenerator<string> {
     return chatViaTurn(this, params);
   }
 
-  /** Deprecated: use `runTurn()`. */
+  /** @deprecated Use `runTurn()`. */
   chatSync(params: ProviderChatParams): Promise<string> {
     return chatSyncViaTurn(this, params);
   }

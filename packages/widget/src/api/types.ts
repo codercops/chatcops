@@ -15,6 +15,8 @@ export interface WidgetChatRequest {
 }
 
 export interface WidgetChatChunk {
+  /** The server gave this conversation a new id along with its session token. */
+  conversationId?: string;
   /** The id the server saves the reply under (protocol v1). */
   messageId?: string;
   content?: string;

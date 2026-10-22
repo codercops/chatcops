@@ -153,6 +153,7 @@ option is available through programmatic configuration.
 interface WidgetConfig {
   apiUrl: string;
   timeout?: number;              // Inactivity timeout in ms, default: 30000
+  turnstileSiteKey?: string;     // Cloudflare Turnstile site key, when the server has `turnstile` set
 
   // Display mode
   mode?: 'popup' | 'inline';       // Default: 'popup'
@@ -218,6 +219,7 @@ interface WidgetConfig {
 | `data-placeholder` | `placeholder` | Input placeholder |
 | `data-auto-open` | `autoOpen` | Auto-open delay in ms or `true` |
 | `data-locale` | `locale` | Language code |
+| `data-turnstile-site-key` | `turnstileSiteKey` | Cloudflare Turnstile site key, when the server checks Turnstile |
 
 ## CSS Custom Properties
 

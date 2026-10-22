@@ -105,6 +105,7 @@ export default defineConfig({
           items: [
             { label: 'Quick Start', slug: 'getting-started/quick-start' },
             { label: 'Installation', slug: 'getting-started/installation' },
+            { label: 'Upgrading from 0.5', slug: 'getting-started/upgrading' },
           ],
         },
         {
@@ -122,6 +123,7 @@ export default defineConfig({
           items: [
             { label: 'Setup', slug: 'server/setup' },
             { label: 'Storage', slug: 'server/storage' },
+            { label: 'Security', slug: 'server/security' },
             { label: 'Express', slug: 'server/express' },
             { label: 'Vercel', slug: 'server/vercel' },
             { label: 'Next.js, Hono, Bun, Deno', slug: 'server/fetch-runtimes' },

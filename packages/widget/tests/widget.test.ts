@@ -40,6 +40,30 @@ describe('Widget', () => {
     vi.restoreAllMocks();
   });
 
+  it('moves to the conversation id the server gives with a session token, and saves history under it', async () => {
+    const reply = [
+      'data: {"type":"start","protocol":1,"conversationId":"server-id","messageId":"m1"}',
+      'data: {"type":"text-delta","id":"t1","delta":"Hello"}',
+      'data: {"type":"finish","reason":"stop"}',
+      'data: [DONE]',
+      '',
+    ].join('\n\n');
+    const fetch = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('{"error":{"code":"session_required"}}', { status: 401 }))
+      .mockResolvedValueOnce(new Response('{"token":"tok","conversationId":"server-id","expiresAt":0}', { status: 200 }))
+      .mockResolvedValueOnce(new Response(reply, { status: 200 }))
+      .mockResolvedValueOnce(new Response(reply, { status: 200 }));
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+
+    await getInternals(widget).handleSend('Hi');
+    await getInternals(widget).handleSend('Again');
+
+    expect(JSON.parse(String(fetch.mock.calls[3][1]?.body)).conversationId).toBe('server-id');
+    expect(JSON.parse(localStorage.getItem('chatcops_conversation') ?? '{}').id).toBe('server-id');
+    widget.destroy();
+  });
+
   it('does not open after destroy when auto-open is delayed', () => {
     vi.useFakeTimers();
     const onOpen = vi.fn();

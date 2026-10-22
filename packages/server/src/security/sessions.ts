@@ -1,5 +1,6 @@
 import { errorBody, type WireErrorBody, type WireErrorCode } from '@chatcops/core';
 import { importSessionKey, signSession, verifySession, type SessionClaims } from './session-token.js';
+import { verifyTurnstile, type TurnstileConfig } from './turnstile.js';
 
 /**
  * Session tokens for the chat endpoint. `POST /session` gives the widget a
@@ -19,6 +20,7 @@ export interface SessionConfig {
   sessionSecrets?: string[];
   sessionTtlSec?: number;
   requireSession?: boolean;
+  turnstile?: TurnstileConfig;
 }
 
 export type SessionCheck =
@@ -34,18 +36,28 @@ export interface Sessions {
   /** Whether chat requests without a token are refused. */
   required: boolean;
   /** Answers `POST /session`. */
-  mint(body: unknown, origin: string | null): Promise<SessionReply>;
+  mint(body: unknown, origin: string | null, clientIp?: string): Promise<SessionReply>;
   /** Checks the `Authorization` header of a chat request for this conversation. */
   check(authorization: string | null | undefined, origin: string | null, conversationId: string): Promise<SessionCheck>;
 }
 
-/** `undefined` when `sessionSecrets` isn't set. Throws at startup on a bad config. */
-export function createSessions(config: SessionConfig, now: () => number = Date.now): Sessions | undefined {
+/**
+ * `undefined` when `sessionSecrets` isn't set. Throws at startup on a bad
+ * config. `isUnused` says whether a conversation has nothing stored yet.
+ */
+export function createSessions(
+  config: SessionConfig,
+  isUnused: (conversationId: string) => Promise<boolean> = async () => false,
+  now: () => number = Date.now
+): Sessions | undefined {
   const secrets = config.sessionSecrets;
   if (secrets === undefined) {
     if (config.requireSession) throw new Error('`requireSession` needs `sessionSecrets` to sign tokens with.');
+    if (config.turnstile) throw new Error('`turnstile` is checked when a session token is issued, so it needs `sessionSecrets`.');
     return undefined;
   }
+  const turnstile = config.turnstile;
+  if (turnstile && !turnstile.secretKey) throw new Error('`turnstile` needs its `secretKey`.');
   if (!Array.isArray(secrets) || secrets.length === 0) throw new Error('`sessionSecrets` needs at least one secret.');
   secrets.forEach((secret, i) => {
     const bytes = typeof secret === 'string' ? new TextEncoder().encode(secret).byteLength : 0;
@@ -65,16 +77,19 @@ export function createSessions(config: SessionConfig, now: () => number = Date.n
   return {
     required,
 
-    async mint(body, origin) {
+    async mint(body, origin, clientIp) {
       const request = readMintRequest(body);
       if (!request) return { status: 400, body: errorBody('invalid_request', { message: 'Invalid session request' }) };
       const org = origin ?? '';
       const time = nowSec();
 
       // Resuming a conversation needs a token that was issued for it, from
-      // this origin. Expired is fine within the grace window. Anything else
-      // gets a new conversation, so a guessed id is useless.
+      // this origin. Expired is fine within the grace window. An id with
+      // nothing stored yet (the widget makes its own) is given out as is,
+      // since there's nothing in it to read. Anything else gets a new
+      // conversation, so a guessed or leaked id is useless.
       let resumed: SessionClaims | undefined;
+      let cid: string | undefined;
       if (request.conversationId && request.previousToken) {
         const result = await verifySession(request.previousToken, await getKeys(), {
           origin: org,
@@ -84,11 +99,29 @@ export function createSessions(config: SessionConfig, now: () => number = Date.n
         });
         if (result.ok) resumed = result.claims;
       }
+      // A refresh was checked when its first token was issued; a new session
+      // has to pass Turnstile first.
+      if (turnstile && !resumed) {
+        const result = await verifyTurnstile(request.turnstileToken, turnstile, {
+          remoteIp: clientIp,
+          idempotencyKey: request.idempotencyKey,
+        });
+        if (!result.ok) {
+          if (result.code === 'unavailable') {
+            console.warn('[chatcops] Turnstile could not be reached, so no session token was issued.');
+            return { status: 503, body: errorBody('turnstile_failed', { message: 'Turnstile could not be reached. Try again.' }) };
+          }
+          return { status: 401, body: errorBody('turnstile_failed', { message: 'The Turnstile check failed.' }) };
+        }
+      }
+
+      if (resumed) cid = resumed.cid;
+      else if (request.conversationId && (await isUnused(request.conversationId))) cid = request.conversationId;
 
       const claims: SessionClaims = {
         v: 1,
         sid: resumed?.sid ?? crypto.randomUUID(),
-        cid: resumed?.cid ?? crypto.randomUUID(),
+        cid: cid ?? crypto.randomUUID(),
         org,
         iat: time,
         exp: time + ttlSec,
@@ -124,11 +157,27 @@ function bearer(header: string | null | undefined): string | undefined {
   return match?.[1];
 }
 
-function readMintRequest(body: unknown): { conversationId?: string; previousToken?: string } | undefined {
+interface MintRequest {
+  conversationId?: string;
+  previousToken?: string;
+  turnstileToken?: string;
+  /** Sent again with a retried request, so Cloudflare accepts the same Turnstile token twice. */
+  idempotencyKey?: string;
+}
+
+function readMintRequest(body: unknown): MintRequest | undefined {
   if (body === undefined || body === null) return {};
   if (typeof body !== 'object' || Array.isArray(body)) return undefined;
-  const { conversationId, previousToken } = body as Record<string, unknown>;
-  const request: { conversationId?: string; previousToken?: string } = {};
+  const { conversationId, previousToken, turnstileToken, idempotencyKey } = body as Record<string, unknown>;
+  const request: MintRequest = {};
+  if (turnstileToken !== undefined) {
+    if (typeof turnstileToken !== 'string' || turnstileToken.length > 4096) return undefined;
+    request.turnstileToken = turnstileToken;
+  }
+  if (idempotencyKey !== undefined) {
+    if (typeof idempotencyKey !== 'string' || idempotencyKey.length > 128) return undefined;
+    request.idempotencyKey = idempotencyKey;
+  }
   if (conversationId !== undefined) {
     if (typeof conversationId !== 'string' || conversationId.length === 0 || conversationId.length > MAX_ID_LENGTH) return undefined;
     request.conversationId = conversationId;
