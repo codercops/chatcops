@@ -119,20 +119,31 @@ interface AnalyticsEvent {
 
 ## Storage
 
-The built-in collector stores events in memory (max 1000 events). For production use, export events to your analytics platform:
+The built-in collector stores events in memory (max 1000 events). To write events to a storage-backed `EventSink`, use `BufferedEventSink`. It batches up to 50 events by default and flushes every 2 seconds. Call `flush()` when you need to wait for queued writes, such as before a process exits:
 
 ```typescript
-const collector = new AnalyticsCollector();
+import { BufferedEventSink, memoryStorage, statsFromSink } from '@chatcops/core';
 
-// Periodically flush to your analytics service
-setInterval(() => {
-  const events = collector.getEvents();
-  if (events.length > 0) {
-    sendToAnalytics(events);
-    collector.clear();
-  }
-}, 60_000); // Every minute
+const storage = memoryStorage();
+const eventSink = storage.events;
+if (!eventSink) throw new Error('Event storage is not configured');
+
+const analytics = new BufferedEventSink(eventSink, {
+  maxBatch: 50,
+  flushMs: 2000,
+});
+
+analytics.track('custom:event', { key: 'value' });
+await analytics.flush();
+
+const now = Date.now();
+const stats = await statsFromSink(eventSink, {
+  from: now - 24 * 60 * 60 * 1000,
+  to: now,
+});
 ```
+
+Use a persistent `EventSink` implementation when events need to be shared across processes or survive restarts. Writes that fail are logged and dropped so analytics does not interrupt chat requests. `statsFromSink` requires the sink's optional `query` method; the range includes `from` and excludes `to`. It counts each `conversation:started` event as one conversation.
 
 ## Client-Side Events
 
