@@ -107,11 +107,15 @@ function constantTimeEqual(a: string, b: string): boolean {
   return mismatch === 0;
 }
 
+/**
+ * Analytics stats as JSON. With a storage that has an event sink, they cover
+ * every instance, for `?from=` and `?to=` (milliseconds) or the last 30 days.
+ */
 export function chatcopsAnalyticsHandler(config: ChatCopsServerConfig) {
-  const { getAnalytics } = getOrCreateChatHandler(config);
+  const { analyticsStats } = getOrCreateChatHandler(config);
   let warned = false;
 
-  return (req: Request, res: Response) => {
+  return async (req: Request, res: Response) => {
     if (config.analyticsToken) {
       const auth = req.headers?.authorization;
       const token = typeof auth === 'string' && auth.startsWith('Bearer ') ? auth.slice(7) : undefined;
@@ -128,6 +132,24 @@ export function chatcopsAnalyticsHandler(config: ChatCopsServerConfig) {
       );
     }
 
-    res.json(getAnalytics());
+    const from = timeParam(req.query?.from);
+    const to = timeParam(req.query?.to);
+    if (from === null || to === null) {
+      res.status(400).json({ error: 'invalid_range' });
+      return;
+    }
+    try {
+      res.json(await analyticsStats({ from, to }));
+    } catch (err) {
+      console.error('[chatcops] Reading analytics failed:', err instanceof Error ? err.message : String(err));
+      res.status(500).json({ error: 'internal_error' });
+    }
   };
+}
+
+/** A `from` or `to` query value: unset, a time in milliseconds, or `null` when it isn't one. */
+function timeParam(value: unknown): number | undefined | null {
+  if (value === undefined) return undefined;
+  const time = typeof value === 'string' && value.trim() !== '' ? Number(value) : Number.NaN;
+  return Number.isFinite(time) ? time : null;
 }

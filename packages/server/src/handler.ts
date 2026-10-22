@@ -3,6 +3,9 @@ import {
   isAIProvider,
   ConversationManager,
   AnalyticsCollector,
+  BufferedEventSink,
+  statsFromSink,
+  type AnalyticsStats,
   createBudgetGuard,
   withDefaultBudgets,
   createRateLimiter,
@@ -74,7 +77,19 @@ export function createChatHandler(config: ChatCopsServerConfig) {
     limit: rateLimit.maxRequests,
     windowMs: rateLimit.windowMs,
   });
-  const analytics = config.analytics ? new AnalyticsCollector() : null;
+  // Events always count in this process, and go to the storage's event sink
+  // too when it has one, so stats can cover every instance.
+  const collector = config.analytics ? new AnalyticsCollector() : null;
+  const eventSink = config.analytics ? storage?.events : undefined;
+  const bufferedEvents = eventSink ? new BufferedEventSink(eventSink) : undefined;
+  const analytics = collector
+    ? {
+        track(type: string, data?: Record<string, unknown>) {
+          collector.track(type, data);
+          bufferedEvents?.track(type, data);
+        },
+      }
+    : null;
   const webhooks = config.webhooks?.length ? new WebhookDispatcher(config.webhooks) : null;
   const toolDefs = config.tools?.map(toolToDefinition) ?? [];
   // A broken tool definition is a code mistake, so fail here, at startup,
@@ -159,9 +174,25 @@ export function createChatHandler(config: ChatCopsServerConfig) {
     } finally {
       await release();
     }
-    // Keeping the stream open until lead webhooks finish keeps serverless
-    // runtimes from cutting them off once the response ends.
+    // Keeping the stream open until lead webhooks and analytics writes
+    // finish keeps serverless runtimes from cutting them off once the
+    // response ends. A failed analytics write is logged, never thrown.
     await awaitPendingWebhooks(pendingWebhooks);
+    await bufferedEvents?.flush();
+  }
+
+  /**
+   * Analytics stats for `range` (default: the last 30 days), counted in the
+   * storage's event sink when it can be queried, so they cover every
+   * instance. Otherwise they come from this process only, as
+   * `getAnalytics()` does. `null` when `analytics` is off.
+   */
+  async function analyticsStats(range?: { from?: number; to?: number }): Promise<AnalyticsStats | null> {
+    if (!collector) return null;
+    if (!bufferedEvents || !eventSink?.query) return collector.getStats();
+    await bufferedEvents.flush();
+    const to = range?.to ?? Date.now() + 1;
+    return statsFromSink(eventSink, { from: range?.from ?? to - 30 * DAY_MS, to });
   }
 
   /**
@@ -391,7 +422,9 @@ export function createChatHandler(config: ChatCopsServerConfig) {
       ? (body: unknown, origin: string | null, clientIp?: string) => sessions.mint(body, origin, clientIp)
       : undefined,
     protocolStats: () => ({ ...requests }),
-    getAnalytics: () => analytics?.getStats() ?? null,
+    /** Stats from this process only. `analyticsStats()` reads the storage's event sink. */
+    getAnalytics: () => collector?.getStats() ?? null,
+    analyticsStats,
     cleanup,
   };
 }
