@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { getSecret } from 'astro:env/server';
-import { createChatHandler } from '@chatcops/server';
+import { chatcopsCloudflareHandler } from '@chatcops/server/cloudflare';
 import { FAQKnowledgeSource } from '@chatcops/core';
 
 export const prerender = false;
@@ -49,11 +49,11 @@ const faq = new FAQKnowledgeSource([
 ]);
 
 // Built on the first request rather than at import: the API key is a Worker
-// secret that only exists inside a request, and createChatHandler starts a
+// secret that only exists inside a request, and the handler starts a
 // timer, which Workers don't allow at global scope.
-let chat: ReturnType<typeof createChatHandler> | undefined;
+let chat: ReturnType<typeof chatcopsCloudflareHandler> | undefined;
 function getChat() {
-  chat ??= createChatHandler({
+  chat ??= chatcopsCloudflareHandler({
     provider: {
       type: 'openai',
       apiKey: getSecret('OPENAI_API_KEY') ?? '',
@@ -70,74 +70,19 @@ Key facts:
 
 Be concise, helpful, and friendly. Use markdown formatting. If you don't know something specific, direct users to the docs.`,
     knowledge: [faq],
-    cors: '*',
+    allowedOrigins: [
+      'https://chat.codercops.com',
+      ...(import.meta.env.DEV ? ['http://localhost:4321'] : []),
+    ],
+    // Cloudflare sets this header. Only local dev trusts the forwarded fallback.
+    clientIp: (request) =>
+      request.headers.get('cf-connecting-ip') ??
+      (import.meta.env.DEV ? request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() : undefined),
     rateLimit: { maxRequests: 10, windowMs: 60_000 },
   });
   return chat;
 }
 
-export const POST: APIRoute = async ({ request }) => {
-  // Cloudflare sets cf-connecting-ip; x-forwarded-for is only a local-dev
-  // fallback because its left-most entry can be set by the client.
-  const clientIp =
-    request.headers.get('cf-connecting-ip') ??
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    'unknown';
+export const POST: APIRoute = ({ request, locals }) => getChat()(request, undefined, locals.cfContext);
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  const encoder = new TextEncoder();
-  // Workers cancel the response when the visitor leaves; stop the reply then.
-  const abort = new AbortController();
-  const stream = new ReadableStream({
-    async start(controller) {
-      const send = (text: string) => {
-        if (!abort.signal.aborted) controller.enqueue(encoder.encode(text));
-      };
-      try {
-        for await (const chunk of getChat().handleChat(body, clientIp, {
-          signal: abort.signal,
-        })) {
-          if (abort.signal.aborted) break;
-          send(`data: ${chunk}\n\n`);
-        }
-        send('data: [DONE]\n\n');
-      } catch {
-        send(`data: ${JSON.stringify({ error: 'internal_error' })}\n\n`);
-      } finally {
-        if (!abort.signal.aborted) controller.close();
-      }
-    },
-    cancel() {
-      abort.abort();
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-    },
-  });
-};
-
-export const OPTIONS: APIRoute = async () => {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-      'Access-Control-Max-Age': '86400',
-    },
-  });
-};
+export const OPTIONS: APIRoute = ({ request, locals }) => getChat()(request, undefined, locals.cfContext);
