@@ -23,6 +23,7 @@
     "@playwright/test": "^1.64.1",
     "@size-limit/file": "^14.2.0",
     "@vitest/coverage-v8": "4.1.11",
+    "chatcops-widget-0-5": "npm:@chatcops/widget@0.5.0",
     "publint": "^0.3.25",
     "size-limit": "^14.2.0",
     "typescript": "^5.7.0",

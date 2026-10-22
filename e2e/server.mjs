@@ -20,11 +20,14 @@ const files = {
   '/index.html': ['fixtures/index.html', 'text/html'],
   '/two-widgets.html': ['fixtures/two-widgets.html', 'text/html'],
   '/cross-origin.html': ['fixtures/cross-origin.html', 'text/html'],
+  '/legacy.html': ['fixtures/legacy.html', 'text/html'],
+  '/legacy-cross-origin.html': ['fixtures/legacy-cross-origin.html', 'text/html'],
   '/slow-tool.html': ['fixtures/slow-tool.html', 'text/html'],
   '/sessions.html': ['fixtures/sessions.html', 'text/html'],
 };
 
 const apiRequests = [];
+const legacyApiRequests = [];
 
 const sleep = (ms, signal) =>
   new Promise((resolve, reject) => {
@@ -157,8 +160,15 @@ async function serveFetch(handle, req, res) {
 }
 
 /** The 0.5-style mock for the cross-origin tests: CORS for Content-Type only, and the old stream format. */
-async function legacyChat(req, res) {
-  await readBody(req);
+async function legacyChat(req, res, requestLog) {
+  const raw = await readBody(req);
+  let body;
+  try {
+    body = JSON.parse(raw.toString());
+  } catch {
+    body = {};
+  }
+  requestLog.push({ method: 'POST', body });
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -191,6 +201,12 @@ const server = createServer(async (req, res) => {
       return res.end(js);
     }
 
+    if (url.pathname === '/legacy/chatcops.min.js') {
+      const js = await readFile(join(root, 'node_modules/chatcops-widget-0-5/dist/chatcops.min.js'));
+      res.writeHead(200, { 'Content-Type': 'text/javascript' });
+      return res.end(js);
+    }
+
     const file = files[url.pathname];
     if (file) {
       res.writeHead(200, { 'Content-Type': file[1] });
@@ -212,23 +228,25 @@ const apiServer = createServer(async (req, res) => {
   try {
     if (url.pathname === '/__test__/api-requests' && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify(apiRequests));
+      return res.end(JSON.stringify(url.searchParams.has('legacy') ? legacyApiRequests : apiRequests));
     }
 
-    if (url.pathname === '/api/chat' && req.method === 'OPTIONS') {
+    const chatPath = url.pathname === '/api/chat' || url.pathname === '/legacy/api/chat';
+    // Isolate legacy traffic so parallel tests don't pollute the existing spec's log.
+    const requestLog = url.pathname === '/legacy/api/chat' ? legacyApiRequests : apiRequests;
+    if (chatPath && req.method === 'OPTIONS') {
       const headers = {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
       };
-      apiRequests.push({ method: 'OPTIONS', status: 204, headers });
+      requestLog.push({ method: 'OPTIONS', status: 204, headers });
       res.writeHead(204, headers);
       return res.end();
     }
 
-    if (url.pathname === '/api/chat' && req.method === 'POST') {
-      apiRequests.push({ method: 'POST' });
-      return await legacyChat(req, res);
+    if (chatPath && req.method === 'POST') {
+      return await legacyChat(req, res, requestLog);
     }
 
     res.writeHead(404);
