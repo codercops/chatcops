@@ -1,12 +1,12 @@
 # @chatcops/store-cloudflare
 
-Cloudflare storage for [ChatCops](https://chat.codercops.com): conversations, exact atomic counters, turn locks, and analytics events backed by Cloudflare D1, Workers KV, and Durable Objects.
+Cloudflare storage for [ChatCops](https://chat.codercops.com): conversations, exact atomic counters, turn locks, and analytics events backed by Cloudflare D1 and Durable Objects.
 
 ## Features
 
 - **Conversations & Messages:** Durable history in Cloudflare D1 SQLite with concurrency-safe `append` without interactive transactions.
 - **Exact Counters:** Globally coordinated rate limits and token budgets through Durable Objects (`ChatCopsCounter`), with automatic fallback to D1 `UPSERT ... RETURNING`.
-- **Key-Value Store:** Ephemeral key-value caching using Workers KV or D1 SQLite fallback. Turn locks require the D1 fallback because Workers KV does not support atomic `setIfAbsent`; Workers KV also enforces a 60-second minimum TTL.
+- **Turn locks:** In D1, with an atomic `setIfAbsent`, so one reply per conversation holds across every isolate. Workers KV isn't used: it has no atomic `setIfAbsent`, and its TTLs start at 60 seconds.
 - **Analytics Events:** Time-bucketed event queries in D1 for dashboards and reporting.
 
 ## Install
@@ -46,12 +46,6 @@ Configure your D1 database, Durable Object class binding, and migration in `wran
       "tag": "v1",
       "new_sqlite_classes": ["ChatCopsCounter"]
     }
-  ],
-  "kv_namespaces": [
-    {
-      "binding": "KV",
-      "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-    }
   ]
 }
 ```
@@ -69,7 +63,6 @@ export { ChatCopsCounter };
 
 interface Env {
   DB: D1Database;
-  KV?: KVNamespace;
   COUNTERS?: DurableObjectNamespace<ChatCopsCounter>;
   ANTHROPIC_API_KEY: string;
 }
@@ -83,7 +76,6 @@ export default {
       systemPrompt: 'You are a helpful assistant.',
       storage: cloudflareStorage({
         d1: env.DB,
-        kv: env.KV,
         counters: env.COUNTERS,
       }),
     });
@@ -98,9 +90,29 @@ export default {
 | Option | Type | Required | Description |
 |---|---|---|---|
 | `d1` | `D1Database` | **Yes** | Cloudflare D1 database binding used for conversations, messages, events, turn locks, and fallback storage. |
-| `kv` | `KVNamespace` | No | Cloudflare Workers KV namespace for fast key-value storage (minimum TTL: 60 seconds). Turn locks require the D1 fallback because Workers KV does not support atomic `setIfAbsent`. When omitted, D1 is used as fallback. |
 | `counters` | `DurableObjectNamespace<ChatCopsCounter>` | No | Durable Objects namespace for exact distributed counter coordination. When omitted, D1 atomic upserts are used. |
+| `extraColumns` | `string[]` or `Record<string, string>` | No | Columns you've added yourself, filled in by `rowHook`. See below. |
+| `rowHook` | `(context) => Record<string, unknown>` | No | Values for `extraColumns` on each new row. |
 | `now` | `() => number` | No | Clock function for testing (defaults to `Date.now`). |
+
+## Extra columns
+
+To stamp columns of your own (a tenant or site id) on every new row, add them with your own `ALTER TABLE` and pass `extraColumns` with a `rowHook`:
+
+```sql
+ALTER TABLE chatcops_conversations ADD COLUMN workspace_id TEXT;
+ALTER TABLE chatcops_messages ADD COLUMN workspace_id TEXT;
+```
+
+```ts
+cloudflareStorage({
+  d1: env.DB,
+  extraColumns: ['workspace_id'],
+  rowHook: ({ metadata }) => ({ workspace_id: metadata?.workspaceId }),
+});
+```
+
+The hook runs when a row is created, never on updates. It gets the table, the conversation id, the metadata passed with the write, and the message for message rows. Returning a key that isn't in `extraColumns` throws, and nothing from that write is stored. Values are bound as parameters, never put into the SQL, and must be strings, numbers, booleans (stored as 1 or 0, so use an `INTEGER` column) or null. The `{ workspace_id: 'uuid' }` form from `@chatcops/store-postgres` works too; D1 ignores the type.
 
 ## Concurrency & Durability
 

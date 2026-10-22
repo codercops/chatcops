@@ -80,9 +80,8 @@ describe('cloudflare storage options and edge cases', () => {
     await expect(storage.close?.()).resolves.toBeUndefined();
   });
 
-  it('supports KV set without ttl and KV delete', async () => {
-    const { kv } = await getMiniflareBindings();
-    const storage = cloudflareStorage({ d1: (await getMiniflareBindings()).d1, kv });
+  it('supports key-value set without ttl and delete', async () => {
+    const storage = cloudflareStorage({ d1: (await getMiniflareBindings()).d1 });
     await storage.kv?.set('no-ttl', { foo: 'bar' });
     expect(await storage.kv?.get('no-ttl')).toEqual({ foo: 'bar' });
     await storage.kv?.delete('no-ttl');

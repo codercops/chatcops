@@ -33,20 +33,6 @@ export interface D1ExecResult {
   duration: number;
 }
 
-export interface KVNamespace {
-  get(key: string, type?: 'text' | 'json' | 'arrayBuffer' | 'stream'): Promise<unknown>;
-  put(
-    key: string,
-    value: string | ArrayBuffer | ArrayBufferView | ReadableStream,
-    options?: {
-      expiration?: number;
-      expirationTtl?: number;
-      metadata?: unknown;
-    }
-  ): Promise<void>;
-  delete(key: string): Promise<void>;
-}
-
 export interface DurableObjectId {
   toString(): string;
   equals(other: DurableObjectId): boolean;

@@ -7,6 +7,7 @@ import {
   type ConversationSummary,
   type ListQuery,
 } from '@chatcops/core';
+import type { RowHook, RowHookContext } from './row-hook.js';
 import type { D1Database, D1PreparedStatement } from './types.js';
 
 interface ConversationRow {
@@ -24,11 +25,30 @@ interface MessageRow {
 const json = (value: unknown): string | null => (value === undefined ? null : JSON.stringify(value));
 
 export class CloudflareConversations implements ConversationStore {
+  /** `, a, b` for the hook's columns, and `, ?, ?` for their values. */
+  private readonly extraColumns: string;
+  private readonly extraMarks: string;
+
   constructor(
     private readonly db: D1Database,
     private readonly now: () => number,
-    private readonly ensure: () => Promise<void>
-  ) {}
+    private readonly ensure: () => Promise<void>,
+    private readonly hook?: RowHook
+  ) {
+    this.extraColumns = hook?.columns.map((name) => `, ${name}`).join('') ?? '';
+    this.extraMarks = hook?.columns.map(() => ', ?').join('') ?? '';
+  }
+
+  /** The hook's values for one new row, or nothing without a hook. */
+  private extra(context: RowHookContext): unknown[] {
+    return this.hook ? this.hook.values(context) : [];
+  }
+
+  private insertMessage(id: string, seq: number, message: ChatMessage, metadata: Record<string, unknown> | undefined): D1PreparedStatement {
+    return this.db
+      .prepare(`INSERT INTO chatcops_messages (conversation_id, seq, id, message${this.extraColumns}) VALUES (?, ?, ?, ?${this.extraMarks})`)
+      .bind(id, seq, message.id, JSON.stringify(message), ...this.extra({ table: 'messages', conversationId: id, metadata, message }));
+  }
 
   async get(id: string): Promise<Conversation | null> {
     await this.ensure();
@@ -61,8 +81,8 @@ export class CloudflareConversations implements ConversationStore {
     const stmts: D1PreparedStatement[] = [
       this.db
         .prepare(`
-          INSERT INTO chatcops_conversations (id, metadata, version, created_at, updated_at)
-          VALUES (?, ?, 1, ?, ?)
+          INSERT INTO chatcops_conversations (id, metadata, version, created_at, updated_at${this.extraColumns})
+          VALUES (?, ?, 1, ?, ?${this.extraMarks})
           ON CONFLICT(id) DO UPDATE SET
             metadata = excluded.metadata,
             version = chatcops_conversations.version + 1,
@@ -72,17 +92,15 @@ export class CloudflareConversations implements ConversationStore {
           conversation.id,
           json(conversation.metadata),
           conversation.createdAt,
-          time
+          time,
+          // Only in the INSERT half, so an update never changes them.
+          ...this.extra({ table: 'conversations', conversationId: conversation.id, metadata: conversation.metadata })
         ),
       this.db.prepare('DELETE FROM chatcops_messages WHERE conversation_id = ?').bind(conversation.id),
     ];
 
     for (const [index, message] of conversation.messages.entries()) {
-      stmts.push(
-        this.db
-          .prepare('INSERT INTO chatcops_messages (conversation_id, seq, id, message) VALUES (?, ?, ?, ?)')
-          .bind(conversation.id, index + 1, message.id, JSON.stringify(message))
-      );
+      stmts.push(this.insertMessage(conversation.id, index + 1, message, conversation.metadata));
     }
 
     await this.db.batch(stmts);
@@ -137,11 +155,11 @@ export class CloudflareConversations implements ConversationStore {
         batch.push(
           this.db
             .prepare(`
-              INSERT INTO chatcops_conversations (id, metadata, version, created_at, updated_at)
-              SELECT ?, ?, 1, ?, ?
+              INSERT INTO chatcops_conversations (id, metadata, version, created_at, updated_at${this.extraColumns})
+              SELECT ?, ?, 1, ?, ?${this.extraMarks}
               WHERE NOT EXISTS (SELECT 1 FROM chatcops_conversations WHERE id = ?)
             `)
-            .bind(id, json(metadata), time, time, id)
+            .bind(id, json(metadata), time, time, ...this.extra({ table: 'conversations', conversationId: id, metadata: options.metadata }), id)
         );
       } else {
         batch.push(
@@ -159,8 +177,8 @@ export class CloudflareConversations implements ConversationStore {
         batch.push(
           this.db
             .prepare(`
-              INSERT INTO chatcops_messages (conversation_id, seq, id, message)
-              SELECT ?, ?, ?, ?
+              INSERT INTO chatcops_messages (conversation_id, seq, id, message${this.extraColumns})
+              SELECT ?, ?, ?, ?${this.extraMarks}
               WHERE EXISTS (
                 SELECT 1 FROM chatcops_conversations
                 WHERE id = ? AND version = ? AND updated_at = ?
@@ -171,6 +189,7 @@ export class CloudflareConversations implements ConversationStore {
               lastSeq + index + 1,
               msg.id,
               JSON.stringify(msg),
+              ...this.extra({ table: 'messages', conversationId: id, metadata: options.metadata, message: msg }),
               id,
               nextVersion,
               time

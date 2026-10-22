@@ -1,27 +1,5 @@
 import type { KeyValueStore } from '@chatcops/core';
-import type { D1Database, KVNamespace } from './types.js';
-
-export class WorkersKvStore implements KeyValueStore {
-  constructor(private readonly kv: KVNamespace) {}
-
-  async get<T = unknown>(key: string): Promise<T | null> {
-    const text = await this.kv.get(key, 'text');
-    if (typeof text !== 'string') return null;
-    return JSON.parse(text) as T;
-  }
-
-  async set(key: string, value: unknown, options: { ttlMs?: number } = {}): Promise<void> {
-    const expirationTtl =
-      options.ttlMs !== undefined
-        ? Math.max(60, Math.ceil(options.ttlMs / 1000))
-        : undefined;
-    await this.kv.put(key, JSON.stringify(value), expirationTtl ? { expirationTtl } : undefined);
-  }
-
-  async delete(key: string): Promise<void> {
-    await this.kv.delete(key);
-  }
-}
+import type { D1Database } from './types.js';
 
 export class D1KvStore implements KeyValueStore {
   constructor(

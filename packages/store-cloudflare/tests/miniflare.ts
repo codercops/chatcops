@@ -1,10 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { Miniflare } from 'miniflare';
-import type { ChatCopsCounter, D1Database, DurableObjectNamespace, KVNamespace } from '../src/index.js';
+import type { ChatCopsCounter, D1Database, DurableObjectNamespace } from '../src/index.js';
 
 let mf: Miniflare | undefined;
 let d1Instance: D1Database | undefined;
-let kvInstance: KVNamespace | undefined;
 let countersInstance: DurableObjectNamespace<ChatCopsCounter> | undefined;
 
 export async function getMiniflareBindings() {
@@ -34,7 +33,6 @@ export async function getMiniflareBindings() {
         },
       ],
       d1Databases: ['DB'],
-      kvNamespaces: ['KV'],
       durableObjects: {
         COUNTERS: {
           className: 'ChatCopsCounter',
@@ -45,13 +43,12 @@ export async function getMiniflareBindings() {
     });
     await mf.ready;
     d1Instance = (await mf.getD1Database('DB')) as unknown as D1Database;
-    kvInstance = (await mf.getKVNamespace('KV')) as unknown as KVNamespace;
     countersInstance = (await mf.getDurableObjectNamespace('COUNTERS')) as unknown as DurableObjectNamespace<ChatCopsCounter>;
   }
-  if (!d1Instance || !kvInstance || !countersInstance) {
+  if (!d1Instance || !countersInstance) {
     throw new Error('Failed to initialize Miniflare bindings');
   }
-  return { mf, d1: d1Instance, kv: kvInstance, counters: countersInstance };
+  return { mf, d1: d1Instance, counters: countersInstance };
 }
 
 export async function disposeMiniflare() {

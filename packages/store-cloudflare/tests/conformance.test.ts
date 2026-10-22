@@ -4,12 +4,11 @@ import { cloudflareStorage } from '../src/index.js';
 import { disposeMiniflare, getMiniflareBindings } from './miniflare.js';
 
 runStorageConformance(
-  'cloudflare (D1 + KV + DO)',
+  'cloudflare (D1 + DO)',
   async () => {
-    const { d1, kv, counters } = await getMiniflareBindings();
-    return cloudflareStorage({ d1, kv, counters });
-  },
-  { skip: ['kv-ttl'] }
+    const { d1, counters } = await getMiniflareBindings();
+    return cloudflareStorage({ d1, counters });
+  }
 );
 
 runStorageConformance(
