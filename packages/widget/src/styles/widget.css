@@ -13,7 +13,7 @@
   --cc-text-secondary: #a0a0a0;
   --cc-font: system-ui, -apple-system, sans-serif;
   --cc-radius: 12px;
-  --cc-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --cc-shadow: 0 8px 32px rgba(0,0,0,.4);
   --cc-fab-size: 56px;
   --cc-panel-width: 400px;
   --cc-panel-height: 560px;
@@ -47,7 +47,7 @@
   align-items: center;
   justify-content: center;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.2s, box-shadow 0.2s;
   z-index: 10000;
   outline: none;
 }
@@ -70,7 +70,7 @@
   width: 24px;
   height: 24px;
   fill: var(--cc-on-accent);
-  transition: transform 0.3s ease;
+  transition: transform 0.3s;
 }
 
 .cc-fab.cc-open svg {
@@ -121,7 +121,7 @@
   opacity: 0;
   transform: translateY(16px) scale(0.95);
   pointer-events: none;
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition: opacity 0.2s, transform 0.2s;
 }
 
 .cc-panel.cc-visible {
@@ -217,7 +217,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s ease;
+  transition: background 0.15s;
 }
 
 .cc-header-close:hover {
@@ -348,7 +348,7 @@
   font-family: var(--cc-font);
   font-size: 12px;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+  transition: background 0.15s, color 0.15s, opacity 0.15s;
 }
 
 .cc-message-retry:hover,
@@ -445,7 +445,7 @@
   outline: none;
   max-height: 96px;
   overflow-y: auto;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s;
 }
 
 .cc-input:focus {
@@ -469,7 +469,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: background 0.15s ease, opacity 0.15s ease;
+  transition: background 0.15s, opacity 0.15s;
 }
 
 .cc-send-btn:hover {
@@ -523,7 +523,7 @@
   opacity: 0;
   transform: translateY(8px);
   pointer-events: none;
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition: opacity 0.3s, transform 0.3s;
   cursor: pointer;
 }
 
@@ -633,7 +633,7 @@
   font-family: var(--cc-font);
   font-size: 14px;
   outline: none;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s;
 }
 
 .cc-prechat-input:focus,
@@ -671,7 +671,7 @@
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background 0.15s;
   margin-top: 8px;
 }
 
