@@ -28,7 +28,16 @@ provider: {
   apiKey: process.env.GOOGLE_AI_API_KEY!,
   model: 'gemini-3.5-flash-lite',  // Default
 }
+
+// Any OpenAI-compatible server
+provider: {
+  type: 'openai-compatible',
+  baseURL: 'http://localhost:11434/v1',
+  model: 'llama3.3',
+}
 ```
+
+`apiKey` is required for `claude`, `openai` and `gemini`. Without it, setup fails with an error like `claude requires apiKey`.
 
 ## Default models
 
@@ -44,13 +53,17 @@ Set `model` to use any other model the provider offers.
 
 | Option | Providers | Default | What it does |
 |--------|-----------|---------|--------------|
-| `model` | all | see above | The model id. |
+| `type` | all | none | `'claude'`, `'openai'`, `'gemini'`, `'openai-compatible'`, or the name of a [custom provider](#custom-providers). |
+| `apiKey` | all | none | Required for Claude, OpenAI and Gemini. Optional for `openai-compatible`. |
+| `model` | all | see above | The model id. Required for `openai-compatible`. |
 | `effort` | all | `'low'` | How much effort the model spends per reply: `'low'`, `'medium'`, `'high'`, `'xhigh'` or `'max'`. Lower is faster and cheaper, which suits chat. Sent as `output_config.effort` to Claude 4.6 and later, `reasoning_effort` to OpenAI reasoning models, and `thinkingLevel` to Gemini 3 models. Models without an effort setting ignore it. |
-| `baseURL` | all | provider default | A custom API endpoint: a proxy, a gateway, or an OpenAI-compatible server. |
+| `baseURL` | all | provider default | A custom API endpoint: a proxy, a gateway, or an OpenAI-compatible server. Required for `openai-compatible`. |
+| `headers` | OpenAI, openai-compatible | none | Extra headers sent on every request. |
+| `supportsTools` | OpenAI, openai-compatible | `true` | Set to `false` for a model that can't call tools. Tools aren't sent, and one warning is logged. |
 | `fetch` | all | the global `fetch` | The `fetch` the provider SDK sends requests with. Use it to route requests through a proxy, or to replay recorded responses in tests. |
 | `promptCaching` | Claude | `true` | Marks the system prompt and tools as a cached prefix, so later requests read them from Claude's prompt cache at about a tenth of the input price. Prompts shorter than the model's cache minimum aren't cached either way. OpenAI and Gemini cache long prompts on their own. |
 | `organization` | OpenAI | none | Your OpenAI organization id. |
-| `maxTokensParam` | OpenAI | `'max_completion_tokens'` | Set to `'max_tokens'` for OpenAI-compatible servers that only accept the old parameter name. |
+| `maxTokensParam` | OpenAI, openai-compatible | `'max_completion_tokens'` for `openai`, `'max_tokens'` for `openai-compatible` | The name of the output token limit sent to the API. |
 
 The server config's `maxTokens` (default 4096) and `temperature` are passed to the provider on every request.
 
@@ -60,27 +73,35 @@ Claude 5.x models, Claude Opus 4.7 and later, and OpenAI reasoning models (GPT-5
 
 ## OpenAI-compatible servers
 
-Any server that speaks the OpenAI chat completions API works through the `openai` provider with a `baseURL`:
+Any server that speaks the OpenAI chat completions API works through the `openai-compatible` provider. `baseURL` and `model` are required, `apiKey` only if the server wants one:
 
 ```typescript
 // Ollama on your own machine
 provider: {
-  type: 'openai',
-  apiKey: 'ollama',  // Ollama ignores the key, but the SDK needs one
+  type: 'openai-compatible',
   model: 'llama3.3',
   baseURL: 'http://localhost:11434/v1',
 }
 
-// OpenRouter
+// OpenRouter, with the headers it uses to identify your app
 provider: {
-  type: 'openai',
+  type: 'openai-compatible',
   apiKey: process.env.OPENROUTER_API_KEY!,
   model: 'anthropic/claude-haiku-5-5',
   baseURL: 'https://openrouter.ai/api/v1',
+  headers: { 'HTTP-Referer': 'https://example.com', 'X-Title': 'My site' },
+}
+
+// A model that can't call tools
+provider: {
+  type: 'openai-compatible',
+  model: 'gemma3',
+  baseURL: 'http://localhost:11434/v1',
+  supportsTools: false,
 }
 ```
 
-If the server rejects `max_completion_tokens`, add `maxTokensParam: 'max_tokens'`.
+`openai-compatible` sends `max_tokens`. If the server wants `max_completion_tokens`, set `maxTokensParam: 'max_completion_tokens'`.
 
 ## Conversation history
 
@@ -109,6 +130,32 @@ interface ProviderChatParams {
 }
 ```
 
+## Custom providers
+
+Register a factory under a name of your own, then use that name as the provider `type`. The factory gets the whole provider config:
+
+```typescript
+import { registerProvider } from '@chatcops/core';
+
+registerProvider('my-llm', async (config) => new MyProvider(config));
+
+chatcopsMiddleware({
+  provider: { type: 'my-llm', model: 'my-model' },
+  systemPrompt: '...',
+});
+```
+
+Registering a built-in name (`claude`, `openai`, `gemini`, `openai-compatible`) throws. Registering the same name again replaces the factory.
+
+You can also skip the registry and pass a provider object you built yourself as the server's `provider`. Anything with `step()` or `chat()` works:
+
+```typescript
+chatcopsMiddleware({
+  provider: new MyProvider({ type: 'my-llm' }),
+  systemPrompt: '...',
+});
+```
+
 ## Direct provider usage
 
 For advanced use cases, you can use providers directly:
@@ -135,6 +182,16 @@ const response = await provider.chatSync({
   systemPrompt: 'You are helpful.',
 });
 console.log(response);
+```
+
+The provider classes aren't exported from `@chatcops/core`, so importing core doesn't load all three SDKs. Import them from their own paths:
+
+```typescript
+import { ClaudeProvider } from '@chatcops/core/providers/claude';
+import { OpenAIProvider } from '@chatcops/core/providers/openai';
+import { GeminiProvider } from '@chatcops/core/providers/gemini';
+
+const provider = new ClaudeProvider({ type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! });
 ```
 
 ## Running a turn
