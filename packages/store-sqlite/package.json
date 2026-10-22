@@ -1,0 +1,33 @@
+{
+  "name": "@chatcops/store-sqlite",
+  "version": "0.0.0",
+  "private": true,
+  "description": "SQLite storage for ChatCops single-server deployments",
+  "keywords": ["chatcops", "storage", "sqlite"],
+  "homepage": "https://chat.codercops.com",
+  "bugs": "https://github.com/codercops/chatcops/issues",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc -p tsconfig.test.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "peerDependencies": { "@chatcops/core": "workspace:^" },
+  "devDependencies": {
+    "@chatcops/core": "workspace:*",
+    "@types/node": "^22",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.11"
+  },
+  "repository": { "type": "git", "url": "git+https://github.com/codercops/chatcops.git", "directory": "packages/store-sqlite" },
+  "publishConfig": { "access": "public" },
+  "license": "MIT",
+  "engines": { "node": ">=22.13" }
+}
