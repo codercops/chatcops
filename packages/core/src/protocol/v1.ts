@@ -20,6 +20,7 @@ export type WireErrorCode =
   | 'invalid_request'
   | 'session_required'
   | 'token_expired'
+  | 'conversation_mismatch'
   | 'origin_not_allowed'
   | 'conversation_busy'
   | 'payload_too_large'

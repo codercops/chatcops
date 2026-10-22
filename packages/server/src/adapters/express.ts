@@ -1,7 +1,8 @@
+import { errorBody } from '@chatcops/core';
 import type { Request, Response, NextFunction } from 'express';
 import { expressClientIp } from '../client-ip.js';
 import { createChatHandler } from '../handler.js';
-import { PROTOCOL_HEADER, chatReply } from '../http.js';
+import { PROTOCOL_HEADER, chatReply, isSessionPath } from '../http.js';
 import { originPolicy } from '../security/origin-policy.js';
 import type { ChatCopsServerConfig } from '../config.js';
 
@@ -49,6 +50,18 @@ export function chatcopsMiddleware(config: ChatCopsServerConfig) {
       return;
     }
 
+    // `app.use('/api/chat', chatcopsMiddleware(...))` sends /api/chat/session here too.
+    if (isSessionPath(req.path ?? '')) {
+      setHeaders(origins.headers(origin));
+      if (!chat.startSession) {
+        res.status(404).json(errorBody('invalid_request', { message: 'Session tokens are off. Set `sessionSecrets` to turn them on.' }));
+        return;
+      }
+      const reply = await chat.startSession(req.body, origin);
+      res.status(reply.status).json(reply.body);
+      return;
+    }
+
     const clientIp = expressClientIp(req);
 
     // Stop the reply when the visitor goes away before it's done.
@@ -58,9 +71,12 @@ export function chatcopsMiddleware(config: ChatCopsServerConfig) {
     });
 
     const protocolHeader = req.headers?.[PROTOCOL_HEADER];
+    const authorization = req.headers?.authorization;
     const reply = await chatReply(chat, req.body, clientIp, {
       signal: abort.signal,
       protocolHeader: typeof protocolHeader === 'string' ? protocolHeader : null,
+      authorization: typeof authorization === 'string' ? authorization : null,
+      origin,
     });
     if (reply.kind === 'json') {
       setHeaders({ ...origins.headers(origin), ...reply.headers });

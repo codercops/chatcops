@@ -28,6 +28,7 @@ import {
 } from '@chatcops/core';
 import type { ChatCopsServerConfig, ValidatedChatRequest } from './config.js';
 import { chatRequestSchema } from './config.js';
+import { createSessions } from './security/sessions.js';
 import { VISITOR_CONTEXT_INSTRUCTION, buildVisitorContext, isLocaleTag, withVisitorContext } from './visitor-context.js';
 import { WebhookDispatcher } from './webhook.js';
 
@@ -80,7 +81,7 @@ export function createChatHandler(config: ChatCopsServerConfig) {
   // rather than as a provider error on the first message.
   validateTools(toolDefs);
   const tools = toolRegistry(config.tools);
-
+  const sessions = createSessions(config);
 
   const requests: Record<ChatFormat, number> = { v1: 0, legacy: 0, 'ai-sdk': 0 };
 
@@ -109,6 +110,11 @@ export function createChatHandler(config: ChatCopsServerConfig) {
       );
     }
     const req: ValidatedChatRequest = parsed.data;
+
+    if (sessions) {
+      const session = await sessions.check(options.authorization, options.origin ?? null, req.conversationId);
+      if (!session.ok) return refuse(session.code, { message: session.message }, { error: 'provider_error' });
+    }
 
     if (clientIp) {
       const limit = await rateLimiter.check(clientIp);
@@ -146,7 +152,10 @@ export function createChatHandler(config: ChatCopsServerConfig) {
   ): AsyncGenerator<WirePart, void> {
     const pendingWebhooks = new Set<Promise<void>>();
     try {
-      yield* reply(provider, req, signal, pendingWebhooks, clientIp);
+      for await (const part of reply(provider, req, signal, pendingWebhooks, clientIp)) {
+        // Tells the widget to get a session before its next request.
+        yield part.type === 'start' && sessions ? { ...part, capabilities: { ...part.capabilities, session: true } } : part;
+      }
     } finally {
       await release();
     }
@@ -377,6 +386,8 @@ export function createChatHandler(config: ChatCopsServerConfig) {
     startChat,
     purge,
     /** How many requests asked for each stream format, to tell when 0.5 widgets are gone. */
+    /** Answers `POST /session`, or `undefined` when session tokens are off. */
+    startSession: sessions ? (body: unknown, origin: string | null) => sessions.mint(body, origin) : undefined,
     protocolStats: () => ({ ...requests }),
     getAnalytics: () => analytics?.getStats() ?? null,
     cleanup,
@@ -390,6 +401,10 @@ export interface StartChatOptions {
   signal?: AbortSignal;
   /** Which stream the caller writes, for `protocolStats()`. Defaults to `'v1'`. */
   format?: ChatFormat;
+  /** The request's `Authorization` header, for session tokens. */
+  authorization?: string | null;
+  /** The request's `Origin` header, which a session token is bound to. */
+  origin?: string | null;
 }
 
 /** A request the handler won't answer, or the reply's parts. */

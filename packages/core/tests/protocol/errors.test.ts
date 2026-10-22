@@ -14,6 +14,7 @@ describe('statusForError', () => {
     content_filtered: 400,
     session_required: 401,
     token_expired: 401,
+    conversation_mismatch: 401,
     origin_not_allowed: 403,
     conversation_busy: 409,
     payload_too_large: 413,

@@ -45,6 +45,10 @@ export interface ChatReplyOptions {
   pingIntervalMs?: number;
   /** Answer in the AI SDK's UI message stream instead of choosing by the request. */
   aiSdk?: boolean;
+  /** The `Authorization` request header, for session tokens. */
+  authorization?: string | null;
+  /** The `Origin` request header. */
+  origin?: string | null;
 }
 
 export type ChatReply =
@@ -66,7 +70,7 @@ export async function chatReply(
 
   let start: ChatStart;
   try {
-    start = await handler.startChat(body, clientIp, { signal, format });
+    start = await handler.startChat(body, clientIp, { signal, format, authorization: options.authorization, origin: options.origin });
   } catch (err) {
     if (!signal.aborted) console.error('[chatcops] Unhandled error while handling chat:', err);
     if (typed) return { kind: 'json', status: 500, headers: EXPOSE_HEADERS, body: errorBody('internal_error') };
@@ -229,9 +233,14 @@ export interface FetchChatOptions {
   aiSdk?: boolean;
 }
 
+/** Whether a request is for the session endpoint: the chat URL plus `/session`. */
+export function isSessionPath(pathname: string): boolean {
+  return /\/session\/?$/.test(pathname);
+}
+
 /** The whole request for Fetch API runtimes (Vercel, Cloudflare, Next.js, Bun, Deno). */
 export async function fetchChatResponse(
-  handler: Pick<ChatHandler, 'startChat'>,
+  handler: Pick<ChatHandler, 'startChat' | 'startSession'>,
   origins: OriginPolicy,
   request: Request,
   options: FetchChatOptions
@@ -247,6 +256,14 @@ export async function fetchChatResponse(
   }
   if (request.method !== 'POST') return json(405, { error: 'Method not allowed' });
   if (!origins.allows(origin)) return json(403, { error: 'origin_not_allowed' });
+
+  if (isSessionPath(new URL(request.url).pathname)) {
+    if (!handler.startSession) return json(404, errorBody('invalid_request', { message: 'Session tokens are off. Set `sessionSecrets` to turn them on.' }));
+    const read = await readJsonBody(request, 16 * 1024);
+    if (!read.ok) return json(400, errorBody('invalid_request', { message: 'Invalid session request' }));
+    const reply = await handler.startSession(read.body, origin);
+    return json(reply.status, reply.body);
+  }
 
   const clientIp = options.clientIp(request);
   const read = await readJsonBody(request);
@@ -266,6 +283,8 @@ export async function fetchChatResponse(
     protocolHeader,
     pingIntervalMs: options.pingIntervalMs,
     aiSdk: options.aiSdk,
+    authorization: request.headers.get('authorization'),
+    origin,
   });
   if (reply.kind === 'json') return json(reply.status, reply.body, reply.headers);
   return sseResponse(reply.frames, { ...reply.headers, ...cors }, abort, options.waitUntil);

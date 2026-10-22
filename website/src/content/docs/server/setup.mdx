@@ -108,6 +108,9 @@ interface ChatCopsServerConfig {
   /** @deprecated Use `allowedOrigins`. */
   cors?: string;
   clientIp?: (request: Request) => string | null | undefined;   // fetch handlers, see the fetch runtimes page
+  sessionSecrets?: string[];   // turns on session tokens, see Session tokens below
+  sessionTtlSec?: number;      // default 900
+  requireSession?: boolean;    // default true when sessionSecrets is set
   exposeUsage?: boolean;   // token usage in protocol v1 finish parts; default false
   /** @deprecated Ignored by the server. Use the widget's `strings` option. */
   i18n?: {
@@ -169,6 +172,33 @@ Entries need the scheme and no path: `https://acme.com`, not `acme.com` or `http
 Requests without an `Origin` header, such as `curl` or a call from your own server, still go through. The list stops other sites embedding your bot. It doesn't stop scripts, which can send any `Origin` they like. Rate limits and budgets are what stop those.
 
 `cors` is the older option for one origin. It still works as a one-item `allowedOrigins`, with a deprecation warning.
+
+## Session tokens
+
+Without session tokens, anyone who knows a conversation id can keep talking in that conversation, and the model answers with its history in view. Ids are random, so this is about leaked ids and guessing. With `sessionSecrets` set, the chat needs a short-lived token that's bound to one conversation and one site:
+
+```typescript
+sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+```
+
+Each secret needs at least 32 bytes; `openssl rand -base64 32` makes one. Keep it on the server, never in a `NEXT_PUBLIC_` or `VITE_` variable. The server refuses to start with a shorter one.
+
+The client asks for a token at the chat URL plus `/session` (`/api/chat/session` for a chat at `/api/chat`):
+
+```
+POST /api/chat/session
+{ "conversationId": "c_8f2", "previousToken": "eyJ..." }
+
+200 { "token": "eyJ...", "expiresAt": 1792411200000, "conversationId": "c_8f2" }
+```
+
+Then it sends `Authorization: Bearer <token>` with each chat request. Tokens last `sessionTtlSec` (15 minutes by default). To keep a conversation, the client sends its id with the token it had for it, which still works up to 30 days after it expired. An id without its token, or with a token for another conversation or site, gets a new conversation instead, so a guessed id is useless.
+
+With Express, mount the middleware with `app.use('/api/chat', ...)` so `/api/chat/session` reaches it. On Vercel or Next.js, export the same handler from a second route file at `app/api/chat/session/route.ts`. A Cloudflare Worker gets every path already.
+
+Chat requests without a token get `401 session_required`, an expired token gets `401 token_expired`, and a token for another conversation gets `401 conversation_mismatch`. Widgets before 0.7 don't send tokens, so set `requireSession: false` while they're still around: requests without a token then go through, and the ones that send a token are still checked.
+
+To change the secret, put the new one first and keep the old one until its tokens have expired: `sessionSecrets: [newSecret, oldSecret]`. New tokens are signed with the first, and any of them verifies.
 
 ## Budgets
 
@@ -330,6 +360,9 @@ A request that can't be answered gets a real HTTP status before any stream, with
 | Status | Code | When |
 |---|---|---|
 | 400 | `invalid_request` | The body isn't valid. The message names the fields, never their values. |
+| 401 | `session_required` | Session tokens are on and the request has no valid token. |
+| 401 | `token_expired` | The session token has expired. Get a new one from `/session`. |
+| 401 | `conversation_mismatch` | The session token is for a different conversation. |
 | 409 | `conversation_busy` | A reply for this conversation is still being written. |
 | 413 | `payload_too_large` | The body is over 256 KB. With Express, `express.json()` sets the limit (100 KB by default) and answers 413 itself. |
 | 429 | `rate_limited` | Too many requests from this IP. `Retry-After` has the seconds, and `retryAfterMs` the milliseconds. |
