@@ -1,0 +1,89 @@
+name: Accepted label
+
+# A merged PR counts on the leaderboard only with the hacktoberfest-accepted
+# label, and only for an issue that was assigned to its author (CONTRIBUTING.md).
+# Maintainers add the label when they merge. This adds it when that was missed,
+# by the same rule as the claim check: every issue the PR closes is assigned to
+# the author. It runs once, at the merge, so removing the label later sticks.
+#
+# It uses pull_request_target so it can label fork PRs. That is safe here: the
+# job never checks out or runs the PR's code.
+on:
+  pull_request_target:
+    branches: [dev]
+    types: [closed]
+
+permissions:
+  issues: read
+  pull-requests: write
+
+jobs:
+  label:
+    name: Label a merged contributor PR
+    # Maintainers and bots don't claim issues, and spam never counts.
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.user.type != 'Bot' &&
+      !contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association) &&
+      !contains(github.event.pull_request.labels.*.name, 'hacktoberfest-accepted') &&
+      !contains(github.event.pull_request.labels.*.name, 'spam')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add the label if every linked issue is assigned to the author
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          pr=$(gh api graphql \
+            -f owner="${REPO%/*}" -f name="${REPO#*/}" -F pr="$PR" \
+            -f query='query($owner: String!, $name: String!, $pr: Int!) {
+              repository(owner: $owner, name: $name) {
+                pullRequest(number: $pr) {
+                  author { login }
+                  body
+                  closingIssuesReferences(first: 20) {
+                    nodes { number repository { nameWithOwner } assignees(first: 20) { nodes { login } } }
+                  }
+                }
+              }
+            }' \
+            --jq '.data.repository.pullRequest')
+          author=$(jq -r '.author.login // ""' <<<"$pr")
+
+          # The issues this PR closed ("Closes #12" in the description).
+          linked=$(jq --arg repo "$REPO" '[ .closingIssuesReferences.nodes[] | {
+            ref: (if .repository.nameWithOwner == $repo then "#\(.number)" else "\(.repository.nameWithOwner)#\(.number)" end),
+            assignees: [.assignees.nodes[].login]
+          } ]' <<<"$pr")
+
+          # Same fallback as the claim check: read "Closes #12" from the description.
+          if [ "$(jq length <<<"$linked")" -eq 0 ]; then
+            numbers=$(jq -r '[ (.body // "") | scan("(?i)\\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\\s*:?\\s+#([0-9]+)") | .[0] ] | unique | .[]' <<<"$pr")
+            for number in $numbers; do
+              if issue=$(gh api "repos/$REPO/issues/$number" --jq 'select(.pull_request == null) | {ref: "#\(.number)", assignees: [.assignees[].login]}' 2>/dev/null) && [ -n "$issue" ]; then
+                linked=$(jq --argjson issue "$issue" '. + [$issue]' <<<"$linked")
+              fi
+            done
+          fi
+
+          if [ "$(jq length <<<"$linked")" -eq 0 ]; then
+            echo "::notice title=Not labeled::This PR isn't linked to an issue, so it doesn't get hacktoberfest-accepted."
+            exit 0
+          fi
+
+          missing=$(jq -r --arg author "$author" '
+            [ .[]
+              | select(all(.assignees[]; ascii_downcase != ($author | ascii_downcase)))
+              | .ref ]
+            | join(", ")' <<<"$linked")
+
+          if [ -n "$missing" ]; then
+            echo "::notice title=Not labeled::$missing isn't assigned to @$author, so this PR doesn't get hacktoberfest-accepted."
+            exit 0
+          fi
+
+          gh api -X POST "repos/$REPO/issues/$PR/labels" -f "labels[]=hacktoberfest-accepted" --silent
+          echo "Added hacktoberfest-accepted: $(jq -r '[.[].ref] | join(", ")' <<<"$linked") assigned to @$author"
