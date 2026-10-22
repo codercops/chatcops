@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatClient } from '../../src/api/client.js';
 import type { WidgetChatChunk } from '../../src/api/types.js';
+import { turnstileToken } from '../../src/api/turnstile.js';
+
+vi.mock('../../src/api/turnstile.js', () => ({ turnstileToken: vi.fn(async () => 'ts-token') }));
 
 const API = 'https://api.test/chat';
 const KEY = `chatcops-session:${API}`;
@@ -35,6 +38,7 @@ const calls = (fetch: ReturnType<typeof vi.fn>) =>
 
 beforeEach(() => {
   localStorage.clear();
+  vi.mocked(turnstileToken).mockClear();
 });
 
 afterEach(() => {
@@ -116,6 +120,45 @@ describe('ChatClient with session tokens', () => {
     expect((await collect(client)).at(-1)).toEqual({ done: true });
     await collect(client);
     expect(calls(fetch as never)[3].auth).toBe('Bearer tok-1');
+  });
+
+  it('passes Turnstile for a new session, and skips it when resuming with the saved token', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(unauthorized())
+      .mockResolvedValueOnce(minted('c1'))
+      .mockResolvedValueOnce(v1Reply())
+      .mockResolvedValueOnce(unauthorized('token_expired'))
+      .mockResolvedValueOnce(minted('c1', 'tok-2'))
+      .mockResolvedValueOnce(v1Reply());
+    const client = new ChatClient({ apiUrl: API, turnstileSiteKey: 'site-key' });
+
+    await collect(client);
+    await collect(client);
+
+    const sessions = calls(fetch as never).filter((call) => call.url.endsWith('/session'));
+    expect(sessions[0].body).toEqual({ conversationId: 'c1', turnstileToken: 'ts-token' });
+    expect(sessions[1].body).toEqual({ conversationId: 'c1', previousToken: 'tok-1' });
+    expect(turnstileToken).toHaveBeenCalledTimes(1);
+    expect(turnstileToken).toHaveBeenCalledWith('site-key');
+  });
+
+  it('drops a saved token the server refused, so the next try runs Turnstile', async () => {
+    localStorage.setItem(KEY, JSON.stringify({ token: 'too-old', conversationId: 'c1' }));
+    const fetch = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(unauthorized('token_expired'))
+      .mockResolvedValueOnce(new Response('{"error":{"code":"turnstile_failed"}}', { status: 401 }))
+      .mockResolvedValueOnce(unauthorized())
+      .mockResolvedValueOnce(minted('c2'))
+      .mockResolvedValueOnce(v1Reply());
+    const client = new ChatClient({ apiUrl: API, turnstileSiteKey: 'site-key' });
+
+    expect(await collect(client)).toEqual([{ error: 'HTTP 401' }]);
+    expect(turnstileToken).not.toHaveBeenCalled();
+    await collect(client);
+
+    const [, , retryFirst, session] = calls(fetch as never);
+    expect(retryFirst.auth).toBeUndefined();
+    expect(session.body).toEqual({ conversationId: 'c1', turnstileToken: 'ts-token' });
   });
 
   it.each([

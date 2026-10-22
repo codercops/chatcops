@@ -387,7 +387,9 @@ export function createChatHandler(config: ChatCopsServerConfig) {
     purge,
     /** How many requests asked for each stream format, to tell when 0.5 widgets are gone. */
     /** Answers `POST /session`, or `undefined` when session tokens are off. */
-    startSession: sessions ? (body: unknown, origin: string | null) => sessions.mint(body, origin) : undefined,
+    startSession: sessions
+      ? (body: unknown, origin: string | null, clientIp?: string) => sessions.mint(body, origin, clientIp)
+      : undefined,
     protocolStats: () => ({ ...requests }),
     getAnalytics: () => analytics?.getStats() ?? null,
     cleanup,

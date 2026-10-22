@@ -261,7 +261,7 @@ export async function fetchChatResponse(
     if (!handler.startSession) return json(404, errorBody('invalid_request', { message: 'Session tokens are off. Set `sessionSecrets` to turn them on.' }));
     const read = await readJsonBody(request, 16 * 1024);
     if (!read.ok) return json(400, errorBody('invalid_request', { message: 'Invalid session request' }));
-    const reply = await handler.startSession(read.body, origin);
+    const reply = await handler.startSession(read.body, origin, options.clientIp(request));
     return json(reply.status, reply.body);
   }
 

@@ -1,10 +1,13 @@
 import type { WirePart } from './protocol.js';
+import { turnstileToken } from './turnstile.js';
 import type { WidgetChatRequest, WidgetChatChunk } from './types.js';
 
 export interface ChatClientOptions {
   apiUrl: string;
   /** Inactivity timeout in milliseconds. Defaults to 30000. */
   timeout?: number;
+  /** Cloudflare Turnstile site key, when the server checks Turnstile before issuing a session. */
+  turnstileSiteKey?: string;
 }
 
 export interface SendMessageOptions {
@@ -23,22 +26,20 @@ export class ChatClient {
   private apiUrl: string;
   private timeout: number;
   private sessionKey: string;
-  private saved?: Partial<Session>;
+  /** The last token, kept across page loads so the server can resume the conversation. */
+  private saved: Partial<Session> = {};
+  private turnstileSiteKey?: string;
 
   constructor(options: ChatClientOptions) {
     this.apiUrl = options.apiUrl;
+    this.turnstileSiteKey = options.turnstileSiteKey;
     this.timeout = options.timeout ?? 30000;
     this.sessionKey = `chatcops-session:${options.apiUrl}`;
-  }
-
-  /** The last token, kept across page loads so the server can resume the conversation. */
-  private lastSession(): Partial<Session> {
     try {
-      this.saved ??= JSON.parse(localStorage.getItem(this.sessionKey) || '{}');
+      this.saved = JSON.parse(localStorage.getItem(this.sessionKey) || '{}');
     } catch {
-      this.saved = {};
+      // Storage unavailable: tokens last for this page only.
     }
-    return this.saved as Partial<Session>;
   }
 
   async *sendMessage(
@@ -96,17 +97,20 @@ export class ChatClient {
           body: JSON.stringify(body),
           signal: controller.signal,
         });
-      const saved = this.lastSession();
+      const saved = this.saved;
+      const resumable = saved.conversationId === request.conversationId;
       // Servers before 0.6 ignore `protocol` and answer in the old format.
-      let response = await post(this.apiUrl, { protocol: 1, ...request }, saved.conversationId === request.conversationId ? saved.token : undefined);
+      let response = await post(this.apiUrl, { protocol: 1, ...request }, resumable ? saved.token : undefined);
 
       // Session tokens are on. Get a token for this conversation and try once
       // more. The previous token, even expired, lets the server resume the
-      // conversation; without one it may give the conversation a new id.
+      // conversation without Turnstile; without one it may give the
+      // conversation a new id.
       if (response.status === 401) {
         const minted = await post(this.apiUrl.replace(/\/?(\?.*)?$/, '/session$1'), {
           conversationId: request.conversationId,
           previousToken: saved.token,
+          turnstileToken: this.turnstileSiteKey && !resumable ? await turnstileToken(this.turnstileSiteKey) : undefined,
         });
         if (minted.ok) {
           const session = (await minted.json()) as Session;
@@ -121,6 +125,9 @@ export class ChatClient {
             yield { conversationId: session.conversationId };
           }
           response = await post(this.apiUrl, { protocol: 1, ...request }, session.token);
+        } else {
+          // A token the server won't resume from: start over, with Turnstile, on the next try.
+          this.saved = {};
         }
       }
 

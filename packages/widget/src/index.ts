@@ -82,6 +82,7 @@ function autoInit(script: HTMLScriptElement | null): void {
 
   ChatCops.init({
     apiUrl,
+    turnstileSiteKey: script.dataset.turnstileSiteKey,
     mode: mode || undefined,
     container: container || undefined,
     theme: {

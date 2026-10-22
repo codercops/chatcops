@@ -111,6 +111,7 @@ interface ChatCopsServerConfig {
   sessionSecrets?: string[];   // turns on session tokens, see Session tokens below
   sessionTtlSec?: number;      // default 900
   requireSession?: boolean;    // default true when sessionSecrets is set
+  turnstile?: { secretKey: string; action?: string; expectedHostnames?: string[]; timeoutMs?: number };
   exposeUsage?: boolean;   // token usage in protocol v1 finish parts; default false
   /** @deprecated Ignored by the server. Use the widget's `strings` option. */
   i18n?: {
@@ -201,6 +202,19 @@ With Express, mount the middleware with `app.use('/api/chat', ...)` so `/api/cha
 Chat requests without a token get `401 session_required`, an expired token gets `401 token_expired`, and a token for another conversation gets `401 conversation_mismatch`. Widgets before 0.7 don't send tokens, so set `requireSession: false` while they're still around: requests without a token then go through, and the ones that send a token are still checked.
 
 To change the secret, put the new one first and keep the old one until its tokens have expired: `sessionSecrets: [newSecret, oldSecret]`. New tokens are signed with the first, and any of them verifies.
+
+### Turnstile
+
+A script can still ask for as many sessions as it likes. To make that harder, have `/session` check a [Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/) token first:
+
+```typescript
+sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+turnstile: { secretKey: process.env.TURNSTILE_SECRET_KEY! },
+```
+
+Then give the widget the site key, with `data-turnstile-site-key="0x4AAA..."` or `turnstileSiteKey` in `ChatCops.init()`. The widget loads Cloudflare's script only when it first needs a session, so visitors who never open the chat don't load it. The check is invisible for most visitors. When Cloudflare wants a click, the challenge shows near the bottom right corner of the page, outside the widget. A page with a Content Security Policy needs `https://challenges.cloudflare.com` in `script-src` and `frame-src`.
+
+The server checks the token with Cloudflare, sending the visitor's IP, and refuses a missing or failed one with `401 turnstile_failed`. If Cloudflare can't be reached, `/session` answers `503` and issues nothing. A session refreshed with its previous token skips Turnstile, since it passed when it was first issued. `action`, `expectedHostnames` and `timeoutMs` (default 5000) are optional, and a client that retries `/session` with the same Turnstile token can send the same `idempotencyKey` (a UUID) each time.
 
 ## Budgets
 
@@ -365,6 +379,7 @@ A request that can't be answered gets a real HTTP status before any stream, with
 | 401 | `session_required` | Session tokens are on and the request has no valid token. |
 | 401 | `token_expired` | The session token has expired. Get a new one from `/session`. |
 | 401 | `conversation_mismatch` | The session token is for a different conversation. |
+| 401 | `turnstile_failed` | `/session` only: the Turnstile token is missing or didn't pass. |
 | 409 | `conversation_busy` | A reply for this conversation is still being written. |
 | 413 | `payload_too_large` | The body is over 256 KB. With Express, `express.json()` sets the limit (100 KB by default) and answers 413 itself. |
 | 429 | `rate_limited` | Too many requests from this IP. `Retry-After` has the seconds, and `retryAfterMs` the milliseconds. |
