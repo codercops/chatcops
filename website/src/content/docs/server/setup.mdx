@@ -325,6 +325,8 @@ The server validates incoming requests with Zod:
 }
 ```
 
+The widget sends pre-chat answers in `userData`. See the [pre-chat form guide](/widget/pre-chat-form) for how the widget collects and submits these answers. Use the `preChatFields` option in [`ChatCopsServerConfig`](#chatcopsserverconfig) to limit which fields the server keeps.
+
 ## Response format
 
 The server answers in one of two formats. The widget from 0.6 on sends `"protocol": 1` in the request body and gets protocol v1. Requests without it, from widgets before 0.6 or older custom clients, get the 0.5 format, which keeps working until 1.0. A client can also ask for v1 with an `x-chatcops-protocol: 1` header. The server logs one line the first time it answers in the 0.5 format, so you can tell when old widgets are still around. `chatcopsAiSdkHandler` answers in a third format, the AI SDK's, for apps built on `useChat` (see [AI SDK](/server/ai-sdk/)).

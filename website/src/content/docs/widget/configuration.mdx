@@ -188,14 +188,32 @@ interface WidgetConfig {
   autoOpen?: boolean | number; // Popup mode only. true = immediate, number = delay in ms
   locale?: string;            // Sent to the server with each message. Only English strings are built in
   strings?: Partial<WidgetLocaleStrings>; // Custom i18n overrides
+  preChatForm?: {
+    enabled: boolean;
+    title?: string;
+    subtitle?: string;
+    submitLabel?: string;
+    fields: Array<{
+      name: string;
+      type: 'text' | 'email' | 'select' | 'textarea';
+      label: string;
+      placeholder?: string;
+      required?: boolean;
+      options?: string[];
+    }>;
+  };
 
   // Callbacks
   onOpen?: () => void;
   onClose?: () => void;
   onMessage?: (message: MessageData) => void;
   onError?: (error: Error) => void;
+  onLeadCaptured?: (leadData?: Record<string, unknown>) => void;
+  onPreChatSubmit?: (data: Record<string, string>) => void;
 }
 ```
+
+See the [pre-chat form guide](/widget/pre-chat-form) for field behavior, validation, and how answers are sent to the server. The form is configured with JavaScript; it has no `data-*` attributes.
 
 ## Script Tag Attribute Reference
 

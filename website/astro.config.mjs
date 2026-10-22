@@ -112,6 +112,7 @@ export default defineConfig({
           label: 'Widget',
           items: [
             { label: 'Configuration', slug: 'widget/configuration' },
+            { label: 'Pre-chat Form', slug: 'widget/pre-chat-form' },
             { label: 'API Reference', slug: 'widget/api' },
             { label: 'Theming', slug: 'widget/theming' },
             { label: 'Events', slug: 'widget/events' },
