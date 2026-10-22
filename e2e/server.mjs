@@ -39,7 +39,6 @@ async function readJson(req) {
  */
 async function chat(req, res, cors = false) {
   const body = await readJson(req);
-  apiRequests.push({ method: req.method });
   const message = String(body.message ?? '');
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -130,7 +129,10 @@ const apiServer = createServer(async (req, res) => {
       return res.end();
     }
 
-    if (url.pathname === '/api/chat' && req.method === 'POST') return await chat(req, res, true);
+    if (url.pathname === '/api/chat' && req.method === 'POST') {
+      apiRequests.push({ method: 'POST' });
+      return await chat(req, res, true);
+    }
 
     res.writeHead(404);
     res.end('Not found');
