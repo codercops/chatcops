@@ -99,7 +99,7 @@ export interface ChatCopsServerConfig {
   /**
    * Refuse chat requests without a session token (401 `session_required`).
    * Defaults to true when `sessionSecrets` is set. Set false while widgets
-   * older than 0.7, which don't send tokens, are still out there.
+   * older than 0.6, which don't send tokens, are still out there.
    */
   requireSession?: boolean;
   /**

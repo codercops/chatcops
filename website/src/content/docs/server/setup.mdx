@@ -195,11 +195,11 @@ POST /api/chat/session
 
 Then it sends `Authorization: Bearer <token>` with each chat request. Tokens last `sessionTtlSec` (15 minutes by default). To keep a conversation, the client sends its id with the token it had for it, which still works up to 30 days after it expired. An id that has nothing stored yet is given out as is, since there's nothing in it to read. An id that has messages, sent without its token or with a token for another conversation or site, gets a new conversation instead, so a guessed or leaked id is useless.
 
-The widget does all of this on its own from 0.7. When a chat request gets a 401, it asks `/session` for a token, keeps it in `localStorage` and sends the request again. When the server answers with a new conversation id, the widget moves to it.
+The widget does all of this on its own from 0.6. When a chat request gets a 401, it asks `/session` for a token, keeps it in `localStorage` and sends the request again. When the server answers with a new conversation id, the widget moves to it.
 
 With Express, mount the middleware with `app.use('/api/chat', ...)` so `/api/chat/session` reaches it. On Vercel or Next.js, export the same handler from a second route file at `app/api/chat/session/route.ts`. A Cloudflare Worker gets every path already.
 
-Chat requests without a token get `401 session_required`, an expired token gets `401 token_expired`, and a token for another conversation gets `401 conversation_mismatch`. Widgets before 0.7 don't send tokens, so set `requireSession: false` while they're still around: requests without a token then go through, and the ones that send a token are still checked.
+Chat requests without a token get `401 session_required`, an expired token gets `401 token_expired`, and a token for another conversation gets `401 conversation_mismatch`. Widgets before 0.6 don't send tokens, so set `requireSession: false` while they're still around: requests without a token then go through, and the ones that send a token are still checked.
 
 To change the secret, put the new one first and keep the old one until its tokens have expired: `sessionSecrets: [newSecret, oldSecret]`. New tokens are signed with the first, and any of them verifies.
 
