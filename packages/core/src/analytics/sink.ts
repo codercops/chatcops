@@ -1,0 +1,124 @@
+import type { AnalyticsEvent } from '../types.js';
+import type { EventSink } from '../storage/types.js';
+import type { AnalyticsStats } from './collector.js';
+
+const DEFAULT_MAX_BATCH = 50;
+const DEFAULT_FLUSH_MS = 2000;
+
+export class BufferedEventSink {
+  private readonly events: AnalyticsEvent[] = [];
+  private readonly maxBatch: number;
+  private readonly flushMs: number;
+  private timer: ReturnType<typeof setTimeout> | undefined;
+  private flushPromise: Promise<void> | undefined;
+
+  constructor(
+    private readonly sink: EventSink,
+    options?: { maxBatch?: number; flushMs?: number }
+  ) {
+    this.maxBatch = options?.maxBatch ?? DEFAULT_MAX_BATCH;
+    this.flushMs = options?.flushMs ?? DEFAULT_FLUSH_MS;
+
+    if (!Number.isInteger(this.maxBatch) || this.maxBatch < 1) {
+      throw new RangeError('maxBatch must be a positive integer.');
+    }
+    if (!Number.isFinite(this.flushMs) || this.flushMs < 0) {
+      throw new RangeError('flushMs must be a non-negative finite number.');
+    }
+  }
+
+  track(type: string, data?: Record<string, unknown>): void {
+    const wasEmpty = this.events.length === 0;
+    this.events.push({ type, data, timestamp: Date.now() });
+
+    if (wasEmpty) this.scheduleFlush();
+    if (this.events.length >= this.maxBatch) this.startAutomaticFlush();
+  }
+
+  flush(): Promise<void> {
+    if (this.flushPromise) return this.flushPromise;
+
+    this.clearTimer();
+    const drain = Promise.resolve().then(async () => {
+      while (this.events.length > 0) {
+        this.clearTimer();
+        const batch = this.events.splice(0, this.maxBatch);
+
+        try {
+          await this.sink.write(batch);
+        } catch (error) {
+          console.error(`[chatcops] analytics write failed: ${errorMessage(error)}`);
+        }
+      }
+    });
+
+    const flushPromise = drain.finally(() => {
+      if (this.flushPromise === flushPromise) this.flushPromise = undefined;
+      if (this.events.length > 0) this.startAutomaticFlush();
+    });
+    this.flushPromise = flushPromise;
+    return flushPromise;
+  }
+
+  private scheduleFlush(): void {
+    try {
+      const timer = setTimeout(() => {
+        this.timer = undefined;
+        this.startAutomaticFlush();
+      }, this.flushMs);
+      this.timer = timer;
+
+      if (typeof timer === 'object' && timer !== null && 'unref' in timer && typeof timer.unref === 'function') {
+        timer.unref();
+      }
+    } catch (error) {
+      this.clearTimer();
+      console.error(`[chatcops] analytics timer failed: ${errorMessage(error)}`);
+      this.startAutomaticFlush();
+    }
+  }
+
+  private clearTimer(): void {
+    if (this.timer === undefined) return;
+    clearTimeout(this.timer);
+    this.timer = undefined;
+  }
+
+  private startAutomaticFlush(): void {
+    void this.flush().catch((error: unknown) => {
+      console.error(`[chatcops] analytics flush failed: ${errorMessage(error)}`);
+    });
+  }
+}
+
+export async function statsFromSink(
+  sink: EventSink,
+  range: { from: number; to: number }
+): Promise<AnalyticsStats> {
+  if (!sink.query) {
+    throw new Error('Event sink does not support querying; implement EventSink.query to calculate analytics statistics.');
+  }
+
+  const counts = await sink.query(range);
+  const eventCounts = new Map<string, number>();
+  for (const { type, count } of counts) {
+    eventCounts.set(type, (eventCounts.get(type) ?? 0) + count);
+  }
+
+  const totalConversations = eventCounts.get('conversation:started') ?? 0;
+  const totalMessages =
+    (eventCounts.get('message:sent') ?? 0) + (eventCounts.get('message:received') ?? 0);
+
+  return {
+    totalConversations,
+    totalMessages,
+    leadsCapture: eventCounts.get('lead:captured') ?? 0,
+    averageMessagesPerConversation: totalConversations > 0 ? totalMessages / totalConversations : 0,
+    eventCounts: Object.fromEntries(eventCounts),
+  };
+}
+
+function errorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.replace(/[\r\n]+/g, ' ');
+}

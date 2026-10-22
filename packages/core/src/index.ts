@@ -124,7 +124,7 @@ export { createRateLimiter } from './limits/rate-limit.js';
 export type { RateLimitRule, RateLimitResult, RateLimiterOptions } from './limits/rate-limit.js';
 
 // Analytics
-export { AnalyticsCollector } from './analytics/index.js';
+export { AnalyticsCollector, BufferedEventSink, statsFromSink } from './analytics/index.js';
 export type { AnalyticsStats } from './analytics/index.js';
 
 // i18n
