@@ -49,8 +49,7 @@ const faq = new FAQKnowledgeSource([
 ]);
 
 // Built on the first request rather than at import: the API key is a Worker
-// secret that only exists inside a request, and the handler starts a
-// timer, which Workers don't allow at global scope.
+// secret that only exists inside a request.
 let chat: ReturnType<typeof chatcopsCloudflareHandler> | undefined;
 function getChat() {
   chat ??= chatcopsCloudflareHandler({
