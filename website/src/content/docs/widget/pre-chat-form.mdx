@@ -1,0 +1,89 @@
+---
+title: Pre-chat Form
+description: Collect visitor details before their first ChatCops message.
+---
+
+The pre-chat form collects information such as a visitor's name, email, or reason for contacting you before the conversation begins. Configure it in JavaScript with `ChatCops.init()`:
+
+```typescript
+import ChatCops from '@chatcops/widget';
+
+ChatCops.init({
+  apiUrl: 'https://your-api.com/chat',
+  preChatForm: {
+    enabled: true,
+    title: 'Before we start...',
+    subtitle: 'Tell us a bit about yourself',
+    submitLabel: 'Start chat',
+    fields: [
+      { name: 'name', type: 'text', label: 'Name', placeholder: 'Your name', required: true },
+      { name: 'email', type: 'email', label: 'Email', placeholder: 'you@example.com' },
+      {
+        name: 'topic',
+        type: 'select',
+        label: 'What can we help with?',
+        options: ['Sales', 'Support', 'Billing'],
+      },
+      { name: 'message', type: 'textarea', label: 'Message', placeholder: 'How can we help?' },
+    ],
+  },
+  onPreChatSubmit(data) {
+    console.log('Pre-chat answers:', data);
+  },
+});
+```
+
+The form appears when there is no saved conversation with messages and the visitor has not already submitted the form during the current browser session. After submission, the widget switches to the chat view. If a field is named `name`, its answer personalizes the welcome message. If a field is named `message`, its answer is sent as the conversation's first chat message immediately after submission.
+
+## Form options
+
+| Option | Type | Description |
+| --- | --- | --- |
+| `enabled` | `boolean` | Required. Set to `true` to show the form before the conversation starts. |
+| `title` | `string` | Optional heading above the fields. |
+| `subtitle` | `string` | Optional supporting text below the heading. |
+| `submitLabel` | `string` | Optional text for the submit button. |
+| `fields` | `PreChatField[]` | Fields to show, in display order. Each field has the options below. |
+
+### Field options
+
+| Option | Type | Description |
+| --- | --- | --- |
+| `name` | `string` | Required key for the answer. Use `name` to personalize the welcome message or `message` to start the chat with the visitor's answer. |
+| `type` | `'text' \| 'email' \| 'select' \| 'textarea'` | Required input type. Email fields are checked for a valid email format. |
+| `label` | `string` | Required text label displayed above the field. |
+| `placeholder` | `string` | Optional placeholder. For a select, this replaces the default prompt. If omitted, the select prompt comes from `strings.selectPlaceholder` (English default: `Select {label}...`). |
+| `required` | `boolean` | Optional. When `true`, the visitor must enter or select a non-empty value before submitting. Defaults to `false`. |
+| `options` | `string[]` | Optional choices for a `select` field. |
+
+Required fields are checked for non-empty values, and non-empty `email` fields are checked for email format. Invalid fields show an error and the form stays open until corrected. Values are trimmed before they are submitted.
+
+## What happens to answers
+
+The widget includes the answers as `userData` on the next chat request. If that request fails, it sends the answers again with the retry. The server accepts at most 50 fields, with field names up to 100 characters and values up to 500 characters.
+
+The server saves the answers with the conversation's first message and uses those saved answers for the rest of the conversation; later requests cannot replace them. Configure the server's [`preChatFields` allowlist](/server/setup#chatcopsserverconfig) to keep only the fields your server needs.
+
+## Submission callback and event
+
+Use `onPreChatSubmit` in the widget config to receive the submitted answers in your application:
+
+```typescript
+ChatCops.init({
+  apiUrl: 'https://your-api.com/chat',
+  preChatForm: { enabled: true, fields: [{ name: 'email', type: 'email', label: 'Email' }] },
+  onPreChatSubmit(data) {
+    analytics.track('pre_chat_submitted', data);
+  },
+});
+```
+
+The widget also emits a `preChatSubmit` event with the same `Record<string, string>` payload. Subscribe with [`ChatCops.on()`](/widget/events#prechatsubmit):
+
+```typescript
+ChatCops.on('preChatSubmit', (data) => {
+  console.log('Pre-chat form submitted:', data);
+});
+```
+
+Pre-chat forms can only be configured through JavaScript. There are no `data-*` attributes for `preChatForm` or its callbacks.
