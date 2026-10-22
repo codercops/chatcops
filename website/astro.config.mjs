@@ -123,6 +123,7 @@ export default defineConfig({
           items: [
             { label: 'Setup', slug: 'server/setup' },
             { label: 'Storage', slug: 'server/storage' },
+            { label: 'Security', slug: 'server/security' },
             { label: 'Express', slug: 'server/express' },
             { label: 'Vercel', slug: 'server/vercel' },
             { label: 'Next.js, Hono, Bun, Deno', slug: 'server/fetch-runtimes' },

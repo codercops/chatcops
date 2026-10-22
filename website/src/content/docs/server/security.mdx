@@ -1,0 +1,140 @@
+---
+title: Security
+description: What can go wrong with a public chat endpoint, which ChatCops option stops each problem, and a production config for each platform.
+---
+
+A chat endpoint is a public URL that calls a paid model with your API key. Anyone who finds it can call it too, from any page or any script. This page covers what that exposes, which option stops each part, and a config to start from on each platform.
+
+## What each layer stops
+
+| Layer | Option | Stops | Doesn't stop |
+|---|---|---|---|
+| Allowed origins | `allowedOrigins` | Other sites putting your bot on their pages | Scripts, which can send any `Origin` |
+| Session tokens | `sessionSecrets` | Reading or continuing someone else's conversation with a leaked or guessed id | A script that asks for its own sessions |
+| Turnstile | `turnstile` | Cheap scripted session minting | Paid solver farms |
+| Rate limits | `rateLimit` (on by default) | One IP sending requests faster than a person types | Many IPs |
+| Budgets | `budgets` (on by default) | Any one conversation, IP or day costing more than you set | Nothing. This is the backstop. |
+
+No single layer is enough on its own. Allowed origins and sessions stop the easy cases. Budgets put a ceiling on the bill whatever gets through, and `budgets.globalPerDay` is the one number that caps it all. There's no default for it, because no single number fits every site, so set one.
+
+Rate limits and budgets are counted in `storage`. With the default memory storage, each serverless instance counts on its own, and a limit of 30 a minute becomes 30 per instance. Use a [store package](/server/storage/) in production.
+
+## Always on
+
+These need no config:
+
+- Visitor-supplied text (the page URL and title, pre-chat answers) goes into a separate block marked as untrusted data, never into your system prompt. It's capped at 4,000 characters.
+- Pre-chat answers are stored with the first message and can't be changed later in the conversation. `preChatFields` drops any field you didn't ask for.
+- Request bodies over 256 KB get `413`, and every field has a length cap.
+- Tool definitions are checked when the server starts, and a tool call whose arguments aren't valid JSON gets an error result instead of running.
+- Webhook URLs that point at private or link-local addresses (including cloud metadata endpoints like `169.254.169.254`) are refused unless the webhook sets `allowPrivateNetwork: true`. Only literal addresses are checked, so also block private ranges at the network level if you can.
+- The visitor's IP is read only from headers your platform sets, never from an `X-Forwarded-For` a visitor can send. See [the visitor's IP](/server/fetch-runtimes/#the-visitors-ip).
+
+## A production config
+
+These start from the same options. Swap the storage for the one you use.
+
+### Express
+
+```typescript
+import express from 'express';
+import pg from 'pg';
+import { chatcopsMiddleware } from '@chatcops/server';
+import { postgresStorage } from '@chatcops/store-postgres';
+
+const app = express();
+// Behind one proxy (a load balancer, nginx), so req.ip is the visitor's.
+app.set('trust proxy', 1);
+app.use(express.json());
+
+app.use(
+  '/api/chat',
+  chatcopsMiddleware({
+    provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+    systemPrompt: 'You are the Acme support assistant.',
+    storage: postgresStorage({ db: new pg.Pool({ connectionString: process.env.DATABASE_URL }) }),
+    allowedOrigins: ['https://acme.com', 'https://www.acme.com'],
+    sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+    budgets: { globalPerDay: { tokens: 20_000_000 } },
+  })
+);
+```
+
+Mount it with `app.use` so `/api/chat/session` reaches it too.
+
+### Vercel and Next.js
+
+```typescript
+// app/api/chat/route.ts, and the same two lines in app/api/chat/session/route.ts
+import { chatcopsVercelHandler } from '@chatcops/server';
+import { redisStorage } from '@chatcops/store-redis';
+import { Redis } from '@upstash/redis';
+
+const handler = chatcopsVercelHandler({
+  provider: { type: 'openai', apiKey: process.env.OPENAI_API_KEY! },
+  systemPrompt: 'You are the Acme support assistant.',
+  storage: redisStorage({ redis: Redis.fromEnv() }),
+  allowedOrigins: ['https://acme.com'],
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+  turnstile: { secretKey: process.env.TURNSTILE_SECRET_KEY! },
+  budgets: { globalPerDay: { tokens: 20_000_000 } },
+});
+
+export const POST = handler;
+export const OPTIONS = handler;
+```
+
+On Vercel the handler reads the visitor's IP from Vercel's own headers. On another host, add `clientIp`.
+
+### Cloudflare Workers
+
+```typescript
+import { chatcopsCloudflareHandler } from '@chatcops/server';
+import { redisStorage } from '@chatcops/store-redis';
+import { Redis } from '@upstash/redis/cloudflare';
+
+let chat: ReturnType<typeof chatcopsCloudflareHandler> | undefined;
+
+export default {
+  fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    // Secrets only exist inside a request, so build the handler on the first one.
+    chat ??= chatcopsCloudflareHandler({
+      provider: { type: 'claude', apiKey: env.ANTHROPIC_API_KEY },
+      systemPrompt: 'You are the Acme support assistant.',
+      storage: redisStorage({ redis: Redis.fromEnv(env) }),
+      allowedOrigins: ['https://acme.com'],
+      sessionSecrets: [env.CHATCOPS_SESSION_SECRET],
+      turnstile: { secretKey: env.TURNSTILE_SECRET_KEY },
+      budgets: { globalPerDay: { tokens: 20_000_000 } },
+    });
+    return chat(request, env, ctx);
+  },
+};
+```
+
+The Worker gets every path, so `/session` needs nothing extra. The visitor's IP comes from `CF-Connecting-IP`.
+
+### The widget
+
+With `turnstile` on the server, give the widget the site key. Nothing else changes, since the widget handles sessions on its own:
+
+```html
+<script
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  data-api-url="https://acme.com/api/chat"
+  data-turnstile-site-key="0x4AAAAAAA..."
+></script>
+```
+
+## Before you go live
+
+- `allowedOrigins` lists your sites, and nothing else. `['*']` is the default.
+- `storage` is a store package, so limits and budgets hold across instances.
+- `budgets.globalPerDay` is set to a number you're fine paying on a bad day.
+- `sessionSecrets` is set, from a secret store, never a `NEXT_PUBLIC_` or `VITE_` variable. Start with `requireSession: false` if widgets before 0.6 are still cached on your pages, and drop it after a few days.
+- On a host other than Vercel, Cloudflare or Express, `clientIp` reads your platform's header. Otherwise per-IP limits are skipped.
+- If you use the analytics endpoint, `analyticsToken` is set. Without it the endpoint is public.
+- Each tool checks its own input. The model writes it, and a visitor can steer the model, so treat a tool's input like a form submission: check ids belong to the visitor, and keep write actions behind your own auth.
+- Your system prompt says what the bot should refuse. None of these layers stop a visitor talking the model into off-topic work within your budget.
+
+The details of each option are on the [server setup page](/server/setup/): [allowed origins](/server/setup/#allowed-origins), [session tokens](/server/setup/#session-tokens), [Turnstile](/server/setup/#turnstile) and [budgets](/server/setup/#budgets).
