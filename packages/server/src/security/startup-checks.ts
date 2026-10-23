@@ -94,12 +94,12 @@ export function checkSecuritySettings(
     }
   }
 
-  for (const [index, origin] of origins.entries()) {
+  for (const origin of origins) {
     if (origin === '*') continue;
     if (!origin.startsWith('http://') && !origin.startsWith('https://')) {
       problems.push({
         level: 'error',
-        message: `Allowed origin ${index + 1} must start with http:// or https://.`,
+        message: `Allowed origin "${origin}" must start with http:// or https://.`,
       });
       continue;
     }
@@ -109,23 +109,23 @@ export function checkSecuritySettings(
     } catch {
       problems.push({
         level: 'error',
-        message: `Allowed origin ${index + 1} is not a valid URL.`,
+        message: `Allowed origin "${origin}" is not a valid URL.`,
       });
       continue;
     }
-    if (parsed.pathname !== '/' || parsed.search !== '' || origin.endsWith('/')) {
+    if (parsed.pathname !== '/' || parsed.search !== '' || parsed.hash !== '' || /[/?#]$/.test(origin)) {
       problems.push({
         level: 'error',
         message:
-          `Allowed origin ${index + 1} must not have a path, a query or a trailing slash, ` +
-          'because browsers send the origin without one.',
+          `Allowed origin "${origin}" must not have a path, a query, a fragment or a trailing slash, ` +
+          `because browsers send the origin without one. Use "${parsed.origin}".`,
       });
       continue;
     }
     if (origin.startsWith('http://') && parsed.hostname !== 'localhost' && parsed.hostname !== '127.0.0.1') {
       problems.push({
         level: 'warning',
-        message: `Allowed origin ${index + 1} uses http://. Use https://, unless it is a local development server.`,
+        message: `Allowed origin "${origin}" uses http://. Use https://, unless it is a local development server.`,
       });
     }
   }
@@ -133,9 +133,39 @@ export function checkSecuritySettings(
   if (origins.includes('*') && origins.length > 1) {
     problems.push({
       level: 'warning',
-      message: `Allowed origins include "*", so the other ${origins.length - 1} entries do nothing.`,
+      message: 'Allowed origins include "*", which allows every site, so the other entries do nothing.',
     });
   }
 
   return problems;
+}
+
+/** What a server's security settings come to, for the startup log. */
+export interface SecuritySummary {
+  allowedOrigins: string[];
+  /** Seconds, when session tokens are on. */
+  sessionTtlSec?: number;
+  requireSession?: boolean;
+  turnstile: boolean;
+}
+
+/** The one line the server logs at startup about its security settings. */
+export function describeSecurity(summary: SecuritySummary): string {
+  const origins = summary.allowedOrigins.includes('*')
+    ? 'any site (allowedOrigins is "*"; list your sites in production)'
+    : summary.allowedOrigins.join(', ');
+  const sessions =
+    summary.sessionTtlSec === undefined
+      ? 'session tokens off'
+      : `session tokens on (${summary.sessionTtlSec}s${summary.requireSession === false ? ', not required' : ''})`;
+  return `[chatcops] Security: chat allowed from ${origins}; ${sessions}; Turnstile ${summary.turnstile ? 'on' : 'off'}.`;
+}
+
+/** Logs the problems `checkSecuritySettings` finds, errors first, then the summary line. */
+export function logSecurityAtStartup(settings: SecuritySettings & Omit<SecuritySummary, 'allowedOrigins'>): void {
+  const allowedOrigins = settings.allowedOrigins ?? ['*'];
+  const problems = checkSecuritySettings({ ...settings, allowedOrigins });
+  for (const problem of problems.filter((p) => p.level === 'error')) console.error(`[chatcops] ERROR: ${problem.message}`);
+  for (const problem of problems.filter((p) => p.level === 'warning')) console.warn(`[chatcops] ${problem.message}`);
+  console.info(describeSecurity({ ...settings, allowedOrigins }));
 }

@@ -174,7 +174,7 @@ describe('default budgets', () => {
     const { createChatHandler: fresh } = await import('../src/handler.js');
     fresh({ provider: scriptedProvider([]), systemPrompt: 'x' }).cleanup();
     fresh({ provider: scriptedProvider([]), systemPrompt: 'x' }).cleanup();
-    expect(info.mock.calls).toEqual([
+    expect(info.mock.calls.filter(([line]) => String(line).includes('Budgets'))).toEqual([
       [
         '[chatcops] Budgets: 200 replies per conversation (default), 2M tokens per IP per day (default). No daily total is set; `budgets.globalPerDay` caps your whole bill. Set `budgets` to change them, or `budgets: false` to turn them off.',
       ],
@@ -186,7 +186,7 @@ describe('default budgets', () => {
     const info = vi.spyOn(console, 'info').mockImplementation(() => {});
     const { createChatHandler: fresh } = await import('../src/handler.js');
     fresh({ provider: scriptedProvider([]), systemPrompt: 'x', budgets: false }).cleanup();
-    expect(info).not.toHaveBeenCalled();
+    expect(info.mock.calls.filter(([line]) => String(line).includes('Budgets'))).toEqual([]);
   });
 
   it('describes budgets you set', () => {

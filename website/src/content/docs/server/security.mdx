@@ -128,6 +128,15 @@ With `turnstile` on the server, give the widget the site key. Nothing else chang
 
 ## Before you go live
 
+The server logs one line about these settings when it starts, and an error or warning for the mistakes it can spot: an origin without `https://` or with a path, an `http://` origin that isn't local, a session secret that's also in a `NEXT_PUBLIC_` (or `VITE_`, `PUBLIC_` and so on) variable. For example:
+
+```
+[chatcops] ERROR: Allowed origin "acme.com" must start with http:// or https://.
+[chatcops] Security: chat allowed from acme.com; session tokens on (900s); Turnstile off.
+```
+
+Then go through the list:
+
 - `allowedOrigins` lists your sites, and nothing else. `['*']` is the default.
 - `storage` is a store package, so limits and budgets hold across instances.
 - `budgets.globalPerDay` is set to a number you're fine paying on a bad day.

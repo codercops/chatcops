@@ -31,7 +31,9 @@ import {
 } from '@chatcops/core';
 import type { ChatCopsServerConfig, ValidatedChatRequest } from './config.js';
 import { chatRequestSchema } from './config.js';
-import { createSessions } from './security/sessions.js';
+import { allowedOriginsOf } from './security/origin-policy.js';
+import { DEFAULT_SESSION_TTL_SEC, createSessions } from './security/sessions.js';
+import { logSecurityAtStartup } from './security/startup-checks.js';
 import { VISITOR_CONTEXT_INSTRUCTION, buildVisitorContext, isLocaleTag, withVisitorContext } from './visitor-context.js';
 import { WebhookDispatcher } from './webhook.js';
 
@@ -97,6 +99,16 @@ export function createChatHandler(config: ChatCopsServerConfig) {
   validateTools(toolDefs);
   const tools = toolRegistry(config.tools);
   const sessions = createSessions(config, async (id) => (await conversations.getMessages(id)).length === 0);
+  if (!loggedSecurity) {
+    loggedSecurity = true;
+    logSecurityAtStartup({
+      allowedOrigins: allowedOriginsOf(config),
+      sessionSecrets: config.sessionSecrets,
+      sessionTtlSec: sessions ? (config.sessionTtlSec ?? DEFAULT_SESSION_TTL_SEC) : undefined,
+      requireSession: sessions?.required,
+      turnstile: Boolean(config.turnstile),
+    });
+  }
 
   const requests: Record<ChatFormat, number> = { v1: 0, legacy: 0, 'ai-sdk': 0 };
 
@@ -519,6 +531,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /** Once per process (per isolate on Workers), not once per handler. */
 let warnedMemoryStorage = false;
 let loggedBudgets = false;
+let loggedSecurity = false;
 let loggedLegacyFormat = false;
 
 const SCOPE_LABELS: Record<BudgetScope, string> = { conversation: 'per conversation', ip: 'per IP per day', global: 'per day in total' };
