@@ -1,5 +1,9 @@
+import { errorBody } from '@chatcops/core';
 import type { Request, Response, NextFunction } from 'express';
+import { expressClientIp } from '../client-ip.js';
 import { createChatHandler } from '../handler.js';
+import { PROTOCOL_HEADER, chatReply, isSessionPath } from '../http.js';
+import { originPolicy } from '../security/origin-policy.js';
 import type { ChatCopsServerConfig } from '../config.js';
 
 type ChatHandler = ReturnType<typeof createChatHandler>;
@@ -16,36 +20,49 @@ function getOrCreateChatHandler(config: ChatCopsServerConfig): ChatHandler {
 }
 
 export function chatcopsMiddleware(config: ChatCopsServerConfig) {
-  const { handleChat } = getOrCreateChatHandler(config);
-  const corsOrigin = config.cors ?? '*';
-
-  function sendError(res: Response, status: number, error: string) {
-    res.setHeader('Access-Control-Allow-Origin', corsOrigin);
-    res.status(status).json({ error });
-  }
+  const chat = getOrCreateChatHandler(config);
+  const origins = originPolicy(config);
 
   return async function chatcopsHandler(req: Request, res: Response, _next: NextFunction) {
+    const header = req.headers?.origin;
+    const origin = typeof header === 'string' ? header : null;
+    const setHeaders = (headers: Record<string, string>) => {
+      for (const [name, value] of Object.entries(headers)) res.setHeader(name, value);
+    };
+    const sendError = (status: number, error: string) => {
+      setHeaders(origins.headers(origin));
+      res.status(status).json({ error });
+    };
+
     // Handle CORS preflight
     if (req.method === 'OPTIONS') {
-      res.setHeader('Access-Control-Allow-Origin', corsOrigin);
-      res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-      res.setHeader('Access-Control-Max-Age', '86400');
+      setHeaders(origins.preflightHeaders(origin));
       res.status(204).end();
       return;
     }
 
     if (req.method !== 'POST') {
-      sendError(res, 405, 'Method not allowed');
+      sendError(405, 'Method not allowed');
+      return;
+    }
+    if (!origins.allows(origin)) {
+      sendError(403, 'origin_not_allowed');
       return;
     }
 
-    const clientIp = req.ip ?? req.socket.remoteAddress ?? 'unknown';
+    // `app.use('/api/chat', chatcopsMiddleware(...))` sends /api/chat/session here too.
+    if (isSessionPath(req.path ?? '')) {
+      setHeaders(origins.headers(origin));
+      if (!chat.startSession) {
+        res.status(404).json(errorBody('invalid_request', { message: 'Session tokens are off. Set `sessionSecrets` to turn them on.' }));
+        return;
+      }
+      const reply = await chat.startSession(req.body, origin, expressClientIp(req));
+      res.status(reply.status).json(reply.body);
+      return;
+    }
 
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('Access-Control-Allow-Origin', corsOrigin);
+    const clientIp = expressClientIp(req);
 
     // Stop the reply when the visitor goes away before it's done.
     const abort = new AbortController();
@@ -53,16 +70,25 @@ export function chatcopsMiddleware(config: ChatCopsServerConfig) {
       if (!res.writableFinished) abort.abort();
     });
 
+    const protocolHeader = req.headers?.[PROTOCOL_HEADER];
+    const authorization = req.headers?.authorization;
+    const reply = await chatReply(chat, req.body, clientIp, {
+      signal: abort.signal,
+      protocolHeader: typeof protocolHeader === 'string' ? protocolHeader : null,
+      authorization: typeof authorization === 'string' ? authorization : null,
+      origin,
+    });
+    if (reply.kind === 'json') {
+      setHeaders({ ...origins.headers(origin), ...reply.headers });
+      res.status(reply.status).json(reply.body);
+      return;
+    }
+
+    setHeaders({ ...reply.headers, ...origins.headers(origin) });
     try {
-      for await (const chunk of handleChat(req.body, clientIp, { signal: abort.signal })) {
+      for await (const frame of reply.frames) {
         if (abort.signal.aborted) break;
-        res.write(`data: ${chunk}\n\n`);
-      }
-      if (!abort.signal.aborted) res.write('data: [DONE]\n\n');
-    } catch (err) {
-      if (!abort.signal.aborted) {
-        console.error('[chatcops] Unhandled error while handling chat:', err);
-        res.write(`data: ${JSON.stringify({ error: 'internal_error' })}\n\n`);
+        res.write(frame);
       }
     } finally {
       res.end();
@@ -70,9 +96,60 @@ export function chatcopsMiddleware(config: ChatCopsServerConfig) {
   };
 }
 
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
+
+/**
+ * Analytics stats as JSON. With a storage that has an event sink, they cover
+ * every instance, for `?from=` and `?to=` (milliseconds) or the last 30 days.
+ */
 export function chatcopsAnalyticsHandler(config: ChatCopsServerConfig) {
-  const { getAnalytics } = getOrCreateChatHandler(config);
-  return (_req: Request, res: Response) => {
-    res.json(getAnalytics());
+  const { analyticsStats } = getOrCreateChatHandler(config);
+  let warned = false;
+
+  return async (req: Request, res: Response) => {
+    if (config.analyticsToken) {
+      const auth = req.headers?.authorization;
+      const token = typeof auth === 'string' && auth.startsWith('Bearer ') ? auth.slice(7) : undefined;
+
+      if (!token || !constantTimeEqual(token, config.analyticsToken)) {
+        res.setHeader('WWW-Authenticate', 'Bearer');
+        res.status(401).json({ error: 'unauthorized' });
+        return;
+      }
+    } else if (!warned) {
+      warned = true;
+      console.warn(
+        '[chatcops] The analytics endpoint is public and anyone can read your stats. Set `analyticsToken` in your ChatCopsServerConfig to require a bearer token.'
+      );
+    }
+
+    const from = timeParam(req.query?.from);
+    const to = timeParam(req.query?.to);
+    if (from === null || to === null) {
+      res.status(400).json({ error: 'invalid_range' });
+      return;
+    }
+    try {
+      res.json(await analyticsStats({ from, to }));
+    } catch (err) {
+      console.error('[chatcops] Reading analytics failed:', err instanceof Error ? err.message : String(err));
+      res.status(500).json({ error: 'internal_error' });
+    }
   };
+}
+
+/** A `from` or `to` query value: unset, a time in milliseconds, or `null` when it isn't one. */
+function timeParam(value: unknown): number | undefined | null {
+  if (value === undefined) return undefined;
+  const time = typeof value === 'string' && value.trim() !== '' ? Number(value) : Number.NaN;
+  return Number.isFinite(time) ? time : null;
 }

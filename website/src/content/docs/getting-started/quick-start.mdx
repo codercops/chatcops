@@ -52,7 +52,7 @@ app.all('/chat', chatcopsMiddleware({
   },
   systemPrompt: `You are a helpful customer support assistant for our website.
     Be friendly, concise, and helpful.`,
-  cors: '*',
+  allowedOrigins: ['*'],
   rateLimit: { maxRequests: 30, windowMs: 60_000 },
 }));
 

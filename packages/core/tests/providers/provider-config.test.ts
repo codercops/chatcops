@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { normalizeHistory } from '../../src/providers/base.js';
+import { createProvider, normalizeHistory } from '../../src/providers/base.js';
 import {
   ClaudeProvider,
   claudeRejectsTemperature,
@@ -7,6 +7,7 @@ import {
   parseClaudeModel,
 } from '../../src/providers/claude.js';
 import { OpenAIProvider, isOpenAIReasoningModel } from '../../src/providers/openai.js';
+import { GeminiProvider } from '../../src/providers/gemini.js';
 import { ConversationManager } from '../../src/conversation/manager.js';
 import type { ChatMessage, ProviderChatParams } from '../../src/types.js';
 
@@ -55,6 +56,41 @@ function mockOpenAI(provider: OpenAIProvider, create: ReturnType<typeof vi.fn>) 
 
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+describe('provider setup validation', () => {
+  it.each(['claude', 'openai', 'gemini'] as const)('requires an explicit key for %s', async (type) => {
+    vi.stubEnv('OPENAI_API_KEY', 'environment-key');
+    vi.stubEnv('ANTHROPIC_API_KEY', 'environment-key');
+    vi.stubEnv('GOOGLE_API_KEY', 'environment-key');
+    try {
+      for (const apiKey of [undefined, '', '   ']) {
+        await expect(createProvider({ type, apiKey })).rejects.toThrow(`${type} requires apiKey`);
+      }
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('validates keys when hosted classes are constructed directly', () => {
+    expect(() => new ClaudeProvider({ type: 'claude' })).toThrow('claude requires apiKey');
+    expect(() => new OpenAIProvider({ type: 'openai' })).toThrow('openai requires apiKey');
+    expect(() => new GeminiProvider({ type: 'gemini' })).toThrow('gemini requires apiKey');
+  });
+
+  it.each(['baseURL', 'model'] as const)('requires a nonempty %s for openai-compatible', async (field) => {
+    for (const value of [undefined, '', '   ']) {
+      await expect(createProvider({
+        type: 'openai-compatible', baseURL: 'http://localhost:11434/v1', model: 'local', [field]: value,
+      })).rejects.toThrow(`openai-compatible requires ${field}`);
+    }
+  });
+
+  it.each(['claude', 'openai', 'gemini'] as const)('keeps hosted defaults for %s', async (type) => {
+    const provider = await createProvider({ type, apiKey: 'test-key' });
+    expect(provider.name).toBe(type);
+    expect(provider.model).toBe(type === 'claude' ? 'claude-haiku-5-5' : type === 'openai' ? 'gpt-5-mini' : 'gemini-3.5-flash-lite');
+  });
 });
 
 describe('normalizeHistory', () => {

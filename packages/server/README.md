@@ -25,7 +25,7 @@ app.all('/chat', chatcopsMiddleware({
     apiKey: process.env.ANTHROPIC_API_KEY,
   },
   systemPrompt: 'You are a helpful assistant for our website.',
-  cors: '*',
+  allowedOrigins: ['*'],
 }));
 
 app.listen(3001);
@@ -39,7 +39,7 @@ import { chatcopsVercelHandler } from '@chatcops/server';
 const handler = chatcopsVercelHandler({
   provider: { type: 'openai', apiKey: process.env.OPENAI_API_KEY },
   systemPrompt: 'You are a helpful assistant.',
-  cors: '*',
+  allowedOrigins: ['*'],
 });
 
 export const POST = (req: Request) => handler(req);
@@ -57,7 +57,7 @@ function getHandler(env: Env) {
   handler ??= chatcopsCloudflareHandler({
     provider: { type: 'claude', apiKey: env.ANTHROPIC_API_KEY },
     systemPrompt: 'You are a helpful assistant.',
-    cors: '*',
+    allowedOrigins: ['*'],
   });
   return handler;
 }
@@ -115,7 +115,7 @@ const handler = createChatHandler({
   conversationStore: new RedisConversationStore(redisClient),
 
   // CORS origin (optional, default: '*')
-  cors: '*',
+  allowedOrigins: ['*'],
 });
 ```
 

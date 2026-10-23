@@ -25,7 +25,7 @@ test('streams a reply into the panel', async ({ page }) => {
   await page.locator(send).click();
 
   await expect(page.locator('.cc-message-user').last()).toContainText('Hi there');
-  await expect(page.locator('.cc-message-assistant').last()).toContainText('Hello from the mock server.');
+  await expect(page.locator('.cc-message-assistant').last()).toContainText('Hello from the test server.');
 });
 
 test('Escape closes the popup and returns focus to the launcher', async ({ page }) => {
@@ -74,7 +74,7 @@ test('has no serious accessibility violations, closed or open', async ({ page })
   await expect(page.locator(panel)).toHaveClass(/cc-visible/);
   await page.locator(input).fill('Hi there');
   await page.locator(send).click();
-  await expect(page.locator('.cc-message-assistant').last()).toContainText('mock server');
+  await expect(page.locator('.cc-message-assistant').last()).toContainText('test server');
 
   const open = await new AxeBuilder({ page }).include('#chatcops-root').analyze();
   expect(seriousOrWorse(open.violations)).toEqual([]);

@@ -51,7 +51,8 @@ const handler = chatcopsMiddleware({
     ]),
   ],
 
-  // Optional: Rate limiting
+  // Optional: Rate limiting per visitor IP, a sliding window. Counted in
+  // `storage` when it has counters, so the limit holds across instances.
   rateLimit: {
     maxRequests: 30,     // Max requests per window
     windowMs: 60_000,    // Window duration in ms
@@ -69,11 +70,11 @@ const handler = chatcopsMiddleware({
   // Optional: Analytics
   analytics: true,
 
-  // Optional: Conversation store (defaults to in-memory)
-  conversationStore: new RedisConversationStore(redisClient),
+  // Optional: Persistent storage. See /server/storage.
+  storage: { conversations: myStore },
 
-  // Optional: CORS origin
-  cors: '*',
+  // Optional: the sites that can use the chat (see Allowed origins below)
+  allowedOrigins: ['https://acme.com', 'https://*.acme.com'],
 });
 ```
 
@@ -81,25 +82,37 @@ const handler = chatcopsMiddleware({
 
 ```typescript
 interface ChatCopsServerConfig {
-  provider: {
-    type: 'claude' | 'openai' | 'gemini';
-    apiKey: string;
-    model?: string;
-  };
+  // A config (see Providers for every option), or a provider object.
+  provider:
+    | { type: 'claude' | 'openai' | 'gemini'; apiKey: string; model?: string }
+    | AIProvider;
   systemPrompt: string;
   tools?: ChatTool[];
   toolTimeoutMs?: number;
   maxTokens?: number;
   temperature?: number;
   knowledge?: KnowledgeSource[];
+  budgets?: Budgets | false;   // on by default, see Budgets below
+  preChatFields?: string[];   // pre-chat form fields to keep; kept from the first message on
   rateLimit?: {
     maxRequests: number;
     windowMs: number;
   };
   webhooks?: WebhookConfig[];
   analytics?: boolean;
+  storage?: ChatCopsStorage;            // where conversations, counters and locks live
+  retention?: { conversationsDays?: number };   // for purge(); default 30
+  /** @deprecated Use `storage`. */
   conversationStore?: ConversationStore;
+  allowedOrigins?: string[];   // default ['*']
+  /** @deprecated Use `allowedOrigins`. */
   cors?: string;
+  clientIp?: (request: Request) => string | null | undefined;   // fetch handlers, see the fetch runtimes page
+  sessionSecrets?: string[];   // turns on session tokens, see Session tokens below
+  sessionTtlSec?: number;      // default 900
+  requireSession?: boolean;    // default true when sessionSecrets is set
+  turnstile?: { secretKey: string; action?: string; expectedHostnames?: string[]; timeoutMs?: number };
+  exposeUsage?: boolean;   // token usage in protocol v1 finish parts; default false
   /** @deprecated Ignored by the server. Use the widget's `strings` option. */
   i18n?: {
     defaultLocale: string;
@@ -108,34 +121,136 @@ interface ChatCopsServerConfig {
 }
 ```
 
-## Custom Conversation Store
+### A provider object instead of a config
 
-By default, the server keeps conversation history in memory, per process. It's bounded: past 1000 conversations the least recently used ones go first, and conversations idle for 7 days are dropped. For multi-instance deployments or persistent chat history across restarts, pass a custom `conversationStore` that implements the `ConversationStore` interface from `@chatcops/core`:
+`provider` also takes an object you built yourself: anything with `step()` or `chat()` (the [AIProvider interface](/core/providers/#aiprovider-interface)). Use it for a provider ChatCops doesn't have, or in tests with `scriptedProvider()`, which plays back a script instead of calling a model:
 
 ```typescript
-import type { ConversationStore, Conversation } from '@chatcops/core';
+import { scriptedProvider, textStep } from '@chatcops/core/testing/provider';
 
-class RedisConversationStore implements ConversationStore {
-  constructor(private redis: RedisClient) {}
-
-  async get(id: string): Promise<Conversation | null> {
-    const raw = await this.redis.get(`chat:${id}`);
-    return raw ? JSON.parse(raw) : null;
-  }
-
-  async save(conversation: Conversation): Promise<void> {
-    await this.redis.set(`chat:${conversation.id}`, JSON.stringify(conversation));
-  }
-
-  async delete(id: string): Promise<void> {
-    await this.redis.del(`chat:${id}`);
-  }
-}
+const handler = createChatHandler({
+  provider: scriptedProvider([textStep('Hello from a test.')]),
+  systemPrompt: 'Be brief.',
+});
 ```
 
-A store with only `get`, `save` and `delete` works, and the server logs one warning at startup: every write saves the whole conversation, so two server instances answering the same conversation at the same moment can lose a message. Stores can also implement `append`, `updateMessage` and `removeMessage` (see the `ConversationStore` type in `@chatcops/core`), which the server then uses instead. Ready-made stores for Redis, SQLite, Postgres and Cloudflare are on the way.
+## Storage
 
-The history sent to the model is trimmed to about 32,000 tokens: the visitor's first message plus as many recent ones as fit. Stored history keeps up to 100 messages per conversation.
+By default everything lives in memory, per process. That's fine on one long-running server, but on Vercel, Lambda or Workers each instance has its own memory, so the server logs a warning there. Pass a store package as `storage`:
+
+```typescript
+import pg from 'pg';
+import { postgresStorage } from '@chatcops/store-postgres';
+
+const handler = chatcopsMiddleware({
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+  systemPrompt: 'You are a helpful assistant.',
+  storage: postgresStorage({ db: new pg.Pool({ connectionString: process.env.DATABASE_URL }) }),
+});
+```
+
+With a storage that has key-value support, the rule that only one reply is written per conversation at a time holds across all your server instances, not just within one. Setting both `storage` and the older `conversationStore` is an error.
+
+Nothing is deleted on its own. The handler's `purge()` deletes conversations last updated more than `retention.conversationsDays` (default 30) days ago. Call it on a schedule, from a cron job or a Workers cron trigger:
+
+```typescript
+const { purge } = createChatHandler(config);
+await purge(); // resolves how many were deleted
+```
+
+## Allowed origins
+
+`allowedOrigins` lists the sites whose pages can use the chat. Each entry is an exact origin, or a wildcard for subdomains:
+
+```typescript
+allowedOrigins: ['https://acme.com', 'https://*.acme.com'],
+```
+
+A browser request from any other page gets `403 {"error":"origin_not_allowed"}` before the model is called, and the server logs the origin it refused. Without the list (or with `['*']`), any site can put your chat on its pages and spend your tokens. Set it in production.
+
+Entries need the scheme and no path: `https://acme.com`, not `acme.com` or `https://acme.com/`. `https://*.acme.com` matches `https://docs.acme.com` but not `https://acme.com` itself, so list both if you need both. Include the port when it isn't the default, as in `http://localhost:4321`.
+
+Requests without an `Origin` header, such as `curl` or a call from your own server, still go through. The list stops other sites embedding your bot. It doesn't stop scripts, which can send any `Origin` they like. Rate limits and budgets are what stop those.
+
+`cors` is the older option for one origin. It still works as a one-item `allowedOrigins`, with a deprecation warning.
+
+## Session tokens
+
+Without session tokens, anyone who knows a conversation id can keep talking in that conversation, and the model answers with its history in view. Ids are random, so this is about leaked ids and guessing. With `sessionSecrets` set, the chat needs a short-lived token that's bound to one conversation and one site:
+
+```typescript
+sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+```
+
+Each secret needs at least 32 bytes; `openssl rand -base64 32` makes one. Keep it on the server, never in a `NEXT_PUBLIC_` or `VITE_` variable. The server refuses to start with a shorter one.
+
+The client asks for a token at the chat URL plus `/session` (`/api/chat/session` for a chat at `/api/chat`):
+
+```
+POST /api/chat/session
+{ "conversationId": "c_8f2", "previousToken": "eyJ..." }
+
+200 { "token": "eyJ...", "expiresAt": 1792411200000, "conversationId": "c_8f2" }
+```
+
+Then it sends `Authorization: Bearer <token>` with each chat request. Tokens last `sessionTtlSec` (15 minutes by default). To keep a conversation, the client sends its id with the token it had for it, which still works up to 30 days after it expired. An id that has nothing stored yet is given out as is, since there's nothing in it to read. An id that has messages, sent without its token or with a token for another conversation or site, gets a new conversation instead, so a guessed or leaked id is useless.
+
+The widget does all of this on its own from 0.6. When a chat request gets a 401, it asks `/session` for a token, keeps it in `localStorage` and sends the request again. When the server answers with a new conversation id, the widget moves to it.
+
+With Express, mount the middleware with `app.use('/api/chat', ...)` so `/api/chat/session` reaches it. On Vercel or Next.js, export the same handler from a second route file at `app/api/chat/session/route.ts`. A Cloudflare Worker gets every path already.
+
+Chat requests without a token get `401 session_required`, an expired token gets `401 token_expired`, and a token for another conversation gets `401 conversation_mismatch`. Widgets before 0.6 don't send tokens, so set `requireSession: false` while they're still around: requests without a token then go through, and the ones that send a token are still checked.
+
+To change the secret, put the new one first and keep the old one until its tokens have expired: `sessionSecrets: [newSecret, oldSecret]`. New tokens are signed with the first, and any of them verifies.
+
+### Turnstile
+
+A script can still ask for as many sessions as it likes. To make that harder, have `/session` check a [Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/) token first:
+
+```typescript
+sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+turnstile: { secretKey: process.env.TURNSTILE_SECRET_KEY! },
+```
+
+Then give the widget the site key, with `data-turnstile-site-key="0x4AAA..."` or `turnstileSiteKey` in `ChatCops.init()`. The widget loads Cloudflare's script only when it first needs a session, so visitors who never open the chat don't load it. The check is invisible for most visitors. When Cloudflare wants a click, the challenge shows near the bottom right corner of the page, outside the widget. A page with a Content Security Policy needs `https://challenges.cloudflare.com` in `script-src` and `frame-src`.
+
+The server checks the token with Cloudflare, sending the visitor's IP, and refuses a missing or failed one with `401 turnstile_failed`. If Cloudflare can't be reached, `/session` answers `503` and issues nothing. A session refreshed with its previous token skips Turnstile, since it passed when it was first issued. `action`, `expectedHostnames` and `timeoutMs` (default 5000) are optional, and a client that retries `/session` with the same Turnstile token can send the same `idempotencyKey` (a UUID) each time.
+
+## Budgets
+
+Budgets cap what replies can cost, so a script hammering your endpoint can't run up the bill. They're counted in `storage`, so they hold across instances.
+
+They're on by default:
+
+| Scope | Default | Why |
+|---|---|---|
+| `perConversation` | 200 replies | The widget keeps a conversation across visits, so this counts replies rather than tokens, which would grow with the size of your system prompt. |
+| `perIpPerDay` | 2M tokens | The cost backstop. A script can start new conversations at will, but not new IPs as easily. |
+| `globalPerDay` | none | No single number fits every site. Set one. |
+
+The server logs the budgets in force once at startup:
+
+```
+[chatcops] Budgets: 200 replies per conversation (default), 2M tokens per IP per day (default). No daily total is set; `budgets.globalPerDay` caps your whole bill. Set `budgets` to change them, or `budgets: false` to turn them off.
+```
+
+A scope you set replaces its default whole. `false` turns a scope off, and `budgets: false` turns them all off:
+
+```typescript
+budgets: {
+  perConversation: { tokens: 400_000 },            // over the conversation's lifetime
+  perIpPerDay: { tokens: 2_000_000, messages: 200 },
+  globalPerDay: { usd: 20 },                        // the backstop
+  // What a request cost, for the dollar cap. Price cached input at its discount.
+  price: (usage) => (usage.inputTokens * 1 + usage.outputTokens * 5) / 1_000_000,
+},
+```
+
+Tokens count input and output at face value, and every request sends the conversation so far, so a long conversation uses up a token budget faster than its length suggests. Budgets are checked before each model request and charged after it, so a reply can go over by one request, and each request asks for no more output than is left. A used-up budget ends the reply with an error instead of calling the model, and the server logs which one.
+
+The per-IP budget needs the visitor's IP, so it's skipped for requests where the adapter can't tell.
+
+For persistent conversations, custom stores, Postgres, Redis, and the storage capabilities available to the server, see [the storage page](/server/storage/).
 
 ## Webhooks
 
@@ -195,7 +310,8 @@ The server validates incoming requests with Zod:
   conversationId: string,  // 1-128 chars
   message: string,         // 1-10000 chars
   messageId?: string,      // Optional, 1-128 chars
-  regenerate?: boolean,    // Optional
+  protocol?: 1,            // Optional, asks for protocol v1 (see Response format)
+  regenerate?: boolean | { assistantMessageId: string },  // Optional
   pageContext?: {           // Optional page context
     url: string,           // Valid URL (the prompt gets the first 2000 chars)
     title: string,         // Max 500 chars
@@ -209,41 +325,46 @@ The server validates incoming requests with Zod:
 }
 ```
 
-## Response Format
+The widget sends pre-chat answers in `userData`. See the [pre-chat form guide](/widget/pre-chat-form) for how the widget collects and submits these answers. Use the `preChatFields` option in [`ChatCopsServerConfig`](#chatcopsserverconfig) to limit which fields the server keeps.
 
-The server responds with SSE (Server-Sent Events) for streaming. Each event is a
-`data: <json>` line followed by a blank line. A successful response can include
-text chunks, lead-capture events, and a final completion event:
+## Response format
+
+The server answers in one of two formats. The widget from 0.6 on sends `"protocol": 1` in the request body and gets protocol v1. Requests without it, from widgets before 0.6 or older custom clients, get the 0.5 format, which keeps working until 1.0. A client can also ask for v1 with an `x-chatcops-protocol: 1` header. The server logs one line the first time it answers in the 0.5 format, so you can tell when old widgets are still around. `chatcopsAiSdkHandler` answers in a third format, the AI SDK's, for apps built on `useChat` (see [AI SDK](/server/ai-sdk/)).
+
+The server writes one reply per conversation at a time, so a second message sent while a reply is streaming is refused instead of answering the same history twice. The widget doesn't let visitors send while a reply streams, so this only shows up with custom clients.
+
+Each reply is saved as one assistant message with its parts: the text, and every tool call and result in order. It's saved after each tool round, so a reply cut off partway still has the finished tool steps. A retry of a message that already has a finished reply gets that reply again, without calling the model.
+
+### Protocol v1
+
+Protocol v1 is the default stream format for modern ChatCops clients. Replies stream as typed Server-Sent Events (SSE) carrying granular event parts, with pre-stream refusals returned as JSON with standard HTTP error statuses.
+
+For the full specification covering format negotiation, request fields, SSE framing, all 13 wire part variants, and HTTP error mappings, see the [Protocol Reference](/server/protocol/).
+
+### The 0.5 format
+
+Requests without `protocol` get plain chunks:
 
 ```
-Content-Type: text/event-stream
-
 data: {"content":"Hello"}
 
 data: {"content":" there"}
 
 data: {"leadCaptured":true,"leadData":{"name":"Ada","email":"ada@example.com","projectDetails":"Support bot for an online store","source":"chatcops-widget"}}
 
-data: {"content":"!"}
-
 data: {"done":true}
 
 data: [DONE]
 ```
 
-The stream can contain these event shapes:
+The stream can contain these chunks:
 
 - `{"content":"..."}` for each text chunk.
 - `{"leadCaptured":true,"leadData":{...}}` when the lead capture tool succeeds.
 - `{"error":"rate_limit","retryAfter":12}` when the client is rate limited.
-- `{"error":"provider_error"}` when the provider fails while generating a reply.
+- `{"error":"provider_error"}` when the provider fails or can't be set up, when the model keeps calling tools past the limit, or when a reply is already being written for the same conversation.
 - `{"error":"Invalid request","details":{...}}` when the request fails schema validation.
-- `{"error":"internal_error"}` when an adapter encounters an unexpected error.
+- `{"error":"internal_error"}` when the server hits an unexpected error.
 - `{"done":true}` at the end of a successful reply.
-- `data: [DONE]` as the final line written by the Vercel, Cloudflare, and Express adapters.
 
-Rate-limit and request-validation errors are stream events in an HTTP 200
-response, followed by `data: [DONE]`. Invalid JSON cannot be parsed as a
-request, so the Vercel and Cloudflare adapters return HTTP 400 instead.
-Non-`POST` requests return HTTP 405 (and `OPTIONS` requests are handled as CORS
-preflight requests).
+Errors in this format are chunks in an HTTP 200 response, followed by `data: [DONE]`. A body that isn't JSON gets HTTP 400 `{"error":"Invalid JSON body"}`.

@@ -13,6 +13,11 @@ const DEFAULT_CONFIG: RateLimitConfig = {
   windowMs: 60_000,
 };
 
+/**
+ * @deprecated The server now limits with `createRateLimiter` from
+ * `@chatcops/core`, on the storage's counters, so limits hold across
+ * instances. This in-process limiter is kept for code that uses it directly.
+ */
 export class RateLimiter {
   private store = new Map<string, RateLimitEntry>();
   private config: RateLimitConfig;

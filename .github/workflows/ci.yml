@@ -51,6 +51,15 @@ jobs:
             exit 1
           fi
 
+      # Recorded provider responses are replayed in tests. The recording script
+      # refuses to write a key, and this catches one added by hand.
+      - name: No API keys in test fixtures
+        run: |
+          if git grep -n -I -E '(^|[^A-Za-z0-9_])(sk-ant-|sk-proj-|sk-[A-Za-z0-9]{20,})|AIza[0-9A-Za-z_-]{35}' -- 'packages/*/tests/fixtures'; then
+            echo "::error::A test fixture above looks like it contains an API key. Remove it and rotate the key."
+            exit 1
+          fi
+
       - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
@@ -108,8 +117,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Build the widget
-        run: pnpm --filter @chatcops/widget build
+      # e2e/server.mjs runs the real server handler, so build it and core too.
+      - name: Build the widget and the server
+        run: pnpm --filter @chatcops/widget --filter "@chatcops/server..." build
 
       - name: Install Chromium
         run: pnpm exec playwright install --with-deps chromium

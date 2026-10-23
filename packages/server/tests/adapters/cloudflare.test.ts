@@ -49,7 +49,7 @@ describe('chatcopsCloudflareHandler', () => {
       systemPrompt: 'Test',
       cors: 'https://example.com',
     });
-    const req = new Request('http://localhost/api/chat', { method: 'GET' });
+    const req = new Request('http://localhost/api/chat', { method: 'GET', headers: { Origin: 'https://example.com' } });
     const res = await handlerWithCustomCors(req);
     expect(res.status).toBe(405);
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://example.com');
@@ -116,7 +116,7 @@ describe('chatcopsCloudflareHandler', () => {
     const req = new Request('http://localhost/api/chat', {
       method: 'POST',
       body: 'not valid json{{{',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Origin: 'https://example.com' },
     });
     const res = await handlerWithCustomCors(req);
     expect(res.status).toBe(400);
@@ -135,7 +135,7 @@ describe('chatcopsCloudflareHandler', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
       const failure = new Error('Unexpected handler failure');
       vi.mocked(createChatHandler).mockImplementationOnce(() => ({
-        async *handleChat() {
+        startChat: async () => {
           throw failure;
         },
         getAnalytics: () => null,

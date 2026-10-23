@@ -1,0 +1,92 @@
+{
+  "model": "claude-haiku-5-5",
+  "max_tokens": 4096,
+  "system": [
+    {
+      "type": "text",
+      "text": "You are the support assistant for a small online shop. Keep answers short.",
+      "cache_control": {
+        "type": "ephemeral"
+      }
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": "Where is order A-1001? Include tracking. Use the tool."
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_016k87zkZf8Df8bsbCJVVR6e",
+          "name": "lookup_orders",
+          "input": {
+            "orders": [
+              {
+                "id": "A-1001",
+                "include": [
+                  "tracking"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_016k87zkZf8Df8bsbCJVVR6e",
+          "content": "{\"success\":true,\"data\":{\"id\":\"A-1001\",\"status\":\"shipped\",\"tracking\":\"ZX123\"}}",
+          "is_error": false
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "name": "lookup_orders",
+      "description": "Look up one or more orders by id. Can include line items and tracking.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "orders": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "include": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "items",
+                      "tracking"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "id"
+              ]
+            }
+          }
+        },
+        "required": [
+          "orders"
+        ]
+      }
+    }
+  ],
+  "output_config": {
+    "effort": "low"
+  },
+  "stream": true
+}

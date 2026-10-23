@@ -47,7 +47,7 @@ export default chatcopsVercelHandler({
     ]),
   ],
 
-  cors: '*',
+  allowedOrigins: ['*'],
   analytics: true,
 });
 ```
@@ -67,7 +67,7 @@ const handler = chatcopsVercelHandler({
     apiKey: process.env.OPENAI_API_KEY!,
   },
   systemPrompt: 'You are a helpful assistant.',
-  cors: '*',
+  allowedOrigins: ['*'],
 });
 
 export const POST = handler;

@@ -29,10 +29,19 @@ vi.mock('@chatcops/core', async (importOriginal) => {
 import { chatcopsAnalyticsHandler, chatcopsMiddleware } from '../../src/adapters/express.js';
 import type { ChatCopsServerConfig } from '../../src/config.js';
 
-function createRequest(method: string, body?: unknown): Request {
+function createRequest(method: string, body?: unknown, headers?: Record<string, string>): Request {
+  const normalizedHeaders: Record<string, string> = {};
+  if (headers) {
+    for (const [key, value] of Object.entries(headers)) {
+      normalizedHeaders[key.toLowerCase()] = value;
+    }
+  }
   return {
     method,
     body,
+    headers: normalizedHeaders,
+    header: (name: string) => normalizedHeaders[name.toLowerCase()],
+    get: (name: string) => normalizedHeaders[name.toLowerCase()],
     ip: '127.0.0.1',
     socket: { remoteAddress: '127.0.0.1' },
   } as unknown as Request;
@@ -112,7 +121,7 @@ describe('express analytics sharing', () => {
 
   it('writes an internal_error event and ends when the handler throws', async () => {
     vi.mocked(createChatHandler).mockImplementationOnce(() => ({
-      async *handleChat() {
+      startChat: async () => {
         throw new Error('Unexpected handler failure');
       },
       getAnalytics: () => null,
@@ -147,7 +156,7 @@ describe('express analytics sharing', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const failure = new Error('Unexpected handler failure');
     vi.mocked(createChatHandler).mockImplementationOnce(() => ({
-      async *handleChat() {
+      startChat: async () => {
         throw failure;
       },
       getAnalytics: () => null,
@@ -175,11 +184,14 @@ describe('express analytics sharing', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const { fake, res } = createResponse();
     vi.mocked(createChatHandler).mockImplementationOnce(() => ({
-      async *handleChat() {
-        yield JSON.stringify({ content: 'Hi' });
-        fake.disconnect();
-        throw new DOMException('Aborted', 'AbortError');
-      },
+      startChat: async () => ({
+        ok: true as const,
+        parts: (async function* () {
+          yield { type: 'text-delta' as const, id: 't1', delta: 'Hi' };
+          fake.disconnect();
+          throw new DOMException('Aborted', 'AbortError');
+        })(),
+      }),
       getAnalytics: () => null,
       cleanup: () => undefined,
     }));
@@ -218,7 +230,7 @@ describe('express analytics sharing', () => {
     expect(fake.headers).toMatchObject({
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-ChatCops-Protocol',
       'Access-Control-Max-Age': '86400',
     });
     expect(fake.ended).toBe(true);
@@ -278,7 +290,7 @@ describe('express analytics sharing', () => {
     const { fake, res } = createResponse();
 
     await middleware(
-      createRequest('GET'),
+      createRequest('GET', undefined, { Origin: 'https://example.com' }),
       res,
       (() => undefined) as NextFunction,
     );
@@ -309,11 +321,12 @@ describe('express analytics sharing', () => {
     );
 
     expect(fake.headers).toMatchObject({
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'X-Accel-Buffering': 'no',
       'Access-Control-Allow-Origin': '*',
     });
+    expect(fake.headers).not.toHaveProperty('Connection');
     expect(fake.chunks).toContain('data: {"content":"Hello"}\n\n');
     expect(fake.chunks.at(-1)).toBe('data: [DONE]\n\n');
     expect(fake.ended).toBe(true);
@@ -326,6 +339,7 @@ describe('express analytics sharing', () => {
       cors: '*',
       analytics: true,
     };
+    vi.mocked(createChatHandler).mockClear();
 
     const middleware = chatcopsMiddleware(config);
 
@@ -341,9 +355,73 @@ describe('express analytics sharing', () => {
     }
 
     const { fake: statsFake, res: statsRes } = createResponse();
-    chatcopsAnalyticsHandler(config)(createRequest('GET'), statsRes);
+    await chatcopsAnalyticsHandler(config)(createRequest('GET'), statsRes);
 
     expect(statsFake.body).toMatchObject({ totalConversations: 2 });
-    expect(setIntervalSpy).toHaveBeenCalledTimes(1);
+    // One handler for the config, shared by the middleware and the stats route.
+    expect(createChatHandler).toHaveBeenCalledTimes(1);
+  });
+
+  it('warns once across several requests when analyticsToken is not configured', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const config: ChatCopsServerConfig = {
+      provider: { type: 'claude', apiKey: 'test-key' },
+      systemPrompt: 'Test',
+      analytics: true,
+    };
+    const handler = chatcopsAnalyticsHandler(config);
+
+    const { fake: firstFake, res: firstRes } = createResponse();
+    await handler(createRequest('GET'), firstRes);
+    expect(firstFake.statusCode).toBe(200);
+
+    const { fake: secondFake, res: secondRes } = createResponse();
+    await handler(createRequest('GET'), secondRes);
+    expect(secondFake.statusCode).toBe(200);
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('analyticsToken')
+    );
+  });
+
+  it('requires a bearer token when analyticsToken is configured', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const config: ChatCopsServerConfig = {
+      provider: { type: 'claude', apiKey: 'test-key' },
+      systemPrompt: 'Test',
+      analytics: true,
+      analyticsToken: 'secret-token',
+    };
+    const handler = chatcopsAnalyticsHandler(config);
+
+    // Missing token
+    const { fake: missingFake, res: missingRes } = createResponse();
+    await handler(createRequest('GET'), missingRes);
+    expect(missingFake.statusCode).toBe(401);
+    expect(missingFake.headers['WWW-Authenticate']).toBe('Bearer');
+    expect(missingFake.body).toEqual({ error: 'unauthorized' });
+
+    // Wrong token of different length
+    const { fake: diffLengthFake, res: diffLengthRes } = createResponse();
+    await handler(createRequest('GET', undefined, { authorization: 'Bearer short' }), diffLengthRes);
+    expect(diffLengthFake.statusCode).toBe(401);
+    expect(diffLengthFake.headers['WWW-Authenticate']).toBe('Bearer');
+    expect(diffLengthFake.body).toEqual({ error: 'unauthorized' });
+
+    // Wrong token of same length
+    const { fake: wrongFake, res: wrongRes } = createResponse();
+    await handler(createRequest('GET', undefined, { authorization: 'Bearer secret-tokeX' }), wrongRes);
+    expect(wrongFake.statusCode).toBe(401);
+    expect(wrongFake.headers['WWW-Authenticate']).toBe('Bearer');
+    expect(wrongFake.body).toEqual({ error: 'unauthorized' });
+
+    // Right token
+    const { fake: rightFake, res: rightRes } = createResponse();
+    await handler(createRequest('GET', undefined, { authorization: 'Bearer secret-token' }), rightRes);
+    expect(rightFake.statusCode).toBe(200);
+    expect(rightFake.body).toMatchObject({ totalConversations: 0 });
+
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 });

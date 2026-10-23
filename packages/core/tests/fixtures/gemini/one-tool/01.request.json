@@ -1,0 +1,68 @@
+{
+  "contents": [
+    {
+      "parts": [
+        {
+          "text": "Where is order A-1001? Include tracking. Use the tool."
+        }
+      ],
+      "role": "user"
+    }
+  ],
+  "systemInstruction": {
+    "parts": [
+      {
+        "text": "You are the support assistant for a small online shop. Keep answers short."
+      }
+    ],
+    "role": "user"
+  },
+  "tools": [
+    {
+      "functionDeclarations": [
+        {
+          "name": "lookup_orders",
+          "description": "Look up one or more orders by id. Can include line items and tracking.",
+          "parametersJsonSchema": {
+            "type": "object",
+            "properties": {
+              "orders": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "include": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "items",
+                          "tracking"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "orders"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "generationConfig": {
+    "maxOutputTokens": 4096,
+    "thinkingConfig": {
+      "thinkingLevel": "LOW"
+    }
+  }
+}

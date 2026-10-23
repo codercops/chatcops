@@ -1,0 +1,480 @@
+---
+title: Protocol
+description: Reference for ChatCops protocol v1 requests, streaming events, and errors.
+---
+
+ChatCops protocol v1 is the client-server protocol used by the `@chatcops/widget` (version 0.6 and newer) and custom clients, including mobile apps, command-line tools, backend services, and alternative frontends.
+
+This reference specifies how clients negotiate protocol v1, the JSON request body schema and limits, Server-Sent Events (SSE) streaming framing, every wire part event, and HTTP error handling.
+
+---
+
+## Protocol Negotiation
+
+The server supports two primary stream formats for chat endpoints: the modern **protocol v1** stream and the legacy **0.5 format** (which is retained for backwards compatibility with older widgets and scheduled for removal in version 1.0).
+
+### Requesting Protocol v1
+
+A client requests protocol v1 using either of two supported mechanisms:
+
+1. **Request Body Field (Recommended)**:
+   Include `"protocol": 1` in the JSON request body:
+   ```json
+   {
+     "protocol": 1,
+     "conversationId": "test-1",
+     "message": "Hi"
+   }
+   ```
+   A request body field is preferred over a custom header because custom headers trigger a CORS preflight request, whereas older servers before v0.6 only allowed `Content-Type` in their preflights.
+
+2. **Request Header**:
+   Send the `x-chatcops-protocol` header with value `1` (or any integer 1 or higher):
+   ```http
+   x-chatcops-protocol: 1
+   ```
+
+### Detecting the Protocol v1 Response
+
+When protocol v1 is active:
+- **Successful streaming responses** include the response header:
+  ```http
+  x-chatcops-protocol: 1
+  ```
+  and the stream begins with a `start` event part: `data: {"type":"start",...}`.
+- **Cross-origin requests** allow clients to inspect this header because the server exposes `Access-Control-Expose-Headers: Retry-After, X-ChatCops-Protocol`.
+- **Pre-stream refusals** are returned immediately as non-200 JSON responses (for example, `400 Bad Request` or `429 Too Many Requests`).
+
+If neither `"protocol": 1` in the body nor `x-chatcops-protocol: 1` in the request header is supplied, the server falls back to the legacy 0.5 response format (where all refusals and text chunks are framed in a 200 SSE stream).
+
+---
+
+## Request Body
+
+The server validates chat requests using Zod (`chatRequestSchema` in `@chatcops/server`).
+
+### Common Request Fields
+
+| Field | Type | Required? | Constraints & Behavior | Example |
+|---|---|---|---|---|
+| `protocol` | `number` | Optional | Set to `1` to request protocol v1 streaming. Evaluated as `protocol >= 1`. | `1` |
+| `conversationId` | `string` | **Yes** | 1–128 characters. Identifies the conversation thread across turns. | `"c_8f2a1b9c"` |
+| `message` | `string` | **Yes** | 1–10,000 characters. The user message text. | `"Hello, what plans do you offer?"` |
+| `messageId` | `string` | Optional | 1–128 characters. Client-assigned ID for the user message. Used for idempotency: re-sending an already answered `messageId` replays the saved assistant reply without invoking the AI model again. | `"msg_usr_101"` |
+| `regenerate` | `boolean` \| `object` | Optional | `true` replaces the latest assistant reply (or the reply corresponding to `messageId`). `{ assistantMessageId: string }` (1–128 chars) targets a specific assistant message for regeneration. | `{ "assistantMessageId": "msg_ast_202" }` |
+| `pageContext` | `object` | Optional | Information about the page where the client is active. Evaluated and placed in system context. | See [Nested Structures](#nested-request-structures) |
+| `locale` | `string` | Optional | Max 10 characters. Client browser or device locale (e.g., `"en-US"`, `"es"`). Prompts the model to reply in that language. | `"en-US"` |
+| `userData` | `Record<string, string>` | Optional | Pre-chat form or visitor metadata. Max 50 keys; each key max 100 characters; each value max 500 characters. Locked from the first message in storage. | `{ "plan": "pro", "company": "Acme" }` |
+
+:::note
+The TypeScript interface `ChatRequestV1` in `@chatcops/core/protocol` contains additional fields reserved for a future release (such as `toolResults`, `toolApprovals`, `clientTools`, and `resumeToken`), which the current server ignores.
+:::
+
+### Nested Request Structures
+
+#### `pageContext`
+Provides current webpage context to the assistant. The server validates:
+- `url`: Valid URL string (`z.string().url()`). Only up to 2,000 characters reach the prompt.
+- `title`: String, maximum 500 characters.
+- `description` *(optional)*: String, maximum 1,000 characters.
+- `contentSnippet` *(optional)*: String, maximum 2,000 characters.
+
+```json
+{
+  "url": "https://example.com/pricing",
+  "title": "Pricing & Plans - Acme Inc",
+  "description": "Flexible plans starting at $19/mo.",
+  "contentSnippet": "Starter: $19/mo. Pro: $49/mo. Enterprise: Custom."
+}
+```
+
+### Example Request
+
+```json
+{
+  "protocol": 1,
+  "conversationId": "c_usr_8829",
+  "messageId": "msg_9910",
+  "message": "Can you check the balance for my account?",
+  "pageContext": {
+    "url": "https://app.acme.com/dashboard",
+    "title": "Account Dashboard"
+  },
+  "locale": "en-US",
+  "userData": {
+    "tier": "enterprise"
+  }
+}
+```
+
+---
+
+## Stream Format and Framing
+
+Protocol v1 uses HTTP Server-Sent Events (SSE). Successful streaming replies return with HTTP `200 OK` and headers:
+
+```http
+HTTP/1.1 200 OK
+Content-Type: text/event-stream; charset=utf-8
+Cache-Control: no-cache, no-transform
+X-Accel-Buffering: no
+x-chatcops-protocol: 1
+Access-Control-Expose-Headers: Retry-After, X-ChatCops-Protocol
+```
+
+### Event Framing Rules
+
+1. **SSE Data Lines**: Every protocol event is serialized as JSON on a line starting with `data: `, terminated by a double newline (`\n\n`):
+   ```text
+   data: {"type":"text-delta","id":"t1","delta":"Hello"}
+
+   ```
+2. **Terminal Stream Marker**: The server terminates every cleanly completed stream with the literal SSE frame:
+   ```text
+   data: [DONE]
+
+   ```
+3. **Heartbeat / Ping Comments**: After 10 seconds of silence (e.g. while awaiting a slow tool or backend operation), the server sends an SSE comment line:
+   ```text
+   : ping
+
+   ```
+   Comments begin with a colon `:` and do not contain JSON data. Custom clients should ignore them; they serve to prevent timeouts in intermediary proxies and firewalls.
+4. **Distinction Between `finish` and `[DONE]`**:
+   - `finish` is a **protocol part** that carries turn termination details (`reason`, token `usage`, pending calls).
+   - `[DONE]` is the **SSE transport framing marker** indicating that the HTTP stream has ended.
+   - If a stream closes or reaches EOF without emitting a `finish` event part, the stream was abruptly **interrupted or cut off** (e.g., server process crash, proxy timeout, network drop).
+5. **Forward Compatibility**: Clients must ignore unknown or unrecognized `type` values in `WirePart` objects. The protocol design allows introducing new part types without breaking compliant clients.
+
+---
+
+## Part Reference
+
+The authoritative TypeScript type for protocol events is `WirePart` (exported from `@chatcops/core/protocol`).
+
+There are 13 variants defined in `WirePart`. Nine are actively emitted by `@chatcops/server` today, while four are reserved for specialized features or future capabilities:
+
+| Part Type | Purpose | Fields | Status |
+|---|---|---|---|
+| `start` | First event of every reply. Identifies the turn and conversation. | `protocol: 1`, `conversationId: string`, `messageId: string`, `resumed?: boolean`, `capabilities?: { session?: boolean }` | **Emitted** |
+| `text-start` | Marks the beginning of an assistant text block. | `id: string` | **Emitted** |
+| `text-delta` | Streams a chunk of text content for a text block. | `id: string`, `delta: string` | **Emitted** |
+| `text-end` | Marks the end of an assistant text block. | `id: string` | **Emitted** |
+| `source` | Citations or document references used by knowledge base / RAG. | `sourceId: string`, `url: string`, `title?: string`, `snippet?: string` | *Reserved* |
+| `tool-call` | Signals that a tool invocation has started. | `toolCallId: string`, `toolName: string`, `input: unknown`, `executor: 'server' \| 'client' \| 'mcp'`, `needsApproval?: boolean`, `title?: string` | **Emitted** |
+| `tool-result` | Emits the execution outcome of a tool call. | `toolCallId: string`, `output?: unknown`, `error?: string` | **Emitted** |
+| `lead-captured` | Emitted when the built-in lead capture tool successfully gathers visitor information. | `lead: Record<string, unknown>` | **Emitted** |
+| `handoff` | Human agent handoff status changes. | `status: 'requested' \| 'queued' \| 'connected' \| 'ended'`, `agent?: WireAgent`, `pollAfterMs?: number` | *Reserved* |
+| `agent-message` | Direct message from a live human agent. | `messageId: string`, `text: string`, `agent: WireAgent`, `timestamp: number` | *Reserved* |
+| `suggestions` | List of clickable quick-reply prompt options. | `items: string[]` | *Reserved* |
+| `error` | In-stream failure notification (e.g., provider error or budget exceeded). | `code: WireErrorCode`, `retryable: boolean`, `message?: string`, `retryAfterMs?: number`, `scope?: 'conversation' \| 'session' \| 'ip' \| 'global'` | **Emitted** |
+| `finish` | Final protocol event of every assistant turn. | `reason: WireFinishReason`, `usage?: { inputTokens: number; outputTokens: number }`, `pendingToolCalls?: string[]`, `resumeToken?: string` | **Emitted** |
+
+### WirePart Details and Examples
+
+#### `start`
+Always the first event in a successful stream:
+```json
+{
+  "type": "start",
+  "protocol": 1,
+  "conversationId": "c_8f2",
+  "messageId": "m_91a0c4",
+  "capabilities": {
+    "session": true
+  }
+}
+```
+- `capabilities.session`: When `true`, indicates that session tokens are enabled on the server. When `requireSession: false` is configured, chat requests without a token can still proceed.
+
+#### `text-start`, `text-delta`, `text-end`
+Surrounds and streams chunks of assistant text:
+```json
+{ "type": "text-start", "id": "t1" }
+```
+```json
+{ "type": "text-delta", "id": "t1", "delta": "Hello! How can I help you today?" }
+```
+```json
+{ "type": "text-end", "id": "t1" }
+```
+
+#### `source` *(Reserved)*
+Represents a source citation:
+```json
+{
+  "type": "source",
+  "sourceId": "src_faq_1",
+  "url": "https://example.com/docs/pricing",
+  "title": "Pricing Documentation",
+  "snippet": "Our Starter plan begins at $19/mo."
+}
+```
+
+#### `tool-call`
+Emitted when the assistant calls a tool:
+```json
+{
+  "type": "tool-call",
+  "toolCallId": "call_123",
+  "toolName": "lookup_order",
+  "input": { "orderId": "ORD-456" },
+  "executor": "server"
+}
+```
+- `executor`: Can be `'server'` (executed on the backend), `'client'` (dispatched to the client app), or `'mcp'` (executed via an MCP server).
+
+#### `tool-result`
+Emitted after tool execution completes:
+```json
+{
+  "type": "tool-result",
+  "toolCallId": "call_123",
+  "output": { "status": "shipped", "tracking": "TRK987654" }
+}
+```
+
+#### `lead-captured`
+Emitted when visitor contact details are captured:
+```json
+{
+  "type": "lead-captured",
+  "lead": {
+    "name": "Jane Doe",
+    "email": "jane@example.com",
+    "projectDetails": "Need custom chatbot integration"
+  }
+}
+```
+
+#### `handoff` *(Reserved)*
+Emitted during human escalation:
+```json
+{
+  "type": "handoff",
+  "status": "queued",
+  "pollAfterMs": 3000
+}
+```
+`status` values: `'requested'`, `'queued'`, `'connected'`, or `'ended'`.
+
+#### `agent-message` *(Reserved)*
+Message sent by a human support agent:
+```json
+{
+  "type": "agent-message",
+  "messageId": "msg_agent_01",
+  "text": "Hello, I am joining to help answer your question.",
+  "agent": { "name": "Sarah", "avatarUrl": "https://example.com/avatars/sarah.png" },
+  "timestamp": 1792411200000
+}
+```
+
+#### `suggestions` *(Reserved)*
+Suggested replies for the user:
+```json
+{
+  "type": "suggestions",
+  "items": ["What are your pricing plans?", "Contact sales", "View API docs"]
+}
+```
+
+#### `error`
+Reports an error that occurs after streaming has begun (see [Errors During Streaming](#errors-during-streaming)):
+```json
+{
+  "type": "error",
+  "code": "provider_error",
+  "retryable": true,
+  "message": "The AI provider failed to complete the turn."
+}
+```
+
+#### `finish`
+Sent immediately before `data: [DONE]`. Closes the turn:
+```json
+{
+  "type": "finish",
+  "reason": "stop",
+  "usage": {
+    "inputTokens": 142,
+    "outputTokens": 38
+  }
+}
+```
+- `reason` enum values (`WireFinishReason`):
+  - **Currently emitted by the server**:
+    - `'stop'`: The model finished generating naturally.
+    - `'length'`: Generation was cut off by token limits (`maxTokens`).
+    - `'error'`: Turn ended due to an error.
+    - `'aborted'`: Request was aborted by the client or connection termination.
+  - **Reserved for future releases (not currently emitted)**:
+    - `'client-tool-calls'`
+    - `'approval-required'`
+    - `'handoff'`
+- `usage`: Only included when `exposeUsage: true` is configured on the server handler (omitted by default for privacy).
+
+---
+
+## Errors Before Streaming
+
+When a request cannot be processed, the server rejects it **before** opening an SSE stream. In protocol v1, standard pre-stream refusals return HTTP status codes, CORS headers, and a JSON body matching `WireErrorBody`:
+
+```http
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+Access-Control-Allow-Origin: *
+Access-Control-Expose-Headers: Retry-After, X-ChatCops-Protocol
+
+{
+  "error": {
+    "code": "invalid_request",
+    "message": "Invalid request: message"
+  }
+}
+```
+
+### Pre-Stream Error Statuses
+
+| HTTP Status | Error Code (`WireErrorCode` or string) | Trigger Condition | Message / Response Body |
+|---|---|---|---|
+| `400` | `invalid_request` | The request body failed Zod schema validation or JSON parsing. | Lists invalid field paths (e.g. `"Invalid request: message"`), never input values. |
+| `401` | `session_required` | Session tokens are required and the request had no token, an invalid signature, or a token issued for another origin. | `{"error":{"code":"session_required","message":"..."}}`. Obtain a token for this conversation from `<chat url>/session`. |
+| `401` | `token_expired` | The provided session token has expired. | Request a new token from `<chat url>/session`. |
+| `401` | `conversation_mismatch` | The session token is valid but was issued for a different conversation. | Obtain a token for the current conversation from `<chat url>/session`. |
+| `401` | `turnstile_failed` | `/session` endpoint only: Cloudflare Turnstile verification failed or was missing. | Returned when bot protection challenge fails. |
+| `403` | `origin_not_allowed` | The `Origin` header is not permitted by `allowedOrigins`. | Answered before the request body is parsed. Returns legacy format `{"error":"origin_not_allowed"}`. |
+| `405` | `Method not allowed` | An HTTP method other than `POST` or `OPTIONS` was used on the chat endpoint. | Answered before the request body is parsed. Returns legacy format `{"error":"Method not allowed"}`. |
+| `409` | `conversation_busy` | Another reply is currently being generated for this `conversationId`. | The server locks conversation turns to prevent state races. |
+| `413` | `payload_too_large` | The request body exceeds the maximum permitted size (default 256 KB). | Prevents excessive memory allocation. |
+| `429` | `rate_limited` | The client IP has exceeded the configured request rate limit. | Includes `retryAfterMs` in body and `Retry-After` in HTTP headers. |
+| `500` | `internal_error` | An unexpected server error occurred prior to stream initialization. | Generic catch-all failure. |
+| `503` | `provider_unavailable` | The AI provider failed setup or is not reachable (e.g. missing API key). | Server logs the underlying reason at startup. |
+
+:::note
+Responses with status `403 origin_not_allowed` and `405 Method not allowed` retain the legacy `{"error":"..."}` JSON body shape rather than `WireErrorBody` because these checks occur before the request body is read or parsed. Additionally, error codes defined in the protocol error dictionary such as `500` for `tool_error`, `502` for `provider_error`, and `504` for `timeout` are defined for mapping compatibility, but during typical operations they emerge as in-stream `error` parts once a stream has been established.
+:::
+
+### Retry-After Header Behavior
+
+When `retryAfterMs` is provided on rate-limited responses:
+- The JSON response body includes `retryAfterMs` (in milliseconds).
+- The HTTP response includes a `Retry-After` header expressing the waiting period in **seconds**, rounded up using `Math.ceil(retryAfterMs / 1000)`:
+  ```http
+  Retry-After: 42
+  ```
+
+---
+
+## Errors During Streaming
+
+If a failure occurs **after** the SSE stream has already opened and sent a `start` part, the server cannot change the HTTP status code (since headers have already been sent).
+
+Instead, the server emits an `error` part followed by a `finish` part with reason `'error'`, and then closes with `data: [DONE]`:
+
+```text
+data: {"type":"error","code":"provider_error","retryable":true}
+
+data: {"type":"finish","reason":"error"}
+
+data: [DONE]
+
+```
+
+### `error` WirePart Fields
+
+| Field | Type | Description |
+|---|---|---|
+| `code` | `WireErrorCode` | The error identifier (e.g. `'provider_error'`, `'budget_exceeded'`, `'timeout'`, `'tool_error'`, `'content_filtered'`, `'internal_error'`). |
+| `retryable` | `boolean` | **Required.** Indicates whether the client should attempt to retry the request. |
+| `message` | `string` | Optional human-readable description of the error. |
+| `retryAfterMs` | `number` | Optional delay in milliseconds before retrying. |
+| `scope` | `'conversation' \| 'session' \| 'ip' \| 'global'` | Optional scope of the limit. Used when `code` is `'budget_exceeded'` to identify which limit was reached. |
+
+#### Budget Exceeded In-Stream Error
+
+When a server budget (token, message, or USD cost limit) is exceeded:
+```json
+{
+  "type": "error",
+  "code": "budget_exceeded",
+  "retryable": false,
+  "scope": "conversation"
+}
+```
+
+---
+
+## TypeScript Types
+
+TypeScript clients can import protocol types directly from the `@chatcops/core` package:
+
+```typescript
+import type { WirePart, ChatRequestV1, WireErrorCode, WireFinishReason } from '@chatcops/core/protocol';
+```
+
+`WirePart` is a discriminated union over the `type` property. You can handle events using a standard `switch` statement:
+
+```typescript
+function handlePart(part: WirePart) {
+  switch (part.type) {
+    case 'start':
+      console.log('Started reply:', part.messageId);
+      break;
+    case 'text-delta':
+      process.stdout.write(part.delta);
+      break;
+    case 'finish':
+      console.log('Turn finished:', part.reason);
+      break;
+    case 'error':
+      console.error('Stream error:', part.code);
+      break;
+    default:
+      // Ignore unknown parts for forward compatibility
+      break;
+  }
+}
+```
+
+Installing `@chatcops/core` is convenient for TypeScript and Node.js applications, but it is entirely optional. Non-TypeScript clients (such as Swift on iOS, Kotlin on Android, Python, or Go) can consume protocol v1 by parsing the JSON lines directly.
+
+---
+
+## Try It with curl
+
+You can test a running ChatCops server using `curl`. 
+
+### Command
+
+```bash
+curl -N -X POST http://localhost:3001/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"protocol":1,"conversationId":"test-1","message":"Hi"}'
+```
+
+- `-N` (or `--no-buffer`): Disables curl's buffer so streaming chunks print to the terminal immediately as they arrive.
+- The server must be running and listening on `http://localhost:3001`.
+- On Windows PowerShell, use `curl.exe` to avoid the PowerShell `Invoke-WebRequest` alias.
+
+### Captured Local Response
+
+The transcript below was captured from a local Express server running the repository's `scriptedProvider([textStep('Hello!')])` test provider (which requires no external API keys):
+
+```text
+data: {"type":"start","protocol":1,"conversationId":"test-1","messageId":"2eeea2d1-56f9-428b-a880-af83c496a9a1"}
+
+data: {"type":"text-start","id":"2eeea2d1-56f9-428b-a880-af83c496a9a1-1"}
+
+data: {"type":"text-delta","id":"2eeea2d1-56f9-428b-a880-af83c496a9a1-1","delta":"Hello!"}
+
+data: {"type":"text-end","id":"2eeea2d1-56f9-428b-a880-af83c496a9a1-1"}
+
+data: {"type":"finish","reason":"stop"}
+
+data: [DONE]
+```
+
+:::note
+Identifiers such as `messageId` and text block `id` are generated at runtime and will vary between requests, but the event structure, sequencing, and terminal `[DONE]` frame will match this transcript. If a response takes longer than 10 seconds, periodic `: ping` comment lines will also appear between events.
+:::

@@ -36,8 +36,10 @@ export type {
 export { partsOf, messageText } from './parts.js';
 
 // Wire protocol
-export { PROTOCOL_VERSION, statusForError, errorBody, describeInvalidRequest } from './protocol/index.js';
+export { PROTOCOL_VERSION, encodeSSE, SSE_PING, SSE_DONE, SSE_HEADERS, statusForError, errorBody, describeInvalidRequest, toLegacyChunk, aiSdkEncoder, fromAiSdkRequest, AI_SDK_STREAM_HEADER } from './protocol/index.js';
 export type {
+  AiSdkChunk,
+  LegacyChunk,
   WirePart,
   WirePartType,
   WireErrorCode,
@@ -49,9 +51,32 @@ export type {
 } from './protocol/index.js';
 
 // Providers
-export type { AIProvider, NormalizedMessage, FinishReason, ProviderEvent, ProviderStepParams } from './providers/index.js';
-export { createProvider, normalizeHistory, trimHistory, estimateTokens, ClaudeProvider, OpenAIProvider, GeminiProvider } from './providers/index.js';
+export type {
+  AIProvider,
+  NormalizedMessage,
+  NormalizedTurn,
+  TurnPart,
+  FinishReason,
+  ProviderEvent,
+  ProviderStepParams,
+} from './providers/index.js';
+export { createProvider, isAIProvider, normalizeHistory, normalizeTurns, trimHistory, estimateTokens } from './providers/index.js';
+export { registerProvider, type ProviderFactory } from './providers/registry.js';
 export { toolInputSchema, legacyParametersToSchema, validateTools, ToolDefinitionError } from './providers/index.js';
+
+// Turn engine
+export {
+  runTurn,
+  DEFAULT_MAX_STEPS,
+  toolRegistry,
+  executorRegistry,
+  toolOutput,
+  MAX_TOOL_OUTPUT_CHARS,
+  RefusalError,
+  ContentFilterError,
+  MaxStepsError,
+} from './agent/index.js';
+export type { RunTurnOptions, TurnResult, ToolRegistry, ToolRunContext } from './agent/index.js';
 
 // Tools
 export type { ChatTool, LeadCaptureCallback } from './tools/index.js';
@@ -90,8 +115,16 @@ export {
   isLegacyConversationStore,
 } from './storage/index.js';
 
+// Budgets
+export { createBudgetGuard, BudgetExceededError, DEFAULT_BUDGETS, withDefaultBudgets } from './limits/budget.js';
+export type { Budgets, BudgetLimit, BudgetContext, BudgetGuard, BudgetScope } from './limits/budget.js';
+
+// Rate limiting
+export { createRateLimiter } from './limits/rate-limit.js';
+export type { RateLimitRule, RateLimitResult, RateLimiterOptions } from './limits/rate-limit.js';
+
 // Analytics
-export { AnalyticsCollector } from './analytics/index.js';
+export { AnalyticsCollector, BufferedEventSink, statsFromSink } from './analytics/index.js';
 export type { AnalyticsStats } from './analytics/index.js';
 
 // i18n

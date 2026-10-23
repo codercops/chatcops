@@ -23,7 +23,7 @@ function getHandler(env: Record<string, string>) {
       apiKey: env.ANTHROPIC_API_KEY,
     },
     systemPrompt: 'You are a helpful assistant.',
-    cors: '*',
+    allowedOrigins: ['*'],
   });
   return handler;
 }
@@ -93,7 +93,7 @@ function getHandler(env: Record<string, string>) {
         });
       }),
     ],
-    cors: '*',
+    allowedOrigins: ['*'],
     rateLimit: { maxRequests: 20, windowMs: 60_000 },
   });
   return handler;

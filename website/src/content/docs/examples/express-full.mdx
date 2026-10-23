@@ -73,7 +73,7 @@ app.all('/chat', chatcopsMiddleware({
 
   rateLimit: { maxRequests: 30, windowMs: 60_000 },
   analytics: true,
-  cors: process.env.CORS_ORIGIN || '*',
+  allowedOrigins: process.env.ALLOWED_ORIGINS?.split(',') ?? ['*'],
 }));
 
 const PORT = process.env.PORT ?? 3001;
@@ -113,6 +113,6 @@ app.listen(PORT, () => {
 ANTHROPIC_API_KEY=sk-ant-...
 WEBHOOK_URL=https://hooks.example.com/chatcops
 WEBHOOK_SECRET=your-webhook-secret
-CORS_ORIGIN=https://your-website.com
+ALLOWED_ORIGINS=https://your-website.com
 PORT=3001
 ```

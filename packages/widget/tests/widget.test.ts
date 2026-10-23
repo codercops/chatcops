@@ -40,6 +40,30 @@ describe('Widget', () => {
     vi.restoreAllMocks();
   });
 
+  it('moves to the conversation id the server gives with a session token, and saves history under it', async () => {
+    const reply = [
+      'data: {"type":"start","protocol":1,"conversationId":"server-id","messageId":"m1"}',
+      'data: {"type":"text-delta","id":"t1","delta":"Hello"}',
+      'data: {"type":"finish","reason":"stop"}',
+      'data: [DONE]',
+      '',
+    ].join('\n\n');
+    const fetch = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('{"error":{"code":"session_required"}}', { status: 401 }))
+      .mockResolvedValueOnce(new Response('{"token":"tok","conversationId":"server-id","expiresAt":0}', { status: 200 }))
+      .mockResolvedValueOnce(new Response(reply, { status: 200 }))
+      .mockResolvedValueOnce(new Response(reply, { status: 200 }));
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+
+    await getInternals(widget).handleSend('Hi');
+    await getInternals(widget).handleSend('Again');
+
+    expect(JSON.parse(String(fetch.mock.calls[3][1]?.body)).conversationId).toBe('server-id');
+    expect(JSON.parse(localStorage.getItem('chatcops_conversation') ?? '{}').id).toBe('server-id');
+    widget.destroy();
+  });
+
   it('does not open after destroy when auto-open is delayed', () => {
     vi.useFakeTimers();
     const onOpen = vi.fn();
@@ -438,6 +462,32 @@ describe('Widget', () => {
     });
   });
 
+  it("keeps the server's id for a v1 reply and regenerates it by that id", async () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    const sendMessage = vi.fn()
+      .mockImplementationOnce(async function* () {
+        yield { messageId: 'srv-1' };
+        yield { content: 'First' };
+        yield { done: true };
+      })
+      .mockImplementationOnce(async function* () {
+        yield { messageId: 'srv-2' };
+        yield { content: 'Second' };
+        yield { done: true };
+      });
+    getInternals(widget).client.sendMessage = sendMessage;
+
+    await getInternals(widget).handleSend('Hi');
+    const reply = getInternals(widget).messages.at(-1);
+    expect(reply?.id).toBe('srv-1');
+    expect(getInternals(widget).shadow.querySelector('[data-id="srv-1"]')).toBeTruthy();
+
+    await getInternals(widget).handleRegenerate('srv-1');
+    expect(sendMessage.mock.calls[1]?.[0]).toMatchObject({ regenerate: { assistantMessageId: 'srv-1' } });
+    expect(getInternals(widget).messages.at(-1)).toMatchObject({ id: 'srv-2', content: 'Second' });
+  });
+
   it('blocks retry and regenerate while streaming is active', async () => {
     const widget = new Widget({
       apiUrl: 'https://api.test/chat',
@@ -579,7 +629,27 @@ describe('Widget', () => {
     widget2.destroy();
   });
 
-  it('sends userData with every request, not just the first', async () => {
+  it('stops sending userData once a v1 server has answered, since it keeps the answers', async () => {
+    const widget = new Widget({
+      apiUrl: 'https://api.test/chat',
+      preChatForm: { enabled: true, fields: [{ name: 'name', label: 'Name', type: 'text' as const }] },
+    });
+    widget.init();
+    getInternals(widget).handlePreChatSubmit({ name: 'Taylor' });
+    const sendMessage = vi.fn().mockImplementation(async function* () {
+      yield { messageId: crypto.randomUUID() };
+      yield { content: 'Echo' };
+      yield { done: true };
+    });
+    getInternals(widget).client.sendMessage = sendMessage;
+
+    await getInternals(widget).handleSend('First');
+    await getInternals(widget).handleSend('Second');
+    expect(sendMessage.mock.calls[0]?.[0]).toMatchObject({ userData: { name: 'Taylor' } });
+    expect(sendMessage.mock.calls[1]?.[0]).not.toHaveProperty('userData');
+  });
+
+  it('sends userData with every request to a 0.5 server, which needs it each time', async () => {
     const widget = new Widget({
       apiUrl: 'https://api.test/chat',
       preChatForm: {

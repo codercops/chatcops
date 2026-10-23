@@ -32,7 +32,7 @@ export class Input {
     this.sendBtn.className = 'cc-send-btn';
     this.sendBtn.disabled = true;
     this.sendBtn.setAttribute('aria-label', options.sendLabel);
-    this.sendBtn.innerHTML = '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>';
+    this.sendBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>';
     this.sendBtn.addEventListener('click', () => this.send());
 
     this.textarea.addEventListener('input', () => {

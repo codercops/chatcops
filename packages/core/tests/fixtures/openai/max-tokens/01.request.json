@@ -1,0 +1,19 @@
+{
+  "model": "gpt-5-mini",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are the support assistant for a small online shop. Keep answers short."
+    },
+    {
+      "role": "user",
+      "content": "Write a long poem about the sea."
+    }
+  ],
+  "max_completion_tokens": 16,
+  "reasoning_effort": "low",
+  "stream": true,
+  "stream_options": {
+    "include_usage": true
+  }
+}

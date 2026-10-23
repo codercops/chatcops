@@ -58,7 +58,7 @@ function getHandler(env: Env) {
       ]),
     ],
 
-    cors: '*',
+    allowedOrigins: ['*'],
     rateLimit: { maxRequests: 20, windowMs: 60_000 },
     analytics: true,
   });
@@ -115,17 +115,6 @@ npx wrangler deploy
 ></script>
 ```
 
-## With Cloudflare KV (Conversation Storage)
+## Cloudflare storage
 
-```typescript
-interface Env {
-  ANTHROPIC_API_KEY: string;
-  CONVERSATIONS: KVNamespace;  // Bind in wrangler.toml
-}
-
-// Store conversation history in KV
-const conversation = await env.CONVERSATIONS.get(conversationId, 'json');
-await env.CONVERSATIONS.put(conversationId, JSON.stringify(updated), {
-  expirationTtl: 86400, // 24 hours
-});
-```
+The official Cloudflare store is planned to support D1, KV, and Durable Objects for distributed counters and coordination. Follow [#249](https://github.com/codercops/chatcops/issues/249) for progress, and see [the storage page](/server/storage/) for the current storage options.
