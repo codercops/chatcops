@@ -364,6 +364,38 @@ describe('Widget', () => {
     expect(lastBubble().dataset.aiGenerated).toBe('true');
   });
 
+  it.each([
+    [{ error: 'rate_limit', retryAfterMs: 41_200 }, 'rate_limit', 'Too many messages. Please try again in 42 seconds.'],
+    [{ error: 'rate_limit' }, 'rate_limit', 'Too many messages. Please wait a moment.'],
+    [{ error: 'budget' }, 'budget', 'This chat has reached its limit.'],
+    [{ error: 'budget_daily' }, 'budget_daily', 'The assistant has reached its limit for today. Please try again later.'],
+    [{ error: 'unavailable' }, 'unavailable', 'The assistant is unavailable right now. Please try again later.'],
+    [{ error: 'cut_off' }, 'cut_off', 'The reply was cut off.'],
+    [{ error: 'HTTP 502' }, 'provider_error', 'Something went wrong. Please try again.'],
+  ])('shows %o as %s with its own message', async (chunk, errorType, text) => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementationOnce(async function* () {
+      yield chunk;
+    });
+
+    await getInternals(widget).handleSend('Hi');
+
+    expect(getInternals(widget).messages.at(-1)).toMatchObject({ status: 'error', errorType, content: text });
+    widget.destroy();
+  });
+
+  it('takes the limit messages from strings', async () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat', strings: { errorRateLimitWait: 'Warte {seconds} Sekunden.' } });
+    widget.init();
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementationOnce(async function* () {
+      yield { error: 'rate_limit', retryAfterMs: 3000 };
+    });
+    await getInternals(widget).handleSend('Hi');
+    expect(getInternals(widget).messages.at(-1)?.content).toBe('Warte 3 Sekunden.');
+    widget.destroy();
+  });
+
   it('keeps streamed text when an error arrives partway through and shows the error under it', async () => {
     const widget = new Widget({ apiUrl: 'https://api.test/chat' });
     widget.init();

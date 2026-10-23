@@ -13,5 +13,7 @@ describe('the protocol types the widget copies from core', () => {
     expectTypeOf<Extract<CoreWirePart, { type: 'start' }>['messageId']>().toEqualTypeOf<string>();
     expectTypeOf<Extract<CoreWirePart, { type: 'text-delta' }>['delta']>().toEqualTypeOf<string>();
     expectTypeOf<Extract<CoreWirePart, { type: 'lead-captured' }>['lead']>().toEqualTypeOf<Record<string, unknown>>();
+    expectTypeOf<Extract<CoreWirePart, { type: 'error' }>['scope']>().toExtend<string | undefined>();
+    expectTypeOf<Extract<CoreWirePart, { type: 'error' }>['retryAfterMs']>().toEqualTypeOf<number | undefined>();
   });
 });

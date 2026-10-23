@@ -358,18 +358,40 @@ describe('ChatClient with protocol v1', () => {
       part({ type: 'finish', reason: 'error' }),
       '[DONE]',
     ]);
-    expect((await collect()).slice(1, 2)).toEqual([{ error: 'rate_limit' }]);
+    expect((await collect()).slice(1, 2)).toEqual([{ error: 'rate_limit', retryAfterMs: 5000 }]);
 
     respond([part({ type: 'error', code: 'timeout', retryable: true }), part({ type: 'finish', reason: 'error' }), '[DONE]']);
     expect((await collect())[0]).toEqual({ error: 'timeout' });
 
-    respond([part({ type: 'error', code: 'budget_exceeded', retryable: false }), part({ type: 'finish', reason: 'error' }), '[DONE]']);
+    respond([part({ type: 'error', code: 'budget_exceeded', retryable: false, scope: 'conversation' }), part({ type: 'finish', reason: 'error' }), '[DONE]']);
+    expect((await collect())[0]).toEqual({ error: 'budget' });
+
+    respond([part({ type: 'error', code: 'budget_exceeded', retryable: false, scope: 'ip' }), part({ type: 'finish', reason: 'error' }), '[DONE]']);
+    expect((await collect())[0]).toEqual({ error: 'budget_daily' });
+
+    respond([part({ type: 'error', code: 'provider_error', retryable: true }), part({ type: 'finish', reason: 'error' }), '[DONE]']);
     expect((await collect())[0]).toEqual({ error: 'provider_error' });
+  });
+
+  it('reads the error body of a refusal before the stream', async () => {
+    const refuse = (status: number, body: string) => vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(body, { status }));
+
+    refuse(429, JSON.stringify({ error: { code: 'rate_limited', retryAfterMs: 42_000 } }));
+    expect(await collect()).toEqual([{ error: 'rate_limit', retryAfterMs: 42_000 }]);
+
+    refuse(503, JSON.stringify({ error: { code: 'provider_unavailable' } }));
+    expect(await collect()).toEqual([{ error: 'unavailable' }]);
+
+    // A 0.5 server, or a proxy page: no JSON body.
+    refuse(429, 'Too Many Requests');
+    expect(await collect()).toEqual([{ error: 'rate_limit' }]);
+    refuse(502, '<html>Bad gateway</html>');
+    expect(await collect()).toEqual([{ error: 'HTTP 502' }]);
   });
 
   it('reports a v1 stream that ends without finish as cut off', async () => {
     respond([part({ type: 'start', protocol: 1, conversationId: 'c1', messageId: 'm' }), part({ type: 'text-delta', id: 't', delta: 'Half' }), '[DONE]']);
-    expect((await collect()).at(-1)).toEqual({ error: 'network' });
+    expect((await collect()).at(-1)).toEqual({ error: 'cut_off' });
   });
 
   it('still reads the 0.5 format from older servers', async () => {

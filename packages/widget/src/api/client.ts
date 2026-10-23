@@ -132,12 +132,12 @@ export class ChatClient {
       }
 
       if (!response.ok) {
+        // Protocol v1 servers send `{ error: { code, retryAfterMs } }`.
+        const { error } = await response.json().catch(() => ({}));
         await cleanup();
-        if (response.status === 429) {
-          yield { error: 'rate_limit' };
-          return;
-        }
-        yield { error: `HTTP ${response.status}` };
+        yield error?.code
+          ? errorChunk(error.code, error.retryAfterMs)
+          : { error: response.status === 429 ? 'rate_limit' : `HTTP ${response.status}` };
         return;
       }
 
@@ -173,7 +173,7 @@ export class ChatClient {
           const data = trimmed.slice(6);
           if (data === '[DONE]') {
             await cleanup();
-            yield v1 && !finished ? { error: 'network' } : { done: true };
+            yield v1 && !finished ? { error: 'cut_off' } : { done: true };
             return;
           }
 
@@ -198,7 +198,7 @@ export class ChatClient {
       // A [DONE] with no newline after it still counts. Anything else means the
       // connection was cut mid-reply (a proxy timeout, a server crash), so the
       // visitor should see an error and a Retry button rather than half an answer.
-      yield buffer.trim() === 'data: [DONE]' ? { done: true } : { error: 'network' };
+      yield buffer.trim() === 'data: [DONE]' ? { done: true } : { error: v1 ? 'cut_off' : 'network' };
     } catch (err) {
       await cleanup();
       if (err instanceof DOMException && err.name === 'AbortError') {
@@ -210,6 +210,19 @@ export class ChatClient {
       await cleanup();
     }
   }
+}
+
+/** The widget's error type for a protocol v1 error code. */
+const ERROR_TYPES: Record<string, string> = {
+  rate_limited: 'rate_limit',
+  timeout: 'timeout',
+  budget_exceeded: 'budget',
+  budget_daily: 'budget_daily',
+  provider_unavailable: 'unavailable',
+};
+
+function errorChunk(code: string, retryAfterMs?: number): WidgetChatChunk {
+  return { error: ERROR_TYPES[code] ?? 'provider_error', retryAfterMs };
 }
 
 /**
@@ -225,7 +238,7 @@ function fromPart(part: WirePart): WidgetChatChunk | null {
     case 'lead-captured':
       return { leadCaptured: true, leadData: part.lead };
     case 'error':
-      return { error: part.code === 'rate_limited' ? 'rate_limit' : part.code === 'timeout' ? 'timeout' : 'provider_error' };
+      return errorChunk(part.code === 'budget_exceeded' && part.scope !== 'conversation' ? 'budget_daily' : part.code, part.retryAfterMs);
     case 'finish':
       // An error part already went out, or nobody is listening.
       return part.reason === 'error' || part.reason === 'aborted' ? null : { done: true };

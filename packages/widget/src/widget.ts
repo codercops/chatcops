@@ -11,6 +11,17 @@ import { PreChatForm } from './dom/prechat-form.js';
 import type { WidgetChatRequest } from './api/types.js';
 import type { MessageData, MessageErrorType } from './dom/messages.js';
 
+/** The locale string for each kind of failed reply. */
+const ERROR_MESSAGES: Partial<Record<MessageErrorType, keyof WidgetLocaleStrings>> = {
+  network: 'errorNetwork',
+  timeout: 'errorNetwork',
+  provider_error: 'errorGeneric',
+  budget: 'errorBudget',
+  budget_daily: 'errorBudgetDaily',
+  unavailable: 'errorUnavailable',
+  cut_off: 'errorCutOff',
+};
+
 export interface PreChatField {
   name: string;
   type: 'text' | 'email' | 'select' | 'textarea';
@@ -486,7 +497,7 @@ export class Widget {
         if (this.destroyed) break;
         if (chunk.error) {
           const errorType = this.resolveErrorType(chunk.error);
-          this.markFailed(assistantMsg, this.getErrorMessage(errorType));
+          this.markFailed(assistantMsg, this.getErrorMessage(errorType, chunk.retryAfterMs));
           assistantMsg.errorType = errorType;
           hasError = true;
 
@@ -658,15 +669,7 @@ export class Widget {
   }
 
   private resolveErrorType(error: string): MessageErrorType {
-    switch (error) {
-      case 'rate_limit':
-      case 'network':
-      case 'provider_error':
-      case 'timeout':
-        return error;
-      default:
-        return 'provider_error';
-    }
+    return error in ERROR_MESSAGES || error === 'rate_limit' ? (error as MessageErrorType) : 'provider_error';
   }
 
   /**
@@ -682,16 +685,13 @@ export class Widget {
     }
   }
 
-  private getErrorMessage(errorType: MessageErrorType): string {
-    switch (errorType) {
-      case 'rate_limit':
-        return this.locale.errorRateLimit;
-      case 'network':
-      case 'timeout':
-        return this.locale.errorNetwork;
-      default:
-        return this.locale.errorGeneric;
+  private getErrorMessage(errorType: MessageErrorType, retryAfterMs?: number): string {
+    if (errorType === 'rate_limit') {
+      return retryAfterMs
+        ? this.locale.errorRateLimitWait.replace('{seconds}', String(Math.ceil(retryAfterMs / 1000)))
+        : this.locale.errorRateLimit;
     }
+    return this.locale[ERROR_MESSAGES[errorType] ?? 'errorGeneric'];
   }
 
   private saveHistory(): void {

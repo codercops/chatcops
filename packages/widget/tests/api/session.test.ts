@@ -100,7 +100,7 @@ describe('ChatClient with session tokens', () => {
     vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(unauthorized())
       .mockResolvedValueOnce(new Response('{}', { status: 404 }));
-    expect(await collect(new ChatClient({ apiUrl: API }))).toEqual([{ error: 'HTTP 401' }]);
+    expect(await collect(new ChatClient({ apiUrl: API }))).toEqual([{ error: 'provider_error' }]);
   });
 
   it('keeps working when storage is unavailable', async () => {
@@ -152,7 +152,7 @@ describe('ChatClient with session tokens', () => {
       .mockResolvedValueOnce(v1Reply());
     const client = new ChatClient({ apiUrl: API, turnstileSiteKey: 'site-key' });
 
-    expect(await collect(client)).toEqual([{ error: 'HTTP 401' }]);
+    expect(await collect(client)).toEqual([{ error: 'provider_error' }]);
     expect(turnstileToken).not.toHaveBeenCalled();
     await collect(client);
 

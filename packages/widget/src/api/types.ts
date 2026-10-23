@@ -22,6 +22,8 @@ export interface WidgetChatChunk {
   content?: string;
   done?: boolean;
   error?: string;
+  /** How long to wait before trying again, with a `rate_limit` error. */
+  retryAfterMs?: number;
   leadCaptured?: boolean;
   leadData?: Record<string, unknown>;
   suggestedActions?: string[];

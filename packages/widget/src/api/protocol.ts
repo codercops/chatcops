@@ -7,7 +7,7 @@ export type WirePart =
   | { type: 'start'; protocol: 1; conversationId: string; messageId: string }
   | { type: 'text-delta'; id: string; delta: string }
   | { type: 'lead-captured'; lead: Record<string, unknown> }
-  | { type: 'error'; code: string; message?: string; retryable: boolean; retryAfterMs?: number }
+  | { type: 'error'; code: string; message?: string; retryable: boolean; retryAfterMs?: number; scope?: string }
   | { type: 'finish'; reason: string }
   /** Parts the widget doesn't use yet. */
   | { type: 'text-start' | 'text-end' | 'source' | 'tool-call' | 'tool-result' | 'handoff' | 'agent-message' | 'suggestions' };

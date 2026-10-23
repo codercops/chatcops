@@ -5,7 +5,7 @@ interface StoredConversation {
     role: 'user' | 'assistant';
     content: string;
     status?: 'streaming' | 'complete' | 'error';
-    errorType?: 'rate_limit' | 'network' | 'provider_error' | 'timeout';
+    errorType?: import('./dom/messages.js').MessageErrorType;
     timestamp: number;
   }>;
   updatedAt: number;

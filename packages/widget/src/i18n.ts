@@ -12,6 +12,12 @@ export interface WidgetLocaleStrings {
   errorGeneric: string;
   errorNetwork: string;
   errorRateLimit: string;
+  /** `{seconds}` is how long to wait. */
+  errorRateLimitWait: string;
+  errorBudget: string;
+  errorBudgetDaily: string;
+  errorUnavailable: string;
+  errorCutOff: string;
   typingIndicator: string;
   poweredBy: string;
   newConversation: string;
@@ -39,6 +45,11 @@ const en: WidgetLocaleStrings = {
   errorGeneric: 'Something went wrong. Please try again.',
   errorNetwork: 'Connection error. Please check your network.',
   errorRateLimit: 'Too many messages. Please wait a moment.',
+  errorRateLimitWait: 'Too many messages. Please try again in {seconds} seconds.',
+  errorBudget: 'This chat has reached its limit.',
+  errorBudgetDaily: 'The assistant has reached its limit for today. Please try again later.',
+  errorUnavailable: 'The assistant is unavailable right now. Please try again later.',
+  errorCutOff: 'The reply was cut off.',
   typingIndicator: 'Typing...',
   poweredBy: 'Powered by ChatCops',
   newConversation: 'New conversation',

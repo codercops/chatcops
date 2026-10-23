@@ -66,6 +66,11 @@ interface LocaleStrings {
   errorGeneric: string;
   errorNetwork: string;
   errorRateLimit: string;
+  errorRateLimitWait: string;   // {seconds} is how long to wait
+  errorBudget: string;
+  errorBudgetDaily: string;
+  errorUnavailable: string;
+  errorCutOff: string;
   typingIndicator: string;
   poweredBy: string;
   newConversation: string;
@@ -88,4 +93,17 @@ The server doesn't translate anything itself. When a request has a `locale`, it 
 Reply in the visitor's language. Their browser locale is es.
 ```
 
-Error messages the visitor sees come from the widget's `strings` (`errorGeneric`, `errorNetwork`, `errorRateLimit`). The server config's `i18n` option is deprecated: the server ignores it and logs a warning when it's set, and it will be removed in a later release.
+Error messages the visitor sees come from the widget's `strings`:
+
+| Key | Shown when | English |
+|---|---|---|
+| `errorRateLimit` | Too many messages, and the server didn't say for how long | Too many messages. Please wait a moment. |
+| `errorRateLimitWait` | Too many messages, with the server's wait (`{seconds}`) | Too many messages. Please try again in \{seconds\} seconds. |
+| `errorBudget` | The conversation used up its budget | This chat has reached its limit. |
+| `errorBudgetDaily` | The visitor's or the site's daily budget is used up | The assistant has reached its limit for today. Please try again later. |
+| `errorUnavailable` | The server couldn't set up the AI provider (a missing key, say) | The assistant is unavailable right now. Please try again later. |
+| `errorCutOff` | The reply stopped before the server said it was done | The reply was cut off. |
+| `errorNetwork` | The request failed or timed out | Connection error. Please check your network. |
+| `errorGeneric` | Anything else | Something went wrong. Please try again. |
+
+The limit and cut-off messages need a 0.6 server, which sends the reason. With an older server, the widget falls back to `errorRateLimit`, `errorNetwork` and `errorGeneric`. The server config's `i18n` option is deprecated: the server ignores it and logs a warning when it's set, and it will be removed in a later release.
