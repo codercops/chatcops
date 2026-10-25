@@ -205,6 +205,9 @@ importers:
       '@chatcops/server':
         specifier: workspace:^
         version: link:../packages/server
+      '@chatcops/store-cloudflare':
+        specifier: workspace:^
+        version: link:../packages/store-cloudflare
       '@chatcops/widget':
         specifier: workspace:^
         version: link:../packages/widget
@@ -9054,6 +9057,7 @@ snapshots:
 
   undici-types@7.18.2:
     optional: true
+
   undici@7.28.0: {}
 
   undici@7.29.1: {}

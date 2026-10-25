@@ -1,7 +1,9 @@
 import type { APIRoute } from 'astro';
 import { getSecret } from 'astro:env/server';
+import { env } from 'cloudflare:workers';
 import { chatcopsCloudflareHandler } from '@chatcops/server/cloudflare';
 import { FAQKnowledgeSource } from '@chatcops/core';
+import { cloudflareStorage, type D1Database } from '@chatcops/store-cloudflare';
 
 export const prerender = false;
 
@@ -50,6 +52,10 @@ const faq = new FAQKnowledgeSource([
 
 // Built on the first request rather than at import: the API key is a Worker
 // secret that only exists inside a request.
+//
+// With the CHATCOPS_DB binding (wrangler.jsonc), conversations, limits and
+// turn locks live in D1 and hold across every isolate; without it, in memory.
+// With the CHATCOPS_SESSION_SECRET secret, the chat needs session tokens.
 let chat: ReturnType<typeof chatcopsCloudflareHandler> | undefined;
 function getChat() {
   chat ??= chatcopsCloudflareHandler({
@@ -78,8 +84,19 @@ Be concise, helpful, and friendly. Use markdown formatting. If you don't know so
       request.headers.get('cf-connecting-ip') ??
       (import.meta.env.DEV ? request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() : undefined),
     rateLimit: { maxRequests: 10, windowMs: 60_000 },
+    ...storageOptions(),
   });
   return chat;
+}
+
+function storageOptions() {
+  const db = (env as { CHATCOPS_DB?: D1Database }).CHATCOPS_DB;
+  const sessionSecret = getSecret('CHATCOPS_SESSION_SECRET');
+  return {
+    ...(db ? { storage: cloudflareStorage({ d1: db }), retention: { conversationsDays: 30 } } : {}),
+    // Widgets cached from before 0.6 don't send tokens yet.
+    ...(sessionSecret ? { sessionSecrets: [sessionSecret], requireSession: false } : {}),
+  };
 }
 
 export const POST: APIRoute = ({ request, locals }) => getChat()(request, undefined, locals.cfContext);
