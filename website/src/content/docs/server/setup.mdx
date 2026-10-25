@@ -112,6 +112,7 @@ interface ChatCopsServerConfig {
   sessionTtlSec?: number;      // default 900
   requireSession?: boolean;    // default true when sessionSecrets is set
   turnstile?: { secretKey: string; action?: string; expectedHostnames?: string[]; timeoutMs?: number };
+  identity?: { secret: string; tiers?: Record<string, Budgets> };   // signed-in visitors, see below
   exposeUsage?: boolean;   // token usage in protocol v1 finish parts; default false
   /** @deprecated Ignored by the server. Use the widget's `strings` option. */
   i18n?: {
@@ -215,6 +216,33 @@ turnstile: { secretKey: process.env.TURNSTILE_SECRET_KEY! },
 Then give the widget the site key, with `data-turnstile-site-key="0x4AAA..."` or `turnstileSiteKey` in `ChatCops.init()`. The widget loads Cloudflare's script only when it first needs a session, so visitors who never open the chat don't load it. The check is invisible for most visitors. When Cloudflare wants a click, the challenge shows near the bottom right corner of the page, outside the widget. A page with a Content Security Policy needs `https://challenges.cloudflare.com` in `script-src` and `frame-src`.
 
 The server checks the token with Cloudflare, sending the visitor's IP, and refuses a missing or failed one with `401 turnstile_failed`. If Cloudflare can't be reached, `/session` answers `503` and issues nothing. A session refreshed with its previous token skips Turnstile, since it passed when it was first issued. `action`, `expectedHostnames` and `timeoutMs` (default 5000) are optional, and a client that retries `/session` with the same Turnstile token can send the same `idempotencyKey` (a UUID) each time.
+
+### Signed-in visitors
+
+When your site knows who the visitor is, it can tell the chat. Your server signs a short `userToken` for the signed-in user, and the widget sends it when it asks for a session:
+
+```typescript
+identity: {
+  secret: process.env.CHATCOPS_IDENTITY_SECRET!,   // at least 32 bytes, shared with your site's server
+  tiers: { pro: { perConversation: { messages: 1000 } } },
+},
+```
+
+The token is an HS256 JWT with `sub` (the user id, up to 128 characters), `exp` in seconds, and optionally `tier`. Sign it on your server, never in the browser. With Node.js and no library:
+
+```typescript
+import { createHmac } from 'node:crypto';
+
+function chatUserToken(userId: string, tier?: string): string {
+  const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const body = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ sub: userId, exp: Math.floor(Date.now() / 1000) + 86_400, tier })}`;
+  return `${body}.${createHmac('sha256', process.env.CHATCOPS_IDENTITY_SECRET!).update(body).digest('base64url')}`;
+}
+```
+
+Then put it on the page with `data-user-token="..."` on the script tag, or `userToken` in `ChatCops.init()`.
+
+The user id goes into the session token and is stored on the conversation with its first message. The same user can resume that conversation later with a fresh token, even without the old session token. Another user, or an anonymous visitor, can't. A `tier` swaps in that tier's budgets (merged over `budgets`) for the user's replies. A `userToken` that doesn't verify or has expired gets `401 session_required`, rather than an anonymous session, so a bug on your site shows up. The widget sends the token every time it asks for a session, so give it a lifetime longer than a visit, such as a day.
 
 ## Budgets
 

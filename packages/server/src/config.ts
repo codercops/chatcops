@@ -110,6 +110,14 @@ export interface ChatCopsServerConfig {
    */
   turnstile?: TurnstileConfig;
   /**
+   * Signed-in visitors. Your site signs a \`userToken\` (an HS256 JWT with
+   * \`sub\`, \`exp\` and an optional \`tier\`) with \`secret\`, and the widget
+   * sends it with \`/session\`. The user id is stored on the conversation, so
+   * the same user can resume it with a fresh token, and \`tiers\` gives a
+   * tier its own budgets (merged over \`budgets\`). Needs \`sessionSecrets\`.
+   */
+  identity?: { secret: string; tiers?: Record<string, Budgets> };
+  /**
    * Adds the reply's token usage to the `finish` part of protocol v1
    * streams. Off by default, since visitors can read the stream.
    */

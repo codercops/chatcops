@@ -98,7 +98,22 @@ export function createChatHandler(config: ChatCopsServerConfig) {
   // rather than as a provider error on the first message.
   validateTools(toolDefs);
   const tools = toolRegistry(config.tools);
-  const sessions = createSessions(config, async (id) => (await conversations.getMessages(id)).length === 0);
+  const sessions = createSessions(config, async (id) => {
+    const conversation = await conversations.getOrCreate(id);
+    const uid = conversation.metadata?.uid;
+    return { unused: conversation.messages.length === 0, ...(typeof uid === 'string' ? { uid } : {}) };
+  });
+  // A tier's budgets replace those scopes of the base ones; counts are shared.
+  // Built here so a mistake in one fails at startup.
+  const tierGuards = new Map(
+    budgets
+      ? Object.entries(config.identity?.tiers ?? {}).map(([tier, tierBudgets]) => [
+          tier,
+          createBudgetGuard(counters, { ...budgets.budgets, ...tierBudgets }),
+        ])
+      : []
+  );
+  const guardFor = (tier: string | undefined) => (tier && tierGuards.get(tier)) || budgetGuard;
   if (!loggedSecurity) {
     loggedSecurity = true;
     logSecurityAtStartup({
@@ -137,10 +152,12 @@ export function createChatHandler(config: ChatCopsServerConfig) {
       );
     }
     const req: ValidatedChatRequest = parsed.data;
+    let user: SignedInUser | undefined;
 
     if (sessions) {
       const session = await sessions.check(options.authorization, options.origin ?? null, req.conversationId);
       if (!session.ok) return refuse(session.code, { message: session.message }, { error: 'provider_error' });
+      user = session.claims?.uid ? { uid: session.claims.uid, tier: session.claims.tier } : undefined;
     }
 
     if (clientIp) {
@@ -167,7 +184,7 @@ export function createChatHandler(config: ChatCopsServerConfig) {
       return refuse('conversation_busy', {}, { error: 'provider_error' });
     }
 
-    return { ok: true, parts: replyParts(provider, req, options.signal, clientIp, release) };
+    return { ok: true, parts: replyParts(provider, req, options.signal, clientIp, release, user) };
   }
 
   async function* replyParts(
@@ -175,11 +192,12 @@ export function createChatHandler(config: ChatCopsServerConfig) {
     req: ValidatedChatRequest,
     signal: AbortSignal | undefined,
     clientIp: string | undefined,
-    release: () => Promise<void>
+    release: () => Promise<void>,
+    user?: SignedInUser
   ): AsyncGenerator<WirePart, void> {
     const pendingWebhooks = new Set<Promise<void>>();
     try {
-      for await (const part of reply(provider, req, signal, pendingWebhooks, clientIp)) {
+      for await (const part of reply(provider, req, signal, pendingWebhooks, clientIp, user)) {
         // Tells the widget to get a session before its next request.
         yield part.type === 'start' && sessions ? { ...part, capabilities: { ...part.capabilities, session: true } } : part;
       }
@@ -230,7 +248,8 @@ export function createChatHandler(config: ChatCopsServerConfig) {
     req: ValidatedChatRequest,
     signal: AbortSignal | undefined,
     pendingWebhooks: Set<Promise<void>>,
-    clientIp: string | undefined
+    clientIp: string | undefined,
+    user?: SignedInUser
   ): AsyncGenerator<WirePart, void> {
     const conversation = await conversations.getOrCreate(req.conversationId);
     const conversationMessages = conversation.messages;
@@ -298,11 +317,12 @@ export function createChatHandler(config: ChatCopsServerConfig) {
         content: req.message,
         timestamp: Date.now(),
       };
-      await conversations.appendMessages(
-        req.conversationId,
-        [userMessage],
-        newVisitor ? { metadata: { visitor: newVisitor } } : undefined
-      );
+      // The signed-in user it belongs to, set once with the first message.
+      const metadata: Record<string, unknown> = {
+        ...(newVisitor ? { visitor: newVisitor } : {}),
+        ...(user && conversation.metadata?.uid === undefined ? { uid: user.uid } : {}),
+      };
+      await conversations.appendMessages(req.conversationId, [userMessage], Object.keys(metadata).length ? { metadata } : undefined);
     }
 
     // The system prompt is the operator's text and nothing else, so it's the
@@ -350,7 +370,7 @@ export function createChatHandler(config: ChatCopsServerConfig) {
       exposeUsage: config.exposeUsage,
       signal,
       ...(budgetGuard
-        ? { budget: { guard: budgetGuard, context: { conversationId: req.conversationId, ...(clientIp ? { ip: clientIp } : {}) } } }
+        ? { budget: { guard: guardFor(user?.tier) ?? budgetGuard, context: { conversationId: req.conversationId, ...(clientIp ? { ip: clientIp } : {}) } } }
         : {}),
       onPart: (part) => {
         if (part.type !== 'lead-captured') return;
@@ -443,6 +463,12 @@ export function createChatHandler(config: ChatCopsServerConfig) {
 
 /** The stream a caller writes: protocol v1, the 0.5 chunks, or the AI SDK's UI message stream. */
 export type ChatFormat = 'v1' | 'legacy' | 'ai-sdk';
+
+/** A visitor the host site signed in, from the session token. */
+interface SignedInUser {
+  uid: string;
+  tier?: string;
+}
 
 export interface StartChatOptions {
   signal?: AbortSignal;

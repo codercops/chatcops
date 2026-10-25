@@ -96,6 +96,15 @@ describe('ChatClient with session tokens', () => {
     expect(retry.body.conversationId).toBe('server-id');
   });
 
+  it("sends the host site's userToken when it asks for a session", async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(unauthorized())
+      .mockResolvedValueOnce(minted('c1'))
+      .mockResolvedValueOnce(v1Reply());
+    await collect(new ChatClient({ apiUrl: API, userToken: 'host.signed.token' }));
+    expect(calls(fetch as never)[1].body).toEqual({ conversationId: 'c1', userToken: 'host.signed.token' });
+  });
+
   it('reports the 401 when the server has no session endpoint', async () => {
     vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(unauthorized())

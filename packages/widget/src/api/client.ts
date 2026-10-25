@@ -8,6 +8,8 @@ export interface ChatClientOptions {
   timeout?: number;
   /** Cloudflare Turnstile site key, when the server checks Turnstile before issuing a session. */
   turnstileSiteKey?: string;
+  /** The host site's signed token for a signed-in visitor, sent when asking for a session. */
+  userToken?: string;
 }
 
 export interface SendMessageOptions {
@@ -29,10 +31,12 @@ export class ChatClient {
   /** The last token, kept across page loads so the server can resume the conversation. */
   private saved: Partial<Session> = {};
   private turnstileSiteKey?: string;
+  private userToken?: string;
 
   constructor(options: ChatClientOptions) {
     this.apiUrl = options.apiUrl;
     this.turnstileSiteKey = options.turnstileSiteKey;
+    this.userToken = options.userToken;
     this.timeout = options.timeout ?? 30000;
     this.sessionKey = `chatcops-session:${options.apiUrl}`;
     try {
@@ -110,6 +114,7 @@ export class ChatClient {
         const minted = await post(this.apiUrl.replace(/\/?(\?.*)?$/, '/session$1'), {
           conversationId: request.conversationId,
           previousToken: saved.token,
+          userToken: this.userToken,
           turnstileToken: this.turnstileSiteKey && !resumable ? await turnstileToken(this.turnstileSiteKey) : undefined,
         });
         if (minted.ok) {

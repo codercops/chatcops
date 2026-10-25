@@ -1,5 +1,5 @@
 import { errorBody, type WireErrorBody, type WireErrorCode } from '@chatcops/core';
-import { importSessionKey, signSession, verifySession, type SessionClaims } from './session-token.js';
+import { base64UrlDecode, importSessionKey, signSession, verifySession, verifySessionSignature, type SessionClaims } from './session-token.js';
 import { verifyTurnstile, type TurnstileConfig } from './turnstile.js';
 
 /**
@@ -21,6 +21,15 @@ export interface SessionConfig {
   sessionTtlSec?: number;
   requireSession?: boolean;
   turnstile?: TurnstileConfig;
+  identity?: { secret: string };
+}
+
+/** What `/session` needs to know about a conversation id. */
+export interface ConversationInfo {
+  /** Nothing is stored under it yet. */
+  unused: boolean;
+  /** The signed-in user it belongs to, from a `userToken`. */
+  uid?: string;
 }
 
 export type SessionCheck =
@@ -43,18 +52,23 @@ export interface Sessions {
 
 /**
  * `undefined` when `sessionSecrets` isn't set. Throws at startup on a bad
- * config. `isUnused` says whether a conversation has nothing stored yet.
+ * config. `lookup` says what's stored under a conversation id.
  */
 export function createSessions(
   config: SessionConfig,
-  isUnused: (conversationId: string) => Promise<boolean> = async () => false,
+  lookup: (conversationId: string) => Promise<ConversationInfo> = async () => ({ unused: false }),
   now: () => number = Date.now
 ): Sessions | undefined {
   const secrets = config.sessionSecrets;
   if (secrets === undefined) {
     if (config.requireSession) throw new Error('`requireSession` needs `sessionSecrets` to sign tokens with.');
     if (config.turnstile) throw new Error('`turnstile` is checked when a session token is issued, so it needs `sessionSecrets`.');
+    if (config.identity) throw new Error('`identity` goes into session tokens, so it needs `sessionSecrets`.');
     return undefined;
+  }
+  const identitySecret = config.identity?.secret;
+  if (config.identity && (typeof identitySecret !== 'string' || new TextEncoder().encode(identitySecret).byteLength < MIN_SECRET_BYTES)) {
+    throw new Error(`\`identity.secret\` needs at least ${MIN_SECRET_BYTES} bytes, like \`sessionSecrets\`.`);
   }
   const turnstile = config.turnstile;
   if (turnstile && !turnstile.secretKey) throw new Error('`turnstile` needs its `secretKey`.');
@@ -71,6 +85,8 @@ export function createSessions(
   // Imported on first use: Workers don't allow crypto.subtle at global scope.
   let keys: Promise<CryptoKey[]> | undefined;
   const getKeys = () => (keys ??= Promise.all(secrets.map((secret) => importSessionKey(secret))));
+  let identityKey: Promise<CryptoKey> | undefined;
+  const getIdentityKey = () => (identityKey ??= importSessionKey(identitySecret as string));
   const nowSec = () => Math.floor(now() / 1000);
   const required = config.requireSession ?? true;
 
@@ -86,7 +102,8 @@ export function createSessions(
       // Resuming a conversation needs a token that was issued for it, from
       // this origin. Expired is fine within the grace window. An id with
       // nothing stored yet (the widget makes its own) is given out as is,
-      // since there's nothing in it to read. Anything else gets a new
+      // since there's nothing in it to read, and so is a signed-in user's own
+      // conversation (with a \`userToken\` for them). Anything else gets a new
       // conversation, so a guessed or leaked id is useless.
       let resumed: SessionClaims | undefined;
       let cid: string | undefined;
@@ -99,6 +116,17 @@ export function createSessions(
         });
         if (result.ok) resumed = result.claims;
       }
+      // A visitor the host site signed in. A token that doesn't verify is an
+      // error, not an anonymous session, so a bug on the host site shows.
+      let user: UserClaims | undefined;
+      if (request.userToken !== undefined) {
+        if (!identitySecret) return { status: 400, body: errorBody('invalid_request', { message: '`userToken` needs `identity` on the server.' }) };
+        user = await verifyUserToken(request.userToken, await getIdentityKey(), time);
+        if (!user) return { status: 401, body: errorBody('session_required', { message: 'The userToken is invalid or has expired.' }) };
+      }
+      // A token for another user doesn't carry over.
+      if (resumed?.uid && resumed.uid !== user?.sub) resumed = undefined;
+
       // A refresh was checked when its first token was issued; a new session
       // has to pass Turnstile first.
       if (turnstile && !resumed) {
@@ -116,7 +144,11 @@ export function createSessions(
       }
 
       if (resumed) cid = resumed.cid;
-      else if (request.conversationId && (await isUnused(request.conversationId))) cid = request.conversationId;
+      else if (request.conversationId) {
+        const info = await lookup(request.conversationId);
+        // Nothing stored yet, or this signed-in user's own conversation.
+        if (info.unused || (user && info.uid === user.sub)) cid = request.conversationId;
+      }
 
       const claims: SessionClaims = {
         v: 1,
@@ -125,6 +157,7 @@ export function createSessions(
         org,
         iat: time,
         exp: time + ttlSec,
+        ...(user ? { uid: user.sub, ...(user.tier ? { tier: user.tier } : {}) } : {}),
       };
       const token = await signSession(claims, await getKeys());
       return { status: 200, body: { token, expiresAt: claims.exp * 1000, conversationId: claims.cid } };
@@ -160,6 +193,8 @@ function bearer(header: string | null | undefined): string | undefined {
 interface MintRequest {
   conversationId?: string;
   previousToken?: string;
+  /** Signed by the host site with `identity.secret`: `{ sub, exp, tier? }`. */
+  userToken?: string;
   turnstileToken?: string;
   /** Sent again with a retried request, so Cloudflare accepts the same Turnstile token twice. */
   idempotencyKey?: string;
@@ -168,8 +203,12 @@ interface MintRequest {
 function readMintRequest(body: unknown): MintRequest | undefined {
   if (body === undefined || body === null) return {};
   if (typeof body !== 'object' || Array.isArray(body)) return undefined;
-  const { conversationId, previousToken, turnstileToken, idempotencyKey } = body as Record<string, unknown>;
+  const { conversationId, previousToken, turnstileToken, idempotencyKey, userToken } = body as Record<string, unknown>;
   const request: MintRequest = {};
+  if (userToken !== undefined) {
+    if (typeof userToken !== 'string' || userToken.length > 4096) return undefined;
+    request.userToken = userToken;
+  }
   if (turnstileToken !== undefined) {
     if (typeof turnstileToken !== 'string' || turnstileToken.length > 4096) return undefined;
     request.turnstileToken = turnstileToken;
@@ -187,4 +226,29 @@ function readMintRequest(body: unknown): MintRequest | undefined {
     request.previousToken = previousToken;
   }
   return request;
+}
+
+interface UserClaims {
+  sub: string;
+  tier?: string;
+}
+
+/**
+ * A host site's `userToken`: an HS256 JWT signed with `identity.secret`, with
+ * `sub` (the user id, up to 128 characters), `exp` in seconds and an optional
+ * `tier`. `undefined` when it doesn't verify or has expired.
+ */
+export async function verifyUserToken(token: string, key: CryptoKey, nowSec: number): Promise<UserClaims | undefined> {
+  if (!(await verifySessionSignature(token, [key]))) return undefined;
+  let payload: Record<string, unknown>;
+  try {
+    payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(token.split('.')[1] ?? '')));
+  } catch {
+    return undefined;
+  }
+  const { sub, exp, tier } = payload ?? {};
+  if (typeof sub !== 'string' || sub.length === 0 || sub.length > 128) return undefined;
+  if (typeof exp !== 'number' || !Number.isFinite(exp) || exp + 60 < nowSec) return undefined;
+  if (tier !== undefined && (typeof tier !== 'string' || tier.length > 64)) return undefined;
+  return { sub, ...(typeof tier === 'string' ? { tier } : {}) };
 }

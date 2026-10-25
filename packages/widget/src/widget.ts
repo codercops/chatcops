@@ -48,6 +48,11 @@ export interface WidgetConfig {
    * Cloudflare's script loads only when the widget first needs a session.
    */
   turnstileSiteKey?: string;
+  /**
+   * For a visitor your site has signed in: an HS256 JWT your server signs
+   * with the chat server's `identity.secret` (`sub`, `exp`, optional `tier`).
+   */
+  userToken?: string;
   mode?: 'popup' | 'inline';
   /**
    * Names this widget's saved conversation. Set a different one on each widget
@@ -135,7 +140,7 @@ export class Widget {
 
   constructor(config: WidgetConfig) {
     this.config = config;
-    this.client = new ChatClient({ apiUrl: config.apiUrl, timeout: config.timeout, turnstileSiteKey: config.turnstileSiteKey });
+    this.client = new ChatClient(config);
     this.namespace = claimNamespace(
       config.siteId,
       config.mode ?? 'popup',

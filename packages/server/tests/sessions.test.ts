@@ -5,6 +5,7 @@ import { scriptedProvider, textStep } from '@chatcops/core/testing/provider';
 import { chatcopsVercelHandler } from '../src/adapters/vercel.js';
 import { chatcopsMiddleware } from '../src/adapters/express.js';
 import { createSessions, SESSION_RESUME_GRACE_SEC } from '../src/security/sessions.js';
+import { importSessionKey, signSession } from '../src/security/session-token.js';
 import type { ChatCopsServerConfig } from '../src/config.js';
 
 const SECRET = 'a-session-secret-that-is-long-enough-1';
@@ -284,6 +285,92 @@ describe('Turnstile when a session is issued', () => {
   it('needs sessionSecrets and a secret key', () => {
     expect(() => createSessions({ turnstile })).toThrow('needs `sessionSecrets`');
     expect(() => createSessions({ sessionSecrets: [SECRET], turnstile: { secretKey: '' } })).toThrow('needs its `secretKey`');
+  });
+});
+
+describe('signed-in visitors (identity)', () => {
+  const IDENTITY_SECRET = 'the-host-site-identity-secret-of-32b';
+  const now = () => Math.floor(Date.now() / 1000);
+
+  /** What a host site does on its own server to vouch for a signed-in user. */
+  async function userToken(claims: Record<string, unknown>, secret = IDENTITY_SECRET) {
+    return signSession(claims as never, [await importSessionKey(secret)]);
+  }
+  const claimsOf = (token: string) => JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
+
+  it('puts the user in the session and on the conversation', async () => {
+    const storage = memoryStorage();
+    const { session, chat } = setup({ storage, identity: { secret: IDENTITY_SECRET } });
+    const minted = await session({ userToken: await userToken({ sub: 'user-42', exp: now() + 3600, tier: 'pro' }) });
+    expect(minted.status).toBe(200);
+    expect(claimsOf(minted.body.token)).toMatchObject({ uid: 'user-42', tier: 'pro' });
+
+    expect((await chat(minted.body.conversationId, minted.body.token)).status).toBe(200);
+    expect((await storage.conversations.get(minted.body.conversationId))?.metadata?.uid).toBe('user-42');
+  });
+
+  it('lets the same user resume their conversation with a fresh token, and nobody else', async () => {
+    const { session, chat } = setup({ storage: memoryStorage(), identity: { secret: IDENTITY_SECRET } });
+    const first = await session({ userToken: await userToken({ sub: 'user-42', exp: now() + 3600 }) });
+    await chat(first.body.conversationId, first.body.token);
+
+    // A new device: no previous token, just the user's own token.
+    const sameUser = await session({ conversationId: first.body.conversationId, userToken: await userToken({ sub: 'user-42', exp: now() + 3600 }) });
+    expect(sameUser.body.conversationId).toBe(first.body.conversationId);
+
+    const otherUser = await session({ conversationId: first.body.conversationId, userToken: await userToken({ sub: 'user-7', exp: now() + 3600 }) });
+    expect(otherUser.body.conversationId).not.toBe(first.body.conversationId);
+
+    // Another user's old session token doesn't carry over either.
+    const swapped = await session({
+      conversationId: first.body.conversationId,
+      previousToken: first.body.token,
+      userToken: await userToken({ sub: 'user-7', exp: now() + 3600 }),
+    });
+    expect(swapped.body.conversationId).not.toBe(first.body.conversationId);
+  });
+
+  it('refuses a userToken that does not verify, has expired or has no user id', async () => {
+    const { session } = setup({ identity: { secret: IDENTITY_SECRET } });
+    for (const token of [
+      await userToken({ sub: 'user-42', exp: now() + 3600 }, 'a-different-secret-that-is-long-enough'),
+      await userToken({ sub: 'user-42', exp: now() - 3600 }),
+      await userToken({ exp: now() + 3600 }),
+      'not.a.token',
+    ]) {
+      const res = await session({ userToken: token });
+      expect(res.status).toBe(401);
+      expect(res.body.error.code).toBe('session_required');
+    }
+  });
+
+  it('refuses a userToken when identity is off', async () => {
+    const { session } = setup();
+    expect((await session({ userToken: 'eyJ.x.y' })).status).toBe(400);
+  });
+
+  it('gives a tier its own budgets', async () => {
+    const { session, chat } = setup({
+      storage: memoryStorage(),
+      budgets: { perConversation: { messages: 1 } },
+      identity: { secret: IDENTITY_SECRET, tiers: { pro: { perConversation: { messages: 3 } } } },
+    });
+    const send = async (tier?: string) => {
+      const minted = await session({ userToken: await userToken({ sub: `user-${tier ?? 'free'}`, exp: now() + 3600, ...(tier ? { tier } : {}) }) });
+      const replies = [];
+      for (let i = 0; i < 2; i++) replies.push(await chat(minted.body.conversationId, minted.body.token));
+      return replies.map((reply) => (reply.text.includes('budget_exceeded') ? 'refused' : 'answered'));
+    };
+    expect(await send()).toEqual(['answered', 'refused']);
+    expect(await send('pro')).toEqual(['answered', 'answered']);
+  });
+
+  it('needs sessionSecrets and a long enough secret, and checks tier budgets at startup', () => {
+    expect(() => createSessions({ identity: { secret: IDENTITY_SECRET } })).toThrow('needs `sessionSecrets`');
+    expect(() => createSessions({ sessionSecrets: [SECRET], identity: { secret: 'short' } })).toThrow('at least 32 bytes');
+    expect(() => setup({ budgets: { perConversation: { messages: 5 } }, identity: { secret: IDENTITY_SECRET, tiers: { pro: { perConversation: { messages: -1 } } } } })).toThrow(
+      'budgets.perConversation.messages must be a positive number'
+    );
   });
 });
 
