@@ -16,7 +16,7 @@ function getHandler(env: Record<string, string>) {
       apiKey: env.ANTHROPIC_API_KEY,
     },
     systemPrompt: 'You are a helpful assistant.',
-    cors: '*',
+    allowedOrigins: ['*'],
   });
   return handler;
 }

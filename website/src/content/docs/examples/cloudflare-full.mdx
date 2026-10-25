@@ -3,23 +3,28 @@ title: Cloudflare Worker Full Example
 description: Complete Cloudflare Worker with all ChatCops features.
 ---
 
-A production-ready Cloudflare Worker with lead capture, knowledge base, and rate limiting.
+A production-ready Cloudflare Worker with lead capture, a knowledge base, rate limits and budgets. Conversations live in D1 and the counters in a Durable Object, so every isolate and every region sees the same history and the same limits.
 
 ## Worker (`src/index.ts`)
 
 ```typescript
 import { chatcopsCloudflareHandler } from '@chatcops/server';
 import { LeadCaptureTool, FAQKnowledgeSource, TextKnowledgeSource } from '@chatcops/core';
+import { cloudflareStorage, ChatCopsCounter } from '@chatcops/store-cloudflare';
+
+// Cloudflare finds the Durable Object class through the Worker's exports.
+export { ChatCopsCounter };
 
 interface Env {
+  DB: D1Database;
+  COUNTERS: DurableObjectNamespace<ChatCopsCounter>;
   ANTHROPIC_API_KEY: string;
   WEBHOOK_URL: string;
   SYSTEM_PROMPT: string;
 }
 
-// Built on the first request rather than at import, because the API key is a
-// Worker secret that only exists inside a request. Caching the handler here is
-// what keeps conversation history and rate limiting alive across requests.
+// Built on the first request rather than at import, because the API key and
+// the bindings only exist inside a request.
 let handler: ReturnType<typeof chatcopsCloudflareHandler> | undefined;
 function getHandler(env: Env) {
   handler ??= chatcopsCloudflareHandler({
@@ -58,15 +63,18 @@ function getHandler(env: Env) {
       ]),
     ],
 
-    allowedOrigins: ['*'],
+    storage: cloudflareStorage({ d1: env.DB, counters: env.COUNTERS }),
+    retention: { conversationsDays: 30 },
+    allowedOrigins: ['https://your-site.com'],
     rateLimit: { maxRequests: 20, windowMs: 60_000 },
+    budgets: { globalPerDay: { tokens: 20_000_000 } },
     analytics: true,
   });
   return handler;
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     // Health check
     if (new URL(request.url).pathname === '/health') {
       return new Response(JSON.stringify({ status: 'ok' }), {
@@ -74,7 +82,8 @@ export default {
       });
     }
 
-    return getHandler(env)(request);
+    // ctx lets lead webhooks and analytics writes finish after the reply.
+    return getHandler(env)(request, env, ctx);
   },
 };
 ```
@@ -84,10 +93,30 @@ export default {
 ```toml
 name = "chatcops-worker"
 main = "src/index.ts"
-compatibility_date = "2024-01-01"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
 
 [vars]
 SYSTEM_PROMPT = "You are a helpful AI assistant."
+
+[[d1_databases]]
+binding = "DB"
+database_name = "chatcops"
+database_id = "<from wrangler d1 create>"
+
+[[durable_objects.bindings]]
+name = "COUNTERS"
+class_name = "ChatCopsCounter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ChatCopsCounter"]
+```
+
+Create the database once. The store creates its tables on first use:
+
+```bash
+npx wrangler d1 create chatcops
 ```
 
 ## Secrets
@@ -115,6 +144,16 @@ npx wrangler deploy
 ></script>
 ```
 
-## Cloudflare storage
+## Install
 
-The official Cloudflare store is planned to support D1, KV, and Durable Objects for distributed counters and coordination. Follow [#249](https://github.com/codercops/chatcops/issues/249) for progress, and see [the storage page](/server/storage/) for the current storage options.
+```bash
+npm install @chatcops/server @chatcops/core @chatcops/store-cloudflare
+```
+
+## Without a Durable Object
+
+Leave out `counters` and the `COUNTERS` binding, and the counters go to D1 as well. Limits still hold across isolates, since each count is one atomic D1 statement, but every count is a D1 write. Turn locks always live in D1.
+
+## Cleaning up old conversations
+
+`retention` sets how long conversations are kept, and something has to call `purge()`. See [running purge() on a schedule](/server/storage/#cloudflare-workers) for a cron trigger.
