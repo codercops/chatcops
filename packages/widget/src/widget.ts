@@ -96,14 +96,21 @@ export interface WidgetConfig {
   onPreChatSubmit?: (data: Record<string, string>) => void;
 }
 
-export type WidgetEventType =
-  | 'open'
-  | 'close'
-  | 'message'
-  | 'error'
-  | 'leadCaptured'
-  | 'preChatSubmit';
-export type WidgetEventHandler = (...args: unknown[]) => void;
+/** What each widget event passes to its handlers. */
+export interface WidgetEvents {
+  open: [];
+  close: [];
+  /** A message the visitor sent, or a finished reply. */
+  message: [message: MessageData];
+  /** A reply that failed. */
+  error: [error: Error];
+  leadCaptured: [lead: Record<string, unknown> | undefined];
+  preChatSubmit: [data: Record<string, string>];
+}
+export type WidgetEventType = keyof WidgetEvents;
+/** A handler for one event, typed by it: `on('message', (message) => ...)`. */
+export type WidgetEventHandler<E extends WidgetEventType = WidgetEventType> = (...args: WidgetEvents[E]) => void;
+type AnyHandler = (...args: never[]) => void;
 type SendRequestOptions = {
   regenerate?: boolean | { assistantMessageId: string };
   userMessageId?: string;
@@ -130,7 +137,7 @@ export class Widget {
   private destroyed = false;
   private abortController?: AbortController;
   private retryRequests = new Map<string, SendRequestOptions>();
-  private eventHandlers = new Map<WidgetEventType, Set<WidgetEventHandler>>();
+  private eventHandlers = new Map<WidgetEventType, Set<AnyHandler>>();
   private containerEl?: HTMLElement;
   private autoOpenTimer?: ReturnType<typeof setTimeout>;
 
@@ -320,22 +327,22 @@ export class Widget {
     this.userData = undefined;
   }
 
-  on(event: WidgetEventType, handler: WidgetEventHandler): () => void {
+  on<E extends WidgetEventType>(event: E, handler: WidgetEventHandler<E>): () => void {
     if (!this.eventHandlers.has(event)) {
       this.eventHandlers.set(event, new Set());
     }
-    this.eventHandlers.get(event)!.add(handler);
+    this.eventHandlers.get(event)!.add(handler as AnyHandler);
     return () => this.off(event, handler);
   }
 
-  off(event: WidgetEventType, handler: WidgetEventHandler): void {
-    this.eventHandlers.get(event)?.delete(handler);
+  off<E extends WidgetEventType>(event: E, handler: WidgetEventHandler<E>): void {
+    this.eventHandlers.get(event)?.delete(handler as AnyHandler);
   }
 
-  private emit(event: WidgetEventType, ...args: unknown[]): void {
+  private emit<E extends WidgetEventType>(event: E, ...args: WidgetEvents[E]): void {
     if (this.destroyed) return;
     this.eventHandlers.get(event)?.forEach((h) => {
-      h(...args);
+      (h as WidgetEventHandler<E>)(...args);
     });
   }
 

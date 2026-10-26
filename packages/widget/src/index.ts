@@ -8,12 +8,14 @@ import {
 export {
   Widget,
   type WidgetConfig,
+  type WidgetEvents,
   type WidgetEventType,
   type WidgetEventHandler,
 } from './widget.js';
+export type { MessageData } from './dom/messages.js';
 
 let instance: Widget | null = null;
-const persistentHandlers = new Map<WidgetEventType, Set<WidgetEventHandler>>();
+const persistentHandlers = new Map<WidgetEventType, Set<WidgetEventHandler<never>>>();
 
 export function parseAutoOpen(value?: string): boolean | number | undefined {
   if (value === undefined) return undefined;
@@ -31,7 +33,7 @@ const ChatCops = {
     instance = new Widget(config);
     for (const [event, handlers] of persistentHandlers) {
       for (const handler of handlers) {
-        instance.on(event, handler);
+        instance.on(event, handler as WidgetEventHandler);
       }
     }
     instance.init();
@@ -51,21 +53,21 @@ const ChatCops = {
     instance = null;
   },
 
-  on(event: WidgetEventType, handler: WidgetEventHandler): () => void {
+  on<E extends WidgetEventType>(event: E, handler: WidgetEventHandler<E>): () => void {
     let handlers = persistentHandlers.get(event);
     if (!handlers) {
       handlers = new Set();
       persistentHandlers.set(event, handlers);
     }
-    handlers.add(handler);
+    handlers.add(handler as WidgetEventHandler<never>);
     instance?.on(event, handler);
     return () => {
       ChatCops.off(event, handler);
     };
   },
 
-  off(event: WidgetEventType, handler: WidgetEventHandler): void {
-    persistentHandlers.get(event)?.delete(handler);
+  off<E extends WidgetEventType>(event: E, handler: WidgetEventHandler<E>): void {
+    persistentHandlers.get(event)?.delete(handler as WidgetEventHandler<never>);
     instance?.off(event, handler);
   },
 };
