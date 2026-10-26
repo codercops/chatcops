@@ -24,6 +24,7 @@ const files = {
   '/legacy-cross-origin.html': ['fixtures/legacy-cross-origin.html', 'text/html'],
   '/slow-tool.html': ['fixtures/slow-tool.html', 'text/html'],
   '/sessions.html': ['fixtures/sessions.html', 'text/html'],
+  '/full.html': ['fixtures/full.html', 'text/html'],
 };
 
 const apiRequests = [];
@@ -189,14 +190,10 @@ const server = createServer(async (req, res) => {
     const endpoint = Object.entries(endpoints).find(([path]) => url.pathname === path || url.pathname === `${path}/session`);
     if (endpoint) return await serveFetch(endpoint[1], req, res);
 
-    if (url.pathname === '/chatcops.esm.js') {
-      const js = await readFile(join(root, 'packages/widget/dist/chatcops.esm.js'));
-      res.writeHead(200, { 'Content-Type': 'text/javascript' });
-      return res.end(js);
-    }
-
-    if (url.pathname === '/chatcops.min.js') {
-      const js = await readFile(join(root, 'packages/widget/dist/chatcops.min.js'));
+    // The widget builds: chatcops.min.js (loader), chatcops.panel.js, chatcops.full.min.js, chatcops.esm.js.
+    const widgetFile = /^\/(chatcops\.(?:min|panel|full\.min|esm)\.js)$/.exec(url.pathname)?.[1];
+    if (widgetFile) {
+      const js = await readFile(join(root, 'packages/widget/dist', widgetFile));
       res.writeHead(200, { 'Content-Type': 'text/javascript' });
       return res.end(js);
     }

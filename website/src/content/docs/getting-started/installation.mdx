@@ -18,6 +18,12 @@ The simplest way — no build step required:
 ></script>
 ```
 
+`chatcops.min.js` is a small loader (about 3 kB) that draws the chat button. The rest of the chat (`chatcops.panel.js`, next to it) downloads when the visitor hovers or clicks the button, or when the chat has to open on its own. So pages where nobody opens the chat only pay for the button.
+
+### Self-hosting
+
+To serve the widget from your own site, copy both `dist/chatcops.min.js` and `dist/chatcops.panel.js` into the same folder. The loader finds the panel next to itself. If you can only serve one file, use `dist/chatcops.full.min.js` instead: the whole chat in one script, loaded up front. A Content Security Policy needs the folder's origin in `script-src` either way.
+
 ### npm
 
 For bundler-based projects (Vite, webpack, Next.js):

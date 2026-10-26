@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 // Vitest runs from the repo root or from the package, depending on how it's started.
-const cssPath = ['src/styles/widget.css', 'packages/widget/src/styles/widget.css']
+const cssPath = ['src/styles/launcher.css', 'packages/widget/src/styles/launcher.css']
   .map((p) => resolve(process.cwd(), p))
   .find((p) => existsSync(p))!;
 const css = readFileSync(cssPath, 'utf8');

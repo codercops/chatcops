@@ -1,7 +1,19 @@
 [
   {
-    "name": "widget, script tag (IIFE)",
+    "name": "widget, script tag loader (chatcops.min.js)",
     "path": "packages/widget/dist/chatcops.min.js",
+    "limit": "5 KB",
+    "gzip": true
+  },
+  {
+    "name": "widget, chat panel (chatcops.panel.js, loaded on open)",
+    "path": "packages/widget/dist/chatcops.panel.js",
+    "limit": "14 KB",
+    "gzip": true
+  },
+  {
+    "name": "widget, single file (chatcops.full.min.js)",
+    "path": "packages/widget/dist/chatcops.full.min.js",
     "limit": "14.5 KB",
     "gzip": true
   },

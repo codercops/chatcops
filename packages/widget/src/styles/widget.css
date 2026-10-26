@@ -1,107 +1,3 @@
-:host {
-  --cc-accent: #6366f1;
-  --cc-accent-hover: #4f46e5;
-  /* Text and icons on accent backgrounds, and the accent shade that text sits on.
-     Both are recomputed from theme.accent so text always reaches WCAG AA 4.5:1. */
-  --cc-on-accent: #ffffff;
-  --cc-accent-contrast: #6164ec;
-  --cc-text: #ffffff;
-  --cc-bg: #0a0a0a;
-  --cc-bg-surface: #1a1a1a;
-  --cc-bg-input: #2a2a2a;
-  --cc-border: #333333;
-  --cc-text-secondary: #a0a0a0;
-  --cc-font: system-ui, -apple-system, sans-serif;
-  --cc-radius: 12px;
-  --cc-shadow: 0 8px 32px rgba(0,0,0,.4);
-  --cc-fab-size: 56px;
-  --cc-panel-width: 400px;
-  --cc-panel-height: 560px;
-
-  all: initial;
-  font-family: var(--cc-font);
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--cc-text);
-  -webkit-font-smoothing: antialiased;
-}
-
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-/* FAB */
-.cc-fab {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  width: var(--cc-fab-size);
-  height: var(--cc-fab-size);
-  border-radius: 50%;
-  background: var(--cc-accent);
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-  transition: transform 0.2s, box-shadow 0.2s;
-  z-index: 10000;
-  outline: none;
-}
-
-.cc-fab:hover {
-  transform: scale(1.05);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
-}
-
-.cc-fab:active {
-  transform: scale(0.95);
-}
-
-.cc-fab.cc-left {
-  right: auto;
-  left: 20px;
-}
-
-.cc-fab svg {
-  width: 24px;
-  height: 24px;
-  fill: var(--cc-on-accent);
-  transition: transform 0.3s;
-}
-
-.cc-fab.cc-open svg {
-  transform: rotate(90deg);
-}
-
-.cc-fab-badge {
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #ef4444;
-  border: 2px solid var(--cc-bg);
-  display: none;
-}
-
-.cc-fab-badge.cc-visible {
-  display: block;
-}
-
-@keyframes cc-pulse {
-  0%, 100% { box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3); }
-  50% { box-shadow: 0 4px 16px rgba(99, 102, 241, 0.5); }
-}
-
-.cc-fab.cc-pulse {
-  animation: cc-pulse 2s ease-in-out 3;
-}
-
 /* Panel */
 .cc-panel {
   position: fixed;
@@ -713,8 +609,7 @@
   }
 }
 
-/* Keyboard focus indicators */
-.cc-fab:focus-visible,
+/* Keyboard focus indicators (the launcher's are in launcher.css) */
 .cc-header-close:focus-visible,
 .cc-send-btn:focus-visible,
 .cc-message-retry:focus-visible,
@@ -727,7 +622,6 @@
 
 /* Respect reduced-motion preferences */
 @media (prefers-reduced-motion: reduce) {
-  .cc-fab.cc-pulse,
   .cc-typing-dot {
     animation: none;
   }

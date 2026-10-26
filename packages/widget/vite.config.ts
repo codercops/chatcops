@@ -7,7 +7,9 @@ export default defineConfig({
       entry: resolve(__dirname, 'src/index.ts'),
       name: 'ChatCops',
       formats: ['iife', 'es'],
-      fileName: (format) => format === 'iife' ? 'chatcops.min.js' : 'chatcops.esm.js',
+      // The single-file build (chatcops.full.min.js) for sites that can't load a second file,
+      // and the ESM build for bundlers. The script tag build is vite.loader.config.ts.
+      fileName: (format) => format === 'iife' ? 'chatcops.full.min.js' : 'chatcops.esm.js',
     },
     cssCodeSplit: false,
     minify: 'terser',

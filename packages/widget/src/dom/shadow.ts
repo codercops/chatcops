@@ -1,6 +1,7 @@
+import launcherStyles from '../styles/launcher.css?inline';
 import widgetStyles from '../styles/widget.css?inline';
 
-const HOST_ID = 'chatcops-root';
+export const HOST_ID = 'chatcops-root';
 
 /**
  * Creates the widget's host element and shadow root. The first widget on the
@@ -22,7 +23,7 @@ export function createShadowRoot(container?: HTMLElement): ShadowRoot {
   const shadow = host.attachShadow({ mode: 'open' });
 
   const style = document.createElement('style');
-  style.textContent = widgetStyles;
+  style.textContent = launcherStyles + widgetStyles;
   shadow.appendChild(style);
 
   return shadow;
@@ -33,7 +34,7 @@ export function destroyShadowRoot(shadow?: ShadowRoot): void {
   shadow?.host.remove();
 }
 
-function nextHostId(): string {
+export function nextHostId(): string {
   if (!document.getElementById(HOST_ID)) return HOST_ID;
   let n = 2;
   while (document.getElementById(`${HOST_ID}-${n}`)) n += 1;

@@ -10,7 +10,8 @@ describe('ChatCops browser export and auto-init', () => {
   ])('parses data-auto-open %j', (value, expected) => {
     expect(parseAutoOpen(value)).toBe(expected);
   });
-  const bundlePath = resolve(__dirname, '../dist/chatcops.min.js');
+  // The single-file build: everything in one IIFE, as the script tag build was before 0.7.
+  const bundlePath = resolve(__dirname, '../dist/chatcops.full.min.js');
   let bundleCode: string;
 
   beforeEach(() => {

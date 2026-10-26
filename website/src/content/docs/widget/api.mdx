@@ -3,7 +3,7 @@ title: API Reference
 description: The ChatCops global singleton API for programmatic control.
 ---
 
-The `ChatCops` singleton is exposed on `window.ChatCops` when using the IIFE bundle, or importable from the ESM bundle.
+The `ChatCops` singleton is exposed on `window.ChatCops` by the script tag build (`chatcops.min.js` or `chatcops.full.min.js`), or importable from the ESM bundle.
 
 ## Methods
 
@@ -30,6 +30,8 @@ ChatCops.init({
 ```
 
 Calling `init()` again will destroy the previous instance and create a new one.
+
+In the ESM and single-file builds, `init()` returns the `Widget` instance. In the script tag loader (`chatcops.min.js`) it returns nothing, since the chat itself loads later. Use the `ChatCops` methods there, which work before and after the chat has loaded.
 
 ### `ChatCops.open()`
 
