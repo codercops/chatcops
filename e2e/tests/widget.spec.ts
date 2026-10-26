@@ -14,7 +14,8 @@ test.beforeEach(async ({ page }) => {
 test('starts from the script tag alone', async ({ page }) => {
   await expect(page.locator('#chatcops-root')).toBeAttached();
   await expect(page.locator(fab)).toBeVisible();
-  await expect(page.locator(panel)).not.toHaveClass(/cc-visible/);
+  // The loader draws only the button; the panel loads when it's needed (loader.spec.ts).
+  await expect(page.locator(panel)).toHaveCount(0);
 });
 
 test('streams a reply into the panel', async ({ page }) => {
