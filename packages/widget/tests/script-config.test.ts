@@ -36,6 +36,7 @@ describe('configFromScript', () => {
           autoOpen: '2000',
           placeholder: 'Ask me',
           locale: 'de',
+          dir: 'rtl',
           persistence: 'session',
           historyTtlDays: '7',
         })
@@ -53,6 +54,7 @@ describe('configFromScript', () => {
       autoOpen: 2000,
       placeholder: 'Ask me',
       locale: 'de',
+      dir: 'rtl',
       persistence: 'session',
       historyTtlDays: 7,
     });

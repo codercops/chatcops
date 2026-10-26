@@ -95,6 +95,7 @@ export interface WidgetConfig {
   pageContext?: boolean;
   autoOpen?: boolean | number;
   locale?: string;
+  dir?: 'ltr' | 'rtl' | 'auto';
   strings?: Partial<WidgetLocaleStrings>;
   preChatForm?: PreChatFormConfig;
   onOpen?: () => void;
@@ -208,9 +209,9 @@ export class Widget {
     prefetch(this.config);
     if (this.isInline) {
       this.containerEl = this.resolveContainer();
-      this.shadow = createShadowRoot(this.containerEl);
+      this.shadow = createShadowRoot(this.containerEl, { dir: this.config.dir, locale: this.config.locale });
     } else {
-      this.shadow = createShadowRoot();
+      this.shadow = createShadowRoot(undefined, { dir: this.config.dir, locale: this.config.locale });
     }
     this.mounted = true;
 

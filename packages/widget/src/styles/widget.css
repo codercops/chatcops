@@ -384,6 +384,10 @@
   fill: var(--cc-on-accent);
 }
 
+:host([dir="rtl"]) .cc-send-btn svg {
+  transform: scaleX(-1);
+}
+
 /* Footer */
 .cc-footer {
   padding: 6px 16px;

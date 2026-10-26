@@ -35,6 +35,29 @@ describe('Widget', () => {
     sessionStorage.clear();
   });
 
+  it('sets locale-derived direction and language on the host', () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat', locale: 'ar' });
+    widget.init();
+
+    const host = document.querySelector('.chatcops-root');
+    expect(host?.getAttribute('dir')).toBe('rtl');
+    expect(host?.getAttribute('lang')).toBe('ar');
+
+    widget.destroy();
+  });
+
+  it('keeps an explicit direction over the locale in inline mode', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const widget = new Widget({ apiUrl: 'https://api.test/chat', locale: 'he', dir: 'ltr', mode: 'inline', container });
+    widget.init();
+
+    expect(container.querySelector('.chatcops-root')?.getAttribute('dir')).toBe('ltr');
+    expect(container.querySelector('.chatcops-root')?.getAttribute('lang')).toBe('he');
+
+    widget.destroy();
+  });
+
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
