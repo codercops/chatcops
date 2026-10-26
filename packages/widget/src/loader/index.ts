@@ -3,14 +3,20 @@
  * loads the chat panel (`chatcops.panel.js`, next to this file) on demand.
  */
 import { configFromScript } from '../script-config.js';
-import { createLoader, panelUrlFor, type PanelModule } from './loader.js';
+import { createLoader, localeUrlFor, panelUrlFor, type LocaleModule, type PanelModule } from './loader.js';
 
 declare const __CHATCOPS_VERSION__: string;
 
 const script = document.currentScript as HTMLScriptElement | null;
 const panelUrl = panelUrlFor(script?.src || location.href, __CHATCOPS_VERSION__);
 
-const ChatCops = createLoader(() => import(/* @vite-ignore */ panelUrl) as Promise<PanelModule>);
+const ChatCops = createLoader(
+  () => import(/* @vite-ignore */ panelUrl) as Promise<PanelModule>,
+  (locale) => {
+    const url = localeUrlFor(panelUrl, locale);
+    return url ? (import(/* @vite-ignore */ url) as Promise<LocaleModule>) : undefined;
+  }
+);
 (window as unknown as { ChatCops: typeof ChatCops }).ChatCops = ChatCops;
 
 const config = script && configFromScript(script);

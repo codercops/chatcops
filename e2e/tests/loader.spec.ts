@@ -123,3 +123,26 @@ test('the pre-chat form downloads only on pages that use it, and works', async (
   await page.locator('.cc-send-btn').click();
   await expect(page.locator('.cc-message-assistant').last()).toContainText('Hello from the test server.');
 });
+
+test('the chat loads its translation next to the panel, and falls back to English without one', async ({ page }) => {
+  const requested: string[] = [];
+  page.on('request', (request) => requested.push(new URL(request.url()).pathname));
+  await page.goto('/locale.html');
+  await page.waitForTimeout(300);
+  expect(requested).not.toContain('/locales/zz.js');
+
+  await page.locator(fab).click();
+  await expect(page.locator('.cc-message-assistant').first()).toContainText('Zz welcome from the translation file');
+  await expect(page.locator('.cc-input')).toHaveAttribute('placeholder', 'Zz type here');
+
+  // A language with no file: one failed request, then English.
+  const warnings: string[] = [];
+  page.on('console', (message) => message.type() === 'warning' && warnings.push(message.text()));
+  await page.goto('/locale.html');
+  await page.evaluate(() => {
+    (window as unknown as { ChatCops: { init(config: object): void } }).ChatCops.init({ apiUrl: '/api/chat', locale: 'qq' });
+  });
+  await page.locator(fab).click();
+  await expect(page.locator('.cc-message-assistant').first()).toContainText('How can I help you today?');
+  expect(warnings.some((text) => text.includes('"qq" strings could not load'))).toBe(true);
+});
