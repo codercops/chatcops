@@ -29,6 +29,7 @@ export interface WidgetLocaleStrings {
   preChatInvalidEmail: string;
   retryButton: string;
   regenerateButton: string;
+  suggestionsLabel: string;
 }
 
 const en: WidgetLocaleStrings = {
@@ -61,6 +62,7 @@ const en: WidgetLocaleStrings = {
   preChatInvalidEmail: 'Please enter a valid email',
   retryButton: 'Retry',
   regenerateButton: 'Regenerate',
+  suggestionsLabel: 'Suggested questions',
 };
 
 const locales: Record<string, WidgetLocaleStrings> = { en };

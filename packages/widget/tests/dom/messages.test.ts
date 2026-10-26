@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Messages } from '../../src/dom/messages.js';
 
 describe('Messages', () => {
@@ -21,6 +21,23 @@ describe('Messages', () => {
     const msg = parent.querySelector('.cc-message-user');
     expect(msg).toBeTruthy();
     expect(msg?.textContent).toBe('Hello');
+  });
+
+  it('renders suggestions as buttons in a labelled group and removes them after selection', () => {
+    const onSelect = vi.fn();
+    messages.showSuggestions(['Compare plans', 'Book a demo'], 'Suggested questions', onSelect);
+
+    const group = parent.querySelector('.cc-suggestions');
+    expect(group?.getAttribute('role')).toBe('group');
+    expect(group?.getAttribute('aria-label')).toBe('Suggested questions');
+    const buttons = Array.from(group?.querySelectorAll('button') ?? []);
+    expect(buttons.map((button) => button.textContent)).toEqual(['Compare plans', 'Book a demo']);
+    expect(buttons.every((button) => button.type === 'button')).toBe(true);
+
+    buttons[0].click();
+    expect(onSelect).toHaveBeenCalledWith('Compare plans');
+    messages.addMessage({ id: 'visitor-1', role: 'user', content: 'Compare plans' });
+    expect(parent.querySelector('.cc-suggestions')).toBeNull();
   });
 
   it('adds an assistant message with markdown', () => {

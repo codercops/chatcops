@@ -84,6 +84,7 @@ ChatCops.init({
 
   // Behavior
   welcomeMessage: 'Hi! How can I help you today?',
+  suggestions: ['Compare plans', 'Book a demo'],
   welcomeBubble: {
     text: 'Need help? Chat with us!',
     delay: 3000,
@@ -207,6 +208,7 @@ interface WidgetConfig {
   };
 
   welcomeMessage?: string;    // First assistant message
+  suggestions?: string[];     // Suggested question buttons shown in a new conversation
   welcomeBubble?: {           // Popup mode only
     text: string;             // Text shown on hover bubble
     delay?: number;           // ms before bubble appears

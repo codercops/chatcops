@@ -75,6 +75,7 @@ export interface WidgetConfig {
     subtitle?: string;
   };
   welcomeMessage?: string;
+  suggestions?: string[];
   welcomeBubble?: {
     text: string;
     delay?: number;
@@ -162,6 +163,7 @@ export class Widget {
   /** The saved conversation has been read (on first open, or at mount in inline mode). */
   private hydrated = false;
   private messages: MessageData[] = [];
+  private restoredConversation = false;
   private userData?: Record<string, string>;
   private isStreaming = false;
   /** Set once the server answers in protocol v1 (0.6 and later). */
@@ -293,6 +295,7 @@ export class Widget {
     this.hydrated = true;
     const saved = this.storage.load();
     if (saved) {
+      this.restoredConversation = true;
       this.conversationId = saved.id;
       this.preChatDone = saved.preChatDone ?? false;
       // Answers only count while the form is on: turning it off drops them.
@@ -445,7 +448,17 @@ export class Widget {
       };
       this.messages.push(welcomeMsg);
       this.panel.addMessage(welcomeMsg);
+      this.renderSuggestions();
     }
+  }
+
+  private renderSuggestions(suggestions: string[] = this.config.suggestions ?? []): void {
+    if (this.restoredConversation || this.messages.some((message) => message.role === 'user')) return;
+    this.panel.messages.showSuggestions(
+      suggestions,
+      this.locale.suggestionsLabel,
+      (suggestion) => { void this.handleSend(suggestion); }
+    );
   }
 
   private async handleSend(text: string): Promise<void> {
