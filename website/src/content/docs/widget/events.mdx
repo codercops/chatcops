@@ -69,8 +69,7 @@ Payload: `{ id, role, content, status?, errorType? }`
 - `errorType`: `'rate_limit' | 'network' | 'provider_error' | 'timeout'` (optional) - Error category when status is `'error'`.
 
 ```typescript
-ChatCops.on('message', (...args: unknown[]) => {
-  const message = args[0] as { role: 'user' | 'assistant'; content: string };
+ChatCops.on('message', (message) => {
   console.log(`${message.role}: ${message.content}`);
 });
 ```
@@ -82,8 +81,7 @@ Fired when an error occurs. Emits a plain JavaScript `Error` instance.
 Payload: `Error`
 
 ```typescript
-ChatCops.on('error', (...args: unknown[]) => {
-  const error = args[0] as Error;
+ChatCops.on('error', (error) => {
   console.error('Chat error:', error.message);
 });
 ```
@@ -107,8 +105,7 @@ Fired when a user submits the pre-chat form before starting a conversation.
 Payload: `data: Record<string, string>`
 
 ```typescript
-ChatCops.on('preChatSubmit', (...args: unknown[]) => {
-  const data = args[0] as Record<string, string>;
+ChatCops.on('preChatSubmit', (data) => {
   console.log('Pre-chat form submitted:', data);
 });
 ```
@@ -122,8 +119,7 @@ ChatCops.on('open', () => {
   gtag('event', 'chat_widget_open');
 });
 
-ChatCops.on('message', (...args: unknown[]) => {
-  const data = args[0] as { role: 'user' | 'assistant' };
+ChatCops.on('message', (data) => {
   if (data.role === 'user') {
     gtag('event', 'chat_message_sent');
   }

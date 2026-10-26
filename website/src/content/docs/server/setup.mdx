@@ -180,7 +180,9 @@ await purge(); // resolves how many were deleted
 `allowedOrigins` lists the sites whose pages can use the chat. Each entry is an exact origin, or a wildcard for subdomains:
 
 ```typescript
-const config = {
+import type { ChatCopsServerConfig } from '@chatcops/server';
+
+const config: Partial<ChatCopsServerConfig> = {
   allowedOrigins: ['https://acme.com', 'https://*.acme.com'],
 };
 ```
@@ -198,7 +200,9 @@ Requests without an `Origin` header, such as `curl` or a call from your own serv
 Without session tokens, anyone who knows a conversation id can keep talking in that conversation, and the model answers with its history in view. Ids are random, so this is about leaked ids and guessing. With `sessionSecrets` set, the chat needs a short-lived token that's bound to one conversation and one site:
 
 ```typescript
-const config = {
+import type { ChatCopsServerConfig } from '@chatcops/server';
+
+const config: Partial<ChatCopsServerConfig> = {
   sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
 };
 ```
@@ -229,7 +233,9 @@ To change the secret, put the new one first and keep the old one until its token
 A script can still ask for as many sessions as it likes. To make that harder, have `/session` check a [Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/) token first:
 
 ```typescript
-const config = {
+import type { ChatCopsServerConfig } from '@chatcops/server';
+
+const config: Partial<ChatCopsServerConfig> = {
   sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
   turnstile: { secretKey: process.env.TURNSTILE_SECRET_KEY! },
 };
@@ -244,11 +250,13 @@ The server checks the token with Cloudflare, sending the visitor's IP, and refus
 When your site knows who the visitor is, it can tell the chat. Your server signs a short `userToken` for the signed-in user, and the widget sends it when it asks for a session:
 
 ```typescript
-const config = {
-identity: {
-  secret: process.env.CHATCOPS_IDENTITY_SECRET!,   // at least 32 bytes, shared with your site's server
-  tiers: { pro: { perConversation: { messages: 1000 } } },
-},
+import type { ChatCopsServerConfig } from '@chatcops/server';
+
+const config: Partial<ChatCopsServerConfig> = {
+  identity: {
+    secret: process.env.CHATCOPS_IDENTITY_SECRET!,   // at least 32 bytes, shared with your site's server
+    tiers: { pro: { perConversation: { messages: 1000 } } },
+  },
 };
 ```
 
@@ -289,14 +297,16 @@ The server logs the budgets in force once at startup:
 A scope you set replaces its default whole. `false` turns a scope off, and `budgets: false` turns them all off:
 
 ```typescript
-const config = {
-budgets: {
-  perConversation: { tokens: 400_000 },            // over the conversation's lifetime
-  perIpPerDay: { tokens: 2_000_000, messages: 200 },
-  globalPerDay: { usd: 20 },                        // the backstop
-  // What a request cost, for the dollar cap. Price cached input at its discount.
-  price: (usage: { inputTokens: number; outputTokens: number }) => (usage.inputTokens * 1 + usage.outputTokens * 5) / 1_000_000,
-},
+import type { ChatCopsServerConfig } from '@chatcops/server';
+
+const config: Partial<ChatCopsServerConfig> = {
+  budgets: {
+    perConversation: { tokens: 400_000 },            // over the conversation's lifetime
+    perIpPerDay: { tokens: 2_000_000, messages: 200 },
+    globalPerDay: { usd: 20 },                        // the backstop
+    // What a request cost, for the dollar cap. Price cached input at its discount.
+    price: (usage: { inputTokens: number; outputTokens: number }) => (usage.inputTokens * 1 + usage.outputTokens * 5) / 1_000_000,
+  },
 };
 ```
 
@@ -353,7 +363,9 @@ app.post('/hooks/chatcops', express.text({ type: 'application/json' }), async (r
 **Allowed URLs.** Webhook URLs must use https, and hosts on loopback, private or link-local networks (`localhost`, `10.x`, `192.168.x`, `169.254.169.254` and so on) are refused when the server starts. For a receiver on your own machine during development, set `allowPrivateNetwork: true` on that webhook:
 
 ```typescript
-const config = {
+import type { ChatCopsServerConfig } from '@chatcops/server';
+
+const config: Partial<ChatCopsServerConfig> = {
   webhooks: [{ url: 'http://localhost:4000/hooks', events: ['lead:captured'], allowPrivateNetwork: true }],
 };
 ```

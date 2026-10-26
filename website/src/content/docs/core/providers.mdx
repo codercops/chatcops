@@ -8,6 +8,8 @@ ChatCops puts every provider behind the same `AIProvider` interface. Switch betw
 ## Provider configuration
 
 ```typescript
+import type { ProviderConfig } from '@chatcops/core';
+
 const providers = {
   // Claude (Anthropic)
   claude: {
@@ -33,7 +35,7 @@ const providers = {
     baseURL: 'http://localhost:11434/v1',
     model: 'llama3.3',
   },
-};
+} satisfies Record<string, ProviderConfig>;
 ```
 
 `apiKey` is required for `claude`, `openai` and `gemini`. Without it, setup fails with an error like `claude requires apiKey`.
@@ -75,31 +77,33 @@ Claude 5.x models, Claude Opus 4.7 and later, and OpenAI reasoning models (GPT-5
 Any server that speaks the OpenAI chat completions API works through the `openai-compatible` provider. `baseURL` and `model` are required, `apiKey` only if the server wants one:
 
 ```typescript
+import type { ProviderConfig } from '@chatcops/core';
+
 const providers = {
-// Ollama on your own machine
-ollama: {
-  type: 'openai-compatible',
-  model: 'llama3.3',
-  baseURL: 'http://localhost:11434/v1',
-},
+  // Ollama on your own machine
+  ollama: {
+    type: 'openai-compatible',
+    model: 'llama3.3',
+    baseURL: 'http://localhost:11434/v1',
+  },
 
-// OpenRouter, with the headers it uses to identify your app
-openrouter: {
-  type: 'openai-compatible',
-  apiKey: process.env.OPENROUTER_API_KEY!,
-  model: 'anthropic/claude-haiku-5-5',
-  baseURL: 'https://openrouter.ai/api/v1',
-  headers: { 'HTTP-Referer': 'https://example.com', 'X-Title': 'My site' },
-},
+  // OpenRouter, with the headers it uses to identify your app
+  openrouter: {
+    type: 'openai-compatible',
+    apiKey: process.env.OPENROUTER_API_KEY!,
+    model: 'anthropic/claude-haiku-5-5',
+    baseURL: 'https://openrouter.ai/api/v1',
+    headers: { 'HTTP-Referer': 'https://example.com', 'X-Title': 'My site' },
+  },
 
-// A model that can't call tools
-withoutTools: {
-  type: 'openai-compatible',
-  model: 'gemma3',
-  baseURL: 'http://localhost:11434/v1',
-  supportsTools: false,
-},
-};
+  // A model that can't call tools
+  withoutTools: {
+    type: 'openai-compatible',
+    model: 'gemma3',
+    baseURL: 'http://localhost:11434/v1',
+    supportsTools: false,
+  },
+} satisfies Record<string, ProviderConfig>;
 ```
 
 `openai-compatible` sends `max_tokens`. If the server wants `max_completion_tokens`, set `maxTokensParam: 'max_completion_tokens'`.

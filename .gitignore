@@ -6,6 +6,7 @@ dist/
 .DS_Store
 coverage/
 .astro/
+website/.docs-check-*
 .vercel/
 package-lock.json
 
