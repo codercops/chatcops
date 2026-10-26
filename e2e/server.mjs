@@ -26,6 +26,8 @@ const files = {
   '/sessions.html': ['fixtures/sessions.html', 'text/html'],
   '/full.html': ['fixtures/full.html', 'text/html'],
   '/prechat.html': ['fixtures/prechat.html', 'text/html'],
+  '/locale.html': ['fixtures/locale.html', 'text/html'],
+  '/locales/zz.js': ['fixtures/locales/zz.js', 'text/javascript'],
 };
 
 const apiRequests = [];

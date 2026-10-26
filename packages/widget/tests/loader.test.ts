@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createLoader, panelUrlFor, type PanelModule } from '../src/loader/loader.js';
+import { createLoader, localeUrlFor, panelUrlFor, type PanelModule } from '../src/loader/loader.js';
 import { Widget } from '../src/widget.js';
 
 /** The panel chunk, as the loader would import it, with a way to hold or fail the load. */
@@ -225,6 +225,79 @@ describe('the script tag loader', () => {
     loader.open();
     expect(kept).toHaveBeenCalledTimes(1);
     loader.destroy();
+  });
+});
+
+describe('translations in the loader', () => {
+  const welcome = () => shadow()?.querySelector('.cc-message-assistant')?.textContent;
+
+  it("loads the strings for the locale with the chat, and the site's own strings still win", async () => {
+    const { load } = panel();
+    const loadLocale = vi.fn(() => Promise.resolve({ default: { welcomeMessage: 'Wie kann ich helfen?', sendButton: 'Senden' } }));
+    const loader = createLoader(load, loadLocale);
+    loader.init({ apiUrl: 'https://api.test/chat', locale: 'de', strings: { sendButton: 'Los' } });
+    expect(loadLocale).not.toHaveBeenCalled();
+
+    loader.open();
+    await settle();
+    expect(loadLocale).toHaveBeenCalledWith('de');
+    expect(welcome()).toContain('Wie kann ich helfen?');
+    expect(shadow()?.querySelector('.cc-send-btn')?.getAttribute('aria-label')).toBe('Los');
+    loader.destroy();
+  });
+
+  it('starts loading the strings on hover, once', async () => {
+    const { load } = panel();
+    const loadLocale = vi.fn(() => Promise.resolve({ default: { welcomeMessage: 'Bonjour' } }));
+    const loader = createLoader(load, loadLocale);
+    loader.init({ apiUrl: 'https://api.test/chat', locale: 'fr' });
+
+    launcherButton()?.dispatchEvent(new Event('pointerenter'));
+    expect(loadLocale).toHaveBeenCalledTimes(1);
+    loader.open();
+    await settle();
+    expect(loadLocale).toHaveBeenCalledTimes(1);
+    expect(welcome()).toContain('Bonjour');
+    loader.destroy();
+  });
+
+  it('opens in English, with a warning, when the strings fail to load', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { load } = panel();
+    const loader = createLoader(load, () => Promise.reject(new Error('404')));
+    loader.init({ apiUrl: 'https://api.test/chat', locale: 'qq' });
+
+    loader.open();
+    await settle();
+    expect(welcome()).toContain('How can I help you today?');
+    expect(warn).toHaveBeenCalledWith('[chatcops] The "qq" strings could not load, so the chat is in English:', '404');
+    loader.destroy();
+  });
+
+  it('ignores a file without a strings object', async () => {
+    const { load } = panel();
+    const loader = createLoader(load, () => Promise.resolve({ default: 'nope' as never }));
+    loader.init({ apiUrl: 'https://api.test/chat', locale: 'xx' });
+    loader.open();
+    await settle();
+    expect(welcome()).toContain('How can I help you today?');
+    loader.destroy();
+  });
+});
+
+describe('localeUrlFor', () => {
+  const panelUrl = 'https://cdn.jsdelivr.net/npm/@chatcops/widget@0.7.0/dist/chatcops.panel.js?v=0.7.0';
+  it.each([
+    ['de', 'https://cdn.jsdelivr.net/npm/@chatcops/widget@0.7.0/dist/locales/de.js?v=0.7.0'],
+    ['pt-BR', 'https://cdn.jsdelivr.net/npm/@chatcops/widget@0.7.0/dist/locales/pt.js?v=0.7.0'],
+    ['zh_Hant', 'https://cdn.jsdelivr.net/npm/@chatcops/widget@0.7.0/dist/locales/zh.js?v=0.7.0'],
+    ['FIL', 'https://cdn.jsdelivr.net/npm/@chatcops/widget@0.7.0/dist/locales/fil.js?v=0.7.0'],
+  ])('%s', (locale, url) => {
+    expect(localeUrlFor(panelUrl, locale)).toBe(url);
+  });
+
+  it.each(['en', 'en-GB', '', '../x', 'toolongcode'])('has no file for %j', (locale) => {
+    expect(localeUrlFor(panelUrl, locale)).toBeUndefined();
   });
 });
 
