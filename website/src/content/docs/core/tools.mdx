@@ -47,6 +47,8 @@ The tool has these parameters:
 Create custom tools by implementing the `ChatTool` interface:
 
 ```typescript
+import type { JSONSchema, MessagePart, ToolParameter } from '@chatcops/core';
+
 interface ChatTool {
   name: string;          // letters, digits, _ and -, starting with a letter or _ (64 at most)
   description: string;
@@ -79,6 +81,7 @@ The server checks every tool when it starts and throws a `ToolDefinitionError` l
 `inputSchema` takes any JSON Schema with an object at the root: nested objects, arrays, `enum`, `anyOf` and `$ref` work with Claude, OpenAI and Gemini.
 
 ```typescript
+import { chatcopsMiddleware } from '@chatcops/server';
 import type { ChatTool } from '@chatcops/core';
 
 const orderTool: ChatTool = {
@@ -131,6 +134,8 @@ The model fills in the input, so check it in `execute` before acting on it, the 
 Tools written for earlier versions keep working. `parameters` is a flat map of string, number and boolean fields, converted to the same JSON Schema:
 
 ```typescript
+import type { ChatTool } from '@chatcops/core';
+
 const weatherTool: ChatTool = {
   name: 'get_weather',
   description: 'Get current weather for a city',

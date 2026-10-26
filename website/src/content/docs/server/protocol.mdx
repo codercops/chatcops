@@ -416,6 +416,8 @@ import type { WirePart, ChatRequestV1, WireErrorCode, WireFinishReason } from '@
 `WirePart` is a discriminated union over the `type` property. You can handle events using a standard `switch` statement:
 
 ```typescript
+import type { WirePart } from '@chatcops/core/protocol';
+
 function handlePart(part: WirePart) {
   switch (part.type) {
     case 'start':

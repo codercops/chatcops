@@ -64,6 +64,14 @@ interface KnowledgeSource {
 Combine multiple knowledge sources — all contexts are concatenated:
 
 ```typescript
+import { FAQKnowledgeSource, TextKnowledgeSource } from '@chatcops/core';
+import { chatcopsMiddleware } from '@chatcops/server';
+import type { FAQPair } from '@chatcops/core';
+
+const faqs: FAQPair[] = [{ question: 'What are your hours?', answer: '9am-5pm EST.' }];
+const productDocs = 'Our product is ChatCops.';
+const policyDocs = 'Refunds are available within 30 days.';
+
 chatcopsMiddleware({
   provider: { type: 'claude', apiKey: '...' },
   systemPrompt: 'Answer using the provided context. If unsure, say so.',
@@ -80,6 +88,10 @@ chatcopsMiddleware({
 Implement `KnowledgeSource` for database-backed or vector search:
 
 ```typescript
+import type { KnowledgeSource } from '@chatcops/core';
+
+const vectorDB = { async search(_query: string, _options: { topK: number }) { return [] as Array<{ text: string }>; } };
+
 class VectorKnowledgeSource implements KnowledgeSource {
   type = 'vector';
 

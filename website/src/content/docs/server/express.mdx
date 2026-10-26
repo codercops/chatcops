@@ -43,6 +43,9 @@ Cross-origin deployments must let `OPTIONS` preflight requests reach the Express
 Rate limits and the per-IP budget use `req.ip`. Behind a reverse proxy or a load balancer, `req.ip` is the proxy's address unless you tell Express to trust it, and then every visitor shares one limit. With one proxy in front:
 
 ```typescript
+import express from 'express';
+
+const app = express();
 app.set('trust proxy', 1);
 ```
 
@@ -52,6 +55,11 @@ The server logs a warning when requests carry `X-Forwarded-For` but `trust proxy
 
 ```typescript
 import { LeadCaptureTool } from '@chatcops/core';
+import express from 'express';
+import { chatcopsMiddleware } from '@chatcops/server';
+
+const app = express();
+const db = { leads: { create: async (_lead: unknown) => {} } };
 
 app.all('/chat', chatcopsMiddleware({
   provider: {
@@ -73,6 +81,10 @@ app.all('/chat', chatcopsMiddleware({
 
 ```typescript
 import { FAQKnowledgeSource, TextKnowledgeSource } from '@chatcops/core';
+import express from 'express';
+import { chatcopsMiddleware } from '@chatcops/server';
+
+const app = express();
 
 app.all('/chat', chatcopsMiddleware({
   provider: { type: 'openai', apiKey: process.env.OPENAI_API_KEY! },

@@ -94,7 +94,7 @@ Bun.serve({
 ## Deno
 
 ```typescript
-import { chatcopsVercelHandler } from 'npm:@chatcops/server@^0.5.0';
+import { chatcopsVercelHandler } from '@chatcops/server';
 
 const chat = chatcopsVercelHandler({
   provider: {
@@ -135,8 +135,11 @@ Rate limits and the per-IP budget key on the visitor's IP. The handler only read
 Anywhere else, set `clientIp` to read the header your host or proxy sets:
 
 ```typescript
+import { chatcopsVercelHandler } from '@chatcops/server';
+
 const handler = chatcopsVercelHandler({
-  // ...
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+  systemPrompt: 'Be helpful.',
   clientIp: (req) => req.headers.get('x-nf-client-connection-ip'), // Netlify
   // clientIp: (req) => req.headers.get('x-real-ip'),            // your nginx, with proxy_set_header X-Real-IP $remote_addr
 });

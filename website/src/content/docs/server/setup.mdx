@@ -15,6 +15,13 @@ npm install @chatcops/server
 
 ```typescript
 import { chatcopsMiddleware } from '@chatcops/server';
+import { FAQKnowledgeSource, LeadCaptureTool } from '@chatcops/core';
+import type { LeadData } from '@chatcops/core';
+import { postgresStorage } from '@chatcops/store-postgres';
+import pg from 'pg';
+
+const saveLead = async (_lead: LeadData) => {};
+const myStore = postgresStorage({ db: new pg.Pool({ connectionString: process.env.DATABASE_URL }) });
 
 const handler = chatcopsMiddleware({
   // Required: AI provider
@@ -71,7 +78,7 @@ const handler = chatcopsMiddleware({
   analytics: true,
 
   // Optional: Persistent storage. See /server/storage.
-  storage: { conversations: myStore },
+  storage: myStore,
 
   // Optional: the sites that can use the chat (see Allowed origins below)
   allowedOrigins: ['https://acme.com', 'https://*.acme.com'],
@@ -81,6 +88,8 @@ const handler = chatcopsMiddleware({
 ## ChatCopsServerConfig
 
 ```typescript
+import type { AIProvider, Budgets, ChatCopsStorage, ChatTool, ConversationStore, KnowledgeSource, LocaleStrings, WebhookConfig } from '@chatcops/core';
+
 interface ChatCopsServerConfig {
   // A config (see Providers for every option), or a provider object.
   provider:
@@ -127,6 +136,7 @@ interface ChatCopsServerConfig {
 `provider` also takes an object you built yourself: anything with `step()` or `chat()` (the [AIProvider interface](/core/providers/#aiprovider-interface)). Use it for a provider ChatCops doesn't have, or in tests with `scriptedProvider()`, which plays back a script instead of calling a model:
 
 ```typescript
+import { createChatHandler } from '@chatcops/server';
 import { scriptedProvider, textStep } from '@chatcops/core/testing/provider';
 
 const handler = createChatHandler({
@@ -140,6 +150,7 @@ const handler = createChatHandler({
 By default everything lives in memory, per process. That's fine on one long-running server, but on Vercel, Lambda or Workers each instance has its own memory, so the server logs a warning there. Pass a store package as `storage`:
 
 ```typescript
+import { chatcopsMiddleware } from '@chatcops/server';
 import pg from 'pg';
 import { postgresStorage } from '@chatcops/store-postgres';
 
@@ -155,7 +166,12 @@ With a storage that has key-value support, the rule that only one reply is writt
 Nothing is deleted on its own. The handler's `purge()` deletes conversations last updated more than `retention.conversationsDays` (default 30) days ago. Call it on a schedule, from a cron job or a Workers cron trigger:
 
 ```typescript
-const { purge } = createChatHandler(config);
+import { createChatHandler } from '@chatcops/server';
+
+const { purge } = createChatHandler({
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+  systemPrompt: 'Be helpful.',
+});
 await purge(); // resolves how many were deleted
 ```
 
@@ -164,7 +180,9 @@ await purge(); // resolves how many were deleted
 `allowedOrigins` lists the sites whose pages can use the chat. Each entry is an exact origin, or a wildcard for subdomains:
 
 ```typescript
-allowedOrigins: ['https://acme.com', 'https://*.acme.com'],
+const config = {
+  allowedOrigins: ['https://acme.com', 'https://*.acme.com'],
+};
 ```
 
 A browser request from any other page gets `403 {"error":"origin_not_allowed"}` before the model is called, and the server logs the origin it refused. Without the list (or with `['*']`), any site can put your chat on its pages and spend your tokens. Set it in production.
@@ -180,7 +198,9 @@ Requests without an `Origin` header, such as `curl` or a call from your own serv
 Without session tokens, anyone who knows a conversation id can keep talking in that conversation, and the model answers with its history in view. Ids are random, so this is about leaked ids and guessing. With `sessionSecrets` set, the chat needs a short-lived token that's bound to one conversation and one site:
 
 ```typescript
-sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+const config = {
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+};
 ```
 
 Each secret needs at least 32 bytes; `openssl rand -base64 32` makes one. Keep it on the server, never in a `NEXT_PUBLIC_` or `VITE_` variable. The server refuses to start with a shorter one.
@@ -209,8 +229,10 @@ To change the secret, put the new one first and keep the old one until its token
 A script can still ask for as many sessions as it likes. To make that harder, have `/session` check a [Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/) token first:
 
 ```typescript
-sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
-turnstile: { secretKey: process.env.TURNSTILE_SECRET_KEY! },
+const config = {
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+  turnstile: { secretKey: process.env.TURNSTILE_SECRET_KEY! },
+};
 ```
 
 Then give the widget the site key, with `data-turnstile-site-key="0x4AAA..."` or `turnstileSiteKey` in `ChatCops.init()`. The widget loads Cloudflare's script only when it first needs a session, so visitors who never open the chat don't load it. The check is invisible for most visitors. When Cloudflare wants a click, the challenge shows near the bottom right corner of the page, outside the widget. A page with a Content Security Policy needs `https://challenges.cloudflare.com` in `script-src` and `frame-src`.
@@ -222,10 +244,12 @@ The server checks the token with Cloudflare, sending the visitor's IP, and refus
 When your site knows who the visitor is, it can tell the chat. Your server signs a short `userToken` for the signed-in user, and the widget sends it when it asks for a session:
 
 ```typescript
+const config = {
 identity: {
   secret: process.env.CHATCOPS_IDENTITY_SECRET!,   // at least 32 bytes, shared with your site's server
   tiers: { pro: { perConversation: { messages: 1000 } } },
 },
+};
 ```
 
 The token is an HS256 JWT with `sub` (the user id, up to 128 characters), `exp` in seconds, and optionally `tier`. Sign it on your server, never in the browser. With Node.js and no library:
@@ -265,13 +289,15 @@ The server logs the budgets in force once at startup:
 A scope you set replaces its default whole. `false` turns a scope off, and `budgets: false` turns them all off:
 
 ```typescript
+const config = {
 budgets: {
   perConversation: { tokens: 400_000 },            // over the conversation's lifetime
   perIpPerDay: { tokens: 2_000_000, messages: 200 },
   globalPerDay: { usd: 20 },                        // the backstop
   // What a request cost, for the dollar cap. Price cached input at its discount.
-  price: (usage) => (usage.inputTokens * 1 + usage.outputTokens * 5) / 1_000_000,
+  price: (usage: { inputTokens: number; outputTokens: number }) => (usage.inputTokens * 1 + usage.outputTokens * 5) / 1_000_000,
 },
+};
 ```
 
 Tokens count input and output at face value, and every request sends the conversation so far, so a long conversation uses up a token budget faster than its length suggests. Budgets are checked before each model request and charged after it, so a reply can go over by one request, and each request asks for no more output than is left. A used-up budget ends the reply with an error instead of calling the model, and the server logs which one.
@@ -307,6 +333,7 @@ Each webhook gets a POST with a JSON body for every event it subscribes to:
 import express from 'express';
 import { verifyWebhook } from '@chatcops/server';
 
+const app = express();
 app.post('/hooks/chatcops', express.text({ type: 'application/json' }), async (req, res) => {
   const valid = await verifyWebhook({
     body: req.body, // the raw string, not parsed JSON
@@ -326,7 +353,9 @@ app.post('/hooks/chatcops', express.text({ type: 'application/json' }), async (r
 **Allowed URLs.** Webhook URLs must use https, and hosts on loopback, private or link-local networks (`localhost`, `10.x`, `192.168.x`, `169.254.169.254` and so on) are refused when the server starts. For a receiver on your own machine during development, set `allowPrivateNetwork: true` on that webhook:
 
 ```typescript
-webhooks: [{ url: 'http://localhost:4000/hooks', events: ['lead:captured'], allowPrivateNetwork: true }],
+const config = {
+  webhooks: [{ url: 'http://localhost:4000/hooks', events: ['lead:captured'], allowPrivateNetwork: true }],
+};
 ```
 
 ## Request Schema
@@ -334,7 +363,7 @@ webhooks: [{ url: 'http://localhost:4000/hooks', events: ['lead:captured'], allo
 The server validates incoming requests with Zod:
 
 ```typescript
-{
+interface ChatRequest {
   conversationId: string,  // 1-128 chars
   message: string,         // 1-10000 chars
   messageId?: string,      // Optional, 1-128 chars

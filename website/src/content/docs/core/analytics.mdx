@@ -8,6 +8,8 @@ ChatCops includes a lightweight analytics collector that tracks conversation met
 ## Enabling Analytics
 
 ```typescript
+import { chatcopsMiddleware } from '@chatcops/server';
+
 chatcopsMiddleware({
   provider: { type: 'claude', apiKey: '...' },
   systemPrompt: '...',
@@ -159,8 +161,10 @@ Combine with widget events for full-stack analytics:
 
 ```typescript
 // Client-side
+declare const gtag: (command: 'event', eventName: string) => void;
 ChatCops.on('open', () => gtag('event', 'chat_opened'));
-ChatCops.on('message', (m) => {
+ChatCops.on('message', (...args: unknown[]) => {
+  const m = args[0] as { role: 'user' | 'assistant' };
   if (m.role === 'user') gtag('event', 'chat_message_sent');
 });
 

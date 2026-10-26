@@ -39,6 +39,7 @@ ChatCops.off('open', onOpen);
 Fired when the chat panel opens. Takes no arguments.
 
 ```typescript
+const analytics = { track: (_event: string) => {} };
 ChatCops.on('open', () => {
   analytics.track('chat_opened');
 });
@@ -49,6 +50,7 @@ ChatCops.on('open', () => {
 Fired when the chat panel closes. Takes no arguments.
 
 ```typescript
+const analytics = { track: (_event: string) => {} };
 ChatCops.on('close', () => {
   analytics.track('chat_closed');
 });
@@ -67,7 +69,8 @@ Payload: `{ id, role, content, status?, errorType? }`
 - `errorType`: `'rate_limit' | 'network' | 'provider_error' | 'timeout'` (optional) - Error category when status is `'error'`.
 
 ```typescript
-ChatCops.on('message', (message) => {
+ChatCops.on('message', (...args: unknown[]) => {
+  const message = args[0] as { role: 'user' | 'assistant'; content: string };
   console.log(`${message.role}: ${message.content}`);
 });
 ```
@@ -79,7 +82,8 @@ Fired when an error occurs. Emits a plain JavaScript `Error` instance.
 Payload: `Error`
 
 ```typescript
-ChatCops.on('error', (error) => {
+ChatCops.on('error', (...args: unknown[]) => {
+  const error = args[0] as Error;
   console.error('Chat error:', error.message);
 });
 ```
@@ -103,7 +107,8 @@ Fired when a user submits the pre-chat form before starting a conversation.
 Payload: `data: Record<string, string>`
 
 ```typescript
-ChatCops.on('preChatSubmit', (data) => {
+ChatCops.on('preChatSubmit', (...args: unknown[]) => {
+  const data = args[0] as Record<string, string>;
   console.log('Pre-chat form submitted:', data);
 });
 ```
@@ -117,7 +122,8 @@ ChatCops.on('open', () => {
   gtag('event', 'chat_widget_open');
 });
 
-ChatCops.on('message', (data) => {
+ChatCops.on('message', (...args: unknown[]) => {
+  const data = args[0] as { role: 'user' | 'assistant' };
   if (data.role === 'user') {
     gtag('event', 'chat_message_sent');
   }
@@ -129,7 +135,7 @@ ChatCops.on('message', (data) => {
 Open the chat when a user clicks a help button:
 
 ```typescript
-document.querySelector('#help-btn').addEventListener('click', () => {
+document.querySelector('#help-btn')?.addEventListener('click', () => {
   ChatCops.open();
 });
 ```

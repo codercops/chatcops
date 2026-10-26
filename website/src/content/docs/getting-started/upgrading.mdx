@@ -28,8 +28,8 @@ Rate limits and the per-IP budget key on the visitor's IP. The server now reads 
 Importing `@chatcops/core` no longer loads the Claude, OpenAI and Gemini SDKs, which cuts serverless cold starts. If you import the classes directly, change the import:
 
 ```typescript
-// 0.4
-import { ClaudeProvider } from '@chatcops/core';
+// 0.4 used the core entry point; this import no longer exists in current releases.
+// import { ClaudeProvider } from '@chatcops/core';
 
 // 0.5
 import { ClaudeProvider } from '@chatcops/core/providers/claude';

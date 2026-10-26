@@ -69,6 +69,7 @@ The server saves the answers with the conversation's first message and uses thos
 Use `onPreChatSubmit` in the widget config to receive the submitted answers in your application:
 
 ```typescript
+const analytics = { track: (_event: string, _data: Record<string, string>) => {} };
 ChatCops.init({
   apiUrl: 'https://your-api.com/chat',
   preChatForm: { enabled: true, fields: [{ name: 'email', type: 'email', label: 'Email' }] },

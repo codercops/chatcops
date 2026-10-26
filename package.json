@@ -13,6 +13,7 @@
     "lint": "biome check packages/*/src packages/*/tests website/src",
     "clean": "pnpm -r clean",
     "e2e": "playwright test -c e2e/playwright.config.ts",
+    "docs:check": "node scripts/check-doc-samples.mjs",
     "publint": "pnpm -r --filter \"./packages/*\" exec publint",
     "size": "size-limit"
   },

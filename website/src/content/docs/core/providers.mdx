@@ -8,33 +8,32 @@ ChatCops puts every provider behind the same `AIProvider` interface. Switch betw
 ## Provider configuration
 
 ```typescript
-// Claude (Anthropic)
-provider: {
-  type: 'claude',
-  apiKey: process.env.ANTHROPIC_API_KEY!,
-  model: 'claude-haiku-5-5',  // Default
-}
-
-// OpenAI
-provider: {
-  type: 'openai',
-  apiKey: process.env.OPENAI_API_KEY!,
-  model: 'gpt-5-mini',  // Default
-}
-
-// Google Gemini
-provider: {
-  type: 'gemini',
-  apiKey: process.env.GOOGLE_AI_API_KEY!,
-  model: 'gemini-3.5-flash-lite',  // Default
-}
-
-// Any OpenAI-compatible server
-provider: {
-  type: 'openai-compatible',
-  baseURL: 'http://localhost:11434/v1',
-  model: 'llama3.3',
-}
+const providers = {
+  // Claude (Anthropic)
+  claude: {
+    type: 'claude',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+    model: 'claude-haiku-5-5', // Default
+  },
+  // OpenAI
+  openai: {
+    type: 'openai',
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-5-mini', // Default
+  },
+  // Google Gemini
+  gemini: {
+    type: 'gemini',
+    apiKey: process.env.GOOGLE_AI_API_KEY!,
+    model: 'gemini-3.5-flash-lite', // Default
+  },
+  // Any OpenAI-compatible server
+  compatible: {
+    type: 'openai-compatible',
+    baseURL: 'http://localhost:11434/v1',
+    model: 'llama3.3',
+  },
+};
 ```
 
 `apiKey` is required for `claude`, `openai` and `gemini`. Without it, setup fails with an error like `claude requires apiKey`.
@@ -76,29 +75,31 @@ Claude 5.x models, Claude Opus 4.7 and later, and OpenAI reasoning models (GPT-5
 Any server that speaks the OpenAI chat completions API works through the `openai-compatible` provider. `baseURL` and `model` are required, `apiKey` only if the server wants one:
 
 ```typescript
+const providers = {
 // Ollama on your own machine
-provider: {
+ollama: {
   type: 'openai-compatible',
   model: 'llama3.3',
   baseURL: 'http://localhost:11434/v1',
-}
+},
 
 // OpenRouter, with the headers it uses to identify your app
-provider: {
+openrouter: {
   type: 'openai-compatible',
   apiKey: process.env.OPENROUTER_API_KEY!,
   model: 'anthropic/claude-haiku-5-5',
   baseURL: 'https://openrouter.ai/api/v1',
   headers: { 'HTTP-Referer': 'https://example.com', 'X-Title': 'My site' },
-}
+},
 
 // A model that can't call tools
-provider: {
+withoutTools: {
   type: 'openai-compatible',
   model: 'gemma3',
   baseURL: 'http://localhost:11434/v1',
   supportsTools: false,
-}
+},
+};
 ```
 
 `openai-compatible` sends `max_tokens`. If the server wants `max_completion_tokens`, set `maxTokensParam: 'max_completion_tokens'`.
@@ -110,6 +111,8 @@ Before each request ChatCops cleans up the stored history so every provider acce
 ## AIProvider interface
 
 ```typescript
+import type { ChatMessage, ProviderEvent, ProviderStepParams, ToolDefinition } from '@chatcops/core';
+
 interface AIProvider {
   name: string;
   model?: string;
@@ -136,6 +139,15 @@ Register a factory under a name of your own, then use that name as the provider 
 
 ```typescript
 import { registerProvider } from '@chatcops/core';
+import type { AIProvider, ProviderChatParams, ProviderConfig } from '@chatcops/core';
+import { chatcopsMiddleware } from '@chatcops/server';
+
+class MyProvider implements AIProvider {
+  name = 'my-llm';
+  constructor(_config: ProviderConfig) {}
+  async *chat(_params: ProviderChatParams): AsyncGenerator<string> { yield 'Hello'; }
+  async chatSync(_params: ProviderChatParams): Promise<string> { return 'Hello'; }
+}
 
 registerProvider('my-llm', async (config) => new MyProvider(config));
 
@@ -150,8 +162,17 @@ Registering a built-in name (`claude`, `openai`, `gemini`, `openai-compatible`) 
 You can also skip the registry and pass a provider object you built yourself as the server's `provider`. Anything with `step()` or `chat()` works:
 
 ```typescript
+import { chatcopsMiddleware } from '@chatcops/server';
+import type { AIProvider } from '@chatcops/core';
+
+const provider: AIProvider = {
+  name: 'my-llm',
+  async *chat() { yield 'Hello'; },
+  async chatSync() { return 'Hello'; },
+};
+
 chatcopsMiddleware({
-  provider: new MyProvider({ type: 'my-llm' }),
+  provider,
   systemPrompt: '...',
 });
 ```
@@ -185,6 +206,13 @@ const provider = new ClaudeProvider({ type: 'claude', apiKey: process.env.ANTHRO
 
 ```typescript
 import { createProvider, runTurn, toolRegistry } from '@chatcops/core';
+import type { ChatTool } from '@chatcops/core';
+
+const lookupOrderTool: ChatTool = {
+  name: 'lookup_order',
+  description: 'Look up an order by id.',
+  async execute(input) { return { success: true, data: { orderId: input.orderId } }; },
+};
 
 const provider = await createProvider({ type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! });
 const turn = runTurn({
@@ -215,6 +243,10 @@ All providers support tool calling with one tool format. ChatCops converts tool 
 When the model calls several tools at once, they run in parallel on every provider.
 
 ```typescript
+import { LeadCaptureTool } from '@chatcops/core';
+import { chatcopsMiddleware } from '@chatcops/server';
+
+const saveLead = async (lead: { name: string; email: string }) => console.log(lead);
 chatcopsMiddleware({
   provider: { type: 'claude', apiKey: '...' },
   systemPrompt: '...',

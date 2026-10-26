@@ -39,7 +39,7 @@ Programmatically open the chat panel.
 - **Inline mode:** Shows the panel (useful if you've previously called `close()`).
 
 ```typescript
-document.querySelector('#help-btn').addEventListener('click', () => {
+document.querySelector('#help-btn')?.addEventListener('click', () => {
   ChatCops.open();
 });
 ```
@@ -132,6 +132,7 @@ ChatCops.init({ apiUrl: '/api/chat' });
 
 // Inline with element reference
 const el = document.getElementById('chat');
+if (!el) throw new Error('Chat container not found');
 ChatCops.init({
   apiUrl: '/api/chat',
   mode: 'inline',
