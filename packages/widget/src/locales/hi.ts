@@ -1,6 +1,6 @@
 import type { WidgetLocaleStrings } from '../i18n.js';
 
-const hi: WidgetLocaleStrings = {
+const hi: Partial<WidgetLocaleStrings> = {
   welcomeMessage: 'मैं आज आपकी किस तरह मदद करूँ?',
   inputPlaceholder: 'अपना संदेश लिखें…',
   sendButton: 'भेजें',
