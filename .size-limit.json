@@ -12,15 +12,21 @@
     "gzip": true
   },
   {
+    "name": "widget, pre-chat form (chunks/prechat-form-*.js, loaded only when the form is on)",
+    "path": "packages/widget/dist/chunks/prechat-form-*.js",
+    "limit": "2 KB",
+    "gzip": true
+  },
+  {
     "name": "widget, single file (chatcops.full.min.js)",
     "path": "packages/widget/dist/chatcops.full.min.js",
-    "limit": "14.5 KB",
+    "limit": "15.5 KB",
     "gzip": true
   },
   {
     "name": "widget, ESM",
     "path": "packages/widget/dist/chatcops.esm.js",
-    "limit": "18 KB",
+    "limit": "19.5 KB",
     "gzip": true
   }
 ]

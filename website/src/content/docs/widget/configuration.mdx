@@ -109,7 +109,7 @@ ChatCops.init({
     subtitle: 'Online',
   },
   welcomeMessage: 'Hi! How can I help you today?',
-  persistHistory: false,
+  persistence: 'none',
 });
 ```
 
@@ -133,6 +133,35 @@ new Widget({
 ```
 
 If you leave `siteId` out, the first widget keeps the default storage and the next one is given its own, with a note in the console. The first widget's host element has the id `chatcops-root`; later ones get `chatcops-root-2` and so on, and every host has the class `chatcops-root`.
+
+### Saved conversations
+
+The widget keeps the conversation so a visitor who reloads the page or comes back later picks up where they left off. `persistence` picks where:
+
+| Value | Kept in | Lasts |
+|-------|---------|-------|
+| `'local'` (default) | `localStorage` | Until `historyTtlDays` passes, 30 days by default |
+| `'session'` | `sessionStorage` | Until the tab is closed |
+| `'none'` | Memory | Until the page reloads |
+
+```typescript
+ChatCops.init({
+  apiUrl: '/api/chat',
+  persistence: 'session',
+});
+
+// Or keep it in the browser, for a week
+ChatCops.init({
+  apiUrl: '/api/chat',
+  historyTtlDays: 7,
+});
+```
+
+A popup doesn't read or write storage until the visitor opens it. Until then, nothing is stored on the visitor's device. An inline chat is on screen from the start, so it reads its saved conversation when it mounts. The one exception is a welcome bubble with `showOnce`. It checks and sets its own flag when it's due to appear, and stores nothing before that. With `persistence: 'none'` nothing at all is written to storage, the bubble flag included.
+
+The pre-chat form's answers are saved with the conversation, so they expire with it too.
+
+`persistHistory` is deprecated. `persistHistory: false` still works and means `persistence: 'none'`. It goes away in 1.0.
 
 ### Streaming inactivity timeout
 
@@ -184,7 +213,9 @@ interface WidgetConfig {
     showOnce?: boolean;       // Only show once per session
   };
   placeholder?: string;       // Input placeholder text
-  persistHistory?: boolean;   // Save chat history, default: true
+  persistence?: 'local' | 'session' | 'none'; // Where the chat is saved, default: 'local'
+  historyTtlDays?: number;    // Drop saved chats older than this, default: 30
+  persistHistory?: boolean;   // Deprecated. false is the same as persistence: 'none'
   maxMessages?: number;       // Max messages to persist, default: 50
   pageContext?: boolean;       // Send page URL/title, default: true
   autoOpen?: boolean | number; // Popup mode only. true = immediate, number = delay in ms
@@ -239,6 +270,8 @@ See the [pre-chat form guide](/widget/pre-chat-form) for field behavior, validat
 | `data-placeholder` | `placeholder` | Input placeholder |
 | `data-auto-open` | `autoOpen` | Auto-open delay in ms or `true` |
 | `data-locale` | `locale` | Language code |
+| `data-persistence` | `persistence` | `'local'`, `'session'` or `'none'` |
+| `data-history-ttl-days` | `historyTtlDays` | Days a saved conversation is kept |
 | `data-turnstile-site-key` | `turnstileSiteKey` | Cloudflare Turnstile site key, when the server checks Turnstile |
 | `data-user-token` | `userToken` | Signed token for a signed-in visitor, when the server has `identity` set |
 

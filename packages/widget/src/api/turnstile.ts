@@ -1,3 +1,4 @@
+// Loaded as its own chunk (see ChatClient), so no runtime imports here.
 let loading: Promise<unknown> | undefined;
 
 /**

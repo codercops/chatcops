@@ -3,11 +3,11 @@ import { FAB } from './dom/fab.js';
 import { Panel } from './dom/panel.js';
 import { WelcomeBubble } from './dom/bubble.js';
 import { ChatClient } from './api/client.js';
-import { ConversationStorage } from './storage.js';
+import { ConversationStorage, type Persistence } from './storage.js';
 import { claimNamespace, type ClaimedNamespace } from './namespace.js';
 import { applyTheme } from './theme.js';
 import { getWidgetLocale, type WidgetLocaleStrings } from './i18n.js';
-import { PreChatForm } from './dom/prechat-form.js';
+import type { PreChatForm } from './dom/prechat-form.js';
 import type { WidgetChatRequest } from './api/types.js';
 import type { MessageData, MessageErrorType } from './dom/messages.js';
 
@@ -81,6 +81,15 @@ export interface WidgetConfig {
     showOnce?: boolean;
   };
   placeholder?: string;
+  /**
+   * Where the conversation is kept: `local` (this browser, the default),
+   * `session` (this tab) or `none` (memory only, gone on reload). Nothing is
+   * read or written until the chat is opened (or shown, in inline mode).
+   */
+  persistence?: Persistence;
+  /** Saved conversations older than this are dropped. Default 30 days. */
+  historyTtlDays?: number;
+  /** @deprecated Use `persistence: 'none'`. `false` is read as that. */
   persistHistory?: boolean;
   maxMessages?: number;
   pageContext?: boolean;
@@ -116,6 +125,25 @@ type SendRequestOptions = {
   userMessageId?: string;
 };
 
+let preChatChunk: Promise<typeof import('./dom/prechat-form.js')> | undefined;
+
+/**
+ * The pre-chat form's chunk, loaded once and only by widgets that use the
+ * form. A failed load is forgotten, so the next widget tries again.
+ */
+export function loadPreChatForm(): Promise<typeof import('./dom/prechat-form.js')> {
+  preChatChunk ??= import('./dom/prechat-form.js').catch((error: unknown) => {
+    preChatChunk = undefined;
+    throw error;
+  });
+  return preChatChunk;
+}
+
+/** Starts downloading what this config will need, before the chat is shown. */
+export function prefetch(config: WidgetConfig): void {
+  if (config.preChatForm?.enabled) loadPreChatForm().catch(() => undefined);
+}
+
 export class Widget {
   private config: WidgetConfig;
   private shadow!: ShadowRoot;
@@ -128,7 +156,11 @@ export class Widget {
   private storage: ConversationStorage;
   private namespace: ClaimedNamespace;
   private locale: WidgetLocaleStrings;
-  private conversationId: string;
+  private conversationId: string = crypto.randomUUID();
+  /** The pre-chat form was submitted for this conversation. */
+  private preChatDone = false;
+  /** The saved conversation has been read (on first open, or at mount in inline mode). */
+  private hydrated = false;
   private messages: MessageData[] = [];
   private userData?: Record<string, string>;
   private isStreaming = false;
@@ -147,15 +179,15 @@ export class Widget {
 
   constructor(config: WidgetConfig) {
     this.config = config;
-    this.client = new ChatClient(config);
     this.namespace = claimNamespace(
       config.siteId,
       config.mode ?? 'popup',
       () => !this.destroyed && (!this.mounted || this.shadow.host.isConnected)
     );
-    this.storage = new ConversationStorage(this.namespace.siteId);
+    const persistence = config.persistence ?? (config.persistHistory === false ? 'none' : 'local');
+    this.storage = new ConversationStorage(this.namespace.siteId, persistence, config.historyTtlDays);
+    this.client = new ChatClient({ ...config, store: this.storage.store });
     this.locale = getWidgetLocale(config.locale ?? 'en', config.strings);
-    this.conversationId = this.storage.getSessionId();
   }
 
   private resolveContainer(): HTMLElement {
@@ -173,6 +205,7 @@ export class Widget {
   }
 
   init(): void {
+    prefetch(this.config);
     if (this.isInline) {
       this.containerEl = this.resolveContainer();
       this.shadow = createShadowRoot(this.containerEl);
@@ -225,37 +258,9 @@ export class Widget {
       onClose: () => this.close(),
     });
 
-    // Restore history
-    if (this.config.persistHistory !== false) {
-      const saved = this.storage.load();
-      if (saved) {
-        this.conversationId = saved.id;
-        for (const msg of saved.messages) {
-          this.messages.push(msg);
-          this.panel.addMessage(msg);
-        }
-      }
-    }
-
-    if (this.config.preChatForm?.enabled) {
-      const savedUserData = this.storage.getPreChatData(this.conversationId);
-      if (savedUserData) {
-        this.userData = savedUserData;
-      }
-    }
-
-    // Show pre-chat form or messages
-    const shouldShowPreChat = this.config.preChatForm?.enabled
-      && !this.isPreChatCompleted()
-      && this.messages.length === 0;
-
-    if (shouldShowPreChat) {
-      this.showPreChatForm();
-    } else {
-      this.showChatView();
-    }
-
-    this.showLatestRegenerateButton();
+    // An inline chat is on screen from the start; a popup reads its saved
+    // conversation when it's first opened, so nothing touches storage before.
+    if (this.isInline) this.hydrate();
 
     // Welcome bubble — popup mode only
     if (!this.isInline && this.config.welcomeBubble) {
@@ -263,6 +268,7 @@ export class Widget {
         text: this.config.welcomeBubble.text,
         delay: this.config.welcomeBubble.delay,
         showOnce: this.config.welcomeBubble.showOnce ?? true,
+        store: this.storage.store,
         position,
         dismissLabel: this.locale.dismissBubble,
         onClick: () => this.open(),
@@ -281,7 +287,33 @@ export class Widget {
     }
   }
 
+  /** Reads the saved conversation and shows it, or the pre-chat form. Runs once. */
+  private hydrate(): void {
+    if (this.hydrated) return;
+    this.hydrated = true;
+    const saved = this.storage.load();
+    if (saved) {
+      this.conversationId = saved.id;
+      this.preChatDone = saved.preChatDone ?? false;
+      // Answers only count while the form is on: turning it off drops them.
+      if (this.config.preChatForm?.enabled) this.userData = saved.userData;
+      for (const msg of saved.messages) {
+        this.messages.push(msg);
+        this.panel.addMessage(msg);
+      }
+    }
+
+    // A conversation that already has messages never gets the form on top of it.
+    if (this.config.preChatForm?.enabled && !this.preChatDone && this.messages.length === 0) {
+      this.showPreChatForm();
+    } else {
+      this.showChatView();
+    }
+    this.showLatestRegenerateButton();
+  }
+
   open(): void {
+    this.hydrate();
     this.panel.show();
     if (!this.isInline) {
       this.fab?.setOpen(true);
@@ -346,33 +378,42 @@ export class Widget {
     });
   }
 
-  private isPreChatCompleted(): boolean {
-    return this.storage.isPreChatCompleted(this.conversationId);
-  }
-
-  private setPreChatCompleted(data?: Record<string, string>): void {
-    this.storage.setPreChatCompleted(this.conversationId, data);
-  }
-
   private showPreChatForm(): void {
     const formConfig = this.config.preChatForm!;
     this.panel.hideMessages();
     this.panel.input.setVisible(false);
 
-    this.preChatFormEl = new PreChatForm(this.panel.messagesContainer, {
-      title: formConfig.title ?? this.locale.preChatTitle,
-      subtitle: formConfig.subtitle ?? this.locale.preChatSubtitle,
-      fields: formConfig.fields,
-      submitLabel: formConfig.submitLabel ?? this.locale.preChatSubmit,
-      locale: this.locale,
-      onSubmit: (data) => this.handlePreChatSubmit(data),
-    });
+    loadPreChatForm().then(
+      ({ PreChatForm }) => {
+        // Destroyed, or the visitor sent a message, while the form loaded.
+        if (this.destroyed || this.preChatDone || this.preChatFormEl) return;
+        this.preChatFormEl = new PreChatForm(this.panel.messagesContainer, {
+          title: formConfig.title ?? this.locale.preChatTitle,
+          subtitle: formConfig.subtitle ?? this.locale.preChatSubtitle,
+          fields: formConfig.fields,
+          submitLabel: formConfig.submitLabel ?? this.locale.preChatSubmit,
+          locale: this.locale,
+          onSubmit: (data) => this.handlePreChatSubmit(data),
+        });
+      },
+      (error: unknown) => {
+        // Without the form the chat still works, just with no answers.
+        console.error('[chatcops] The pre-chat form could not load:', error instanceof Error ? error.message : error);
+        if (this.destroyed || this.preChatDone) return;
+        this.preChatDone = true;
+        this.panel.showMessages();
+        this.panel.input.setVisible(true);
+        this.showChatView();
+      }
+    );
   }
 
   private handlePreChatSubmit(data: Record<string, string>): void {
     if (!this.config.preChatForm?.enabled) return;
+    this.hydrate();
     this.userData = data;
-    this.setPreChatCompleted(data);
+    this.preChatDone = true;
+    this.saveHistory();
 
     this.preChatFormEl?.destroy();
     this.preChatFormEl = undefined;
@@ -409,6 +450,8 @@ export class Widget {
 
   private async handleSend(text: string): Promise<void> {
     if (this.isStreaming) return;
+    // A message sent before the chat was opened still joins the saved conversation.
+    this.hydrate();
 
     const userMsg: MessageData = {
       id: crypto.randomUUID(),
@@ -707,8 +750,6 @@ export class Widget {
   }
 
   private saveHistory(): void {
-    if (this.config.persistHistory === false) return;
-
     const maxMessages = this.config.maxMessages ?? 50;
     const toSave = this.messages.filter((m) => m.id !== 'welcome').slice(-maxMessages);
 
@@ -722,6 +763,8 @@ export class Widget {
         errorType: m.errorType,
         timestamp: Date.now(),
       })),
+      ...(this.userData ? { userData: this.userData } : {}),
+      ...(this.preChatDone ? { preChatDone: true } : {}),
       updatedAt: Date.now(),
     });
   }

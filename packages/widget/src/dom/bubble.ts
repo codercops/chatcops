@@ -1,5 +1,9 @@
+import type { KeyStore } from '../storage.js';
+
 export interface BubbleOptions {
   text: string;
+  /** Where "already shown" is remembered, with the widget's persistence. */
+  store: KeyStore;
   delay?: number;
   showOnce?: boolean;
   position: 'bottom-right' | 'bottom-left';
@@ -41,16 +45,13 @@ export class WelcomeBubble {
 
     root.appendChild(this.el);
 
-    if (options.showOnce) {
-      try {
-        if (sessionStorage.getItem(BUBBLE_SHOWN_KEY)) return;
-        sessionStorage.setItem(BUBBLE_SHOWN_KEY, '1');
-      } catch {
-        // Ignore
-      }
-    }
-
+    // Checked when the bubble is due, not before, so a page that never shows
+    // it never touches storage.
     this.timerId = setTimeout(() => {
+      if (options.showOnce) {
+        if (options.store.get(BUBBLE_SHOWN_KEY)) return;
+        options.store.set(BUBBLE_SHOWN_KEY, '1');
+      }
       this.el.classList.add('cc-visible');
       this.setHidden(false);
     }, options.delay ?? 3000);

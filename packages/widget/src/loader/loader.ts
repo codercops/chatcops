@@ -6,6 +6,8 @@ import type { Widget, WidgetConfig, WidgetEventHandler, WidgetEventType } from '
 
 export interface PanelModule {
   Widget: typeof Widget;
+  /** Starts loading what the config needs (the pre-chat form's chunk). */
+  prefetch?: (config: WidgetConfig) => void;
 }
 
 /** `window.ChatCops` in the script tag build. */
@@ -106,7 +108,11 @@ export function createLoader(loadPanel: () => Promise<PanelModule>): ChatCopsLoa
     button.setAttribute('aria-label', current.strings?.openChat ?? 'Open chat');
     button.setAttribute('aria-expanded', 'false');
     button.innerHTML = CHAT_ICON;
-    const prefetch = () => void loadPanel().catch(() => undefined);
+    const prefetch = () =>
+      void loadPanel().then(
+        (panel) => panel.prefetch?.(current),
+        () => undefined
+      );
     button.addEventListener('pointerenter', prefetch, { once: true });
     button.addEventListener('focus', prefetch, { once: true });
     button.addEventListener('click', () => api.open());

@@ -525,6 +525,7 @@ describe('Widget', () => {
       apiUrl: 'https://api.test/chat',
     });
     widget.init();
+    widget.open();
 
     const sendMessage = vi.fn();
     getInternals(widget).client.sendMessage = sendMessage;
@@ -630,6 +631,7 @@ describe('Widget', () => {
 
     const widget1 = new Widget(config);
     widget1.init();
+    widget1.open();
 
     getInternals(widget1).handlePreChatSubmit({ name: 'Jordan' });
 
@@ -640,6 +642,8 @@ describe('Widget', () => {
 
     const widget2 = new Widget(config);
     widget2.init();
+    widget2.open();
+    await vi.dynamicImportSettled();
 
     expect(getInternals(widget2).shadow.querySelector('.cc-prechat')).toBeNull();
     const welcome2 = getInternals(widget2).messages.find((m) => m.id === 'welcome');
@@ -727,9 +731,7 @@ describe('Widget', () => {
   });
 
   it('does not store or send form answers when preChatForm is disabled', async () => {
-    const storage = new ConversationStorage();
-    const sessionId = storage.getSessionId();
-    storage.setPreChatCompleted(sessionId, { name: 'IgnoredUser' });
+    new ConversationStorage().save({ id: 'c1', messages: [], userData: { name: 'IgnoredUser' }, preChatDone: true, updatedAt: Date.now() });
 
     const widget = new Widget({
       apiUrl: 'https://api.test/chat',
@@ -739,6 +741,8 @@ describe('Widget', () => {
       },
     });
     widget.init();
+    widget.open();
+    await vi.dynamicImportSettled();
 
     expect(getInternals(widget).shadow.querySelector('.cc-prechat')).toBeNull();
     const welcome = getInternals(widget).messages.find((m) => m.id === 'welcome');
@@ -800,6 +804,9 @@ describe('Widget', () => {
     const widget = new Widget({ apiUrl: 'https://api.test/chat' });
 
     expect(() => widget.init()).not.toThrow();
+    // A popup reads its saved conversation when it's opened, not before.
+    expect(localStorage.getItem('chatcops_conversation')).toBe('{}');
+    widget.open();
 
     const internals = getInternals(widget);
     const welcome = internals.messages.find((m) => m.id === 'welcome');
