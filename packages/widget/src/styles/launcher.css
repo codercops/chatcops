@@ -37,6 +37,7 @@
 .cc-fab {
   position: fixed;
   bottom: 20px;
+  /* Physical placement: the site's default bottom-right choice stays on the right. */
   right: 20px;
   width: var(--cc-fab-size);
   height: var(--cc-fab-size);
@@ -63,6 +64,7 @@
 }
 
 .cc-fab.cc-left {
+  /* Physical placement: the site's bottom-left choice stays on the left. */
   right: auto;
   left: 20px;
 }
@@ -81,17 +83,25 @@
 .cc-fab-badge {
   position: absolute;
   top: -2px;
-  right: -2px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
+  inset-inline-end: -2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
   background: #ef4444;
   border: 2px solid var(--cc-bg);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
   display: none;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
 }
 
 .cc-fab-badge.cc-visible {
-  display: block;
+  display: flex;
 }
 
 @keyframes cc-pulse {

@@ -40,7 +40,7 @@
 
 .cc-prechat-label .cc-required {
   color: #ef4444;
-  margin-left: 2px;
+  margin-inline-start: 2px;
 }
 
 .cc-prechat-input,
@@ -108,4 +108,12 @@
 .cc-prechat-submit:focus-visible {
   outline: 2px solid var(--cc-accent);
   outline-offset: 3px;
+}
+
+@media (max-width: 640px) {
+  .cc-prechat-input,
+  .cc-prechat-select,
+  .cc-prechat-textarea {
+    font-size: 16px;
+  }
 }

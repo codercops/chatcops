@@ -43,6 +43,18 @@ afterEach(() => {
 });
 
 describe('the script tag loader', () => {
+  it.each([
+    [{ dir: 'rtl' }, 'rtl'],
+    [{ locale: 'ar-EG' }, 'rtl'],
+    [{ locale: 'en-US' }, 'ltr'],
+  ])('sets launcher direction for %j', (config, expected) => {
+    const { load } = panel();
+    const loader = createLoader(load);
+    loader.init({ apiUrl: 'https://api.test/chat', ...config });
+    expect(host()?.dir).toBe(expected);
+    loader.destroy();
+  });
+
   it('shows a launcher without loading the chat, touching storage or the network', () => {
     const getItem = vi.spyOn(Storage.prototype, 'getItem');
     const setItem = vi.spyOn(Storage.prototype, 'setItem');
