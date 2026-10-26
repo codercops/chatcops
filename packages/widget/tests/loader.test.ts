@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createLoader, type PanelModule } from '../src/loader/loader.js';
+import { createLoader, panelUrlFor, type PanelModule } from '../src/loader/loader.js';
 import { Widget } from '../src/widget.js';
 
 /** The panel chunk, as the loader would import it, with a way to hold or fail the load. */
@@ -215,6 +215,21 @@ describe('the script tag loader', () => {
   });
 });
 
+describe('panelUrlFor', () => {
+  it.each([
+    ['https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js', 'https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.panel.js?v=0.7.0'],
+    ['https://cdn.jsdelivr.net/npm/@chatcops/widget@0.7.0/dist/chatcops.min.js', 'https://cdn.jsdelivr.net/npm/@chatcops/widget@0.7.0/dist/chatcops.panel.js?v=0.7.0'],
+    // The bare package URL a CDN serves the main file from.
+    ['https://cdn.jsdelivr.net/npm/@chatcops/widget', 'https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.panel.js?v=0.7.0'],
+    ['https://cdn.jsdelivr.net/npm/@chatcops/widget@0.7/', 'https://cdn.jsdelivr.net/npm/@chatcops/widget@0.7/dist/chatcops.panel.js?v=0.7.0'],
+    ['https://unpkg.com/@chatcops/widget@0.7.0', 'https://unpkg.com/@chatcops/widget@0.7.0/dist/chatcops.panel.js?v=0.7.0'],
+    // Self-hosted, renamed, with a cache-busting query.
+    ['https://acme.test/assets/chat.js?v=3', 'https://acme.test/assets/chatcops.panel.js?v=0.7.0'],
+  ])('%s', (loader, panelUrl) => {
+    expect(panelUrlFor(loader, '0.7.0')).toBe(panelUrl);
+  });
+});
+
 describe('the built loader (dist/chatcops.min.js)', () => {
   it('sets window.ChatCops and shows the launcher from the script tag alone', () => {
     const code = readFileSync(resolve(__dirname, '../dist/chatcops.min.js'), 'utf-8');
@@ -230,8 +245,10 @@ describe('the built loader (dist/chatcops.min.js)', () => {
     const api = (window as unknown as { ChatCops: Record<string, unknown> }).ChatCops;
     for (const method of ['init', 'open', 'close', 'destroy', 'on', 'off']) expect(typeof api[method]).toBe('function');
     expect(launcherButton()).not.toBeNull();
-    // The panel URL sits next to the loader and carries the version, for caches.
-    expect(code).toMatch(/chatcops\.panel\.js\?v=\d+\.\d+\.\d+/);
+    // The panel URL carries this package's version, for caches (see panelUrlFor).
+    const { version } = JSON.parse(readFileSync(resolve(__dirname, '../package.json'), 'utf-8')) as { version: string };
+    expect(code).toContain('chatcops.panel.js');
+    expect(code).toContain(`"${version}"`);
     (api.destroy as () => void)();
     Object.defineProperty(document, 'currentScript', { value: null, configurable: true });
   });

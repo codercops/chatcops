@@ -22,6 +22,20 @@ export interface ChatCopsLoader {
 const DEFAULT_BUBBLE_DELAY = 3000;
 
 /**
+ * Where the panel is, given the loader's own URL: next to the file
+ * (`…/dist/chatcops.min.js` or a renamed copy), or in the package's `dist/`
+ * when the page loads the bare package URL that CDNs resolve to the main
+ * file (`https://cdn.jsdelivr.net/npm/@chatcops/widget@0.7`).
+ */
+export function panelUrlFor(loaderUrl: string, version: string): string {
+  const url = new URL(loaderUrl);
+  const base = /\.m?js$/.test(url.pathname) ? url.href : `${url.origin}${url.pathname.replace(/\/$/, '')}/dist/`;
+  const panel = new URL('chatcops.panel.js', base);
+  panel.searchParams.set('v', version);
+  return panel.href;
+}
+
+/**
  * The script tag build: a small launcher that looks like the chat button and
  * loads the full chat (`loadPanel`) when the visitor opens it, or earlier when
  * the page asks for it (`open()`, `autoOpen`, a welcome bubble, inline mode).
