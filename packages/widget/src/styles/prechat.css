@@ -40,7 +40,7 @@
 
 .cc-prechat-label .cc-required {
   color: #ef4444;
-  margin-left: 2px;
+  margin-inline-start: 2px;
 }
 
 .cc-prechat-input,
