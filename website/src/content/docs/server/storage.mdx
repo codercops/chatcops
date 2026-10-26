@@ -178,6 +178,51 @@ The history sent to the model is trimmed to about 32,000 tokens: the visitor's f
 
 The complete interface is defined by [`ConversationStore`](https://github.com/codercops/chatcops/blob/dev/packages/core/src/storage/types.ts). The broader `ChatCopsStorage` object can also provide optional counter, KV, and event stores for distributed rate limits, turn locks, and analytics.
 
+## Vector stores
+
+`vectors` holds embedded chunks of your site's pages, for answering from them. The server doesn't search it yet; retrieval and citations build on it next. The interface is in place now so store packages can add it.
+
+`memoryVectors` keeps vectors in the process and compares a query with every record. Use it for tests, local development, and indexes of a few thousand chunks:
+
+```typescript
+import { memoryStorage, memoryVectors } from '@chatcops/core';
+
+const storage = {
+  ...memoryStorage(),
+  vectors: memoryVectors({ dimensions: 1024 }),
+};
+
+await storage.vectors.upsert([
+  {
+    id: 'pricing-0',
+    vector: new Float32Array(1024),
+    text: 'The Team plan is $20 a month.',
+    source: { id: 'https://example.com/pricing', url: 'https://example.com/pricing', title: 'Pricing' },
+    metadata: { locale: 'en' },
+  },
+]);
+
+const results = await storage.vectors.query({
+  vector: new Float32Array(1024),
+  topK: 5,
+  filter: { locale: ['en', 'de'] },
+});
+```
+
+A `VectorStore` needs:
+
+| Method | What it does |
+|---|---|
+| `dimensions` | The length of every vector. Storing or searching with another length is an error. |
+| `upsert(records)` | Adds records, replacing any with the same id. |
+| `query({ vector, topK, filter })` | The nearest records by cosine similarity, best first. |
+| `keywordQuery({ text, topK, filter })` | Optional full-text search, for hybrid retrieval. Words are split with `Intl.Segmenter`, so Japanese and Chinese work. |
+| `deleteBySource(sourceId)` | Removes every chunk of a page. |
+
+A filter matches when every key matches: a value has to be equal and of the same type, and an array matches any of its values. Results don't include the vectors.
+
+To check your own store, run the conformance suite from `@chatcops/core/testing`. Its vector checks run when the storage has `vectors`, need at least 4 dimensions, and tag every record with the run's id, so they work against a shared index.
+
 ## Retention
 
 The handler exposes `purge()` for retention cleanup. `retention.conversationsDays` defaults to 30 days. Call `purge()` from a scheduled job or deploy task; it returns the number of deleted conversations, or `null` when the store can't purge:
