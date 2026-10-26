@@ -45,5 +45,7 @@ export function configFromScript(script: HTMLScriptElement): WidgetConfig | unde
     autoOpen: parseAutoOpen(script.dataset.autoOpen),
     placeholder: script.dataset.placeholder,
     locale: script.dataset.locale,
+    persistence: (['local', 'session', 'none'] as const).find((mode) => mode === script.dataset.persistence),
+    historyTtlDays: /^\d+$/.test(script.dataset.historyTtlDays ?? '') ? Number(script.dataset.historyTtlDays) : undefined,
   };
 }

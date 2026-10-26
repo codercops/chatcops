@@ -36,6 +36,8 @@ describe('configFromScript', () => {
           autoOpen: '2000',
           placeholder: 'Ask me',
           locale: 'de',
+          persistence: 'session',
+          historyTtlDays: '7',
         })
       )
     ).toEqual({
@@ -51,7 +53,15 @@ describe('configFromScript', () => {
       autoOpen: 2000,
       placeholder: 'Ask me',
       locale: 'de',
+      persistence: 'session',
+      historyTtlDays: 7,
     });
+  });
+
+  it('ignores a persistence mode or history length it does not know', () => {
+    const config = configFromScript(script({ apiUrl: '/api/chat', persistence: 'cookie', historyTtlDays: 'forever' }));
+    expect(config?.persistence).toBeUndefined();
+    expect(config?.historyTtlDays).toBeUndefined();
   });
 
   it('leaves out what the tag does not set', () => {

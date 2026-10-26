@@ -95,7 +95,8 @@ ChatCops.init({
   placeholder: 'Type a message...',
 
   // Behavior
-  persistHistory: true,                 // localStorage, default: true
+  persistence: 'local',                 // 'local' | 'session' | 'none', default: 'local'
+  historyTtlDays: 30,                   // drop saved chats older than this
   maxMessages: 50,                      // max persisted messages
   pageContext: true,                     // send page URL/title to API
   autoOpen: 5000,                       // auto-open after ms (popup only)
