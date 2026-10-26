@@ -37,7 +37,8 @@
 .cc-fab {
   position: fixed;
   bottom: 20px;
-  inset-inline-end: 20px;
+  /* Physical placement: the site's default bottom-right choice stays on the right. */
+  right: 20px;
   width: var(--cc-fab-size);
   height: var(--cc-fab-size);
   border-radius: 50%;

@@ -2,7 +2,8 @@
 .cc-panel {
   position: fixed;
   bottom: 88px;
-  inset-inline-end: 20px;
+  /* Physical placement: the site's default bottom-right choice stays on the right. */
+  right: 20px;
   width: var(--cc-panel-width);
   height: var(--cc-panel-height);
   max-height: calc(100vh - 100px);
@@ -405,7 +406,8 @@
 .cc-bubble {
   position: fixed;
   bottom: 84px;
-  inset-inline-end: 20px;
+  /* Physical placement: the site's default bottom-right choice stays on the right. */
+  right: 20px;
   background: var(--cc-bg-surface);
   color: var(--cc-text);
   padding: 10px 16px;
@@ -486,7 +488,7 @@
     max-height: 100%;
     bottom: 0;
     inset-inline: 0;
-    /* Physical full-width anchoring keeps the mobile panel edge-to-edge. */
+    /* Both sides are 0, so this is the same in either direction. */
     border-radius: 0;
     border: none;
   }
