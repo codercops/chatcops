@@ -76,6 +76,19 @@ describe('the script tag loader', () => {
     loader.destroy();
   });
 
+  it('asks the chat to prefetch what the config needs once it has loaded on hover', async () => {
+    const prefetch = vi.fn();
+    const load = vi.fn(() => Promise.resolve({ Widget, prefetch }));
+    const loader = createLoader(load);
+    const config = { apiUrl: 'https://api.test/chat', preChatForm: { enabled: true, fields: [] } };
+    loader.init(config);
+
+    launcherButton()?.dispatchEvent(new Event('focus'));
+    await settle();
+    expect(prefetch).toHaveBeenCalledWith(config);
+    loader.destroy();
+  });
+
   it('swaps in the chat on click and opens it, with handlers registered before', async () => {
     const { load } = panel();
     const loader = createLoader(load);

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ChatCops e2e host page, pre-chat form</title>
+</head>
+<body>
+  <main>
+    <h1>Host page</h1>
+    <p>The widget below asks for a name before the chat starts.</p>
+  </main>
+  <script src="/chatcops.min.js"></script>
+  <script>
+    ChatCops.init({
+      apiUrl: '/api/chat',
+      preChatForm: {
+        enabled: true,
+        fields: [{ name: 'name', label: 'Name', type: 'text', required: true }],
+      },
+    });
+  </script>
+</body>
+</html>

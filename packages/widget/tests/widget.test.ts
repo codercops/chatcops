@@ -643,6 +643,7 @@ describe('Widget', () => {
     const widget2 = new Widget(config);
     widget2.init();
     widget2.open();
+    await vi.dynamicImportSettled();
 
     expect(getInternals(widget2).shadow.querySelector('.cc-prechat')).toBeNull();
     const welcome2 = getInternals(widget2).messages.find((m) => m.id === 'welcome');
@@ -741,6 +742,7 @@ describe('Widget', () => {
     });
     widget.init();
     widget.open();
+    await vi.dynamicImportSettled();
 
     expect(getInternals(widget).shadow.querySelector('.cc-prechat')).toBeNull();
     const welcome = getInternals(widget).messages.find((m) => m.id === 'welcome');

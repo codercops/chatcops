@@ -115,10 +115,11 @@ describe('widget persistence', () => {
     expect(internals(w).messages.map((m) => m.content)).toContain('Earlier question');
   });
 
-  it('skips the pre-chat form for a saved conversation from before the form was recorded', () => {
+  it('skips the pre-chat form for a saved conversation from before the form was recorded', async () => {
     localStorage.setItem('chatcops_conversation', saved('conv-old-version'));
     const w = start({ preChatForm: { enabled: true, fields: [{ name: 'name', label: 'Name', type: 'text' }] } });
     w.open();
+    await vi.dynamicImportSettled();
 
     expect(internals(w).shadow.querySelector('.cc-panel')).not.toBeNull();
     expect(internals(w).shadow.querySelector('.cc-prechat')).toBeNull();

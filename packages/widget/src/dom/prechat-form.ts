@@ -1,5 +1,10 @@
+import prechatStyles from '../styles/prechat.css?inline';
 import type { PreChatField } from '../widget.js';
 import type { WidgetLocaleStrings } from '../i18n.js';
+
+// This file is its own chunk (see Widget.showPreChatForm), so it may import
+// types from the rest of the widget but nothing at runtime: a runtime import
+// would load a second copy of the panel.
 
 // Must match the userData value limit in packages/server/src/config.ts (chatRequestSchema).
 const MAX_PRECHAT_FIELD_LENGTH = 500;
@@ -59,6 +64,7 @@ export class PreChatForm {
 
     this.container.appendChild(form);
     parent.appendChild(this.container);
+    addStyles(parent.getRootNode());
 
     this.updateSubmitState();
 
@@ -218,4 +224,13 @@ export class PreChatForm {
     this.fieldElements.clear();
     this.errorElements.clear();
   }
+}
+
+/** Adds the form's styles to the widget's shadow root, once. */
+function addStyles(root: Node): void {
+  if (!(root instanceof ShadowRoot) || root.querySelector('style[data-cc-prechat]')) return;
+  const style = document.createElement('style');
+  style.dataset.ccPrechat = '';
+  style.textContent = prechatStyles;
+  root.appendChild(style);
 }

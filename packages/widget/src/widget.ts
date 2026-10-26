@@ -7,7 +7,7 @@ import { ConversationStorage, type Persistence } from './storage.js';
 import { claimNamespace, type ClaimedNamespace } from './namespace.js';
 import { applyTheme } from './theme.js';
 import { getWidgetLocale, type WidgetLocaleStrings } from './i18n.js';
-import { PreChatForm } from './dom/prechat-form.js';
+import type { PreChatForm } from './dom/prechat-form.js';
 import type { WidgetChatRequest } from './api/types.js';
 import type { MessageData, MessageErrorType } from './dom/messages.js';
 
@@ -125,6 +125,25 @@ type SendRequestOptions = {
   userMessageId?: string;
 };
 
+let preChatChunk: Promise<typeof import('./dom/prechat-form.js')> | undefined;
+
+/**
+ * The pre-chat form's chunk, loaded once and only by widgets that use the
+ * form. A failed load is forgotten, so the next widget tries again.
+ */
+export function loadPreChatForm(): Promise<typeof import('./dom/prechat-form.js')> {
+  preChatChunk ??= import('./dom/prechat-form.js').catch((error: unknown) => {
+    preChatChunk = undefined;
+    throw error;
+  });
+  return preChatChunk;
+}
+
+/** Starts downloading what this config will need, before the chat is shown. */
+export function prefetch(config: WidgetConfig): void {
+  if (config.preChatForm?.enabled) loadPreChatForm().catch(() => undefined);
+}
+
 export class Widget {
   private config: WidgetConfig;
   private shadow!: ShadowRoot;
@@ -186,6 +205,7 @@ export class Widget {
   }
 
   init(): void {
+    prefetch(this.config);
     if (this.isInline) {
       this.containerEl = this.resolveContainer();
       this.shadow = createShadowRoot(this.containerEl);
@@ -363,14 +383,29 @@ export class Widget {
     this.panel.hideMessages();
     this.panel.input.setVisible(false);
 
-    this.preChatFormEl = new PreChatForm(this.panel.messagesContainer, {
-      title: formConfig.title ?? this.locale.preChatTitle,
-      subtitle: formConfig.subtitle ?? this.locale.preChatSubtitle,
-      fields: formConfig.fields,
-      submitLabel: formConfig.submitLabel ?? this.locale.preChatSubmit,
-      locale: this.locale,
-      onSubmit: (data) => this.handlePreChatSubmit(data),
-    });
+    loadPreChatForm().then(
+      ({ PreChatForm }) => {
+        // Destroyed, or the visitor sent a message, while the form loaded.
+        if (this.destroyed || this.preChatDone || this.preChatFormEl) return;
+        this.preChatFormEl = new PreChatForm(this.panel.messagesContainer, {
+          title: formConfig.title ?? this.locale.preChatTitle,
+          subtitle: formConfig.subtitle ?? this.locale.preChatSubtitle,
+          fields: formConfig.fields,
+          submitLabel: formConfig.submitLabel ?? this.locale.preChatSubmit,
+          locale: this.locale,
+          onSubmit: (data) => this.handlePreChatSubmit(data),
+        });
+      },
+      (error: unknown) => {
+        // Without the form the chat still works, just with no answers.
+        console.error('[chatcops] The pre-chat form could not load:', error instanceof Error ? error.message : error);
+        if (this.destroyed || this.preChatDone) return;
+        this.preChatDone = true;
+        this.panel.showMessages();
+        this.panel.input.setVisible(true);
+        this.showChatView();
+      }
+    );
   }
 
   private handlePreChatSubmit(data: Record<string, string>): void {

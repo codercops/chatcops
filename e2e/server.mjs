@@ -25,6 +25,7 @@ const files = {
   '/slow-tool.html': ['fixtures/slow-tool.html', 'text/html'],
   '/sessions.html': ['fixtures/sessions.html', 'text/html'],
   '/full.html': ['fixtures/full.html', 'text/html'],
+  '/prechat.html': ['fixtures/prechat.html', 'text/html'],
 };
 
 const apiRequests = [];
@@ -190,8 +191,9 @@ const server = createServer(async (req, res) => {
     const endpoint = Object.entries(endpoints).find(([path]) => url.pathname === path || url.pathname === `${path}/session`);
     if (endpoint) return await serveFetch(endpoint[1], req, res);
 
-    // The widget builds: chatcops.min.js (loader), chatcops.panel.js, chatcops.full.min.js, chatcops.esm.js.
-    const widgetFile = /^\/(chatcops\.(?:min|panel|full\.min|esm)\.js)$/.exec(url.pathname)?.[1];
+    // The widget builds: chatcops.min.js (loader), chatcops.panel.js and the chunks it loads,
+    // chatcops.full.min.js, chatcops.esm.js.
+    const widgetFile = /^\/(chatcops\.(?:min|panel|full\.min|esm)\.js|chunks\/[\w-]+\.js)$/.exec(url.pathname)?.[1];
     if (widgetFile) {
       const js = await readFile(join(root, 'packages/widget/dist', widgetFile));
       res.writeHead(200, { 'Content-Type': 'text/javascript' });

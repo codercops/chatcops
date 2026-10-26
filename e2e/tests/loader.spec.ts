@@ -99,3 +99,27 @@ test('the single-file build (chatcops.full.min.js) still works on its own', asyn
   expect(requested).not.toContain('/chatcops.panel.js');
   expect(requested).not.toContain('/chatcops.min.js');
 });
+
+const chunkRequests = (urls: string[]) => urls.filter((url) => new URL(url).pathname.startsWith('/chunks/'));
+
+test('the pre-chat form downloads only on pages that use it, and works', async ({ page }) => {
+  const requested: string[] = [];
+  page.on('request', (request) => requested.push(request.url()));
+
+  await page.goto('/');
+  await page.locator(fab).click();
+  await expect(page.locator('.cc-panel')).toHaveClass(/cc-visible/);
+  expect(chunkRequests(requested)).toEqual([]);
+
+  requested.length = 0;
+  await page.goto('/prechat.html');
+  await page.locator(fab).hover();
+  await expect.poll(() => chunkRequests(requested).some((url) => url.includes('/chunks/prechat-form-'))).toBe(true);
+  await page.locator(fab).click();
+  await page.locator('.cc-prechat-input').fill('Sam');
+  await page.locator('.cc-prechat-submit').click();
+  await expect(page.locator('.cc-message-assistant').first()).toContainText('Hi Sam!');
+  await page.locator('.cc-input').fill('Hi there');
+  await page.locator('.cc-send-btn').click();
+  await expect(page.locator('.cc-message-assistant').last()).toContainText('Hello from the test server.');
+});

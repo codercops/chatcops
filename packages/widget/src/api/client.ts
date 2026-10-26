@@ -1,6 +1,5 @@
 import type { WirePart } from './protocol.js';
 import { keyStore, type KeyStore } from '../storage.js';
-import { turnstileToken } from './turnstile.js';
 import type { WidgetChatRequest, WidgetChatChunk } from './types.js';
 
 export interface ChatClientOptions {
@@ -123,7 +122,11 @@ export class ChatClient {
           conversationId: request.conversationId,
           previousToken: saved.token,
           userToken: this.userToken,
-          turnstileToken: this.turnstileSiteKey && !resumable ? await turnstileToken(this.turnstileSiteKey) : undefined,
+          // Its own chunk: only sites with a Turnstile key download it.
+          turnstileToken:
+            this.turnstileSiteKey && !resumable
+              ? await (await import('./turnstile.js')).turnstileToken(this.turnstileSiteKey)
+              : undefined,
         });
         if (minted.ok) {
           const session = (await minted.json()) as Session;
