@@ -53,11 +53,17 @@ const docs = new TextKnowledgeSource([
 ## KnowledgeSource Interface
 
 ```typescript
+import type { RetrievalQuery, RetrievedChunk } from '@chatcops/core';
+
 interface KnowledgeSource {
   type: string;
   getContext(query: string): Promise<string>;
+  // Optional: the matching chunks themselves, with the conversation so far.
+  retrieve?(query: RetrievalQuery): Promise<RetrievedChunk[]>;
 }
 ```
+
+When a source has `retrieve`, the server uses it instead of `getContext`. It passes the visitor's message and the last few messages before it, so a follow-up like "how long does it take?" can be searched in context. The chunks from every source are numbered and given to the model in one fenced block, marked as reference material that never contains instructions, since crawled pages sometimes do. That's what citations will build on.
 
 ## Multiple Sources
 
@@ -101,3 +107,31 @@ class VectorKnowledgeSource implements KnowledgeSource {
   }
 }
 ```
+
+## Retrieval from a vector store
+
+`openaiEmbedder` turns text into vectors (`text-embedding-3-small` at 1024 dimensions by default), and `retrieverKnowledge` turns any `Retriever` into a knowledge source:
+
+```typescript
+import { memoryVectors, openaiEmbedder, retrieverKnowledge, type Retriever } from '@chatcops/core';
+import { chatcopsMiddleware } from '@chatcops/server';
+
+const embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! });
+const vectors = memoryVectors({ dimensions: embedder.dimensions });
+
+const retriever: Retriever = {
+  async retrieve({ text, topK = 5, filter }) {
+    const [vector] = await embedder.embed([text], 'query');
+    return vectors.query({ vector, topK, filter });
+  },
+};
+
+const handler = chatcopsMiddleware({
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+  systemPrompt: 'Answer questions about Acme.',
+  knowledge: [retrieverKnowledge(retriever, { topK: 5 })],
+});
+```
+
+The index has to be built and searched with the same embedder. Ready-made vector and hybrid retrievers, and a command that builds the index from your sitemap, are next.
+

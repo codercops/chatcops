@@ -36,6 +36,7 @@ import { DEFAULT_SESSION_TTL_SEC, createSessions } from './security/sessions.js'
 import { logSecurityAtStartup } from './security/startup-checks.js';
 import { VISITOR_CONTEXT_INSTRUCTION, buildVisitorContext, isLocaleTag, withVisitorContext } from './visitor-context.js';
 import { WebhookDispatcher } from './webhook.js';
+import { historyBefore, knowledgeContext } from './knowledge.js';
 
 export function createChatHandler(config: ChatCopsServerConfig) {
   if (config.i18n) {
@@ -330,8 +331,7 @@ export function createChatHandler(config: ChatCopsServerConfig) {
     // changes per request goes in the context after it.
     const context: string[] = [];
     if (config.knowledge?.length) {
-      const contexts = await Promise.all(config.knowledge.map((k) => k.getContext(req.message)));
-      const combined = contexts.filter(Boolean).join('\n\n');
+      const combined = await knowledgeContext(config.knowledge, req.message, historyBefore(conversationMessages, req), signal);
       if (combined) context.push(combined);
     }
 

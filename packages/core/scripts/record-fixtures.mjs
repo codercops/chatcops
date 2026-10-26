@@ -1,7 +1,7 @@
 // Records real provider responses for the replay tests in tests/fixtures.
 //
 //   pnpm --filter @chatcops/core build
-//   cd packages/core && node --env-file=../../.env scripts/record-fixtures.mjs [claude] [openai] [gemini]
+//   cd packages/core && node --env-file=../../.env scripts/record-fixtures.mjs [claude] [openai] [gemini] [openai-embeddings]
 //
 // Only request and response bodies are written, never headers, and the script
 // stops if a body contains an API key. Recording costs a few cents per run.
@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { ClaudeProvider } from '../dist/providers/claude.js';
 import { GeminiProvider } from '../dist/providers/gemini.js';
 import { OpenAIProvider } from '../dist/providers/openai.js';
+import { openaiEmbedder } from '../dist/retrieval/openai-embedder.js';
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), '..', 'tests', 'fixtures');
 const SECRETS = ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GEMINI_API_KEY']
@@ -169,8 +170,16 @@ const openai = (name) =>
 const gemini = (name) =>
   new GeminiProvider({ type: 'gemini', apiKey: process.env.GEMINI_API_KEY, fetch: recorder('gemini', name) });
 
+/** Two documents and a query at 8 dimensions, so the fixture stays small. */
+async function recordEmbeddings() {
+  const embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY, dimensions: 8, fetch: recorder('openai-embeddings', 'basic') });
+  await embedder.embed(['The Team plan costs $20 a month.', 'Our office is in Lisbon.'], 'document');
+  await embedder.embed(['How much is the Team plan?'], 'query');
+}
+
 const providers = {
   openai: () => recordCases('openai', openai),
+  'openai-embeddings': recordEmbeddings,
   // Gemini sends no thought text unless asked; its signature rides on the
   // function call part, which the one-tool case covers.
   gemini: () => recordCases('gemini', gemini),

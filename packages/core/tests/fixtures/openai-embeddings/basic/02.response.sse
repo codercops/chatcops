@@ -1,0 +1,1 @@
+{"object":"list","data":[{"object":"embedding","embedding":[0.09771728515625,-0.1346435546875,0.17626953125,-0.044769287109375,-0.7255859375,-0.349609375,-0.040618896484375,0.53662109375],"index":0}],"model":"text-embedding-3-small","usage":{"prompt_tokens":7,"total_tokens":7}}
