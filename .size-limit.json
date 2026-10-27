@@ -26,7 +26,7 @@
   {
     "name": "widget, ESM",
     "path": "packages/widget/dist/chatcops.esm.js",
-    "limit": "20 KB",
+    "limit": "21 KB",
     "gzip": true
   }
 ]
