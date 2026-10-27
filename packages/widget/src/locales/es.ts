@@ -30,7 +30,7 @@ const es: Partial<WidgetLocaleStrings> = {
   preChatInvalidEmail: 'Introduce un correo electrónico válido.',
   retryButton: 'Reintentar',
   regenerateButton: 'Volver a generar',
-  unreadCount: '{count} mensajes sin leer',
+  unreadCount: '{count} sin leer',
 };
 
 export default es;
