@@ -110,28 +110,31 @@ class VectorKnowledgeSource implements KnowledgeSource {
 
 ## Retrieval from a vector store
 
-`openaiEmbedder` turns text into vectors (`text-embedding-3-small` at 1024 dimensions by default), and `retrieverKnowledge` turns any `Retriever` into a knowledge source:
+`openaiEmbedder` turns text into vectors (`text-embedding-3-small` at 1024 dimensions by default), a retriever searches a vector store with them, and `retrieverKnowledge` turns the retriever into a knowledge source:
 
 ```typescript
-import { memoryVectors, openaiEmbedder, retrieverKnowledge, type Retriever } from '@chatcops/core';
+import { hybridRetriever, memoryVectors, openaiEmbedder, retrieverKnowledge } from '@chatcops/core';
 import { chatcopsMiddleware } from '@chatcops/server';
 
 const embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! });
 const vectors = memoryVectors({ dimensions: embedder.dimensions });
 
-const retriever: Retriever = {
-  async retrieve({ text, topK = 5, filter }) {
-    const [vector] = await embedder.embed([text], 'query');
-    return vectors.query({ vector, topK, filter });
-  },
-};
-
 const handler = chatcopsMiddleware({
   provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
   systemPrompt: 'Answer questions about Acme.',
-  knowledge: [retrieverKnowledge(retriever, { topK: 5 })],
+  knowledge: [retrieverKnowledge(hybridRetriever({ store: vectors, embedder }), { topK: 5 })],
 });
 ```
 
-The index has to be built and searched with the same embedder. Ready-made vector and hybrid retrievers, and a command that builds the index from your sitemap, are next.
+There are two retrievers:
 
+| Retriever | Searches by | Needs |
+|---|---|---|
+| `vectorRetriever({ store, embedder })` | Meaning: the question is embedded and compared with every chunk | Any vector store |
+| `hybridRetriever({ store, embedder })` | Meaning and exact words, merged by rank (reciprocal rank fusion, `rrfK` 60) | A store with `keywordQuery` |
+
+Hybrid search is the better default when the store supports it. Words catch what meaning misses, such as product names, error codes and part numbers.
+
+Both take `candidates` (how many records each search fetches, default 20) and an optional `reranker`, which reorders the candidates before the top ones are kept. A short follow-up question ("how long does it take?") is searched together with the visitor's previous question, so it finds the right pages.
+
+The index has to be built and searched with the same embedder; a retriever refuses an embedder whose vectors are a different size from the store's. A command that builds the index from your sitemap is next.

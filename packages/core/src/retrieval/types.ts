@@ -40,3 +40,11 @@ export interface RetrievalQuery {
 export interface Retriever {
   retrieve(query: RetrievalQuery): Promise<RetrievedChunk[]>;
 }
+
+/**
+ * Puts chunks in a better order for a question, usually with a model trained
+ * for it. Retrievers hand it more candidates than they return.
+ */
+export interface Reranker {
+  rerank(query: string, chunks: RetrievedChunk[], topN: number, options?: { signal?: AbortSignal }): Promise<RetrievedChunk[]>;
+}
