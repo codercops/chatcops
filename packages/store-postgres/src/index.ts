@@ -4,18 +4,22 @@ import { PostgresCounterStore, PostgresEventSink, PostgresKeyValueStore } from '
 import type { Queryable } from './queryable.js';
 import { checkRowHook, type ExtraColumns, type RowHookFunction } from './row-hook.js';
 import { tableNames } from './schema.js';
+import { PostgresVectorStore } from './vectors.js';
 
 export { fromNeon, fromPostgresJs, type NeonSql, type PostgresJsSql, type Queryable } from './queryable.js';
-export { migrate, MIGRATIONS, tableNames, type MigrateOptions, type TableNames } from './schema.js';
+export { migrate, migrateVectors, MIGRATIONS, tableNames, type MigrateOptions, type MigrateVectorsOptions, type TableNames } from './schema.js';
 export { PostgresConversationStore } from './conversations.js';
 export type { ExtraColumns, RowHookContext, RowHookFunction } from './row-hook.js';
 export { PostgresCounterStore, PostgresEventSink, PostgresKeyValueStore } from './counters.js';
+export { PostgresVectorStore } from './vectors.js';
 
 export interface PostgresStorageOptions {
   /** A `pg` `Pool`, or a wrapped postgres.js or Neon client (`fromPostgresJs`, `fromNeon`). */
   db: Queryable;
   /** Default `chatcops_`. Lets several apps share one database. */
   tablePrefix?: string;
+  /** Set this to expose pgvector storage; call `migrateVectors` separately. */
+  dimensions?: number;
   /**
    * Columns you've added to the conversations and messages tables (with your
    * own migration), filled in by `rowHook` when a row is created. Names, or
@@ -35,11 +39,12 @@ export interface PostgresStorageOptions {
 
 /**
  * Everything ChatCops stores, in Postgres: conversations, rate limit
- * counters, keys (turn locks) and analytics events. Run `migrate(db)` (or
- * `npx chatcops-postgres migrate`) once before first use.
+ * counters, keys (turn locks), analytics events and optional pgvector chunks.
+ * Run `migrate(db)` before first use and `migrateVectors(db, { dimensions })`
+ * separately when vector storage is enabled.
  *
- * Works with any driver: every write is a single statement, so nothing needs
- * a transaction or a dedicated connection.
+ * Every write is a single statement. Filtered vector searches use a
+ * transaction for pgvector's iterative HNSW scan setting.
  */
 export function postgresStorage(options: PostgresStorageOptions): ChatCopsStorage {
   const t = tableNames(options.tablePrefix);
@@ -49,5 +54,6 @@ export function postgresStorage(options: PostgresStorageOptions): ChatCopsStorag
     counters: new PostgresCounterStore(options.db, t, now),
     kv: new PostgresKeyValueStore(options.db, t, now),
     events: new PostgresEventSink(options.db, t),
+    ...(options.dimensions !== undefined ? { vectors: new PostgresVectorStore(options.dimensions, options.db, t.vectorChunks) } : {}),
   };
 }

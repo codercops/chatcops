@@ -223,6 +223,33 @@ A filter matches when every key matches: a value has to be equal and of the same
 
 To check your own store, run the conformance suite from `@chatcops/core/testing`. Its vector checks run when the storage has `vectors`, need at least 4 dimensions, and tag every record with the run's id, so they work against a shared index.
 
+### Postgres with pgvector
+
+The Postgres store can keep chunks in a pgvector table with cosine search and full-text keyword search. Install pgvector on the database, then run the vector migration separately from the regular conversation migration. This keeps `migrate()` usable on Postgres servers where the extension is not installed:
+
+```typescript
+import { Pool } from 'pg';
+import { migrate, migrateVectors, postgresStorage } from '@chatcops/store-postgres';
+
+const db = new Pool({ connectionString: process.env.DATABASE_URL });
+const dimensions = 1024;
+await migrate(db);
+await migrateVectors(db, { dimensions });
+
+const storage = postgresStorage({ db, dimensions });
+await storage.vectors?.upsert([
+  {
+    id: 'pricing-0',
+    vector: new Float32Array(dimensions),
+    text: 'The Team plan is $20 a month.',
+    source: { id: 'pricing', url: 'https://example.com/pricing', title: 'Pricing' },
+    metadata: { locale: 'en' },
+  },
+]);
+```
+
+Use the same `dimensions` and `tablePrefix` for both `migrateVectors()` and `postgresStorage()`. `keywordQuery()` uses Postgres full-text ranking and splits words with `Intl.Segmenter`, including Japanese and Chinese. Filtered vector queries use pgvector iterative HNSW scans, which requires pgvector 0.8 or newer.
+
 ## Retention
 
 The handler exposes `purge()` for retention cleanup. `retention.conversationsDays` defaults to 30 days. Call `purge()` from a scheduled job or deploy task; it returns the number of deleted conversations, or `null` when the store can't purge:
