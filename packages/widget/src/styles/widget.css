@@ -441,7 +441,6 @@
   transform: translateY(8px);
   pointer-events: none;
   transition: opacity 0.3s, transform 0.3s;
-  cursor: pointer;
 }
 
 .cc-bubble.cc-visible {
@@ -454,6 +453,21 @@
   /* Physical placement: the site's bottom-left choice stays on the left. */
   right: auto;
   left: 20px;
+}
+
+.cc-bubble-trigger {
+  appearance: none;
+  display: block;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: start;
+  cursor: pointer;
 }
 
 .cc-bubble-close {
@@ -538,6 +552,7 @@
 .cc-suggestion:focus-visible,
 .cc-message-retry:focus-visible,
 .cc-message-regenerate:focus-visible,
+.cc-bubble-trigger:focus-visible,
 .cc-bubble-close:focus-visible,
 .cc-input:focus-visible {
   outline: 2px solid transparent;
