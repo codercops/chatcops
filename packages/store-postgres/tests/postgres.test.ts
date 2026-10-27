@@ -1,6 +1,6 @@
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { fromNeon, migrate, MIGRATIONS, postgresStorage, tableNames } from '../src/index.js';
+import { fromNeon, migrate, migrateVectors, MIGRATIONS, postgresStorage, tableNames } from '../src/index.js';
 
 const url = process.env.CHATCOPS_TEST_POSTGRES_URL;
 const run = `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -26,6 +26,18 @@ describe.runIf(url)('postgresStorage', () => {
     const tablePrefix = `${run}_m_`;
     expect(await migrate(pool, { tablePrefix })).toEqual({ applied: MIGRATIONS.map((m) => m.id) });
     expect(await migrate(pool, { tablePrefix })).toEqual({ applied: [] });
+  });
+
+  it('creates the optional vector table idempotently under the configured prefix', async () => {
+    const tablePrefix = `${run}_vec_`;
+    await migrateVectors(pool, { dimensions: 4, tablePrefix });
+    await expect(migrateVectors(pool, { dimensions: 4, tablePrefix })).resolves.toBeUndefined();
+    const t = tableNames(tablePrefix);
+    const { rows } = await pool.query<{ table_name: string }>(
+      `SELECT to_regclass($1) AS table_name`,
+      [t.vectorChunks]
+    );
+    expect(rows[0]?.table_name).toBe(t.vectorChunks);
   });
 
   it('keeps apps with different table prefixes apart', async () => {

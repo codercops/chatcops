@@ -1,0 +1,36 @@
+import type { WidgetLocaleStrings } from '../i18n.js';
+
+const fr: Partial<WidgetLocaleStrings> = {
+  welcomeMessage: 'Comment puis-je vous aider aujourd’hui ?',
+  inputPlaceholder: 'Écrivez un message…',
+  sendButton: 'Envoyer',
+  closeButton: 'Fermer',
+  openChat: 'Ouvrir le chat',
+  defaultName: 'Assistant IA',
+  defaultSubtitle: 'En ligne',
+  greetingWithName: 'Bonjour {name} !',
+  selectPlaceholder: 'Sélectionnez {label}…',
+  dismissBubble: 'Masquer',
+  errorGeneric: 'Une erreur s’est produite. Veuillez réessayer.',
+  errorNetwork: 'Erreur de connexion. Vérifiez votre connexion Internet.',
+  errorRateLimit: 'Vous avez envoyé trop de messages. Veuillez patienter un instant.',
+  errorRateLimitWait: 'Vous avez envoyé trop de messages. Veuillez réessayer dans {seconds} secondes.',
+  errorBudget: 'Cette conversation a atteint sa limite.',
+  errorBudgetDaily: 'L’assistant a atteint sa limite pour aujourd’hui. Veuillez réessayer plus tard.',
+  errorUnavailable: 'L’assistant est indisponible pour le moment. Veuillez réessayer plus tard.',
+  errorCutOff: 'La réponse a été interrompue.',
+  typingIndicator: 'L’assistant est en train d’écrire…',
+  poweredBy: 'Propulsé par ChatCops',
+  newConversation: 'Nouvelle conversation',
+  welcomeBubbleDefault: 'Besoin d’aide ? Discutez avec nous !',
+  preChatTitle: 'Avant de commencer…',
+  preChatSubtitle: 'Parlez-nous un peu de vous',
+  preChatSubmit: 'Démarrer le chat',
+  preChatRequired: 'Ce champ est obligatoire.',
+  preChatInvalidEmail: 'Veuillez saisir une adresse e-mail valide.',
+  retryButton: 'Réessayer',
+  regenerateButton: 'Générer à nouveau',
+  unreadCount: 'Messages non lus : {count}',
+};
+
+export default fr;

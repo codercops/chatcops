@@ -9,10 +9,26 @@ export const HOST_ID = 'chatcops-root';
  * `chatcops-root-2`, `chatcops-root-3` and so on. Every host has the class
  * `chatcops-root`.
  */
-export function createShadowRoot(container?: HTMLElement): ShadowRoot {
+export interface ShadowOptions {
+  dir?: 'ltr' | 'rtl' | 'auto';
+  locale?: string;
+}
+
+const RTL_LANGUAGES = new Set(['ar', 'he', 'fa', 'ur']);
+
+export function resolveDirection(configured: ShadowOptions['dir'], locale?: string): 'ltr' | 'rtl' | 'auto' {
+  if (configured) return configured;
+  const language = locale?.toLowerCase().split(/[-_]/)[0];
+  if (language && RTL_LANGUAGES.has(language)) return 'rtl';
+  return (document.dir || document.documentElement.dir) === 'rtl' ? 'rtl' : 'ltr';
+}
+
+export function createShadowRoot(container?: HTMLElement, options: ShadowOptions = {}): ShadowRoot {
   const host = document.createElement('div');
   host.id = nextHostId();
   host.className = HOST_ID;
+  host.dir = resolveDirection(options.dir, options.locale);
+  if (options.locale) host.lang = options.locale;
 
   if (container) {
     container.appendChild(host);

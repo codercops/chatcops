@@ -1,0 +1,9 @@
+{
+  "model": "text-embedding-3-small",
+  "input": [
+    "The Team plan costs $20 a month.",
+    "Our office is in Lisbon."
+  ],
+  "encoding_format": "float",
+  "dimensions": 8
+}

@@ -75,6 +75,7 @@ export interface WidgetConfig {
     subtitle?: string;
   };
   welcomeMessage?: string;
+  suggestions?: string[];
   welcomeBubble?: {
     text: string;
     delay?: number;
@@ -95,6 +96,7 @@ export interface WidgetConfig {
   pageContext?: boolean;
   autoOpen?: boolean | number;
   locale?: string;
+  dir?: 'ltr' | 'rtl' | 'auto';
   strings?: Partial<WidgetLocaleStrings>;
   preChatForm?: PreChatFormConfig;
   onOpen?: () => void;
@@ -172,6 +174,8 @@ export class Widget {
   private eventHandlers = new Map<WidgetEventType, Set<AnyHandler>>();
   private containerEl?: HTMLElement;
   private autoOpenTimer?: ReturnType<typeof setTimeout>;
+  private unreadReplies = 0;
+  private savedOverflow?: { value: string; priority: string };
 
   get isInline(): boolean {
     return this.config.mode === 'inline';
@@ -208,9 +212,9 @@ export class Widget {
     prefetch(this.config);
     if (this.isInline) {
       this.containerEl = this.resolveContainer();
-      this.shadow = createShadowRoot(this.containerEl);
+      this.shadow = createShadowRoot(this.containerEl, { dir: this.config.dir, locale: this.config.locale });
     } else {
-      this.shadow = createShadowRoot();
+      this.shadow = createShadowRoot(undefined, { dir: this.config.dir, locale: this.config.locale });
     }
     this.mounted = true;
 
@@ -226,6 +230,7 @@ export class Widget {
         position,
         openLabel: this.locale.openChat,
         closeLabel: this.locale.closeButton,
+        unreadLabel: this.locale.unreadCount,
         onClick: () => this.toggle(),
       });
     }
@@ -313,13 +318,14 @@ export class Widget {
   }
 
   open(): void {
+    this.unreadReplies = 0;
     this.hydrate();
     this.panel.show();
     if (!this.isInline) {
       this.fab?.setOpen(true);
-      this.fab?.hideBadge();
       this.bubble?.hide();
     }
+    this.lockScroll();
     this.config.onOpen?.();
     this.emit('open');
   }
@@ -331,6 +337,7 @@ export class Widget {
       this.fab?.setOpen(false);
       if (hadFocus) this.fab?.focus();
     }
+    this.restoreScroll();
     this.config.onClose?.();
     this.emit('close');
   }
@@ -348,6 +355,7 @@ export class Widget {
     if (this.autoOpenTimer !== undefined) clearTimeout(this.autoOpenTimer);
     this.abortController?.abort();
     this.abortController = undefined;
+    this.restoreScroll();
     this.preChatFormEl?.destroy();
     this.bubble?.destroy();
     this.panel.destroy();
@@ -357,6 +365,30 @@ export class Widget {
     this.eventHandlers.clear();
     this.messages = [];
     this.userData = undefined;
+  }
+
+  private lockScroll(): void {
+    if (this.savedOverflow !== undefined || this.isInline) return;
+    // Keep this breakpoint synchronized with @media (max-width: 640px) in packages/widget/src/styles/widget.css
+    if (typeof window !== 'undefined' && window.matchMedia?.('(max-width: 640px)')?.matches) {
+      const root = document.documentElement;
+      this.savedOverflow = {
+        value: root.style.getPropertyValue('overflow'),
+        priority: root.style.getPropertyPriority('overflow'),
+      };
+      root.style.setProperty('overflow', 'hidden');
+    }
+  }
+
+  private restoreScroll(): void {
+    if (this.savedOverflow === undefined) return;
+    const { value, priority } = this.savedOverflow;
+    if (value) {
+      document.documentElement.style.setProperty('overflow', value, priority);
+    } else {
+      document.documentElement.style.removeProperty('overflow');
+    }
+    this.savedOverflow = undefined;
   }
 
   on<E extends WidgetEventType>(event: E, handler: WidgetEventHandler<E>): () => void {
@@ -445,7 +477,17 @@ export class Widget {
       };
       this.messages.push(welcomeMsg);
       this.panel.addMessage(welcomeMsg);
+      this.renderSuggestions();
     }
+  }
+
+  private renderSuggestions(suggestions: string[] = this.config.suggestions ?? []): void {
+    if (this.messages.some((message) => message.role === 'user')) return;
+    this.panel.messages.showSuggestions(
+      suggestions,
+      this.locale.suggestionsLabel,
+      (suggestion) => { void this.handleSend(suggestion); }
+    );
   }
 
   private async handleSend(text: string): Promise<void> {
@@ -625,7 +667,8 @@ export class Widget {
         this.showLatestRegenerateButton();
 
         if (!this.isInline && !this.panel.isVisible) {
-          this.fab?.showBadge();
+          this.unreadReplies++;
+          this.fab?.showBadge(this.unreadReplies);
         }
       }
     } catch (err) {

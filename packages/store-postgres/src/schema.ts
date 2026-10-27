@@ -7,6 +7,7 @@ export interface TableNames {
   kv: string;
   events: string;
   migrations: string;
+  vectorChunks: string;
 }
 
 const IDENTIFIER = /^[a-z_][a-z0-9_]{0,40}$/;
@@ -23,6 +24,7 @@ export function tableNames(prefix = 'chatcops_'): TableNames {
     kv: `${prefix}kv`,
     events: `${prefix}events`,
     migrations: `${prefix}migrations`,
+    vectorChunks: `${prefix}vector_chunks`,
   };
 }
 
@@ -98,6 +100,34 @@ export const MIGRATIONS: Migration[] = [
 export interface MigrateOptions {
   /** Default `chatcops_`. Use the same prefix as `postgresStorage`. */
   tablePrefix?: string;
+}
+
+export interface MigrateVectorsOptions {
+  /** Embedding length used for the vector column. */
+  dimensions: number;
+  /** Default `chatcops_`. Use the same prefix as `postgresStorage`. */
+  tablePrefix?: string;
+}
+
+/** Installs pgvector and creates the optional vector index, independently of `migrate`. */
+export async function migrateVectors(db: Queryable, options: MigrateVectorsOptions): Promise<void> {
+  if (!Number.isInteger(options.dimensions) || options.dimensions < 1 || options.dimensions > 16_000) {
+    throw new Error(`dimensions must be a whole number from 1 to 16000; got ${options.dimensions}.`);
+  }
+  const t = tableNames(options.tablePrefix);
+  await db.query('CREATE EXTENSION IF NOT EXISTS vector');
+  await db.query(`CREATE TABLE IF NOT EXISTS ${t.vectorChunks} (
+    id text PRIMARY KEY,
+    source_id text NOT NULL,
+    source jsonb NOT NULL,
+    text text NOT NULL,
+    metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+    embedding vector(${options.dimensions}) NOT NULL,
+    keyword_vector tsvector NOT NULL
+  )`);
+  await db.query(`CREATE INDEX IF NOT EXISTS ${t.vectorChunks}_hnsw ON ${t.vectorChunks} USING hnsw (embedding vector_cosine_ops)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS ${t.vectorChunks}_src ON ${t.vectorChunks} (source_id)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS ${t.vectorChunks}_fts ON ${t.vectorChunks} USING gin (keyword_vector)`);
 }
 
 /**

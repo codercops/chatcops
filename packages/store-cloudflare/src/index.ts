@@ -63,10 +63,10 @@ export function cloudflareStorage(options: CloudflareStorageOptions): ChatCopsSt
   const ensure = () => ensureSchema(options.d1);
   const hook = checkRowHook(options.extraColumns, options.rowHook);
 
-  if (options.vectorize && (!Number.isInteger(options.vectorDimensions) || options.vectorDimensions < 1)) {
+  const vectorDimensions = options.vectorDimensions ?? 0;
+  if (options.vectorize && (!Number.isInteger(vectorDimensions) || vectorDimensions < 1)) {
     throw new Error('cloudflareStorage requires a positive vectorDimensions when vectorize is provided');
   }
-  const vectorDimensions = options.vectorDimensions ?? 0;
 
   return {
     conversations: new CloudflareConversations(options.d1, now, ensure, hook),

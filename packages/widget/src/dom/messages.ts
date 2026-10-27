@@ -27,6 +27,7 @@ export interface MessageActions {
 export class Messages {
   private container: HTMLDivElement;
   private typingEl: HTMLDivElement | null = null;
+  private suggestionsEl: HTMLDivElement | null = null;
   private actions?: MessageActions;
 
   constructor(parent: HTMLElement, actions?: MessageActions) {
@@ -40,6 +41,7 @@ export class Messages {
 
   addMessage(msg: MessageData): HTMLDivElement {
     this.removeTyping();
+    if (msg.role === 'user') this.removeSuggestions();
     const el = this.createMessageElement(msg);
     this.container.appendChild(el);
     this.scrollToBottom();
@@ -68,6 +70,31 @@ export class Messages {
       this.typingEl.remove();
       this.typingEl = null;
     }
+  }
+
+  showSuggestions(suggestions: string[], label: string, onSelect: (suggestion: string) => void): void {
+    this.removeSuggestions();
+    if (suggestions.length === 0) return;
+
+    const group = document.createElement('div');
+    group.className = 'cc-suggestions';
+    group.setAttribute('role', 'group');
+    group.setAttribute('aria-label', label);
+    for (const suggestion of suggestions) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'cc-suggestion';
+      button.textContent = suggestion;
+      button.addEventListener('click', () => onSelect(suggestion));
+      group.appendChild(button);
+    }
+    this.container.appendChild(group);
+    this.suggestionsEl = group;
+  }
+
+  removeSuggestions(): void {
+    this.suggestionsEl?.remove();
+    this.suggestionsEl = null;
   }
 
   clear(): void {

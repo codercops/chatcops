@@ -5,6 +5,7 @@ export interface FABOptions {
   position: 'bottom-right' | 'bottom-left';
   openLabel: string;
   closeLabel: string;
+  unreadLabel: string;
   onClick: () => void;
 }
 
@@ -13,10 +14,12 @@ export class FAB {
   private badge: HTMLDivElement;
   private openLabel: string;
   private closeLabel: string;
+  private unreadLabel: string;
 
   constructor(root: ShadowRoot, options: FABOptions) {
     this.openLabel = options.openLabel;
     this.closeLabel = options.closeLabel;
+    this.unreadLabel = options.unreadLabel;
 
     this.el = document.createElement('button');
     this.el.className = 'cc-fab cc-pulse';
@@ -41,6 +44,7 @@ export class FAB {
   }
 
   setOpen(open: boolean): void {
+    if (open) this.hideBadge();
     this.el.innerHTML = open ? CLOSE_ICON : CHAT_ICON;
     if (!open) this.el.appendChild(this.badge);
     this.el.classList.toggle('cc-open', open);
@@ -52,12 +56,26 @@ export class FAB {
     this.el.focus();
   }
 
-  showBadge(): void {
+  showBadge(count = 1): void {
+    if (count <= 0) {
+      this.hideBadge();
+      return;
+    }
+    const display = count > 9 ? '9+' : String(count);
+    this.badge.textContent = display;
+    if (!this.el.classList.contains('cc-open')) {
+      const unread = this.unreadLabel.replace('{count}', display);
+      this.el.setAttribute('aria-label', `${this.openLabel}, ${unread}`);
+    }
     this.badge.classList.add('cc-visible');
   }
 
   hideBadge(): void {
     this.badge.classList.remove('cc-visible');
+    this.badge.textContent = '';
+    if (!this.el.classList.contains('cc-open')) {
+      this.el.setAttribute('aria-label', this.openLabel);
+    }
   }
 
   destroy(): void {

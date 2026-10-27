@@ -1,0 +1,28 @@
+{
+  "requests": [
+    {
+      "model": "models/gemini-embedding-001",
+      "content": {
+        "parts": [
+          {
+            "text": "The Team plan costs $20 a month."
+          }
+        ]
+      },
+      "taskType": "RETRIEVAL_DOCUMENT",
+      "outputDimensionality": 8
+    },
+    {
+      "model": "models/gemini-embedding-001",
+      "content": {
+        "parts": [
+          {
+            "text": "Our office is in Lisbon."
+          }
+        ]
+      },
+      "taskType": "RETRIEVAL_DOCUMENT",
+      "outputDimensionality": 8
+    }
+  ]
+}

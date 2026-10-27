@@ -86,6 +86,34 @@ export { toolToDefinition, LeadCaptureTool } from './tools/index.js';
 export type { KnowledgeSource, FAQPair } from './knowledge/index.js';
 export { TextKnowledgeSource, FAQKnowledgeSource } from './knowledge/index.js';
 
+// Retrieval
+export type {
+  Embedder,
+  RetrievedChunk,
+  RetrievalQuery,
+  Retriever,
+  Reranker,
+  OpenAIEmbedderOptions,
+  GeminiEmbedderOptions,
+  VoyageEmbedderOptions,
+  RetrieverKnowledgeOptions,
+  VectorRetrieverOptions,
+  HybridRetrieverOptions,
+} from './retrieval/index.js';
+export {
+  openaiEmbedder,
+  geminiEmbedder,
+  voyageEmbedder,
+  retrieverKnowledge,
+  formatSources,
+  uniqueChunks,
+  SOURCES_INSTRUCTION,
+  vectorRetriever,
+  hybridRetriever,
+  reciprocalRankFusion,
+  retrievalQueryText,
+} from './retrieval/index.js';
+
 // Conversation
 export type { ConversationStore } from './conversation/index.js';
 export { ConversationManager, MemoryStore } from './conversation/index.js';

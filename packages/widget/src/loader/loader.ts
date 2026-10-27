@@ -1,6 +1,6 @@
 import launcherStyles from '../styles/launcher.css?inline';
 import { CHAT_ICON } from '../dom/icons.js';
-import { HOST_ID, nextHostId } from '../dom/shadow.js';
+import { HOST_ID, nextHostId, resolveDirection } from '../dom/shadow.js';
 import { applyTheme } from '../theme.js';
 import type { WidgetLocaleStrings } from '../i18n.js';
 import type { Widget, WidgetConfig, WidgetEventHandler, WidgetEventType } from '../widget.js';
@@ -147,6 +147,7 @@ export function createLoader(
     launcher = document.createElement('div');
     launcher.id = nextHostId();
     launcher.className = HOST_ID;
+    launcher.dir = resolveDirection(current.dir, current.locale);
     document.body.appendChild(launcher);
     const shadow = launcher.attachShadow({ mode: 'open' });
     const style = document.createElement('style');

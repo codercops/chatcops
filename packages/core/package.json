@@ -58,7 +58,7 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.135.0",
+    "@anthropic-ai/sdk": "^1.2.0",
     "@google/genai": "^2.30.0",
     "openai": "^7.39.0",
     "zod": "^3.24.0"

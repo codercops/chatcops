@@ -1,0 +1,36 @@
+import type { WidgetLocaleStrings } from '../i18n.js';
+
+const ur: Partial<WidgetLocaleStrings> = {
+  welcomeMessage: 'آج میں آپ کی کس طرح مدد کروں؟',
+  inputPlaceholder: 'اپنا پیغام لکھیں…',
+  sendButton: 'بھیجیں',
+  closeButton: 'بند کریں',
+  openChat: 'چیٹ کھولیں',
+  defaultName: 'اے آئی اسسٹنٹ',
+  defaultSubtitle: 'آن لائن',
+  greetingWithName: 'سلام {name}!',
+  selectPlaceholder: '{label} منتخب کریں…',
+  dismissBubble: 'چھپائیں',
+  errorGeneric: 'کچھ غلط ہو گیا۔ براہِ کرم دوبارہ کوشش کریں۔',
+  errorNetwork: 'کنکشن میں خرابی ہے۔ براہِ کرم اپنا نیٹ ورک چیک کریں۔',
+  errorRateLimit: 'بہت زیادہ پیغامات بھیجے گئے ہیں۔ براہِ کرم تھوڑی دیر انتظار کریں۔',
+  errorRateLimitWait: 'بہت زیادہ پیغامات بھیجے گئے ہیں۔ براہِ کرم {seconds} سیکنڈ بعد دوبارہ کوشش کریں۔',
+  errorBudget: 'اس چیٹ کی حد پوری ہو گئی ہے۔',
+  errorBudgetDaily: 'اسسٹنٹ آج کی حد تک پہنچ چکا ہے۔ براہِ کرم بعد میں دوبارہ کوشش کریں۔',
+  errorUnavailable: 'اسسٹنٹ اس وقت دستیاب نہیں ہے۔ براہِ کرم تھوڑی دیر بعد دوبارہ کوشش کریں۔',
+  errorCutOff: 'جواب ادھورا رہ گیا۔',
+  typingIndicator: 'جواب لکھا جا رہا ہے…',
+  poweredBy: 'ChatCops کے ذریعے',
+  newConversation: 'نئی گفتگو',
+  welcomeBubbleDefault: 'مدد چاہیے؟ ہم سے چیٹ کریں!',
+  preChatTitle: 'شروع کرنے سے پہلے…',
+  preChatSubtitle: 'ہمیں اپنے بارے میں تھوڑا بتائیں',
+  preChatSubmit: 'چیٹ شروع کریں',
+  preChatRequired: 'یہ فیلڈ ضروری ہے',
+  preChatInvalidEmail: 'براہِ کرم درست ای میل درج کریں',
+  retryButton: 'دوبارہ کوشش کریں',
+  regenerateButton: 'جواب دوبارہ بنائیں',
+  unreadCount: '{count} غیر پڑھے',
+};
+
+export default ur;

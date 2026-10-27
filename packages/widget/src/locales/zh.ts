@@ -1,0 +1,37 @@
+import type { WidgetLocaleStrings } from '../i18n.js';
+
+const zh: Partial<WidgetLocaleStrings> = {
+  welcomeMessage: '今天我能为您做些什么？',
+  inputPlaceholder: '输入消息…',
+  sendButton: '发送',
+  closeButton: '关闭',
+  openChat: '打开聊天',
+  defaultName: 'AI 助手',
+  defaultSubtitle: '在线',
+  greetingWithName: '你好，{name}！',
+  selectPlaceholder: '选择{label}…',
+  dismissBubble: '隐藏提示',
+  errorGeneric: '出了点问题，请重试。',
+  errorNetwork: '连接错误，请检查网络连接。',
+  errorRateLimit: '消息发送过于频繁，请稍等片刻。',
+  errorRateLimitWait: '消息发送过于频繁，请在{seconds}秒后重试。',
+  errorBudget: '此聊天已达到使用上限。',
+  errorBudgetDaily: '助手已达到今日使用上限，请稍后再试。',
+  errorUnavailable: '助手暂时无法使用，请稍后再试。',
+  errorCutOff: '回复已中断。',
+  typingIndicator: '正在输入…',
+  poweredBy: '由 ChatCops 提供支持',
+  newConversation: '新对话',
+  welcomeBubbleDefault: '需要帮助？欢迎咨询！',
+  preChatTitle: '开始之前…',
+  preChatSubtitle: '请简单介绍一下自己',
+  preChatSubmit: '开始聊天',
+  preChatRequired: '此字段为必填项。',
+  preChatInvalidEmail: '请输入有效的电子邮件地址。',
+  retryButton: '重试',
+  regenerateButton: '重新生成',
+  suggestionsLabel: '推荐问题',
+  unreadCount: '{count}条未读消息',
+};
+
+export default zh;

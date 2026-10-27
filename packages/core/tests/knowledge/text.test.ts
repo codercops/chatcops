@@ -61,4 +61,14 @@ describe('TextKnowledgeSource', () => {
     // Header + up to 3 chunks
     expect(lines.length).toBeLessThanOrEqual(4);
   });
+
+  it('matches a query in Chinese', async () => {
+    const source = new TextKnowledgeSource([
+      '基础方案的价格是每月99美元。',
+      '我们通过电子邮件和在线聊天提供全天候支持。',
+    ]);
+    const context = await source.getContext('价格是多少？');
+
+    expect(context).toContain('基础方案的价格');
+  });
 });
