@@ -182,7 +182,8 @@ describe('ClaudeProvider', () => {
     expect(warn.mock.calls.filter(([text]) => String(text).includes('temperature'))).toHaveLength(1);
   });
 
-  it('keeps temperature and sends no effort on models without it', async () => {
+  it('never sends temperature, even on older models, and sends no effort on models without it', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     const provider = new ClaudeProvider({ type: 'claude', apiKey: 'k', model: 'claude-haiku-4-5' });
     const stream = vi.fn().mockReturnValue(claudeStream({ stop_reason: 'end_turn', content: [] }));
     mockClaude(provider, stream);
@@ -190,7 +191,7 @@ describe('ClaudeProvider', () => {
     await collect(provider.chat(params({ temperature: 0.4 })));
 
     const request = stream.mock.calls[0][0];
-    expect(request.temperature).toBe(0.4);
+    expect(request).not.toHaveProperty('temperature');
     expect(request).not.toHaveProperty('output_config');
   });
 

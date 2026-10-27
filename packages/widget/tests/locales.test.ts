@@ -23,6 +23,7 @@ describe('widget translations (src/locales)', () => {
     for (const [key, value] of Object.entries(strings)) {
       expect(Object.keys(en), `unknown key ${key}`).toContain(key);
       expect(typeof value, key).toBe('string');
+      expect((value as string).trim(), key).not.toBe('');
       expect(placeholders(value as string), key).toEqual(placeholders(en[key as keyof WidgetLocaleStrings]));
     }
     const missing = Object.keys(en).filter((key) => !(key in strings));

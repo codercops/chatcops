@@ -86,6 +86,32 @@ export { toolToDefinition, LeadCaptureTool } from './tools/index.js';
 export type { KnowledgeSource, FAQPair } from './knowledge/index.js';
 export { TextKnowledgeSource, FAQKnowledgeSource } from './knowledge/index.js';
 
+// Retrieval
+export type {
+  Embedder,
+  RetrievedChunk,
+  RetrievalQuery,
+  Retriever,
+  Reranker,
+  OpenAIEmbedderOptions,
+  VoyageEmbedderOptions,
+  RetrieverKnowledgeOptions,
+  VectorRetrieverOptions,
+  HybridRetrieverOptions,
+} from './retrieval/index.js';
+export {
+  openaiEmbedder,
+  voyageEmbedder,
+  retrieverKnowledge,
+  formatSources,
+  uniqueChunks,
+  SOURCES_INSTRUCTION,
+  vectorRetriever,
+  hybridRetriever,
+  reciprocalRankFusion,
+  retrievalQueryText,
+} from './retrieval/index.js';
+
 // Conversation
 export type { ConversationStore } from './conversation/index.js';
 export { ConversationManager, MemoryStore } from './conversation/index.js';
@@ -105,12 +131,24 @@ export type {
   ListQuery,
   MemoryStorageOptions,
   ConversationStoreWithAppend,
+  KeywordQuery,
+  MetadataFilter,
+  MetadataValue,
+  ScoredRecord,
+  VectorQuery,
+  VectorRecord,
+  VectorSource,
+  VectorStore,
+  MemoryVectorsOptions,
 } from './storage/index.js';
 export {
   ConflictError,
   isConflictError,
   CONFLICT_ERROR_CODE,
   memoryStorage,
+  memoryVectors,
+  matchesFilter,
+  segmentWords,
   withAppend,
   isLegacyConversationStore,
 } from './storage/index.js';

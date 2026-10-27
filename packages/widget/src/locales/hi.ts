@@ -1,0 +1,35 @@
+import type { WidgetLocaleStrings } from '../i18n.js';
+
+const hi: Partial<WidgetLocaleStrings> = {
+  welcomeMessage: 'मैं आज आपकी किस तरह मदद करूँ?',
+  inputPlaceholder: 'अपना संदेश लिखें…',
+  sendButton: 'भेजें',
+  closeButton: 'बंद करें',
+  openChat: 'चैट खोलें',
+  defaultName: 'एआई सहायक',
+  defaultSubtitle: 'ऑनलाइन',
+  greetingWithName: 'नमस्ते, {name}!',
+  selectPlaceholder: '{label} चुनें…',
+  dismissBubble: 'छिपाएँ',
+  errorGeneric: 'कुछ गड़बड़ हो गई। कृपया फिर से कोशिश करें।',
+  errorNetwork: 'कनेक्शन में समस्या है। कृपया अपना इंटरनेट कनेक्शन जाँचें।',
+  errorRateLimit: 'बहुत ज़्यादा संदेश भेजे गए हैं। कृपया थोड़ी देर प्रतीक्षा करें।',
+  errorRateLimitWait: 'बहुत ज़्यादा संदेश भेजे गए हैं। कृपया {seconds} सेकंड बाद फिर कोशिश करें।',
+  errorBudget: 'इस चैट की सीमा पूरी हो गई है।',
+  errorBudgetDaily: 'सहायक की आज की सीमा पूरी हो गई है। कृपया बाद में फिर कोशिश करें।',
+  errorUnavailable: 'सहायक अभी उपलब्ध नहीं है। कृपया थोड़ी देर बाद फिर कोशिश करें।',
+  errorCutOff: 'जवाब पूरा नहीं आ पाया।',
+  typingIndicator: 'जवाब लिख रहा है…',
+  poweredBy: 'ChatCops द्वारा संचालित',
+  newConversation: 'नई बातचीत',
+  welcomeBubbleDefault: 'मदद चाहिए? हमसे चैट करें!',
+  preChatTitle: 'शुरू करने से पहले…',
+  preChatSubtitle: 'अपने बारे में थोड़ा बताइए',
+  preChatSubmit: 'चैट शुरू करें',
+  preChatRequired: 'यह फ़ील्ड ज़रूरी है।',
+  preChatInvalidEmail: 'कृपया मान्य ईमेल पता दर्ज करें।',
+  retryButton: 'फिर कोशिश करें',
+  regenerateButton: 'जवाब फिर से तैयार करें',
+};
+
+export default hi;

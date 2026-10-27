@@ -21,11 +21,11 @@
         {
           "type": "thinking",
           "thinking": "",
-          "signature": "CAQSkAUKEAgTGAI4AUIIdGhpbmtpbmcSDPKR10dfWQL0ietdShoM6HryHHytPUwGqgOWIjCAYUKvVW9wzUNxc4qFkLB8gJguRSUh7wxwH2RbIxbrF1PCjcTNtxnDmoA7HMSIiTIqrQSpGz7sgw4Vb7yyo5VoK7Ssdwinilwg6WU7nGTMWg9Fo3xZn10gekHSMKI/oAXH5j+FYAKPtaJduO0Mq/jDF+HL3h0hqFrB0wsIxVl4Q7MGOA/Bw6/KopCEZCn4oJODYCI325SWeLwIm3HI7mR30Et8zMCQxc2G0KbGHGGub8pUCXlYEjvRPx/MicvwPTnLz8MCcdGiLlLx6vDRGP1jZGRev69SNLbQ4WyOsFYnQ/VmA5yrt647LLzXWnfZlNfEz73Nn3hHgWZfwOlDennw6j3BGYRqzGfXEZCfpbIU+GhDWMYx5d7H2EiyeqXmkieM8TG++ZVqCAuk/1++GiW6rqqONXrztg1SDnQ3yLcjEo06PanzjFbXQNeIyJ0W6X+3+YHlounJYJRB+CociL+EG43Yj4HGm6qc5n2jxUr5yXq6CDl2oEPnD9JYehb8u+B6i3pj01Q0Q4BBD2XZ03TWEXuVpQrHTAyx0M3MvkdaWxUzE+QmzjGkUZtvP4piF7aiUWLubtTNvzu8zJxw/A1pUR2tCHydAfO699w8dwBi6g2Egaxk3XBLgdOxqYYP20ZEp2VLRjMDJCF3kxKPCcfCd10KJPGsdduF848W/aFlU1cdXzhvmkB2ejveZJIPCgX8TX0RAvJJfEvdPi6JPu/2BoXZyJTFdo3ybZbZ8UPAfdTo5DkUdi4CQfQqNP+t1klBN13MEqzKmelfQGp3KPITL3irX33A5pK4zOaaTmWlfhgB"
+          "signature": "CAQS1QUKEAgTGAI4AUIIdGhpbmtpbmcSDNOijizaGMgJfNmXvRoM+kNVkc+cO/RTrMJCIjCuaFWDrj2wEFpdjtb9oPpWYxNRpO5MHcwryuQRwJCOC7w+pRzKmBxOVNzGp19ooJcq8gS+WOJrVPgvz5TsEdCzSp/zlegaDeUMdn3dOnHxZdpoplqi8OEdC3I3iGSSyKGPJATqD8NoO4DBzgeBJqmr6/8peeY0jv3W6QMIeoLB/uezDBB3Xr2WCsiiUUYI7rCxuNeFdQWIRvRC/3vDAGlgQDuM2lPg/wq6g0a/mx9132jsKmflpTzF7m+H1IDI9V7c/f7vMk2Prr8Gldh8MAesT1azkshRSfXsFS7D0fu5PTGduRnOWeSzdnqeIgg1xfphaPd/vnIe3vyg1UxzJbQjl8oMJri+x7ZJd6Y5BP9aNKUwOqY8MYJJveGSxn1CM4hgKUMSLRQMY0lw5k0CAoLMz+zMH4N2hh0+tQ8bcK1YSLmhLBHso8uGFVhtQ0dMKtBXt2DTHycPeh8npQLuht6pcmb0jaT61xnWMP3LuLOCD56l6bSUV9DiPuDJ1EWCAo3LRf1byAeFnV8qWd/UcqFHj9Tjw26AW8nR4ZrgpNlEQxg0LpixIPiMC7Oi37+/755ui9blbAYbPxHhqa+61RhM/ybO9Epamobhi92oq7bpoFa0L7VTFDv4NfL8m2AF55Oa0ywbQYxQnfSb6su4A9x6wVWfZ/txy41Mu8AwJojpKLoyMx7nWO1imiqGvdb/xanh7j0q+L3X+EFf6yfC9Gi9UdAsVRPCNnmKrxHUqRJPAHBmGGkAW0RxS5mvHdCBhxSC/pdrejGxDPsnMR6JvG8iQVy7t9TBKxL1EvMZr6XDN3G5ltl6Wx0/h2U5KKxZXX+zBV0m1nhaBfWp6GvYI15moBCvZjihgoQ4dFTLP4TQFC6CNpGN45owFMZU+ejWq6usCI73GhgB"
         },
         {
           "type": "tool_use",
-          "id": "toolu_01BYrwSqg279VuSRHko4xdcN",
+          "id": "toolu_016uKhGJF9hsWdG6p1yiXhAY",
           "name": "lookup_orders",
           "input": {
             "orders": [
@@ -53,7 +53,7 @@
       "content": [
         {
           "type": "tool_result",
-          "tool_use_id": "toolu_01BYrwSqg279VuSRHko4xdcN",
+          "tool_use_id": "toolu_016uKhGJF9hsWdG6p1yiXhAY",
           "content": "{\"success\":true,\"data\":{\"orders\":[{\"id\":\"A-1001\",\"status\":\"shipped, arrives Friday\"},{\"id\":\"B-2002\",\"status\":\"packing, arrives Monday\"}]}}",
           "is_error": false
         }
