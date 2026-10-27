@@ -181,7 +181,7 @@ describe('Widget', () => {
     widget.destroy();
   });
 
-  it('does not show suggestions for restored conversations or while the pre-chat form is open', async () => {
+  it('does not show suggestions for restored conversations with user messages or while the pre-chat form is open', async () => {
     localStorage.setItem('chatcops_conversation', JSON.stringify({
       id: 'restored',
       messages: [{ id: 'saved-user', role: 'user', content: 'Hi', timestamp: Date.now() }],
@@ -205,6 +205,40 @@ describe('Widget', () => {
     expect(getInternals(preChatWidget).shadow.querySelector('.cc-prechat')).not.toBeNull();
     expect(getInternals(preChatWidget).shadow.querySelector('.cc-suggestions')).toBeNull();
     preChatWidget.destroy();
+  });
+
+  it('shows suggestions after restoring a pre-chat-completed conversation with no messages', () => {
+    new ConversationStorage().save({
+      id: 'pre-chat-completed',
+      messages: [],
+      preChatDone: true,
+      updatedAt: Date.now(),
+    });
+    const widget = new Widget({
+      apiUrl: '/chat',
+      suggestions: ['Book a demo'],
+      preChatForm: { enabled: true, fields: [{ name: 'email', label: 'Email', type: 'email' }] },
+    });
+    widget.init();
+    widget.open();
+
+    expect(getInternals(widget).shadow.querySelector('.cc-suggestions')).not.toBeNull();
+    widget.destroy();
+  });
+
+  it('hides suggestions when the visitor sends their first message', async () => {
+    const widget = new Widget({ apiUrl: '/chat', suggestions: ['Book a demo'] });
+    widget.init();
+    widget.open();
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementation(async function* () {
+      yield { done: true };
+    });
+
+    const root = getInternals(widget).shadow;
+    expect(root.querySelector('.cc-suggestions')).not.toBeNull();
+    await getInternals(widget).handleSend('Hello');
+    expect(root.querySelector('.cc-suggestions')).toBeNull();
+    widget.destroy();
   });
 
   it('strings: { closeButton } overrides the close aria-label on both the panel header and the FAB', () => {
