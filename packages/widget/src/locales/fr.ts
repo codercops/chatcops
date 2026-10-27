@@ -1,14 +1,14 @@
 import type { WidgetLocaleStrings } from '../i18n.js';
 
 const fr: Partial<WidgetLocaleStrings> = {
-  welcomeMessage: 'Comment puis-je vous aider aujourd’hui ?',
+  welcomeMessage: 'Comment puis-je vous aider aujourd’hui ?',
   inputPlaceholder: 'Écrivez un message…',
   sendButton: 'Envoyer',
   closeButton: 'Fermer',
   openChat: 'Ouvrir le chat',
   defaultName: 'Assistant IA',
   defaultSubtitle: 'En ligne',
-  greetingWithName: 'Bonjour {name} !',
+  greetingWithName: 'Bonjour {name} !',
   selectPlaceholder: 'Sélectionnez {label}…',
   dismissBubble: 'Masquer',
   errorGeneric: 'Une erreur s’est produite. Veuillez réessayer.',
@@ -22,7 +22,7 @@ const fr: Partial<WidgetLocaleStrings> = {
   typingIndicator: 'L’assistant est en train d’écrire…',
   poweredBy: 'Propulsé par ChatCops',
   newConversation: 'Nouvelle conversation',
-  welcomeBubbleDefault: 'Besoin d’aide ? Discutez avec nous !',
+  welcomeBubbleDefault: 'Besoin d’aide ? Discutez avec nous !',
   preChatTitle: 'Avant de commencer…',
   preChatSubtitle: 'Parlez-nous un peu de vous',
   preChatSubmit: 'Démarrer le chat',
@@ -30,7 +30,7 @@ const fr: Partial<WidgetLocaleStrings> = {
   preChatInvalidEmail: 'Veuillez saisir une adresse e-mail valide.',
   retryButton: 'Réessayer',
   regenerateButton: 'Générer à nouveau',
-  unreadCount: 'Messages non lus : {count}',
+  unreadCount: 'Messages non lus : {count}',
 };
 
 export default fr;
