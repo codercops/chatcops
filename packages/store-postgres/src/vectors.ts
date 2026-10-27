@@ -86,7 +86,13 @@ export class PostgresVectorStore implements VectorStore {
     const where = metadataWhere(filter, params);
     params.push(limit);
     const { rows } = await this.db.query<Row>(
-      `WITH search AS (SELECT plainto_tsquery('simple', $1) AS query)
+      // Any of the words, not all of them (plainto_tsquery would AND them):
+      // a question has more words than any one page. Each lexeme is quoted,
+      // so nothing in the text is read as tsquery syntax.
+      `WITH search AS (
+         SELECT to_tsquery('simple', string_agg(quote_literal(lexeme), ' | ')) AS query
+         FROM unnest(tsvector_to_array(to_tsvector('simple', $1::text))) AS lexeme
+       )
        SELECT id, text, source, metadata, ts_rank(keyword_vector, search.query)::float8 AS score
        FROM ${this.table}, search
        WHERE keyword_vector @@ search.query${where ? ` AND ${where.slice('WHERE '.length)}` : ''}

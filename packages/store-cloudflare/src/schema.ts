@@ -1,6 +1,6 @@
 import type { D1Database } from './types.js';
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const SCHEMA_STATEMENTS = [
   'CREATE TABLE IF NOT EXISTS chatcops_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)',
@@ -12,6 +12,19 @@ export const SCHEMA_STATEMENTS = [
   'CREATE INDEX IF NOT EXISTS chatcops_conversations_updated_idx ON chatcops_conversations(updated_at DESC, id)',
   'CREATE INDEX IF NOT EXISTS chatcops_events_created_idx ON chatcops_events(created_at)',
   'CREATE INDEX IF NOT EXISTS chatcops_events_type_created_idx ON chatcops_events(type, created_at)',
+  `CREATE TABLE IF NOT EXISTS chatcops_vectors (
+    id TEXT PRIMARY KEY,
+    source_id TEXT NOT NULL,
+    text TEXT NOT NULL,
+    source TEXT NOT NULL,
+    metadata TEXT
+  )`,
+  'CREATE INDEX IF NOT EXISTS chatcops_vectors_source_idx ON chatcops_vectors(source_id)',
+  `CREATE VIRTUAL TABLE IF NOT EXISTS chatcops_vectors_fts USING fts5(
+    id UNINDEXED,
+    text,
+    tokenize = 'unicode61'
+  )`,
 ];
 
 export const SCHEMA_SQL = SCHEMA_STATEMENTS.map((s) => `${s};`).join('\n');
@@ -29,6 +42,8 @@ export async function initializeSchema(db: D1Database): Promise<void> {
       .run();
   } else if (Number(row.value) > SCHEMA_VERSION) {
     throw new Error(`Unsupported ChatCops SQLite schema version ${row.value}`);
+  } else if (Number(row.value) < SCHEMA_VERSION) {
+    await db.prepare('UPDATE chatcops_meta SET value = ? WHERE key = ?').bind(String(SCHEMA_VERSION), 'schema_version').run();
   }
 }
 

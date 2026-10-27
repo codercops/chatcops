@@ -269,6 +269,38 @@ await storage.vectors?.upsert([
 
 Use the same `dimensions` and `tablePrefix` for both `migrateVectors()` and `postgresStorage()`. `keywordQuery()` uses Postgres full-text ranking and splits words with `Intl.Segmenter`, including Japanese and Chinese. Filtered vector queries use pgvector iterative HNSW scans, which requires pgvector 0.8 or newer.
 
+### Cloudflare Vectorize
+
+`@chatcops/store-cloudflare` can add semantic and keyword retrieval with a D1 database and a Cloudflare Vectorize index:
+
+```bash
+npm install @chatcops/store-cloudflare
+```
+
+Create the Vectorize index with the same dimensions as your embedding model and cosine distance, then create metadata indexes for every key used in filters:
+
+```bash
+npx wrangler vectorize create-index CHATCOPS_VECTORS --dimensions=1024 --metric=cosine
+npx wrangler vectorize create-metadata-index CHATCOPS_VECTORS --property-name=locale --type=string
+npx wrangler vectorize create-metadata-index CHATCOPS_VECTORS --property-name=collection --type=string
+```
+
+Bind both services and pass the same dimension count to the store:
+
+```typescript
+import { cloudflareStorage, type CloudflareBindings } from '@chatcops/store-cloudflare';
+
+declare const env: CloudflareBindings;
+
+const storage = cloudflareStorage({
+  d1: env.DB,
+  vectorize: env.CHATCOPS_VECTORS,
+  vectorDimensions: 1024,
+});
+```
+
+Vectorize stores embeddings and filterable metadata; D1 keeps the full text and source details and provides FTS5 keyword search. Create a metadata index for each key you pass in `filter`; unindexed metadata cannot be filtered by Vectorize. The index metric must be `cosine`. Vectorize writes can take a few seconds to become searchable.
+
 ## Retention
 
 The handler exposes `purge()` for retention cleanup. `retention.conversationsDays` defaults to 30 days. Call `purge()` from a scheduled job or deploy task; it returns the number of deleted conversations, or `null` when the store can't purge:
