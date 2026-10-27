@@ -75,6 +75,7 @@ export interface WidgetConfig {
     subtitle?: string;
   };
   welcomeMessage?: string;
+  suggestions?: string[];
   welcomeBubble?: {
     text: string;
     delay?: number;
@@ -322,7 +323,6 @@ export class Widget {
     this.panel.show();
     if (!this.isInline) {
       this.fab?.setOpen(true);
-      this.fab?.hideBadge();
       this.bubble?.hide();
     }
     this.lockScroll();
@@ -477,7 +477,17 @@ export class Widget {
       };
       this.messages.push(welcomeMsg);
       this.panel.addMessage(welcomeMsg);
+      this.renderSuggestions();
     }
+  }
+
+  private renderSuggestions(suggestions: string[] = this.config.suggestions ?? []): void {
+    if (this.messages.some((message) => message.role === 'user')) return;
+    this.panel.messages.showSuggestions(
+      suggestions,
+      this.locale.suggestionsLabel,
+      (suggestion) => { void this.handleSend(suggestion); }
+    );
   }
 
   private async handleSend(text: string): Promise<void> {
