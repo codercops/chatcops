@@ -347,8 +347,6 @@
 
 .cc-input:focus {
   border-color: var(--cc-accent);
-  outline: 2px solid var(--cc-accent);
-  outline-offset: 1px;
 }
 
 .cc-input::placeholder {
@@ -522,9 +520,10 @@
 .cc-send-btn:focus-visible,
 .cc-message-retry:focus-visible,
 .cc-message-regenerate:focus-visible,
-.cc-bubble-close:focus-visible {
-  outline: 2px solid var(--cc-accent);
-  outline-offset: 3px;
+.cc-bubble-close:focus-visible,
+.cc-input:focus-visible {
+  outline: 2px solid transparent;
+  box-shadow: var(--cc-focus-ring);
 }
 
 /* Respect reduced-motion preferences */

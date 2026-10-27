@@ -6,7 +6,8 @@ export default defineConfig({
     projects: ['packages/*'],
     coverage: {
       provider: 'v8',
-      include: ['packages/*/src/**'],
+      // Source files only, so a README or stylesheet in src isn't parsed as code.
+      include: ['packages/*/src/**/*.ts'],
       // Sample apps, and the two-line command entry points (their logic is in cli.ts).
       exclude: ['packages/server/src/examples/**', 'packages/store-*/src/bin.ts'],
       reporter: ['text', 'lcov'],
