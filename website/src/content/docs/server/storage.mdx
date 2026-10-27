@@ -164,6 +164,8 @@ Bind both services and pass the same dimension count to the store:
 ```typescript
 import { cloudflareStorage } from '@chatcops/store-cloudflare';
 
+declare const env: Record<string, any>;
+
 const storage = cloudflareStorage({
   d1: env.DB,
   vectorize: env.CHATCOPS_VECTORS,
