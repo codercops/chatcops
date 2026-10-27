@@ -126,3 +126,54 @@ describe('accent text contrast', () => {
     expect(host.style.getPropertyValue('--cc-accent-contrast')).toBe('rgb(1, 2, 3)');
   });
 });
+
+describe('focus ring', () => {
+  const widgetCss = readFileSync(resolve(__dirname, '../src/styles/widget.css'), 'utf8');
+  const prechatCss = readFileSync(resolve(__dirname, '../src/styles/prechat.css'), 'utf8');
+
+  it('defines --cc-focus-ring on :host', () => {
+    expect(css).toContain('--cc-focus-ring: 0 0 0 2px var(--cc-bg), 0 0 0 4px var(--cc-accent);');
+  });
+
+  it('applies --cc-focus-ring to the launcher button on :focus-visible', () => {
+    expect(css).toContain('.cc-fab:focus-visible');
+    expect(css).toMatch(/\.cc-fab:focus-visible\s*\{[^}]*box-shadow:\s*var\(--cc-focus-ring\)/);
+  });
+
+  it('stops the pulse animation on launcher focus-visible', () => {
+    expect(css).toMatch(/\.cc-fab:focus-visible\s*\{[^}]*animation:\s*none;/);
+  });
+
+  it('applies --cc-focus-ring to widget controls on :focus-visible', () => {
+    for (const selector of [
+      '.cc-header-close:focus-visible',
+      '.cc-send-btn:focus-visible',
+      '.cc-message-retry:focus-visible',
+      '.cc-message-regenerate:focus-visible',
+      '.cc-bubble-close:focus-visible',
+      '.cc-input:focus-visible',
+    ]) {
+      expect(widgetCss).toContain(selector);
+    }
+    expect(widgetCss).toMatch(/box-shadow:\s*var\(--cc-focus-ring\);/);
+  });
+
+  it('applies --cc-focus-ring to pre-chat controls on :focus-visible', () => {
+    for (const selector of [
+      '.cc-prechat-input:focus-visible',
+      '.cc-prechat-select:focus-visible',
+      '.cc-prechat-textarea:focus-visible',
+      '.cc-prechat-submit:focus-visible',
+    ]) {
+      expect(prechatCss).toContain(selector);
+    }
+    expect(prechatCss).toMatch(/box-shadow:\s*var\(--cc-focus-ring\);/);
+  });
+
+  it('allows customizing --cc-focus-ring on the host element', () => {
+    const host = document.createElement('div');
+    host.style.setProperty('--cc-focus-ring', '0 0 0 3px red');
+    expect(host.style.getPropertyValue('--cc-focus-ring')).toBe('0 0 0 3px red');
+  });
+});
+
