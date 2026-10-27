@@ -44,9 +44,36 @@ export class Panel {
     if (!options.inline) {
       this.el.id = PANEL_ID;
       this.el.setAttribute('role', 'dialog');
+      this.el.setAttribute('aria-modal', 'true');
       this.el.setAttribute('aria-label', options.branding.name);
       this.el.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') options.onClose();
+        if (e.key === 'Escape') {
+          options.onClose();
+          return;
+        }
+        if (e.key !== 'Tab' || this.el.hasAttribute('inert')) return;
+
+        const focusable = Array.from(this.el.querySelectorAll<HTMLElement>('*')).filter(
+          (element) =>
+            element.tabIndex >= 0 &&
+            !element.matches(':disabled') &&
+            !element.closest('[hidden], [inert], [aria-hidden="true"], .cc-hidden'),
+        );
+        if (focusable.length === 0) {
+          e.preventDefault();
+          return;
+        }
+
+        const activeElement = (this.el.getRootNode() as ShadowRoot).activeElement;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && (activeElement === first || !this.el.contains(activeElement))) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && (activeElement === last || !this.el.contains(activeElement))) {
+          e.preventDefault();
+          first.focus();
+        }
       });
       this.setHidden(true);
     }

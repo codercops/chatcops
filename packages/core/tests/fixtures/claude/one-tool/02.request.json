@@ -20,7 +20,7 @@
       "content": [
         {
           "type": "tool_use",
-          "id": "toolu_016k87zkZf8Df8bsbCJVVR6e",
+          "id": "toolu_019An45jtYBWP4LRdExBPwuU",
           "name": "lookup_orders",
           "input": {
             "orders": [
@@ -40,7 +40,7 @@
       "content": [
         {
           "type": "tool_result",
-          "tool_use_id": "toolu_016k87zkZf8Df8bsbCJVVR6e",
+          "tool_use_id": "toolu_019An45jtYBWP4LRdExBPwuU",
           "content": "{\"success\":true,\"data\":{\"id\":\"A-1001\",\"status\":\"shipped\",\"tracking\":\"ZX123\"}}",
           "is_error": false
         }
