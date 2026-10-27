@@ -91,3 +91,8 @@ export interface DurableObjectStorage {
   getAlarm?(options?: unknown): Promise<number | null>;
   deleteAlarm?(options?: unknown): Promise<void>;
 }
+
+export interface CloudflareBindings {
+  DB: D1Database;
+  CHATCOPS_VECTORS: VectorizeIndex;
+}

@@ -69,15 +69,15 @@ export class CloudflareVectors implements VectorStore {
     const response = await this.index.query(Array.from(query.vector), {
       topK: Math.max(0, Math.floor(query.topK)),
       filter: toVectorizeFilter(query.filter),
-      returnMetadata: true,
     });
     return this.recordsForMatches(response.matches ?? []);
   }
 
   async keywordQuery(query: KeywordQuery): Promise<ScoredRecord[]> {
     await this.ensure();
-    const terms = segmentWords(query.text).join(' ');
-    if (!terms) return [];
+    const words = segmentWords(query.text);
+    if (!words.length) return [];
+    const match = words.map((word) => `"${word.replaceAll('"', '""')}"`).join(' OR ');
     const { results } = await this.db
       .prepare(`
         SELECT f.id, -bm25(chatcops_vectors_fts) AS score
@@ -85,7 +85,7 @@ export class CloudflareVectors implements VectorStore {
         WHERE f.text MATCH ?
         ORDER BY bm25(chatcops_vectors_fts), f.id
       `)
-      .bind(terms)
+      .bind(match)
       .all<{ id: string; score: number }>();
     const rows = await this.rowsByIds(results.map((row) => row.id));
     const matches = results

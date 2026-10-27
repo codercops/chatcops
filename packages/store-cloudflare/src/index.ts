@@ -11,6 +11,7 @@ import { CloudflareVectors } from './vectors.js';
 export { ChatCopsCounter } from './counters.js';
 export { SCHEMA_SQL, SCHEMA_VERSION, initializeSchema } from './schema.js';
 export type {
+  CloudflareBindings,
   D1Database,
   D1ExecResult,
   D1PreparedStatement,
