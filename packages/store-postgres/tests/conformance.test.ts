@@ -26,6 +26,15 @@ if (url) {
         },
       ]);
       expect(await vectors.query({ vector: new Float32Array([1, 0, 0, 0]), topK: 1 })).toHaveLength(1);
+      const direct = await db.query(
+        `SELECT id FROM ${table} WHERE metadata @> jsonb_build_object($1::text, $2::jsonb)`,
+        ['locale', JSON.stringify('en')]
+      );
+      expect(direct.rows).toHaveLength(1);
+      const transactional = await db.transaction?.((tx) =>
+        tx.query(`SELECT id FROM ${table} WHERE metadata @> jsonb_build_object($1::text, $2::jsonb)`, ['locale', JSON.stringify('en')])
+      );
+      expect(transactional?.rows).toHaveLength(1);
       expect(await vectors.query({ vector: new Float32Array([1, 0, 0, 0]), topK: 1, filter: { locale: 'en' } })).toHaveLength(1);
     } finally {
       await db.query(`DROP TABLE IF EXISTS ${table} CASCADE`);
