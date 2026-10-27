@@ -110,7 +110,7 @@ class VectorKnowledgeSource implements KnowledgeSource {
 
 ## Retrieval from a vector store
 
-`openaiEmbedder` turns text into vectors (`text-embedding-3-small` at 1024 dimensions by default), a retriever searches a vector store with them, and `retrieverKnowledge` turns the retriever into a knowledge source:
+Embedders turn text into vectors. `openaiEmbedder` calls OpenAI's embeddings API (`text-embedding-3-small` at 1024 dimensions by default), while `workersAiEmbedder` runs inside Cloudflare Workers using the native `env.AI` binding (`@cf/baai/bge-m3` at 1024 dimensions by default, batched up to 100 texts). A retriever searches a vector store with them, and `retrieverKnowledge` turns the retriever into a knowledge source:
 
 ```typescript
 import { hybridRetriever, memoryVectors, openaiEmbedder, retrieverKnowledge } from '@chatcops/core';
@@ -143,6 +143,24 @@ const embedder = voyageEmbedder({ apiKey: process.env.VOYAGE_API_KEY! });
 ```
 
 The newer Voyage models (`voyage-4`, `voyage-4-lite`, `voyage-3.5` and others) can shorten their vectors with `dimensions` (256, 512, 1024 or 2048). Other models make one fixed length, so set `dimensions` to that length. `batchSize` is how many texts go in one request (128 by default, at most 1,000); each model also limits the tokens in a request, so lower it for very long texts.
+
+In a Cloudflare Worker, pass the `AI` binding directly:
+
+```typescript
+import {
+  memoryVectors,
+  retrieverKnowledge,
+  vectorRetriever,
+  workersAiEmbedder,
+  type WorkersAiBinding,
+} from '@chatcops/core';
+
+declare const env: { AI: WorkersAiBinding };
+
+const embedder = workersAiEmbedder({ ai: env.AI });
+const vectors = memoryVectors({ dimensions: embedder.dimensions });
+const knowledge = retrieverKnowledge(vectorRetriever({ store: vectors, embedder }), { topK: 5 });
+```
 
 There are two retrievers:
 

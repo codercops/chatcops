@@ -514,6 +514,11 @@ export function runStorageConformance(
         expect(results[0]?.id).toBe(`${run}-refunds`);
         expect(results.map((r) => r.id)).not.toContain(`${run}-about`);
         expect(results.every((r, i) => i === 0 || r.score <= results[i - 1].score)).toBe(true);
+        // A real question has more words than any one page: pages with only
+        // some of them still count, ranked by how much they match.
+        const question = await store.keywordQuery({ text: 'how long does a refund request take to arrive', topK: 5, filter: { run } });
+        expect(question[0]?.id).toBe(`${run}-refunds`);
+        expect(question.map((r) => r.id)).toContain(`${run}-shipping`);
         const filtered = await store.keywordQuery({ text: 'refunds', topK: 5, filter: { run, locale: 'de' } });
         expect(filtered.map((r) => r.id)).toEqual([`${run}-other-locale`]);
         expect(await store.keywordQuery({ text: 'refunds', topK: 1, filter: { run } })).toHaveLength(1);

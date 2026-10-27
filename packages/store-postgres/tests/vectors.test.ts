@@ -57,12 +57,15 @@ describe('PostgresVectorStore', () => {
     expect(results).toEqual([{ ...row, score: 0.75 }]);
   });
 
-  it('uses simple-config keyword ranking with segmented query words', async () => {
+  it('matches any of the segmented query words with simple-config ranking', async () => {
     const { db, calls } = fakeDb();
     const store = new PostgresVectorStore(4, db, 'chatcops_vector_chunks');
     await store.keywordQuery({ text: '料金プラン', topK: 3 });
 
-    expect(calls[0].text).toContain("plainto_tsquery('simple', $1)");
+    // Any word, not all of them: each lexeme quoted and joined with |.
+    expect(calls[0].text).toContain("to_tsquery('simple', string_agg(quote_literal(lexeme), ' | '))");
+    expect(calls[0].text).toContain("to_tsvector('simple', $1::text)");
+    expect(calls[0].text).not.toContain('plainto_tsquery');
     expect(calls[0].text).toContain('ts_rank(keyword_vector, search.query)');
     expect(calls[0].params?.[0]).toContain('料金');
   });
