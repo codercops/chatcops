@@ -49,6 +49,7 @@ describe('PostgresVectorStore', () => {
 
     expect(calls[0].text).toBe("SET LOCAL hnsw.iterative_scan = 'relaxed_order'");
     expect(calls[1].text).toContain('ORDER BY embedding <=> $1::vector');
+    expect(calls[1].text).toContain('metadata -> $2::text = $3::jsonb');
     expect(calls[1].params).toEqual(['[1,0,0,0]', 'page', '1', 2]);
     expect(results).toEqual([{ ...row, score: 0.75 }]);
   });

@@ -124,10 +124,10 @@ function metadataWhere(filter: MetadataFilter | undefined, params: unknown[]): s
     const keyParam = `$${params.length}`;
     if (Array.isArray(value)) {
       params.push(JSON.stringify(value));
-      clauses.push(`EXISTS (SELECT 1 FROM jsonb_array_elements($${params.length}::jsonb) AS wanted(value) WHERE metadata -> ${keyParam} = wanted.value)`);
+      clauses.push(`EXISTS (SELECT 1 FROM jsonb_array_elements($${params.length}::jsonb) AS wanted(value) WHERE metadata -> ${keyParam}::text = wanted.value)`);
     } else {
       params.push(JSON.stringify(value));
-      clauses.push(`metadata -> ${keyParam} = $${params.length}::jsonb`);
+      clauses.push(`metadata -> ${keyParam}::text = $${params.length}::jsonb`);
     }
   }
   return clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
