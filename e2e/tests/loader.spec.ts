@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 // The script tag build is a small loader: the chat panel (chatcops.panel.js)
 // only downloads when the visitor is about to use it.
@@ -25,7 +25,39 @@ test('the panel downloads on hover, not on page load, and opens on click', async
   expect(panelRequests(requested)).toHaveLength(1);
 });
 
-test('nothing reads or writes storage before the visitor interacts', async ({ page }) => {
+for (const [build, path] of [['loader', '/'], ['single-file build', '/full.html']] as const) {
+  test(`nothing reads or writes storage before the visitor interacts (${build})`, async ({ page }) => {
+    await countStorageCalls(page);
+    await page.goto(path);
+    await expect(page.locator(fab)).toBeVisible();
+    await page.locator(fab).hover();
+    await page.waitForTimeout(500);
+    expect(await storageCalls(page)).toEqual([]);
+
+    await page.locator(fab).click();
+    await expect(page.locator('.cc-panel')).toHaveClass(/cc-visible/);
+    expect(await storageCalls(page)).toContain('getItem');
+  });
+}
+
+test('a conversation comes back after a reload, once the chat is opened', async ({ page }) => {
+  await page.goto('/');
+  await page.locator(fab).click();
+  await page.locator('.cc-input').fill('Remember this');
+  await page.locator('.cc-send-btn').click();
+  await expect(page.locator('.cc-message-assistant').last()).toContainText('Hello from the test server.');
+
+  await page.reload();
+  await expect(page.locator(fab)).toBeVisible();
+  await page.locator(fab).click();
+  await expect(page.locator('.cc-message-user').last()).toContainText('Remember this');
+});
+
+async function storageCalls(page: Page): Promise<string[]> {
+  return page.evaluate(() => (window as unknown as { storageCalls: string[] }).storageCalls);
+}
+
+async function countStorageCalls(page: Page): Promise<void> {
   await page.addInitScript(() => {
     const calls: string[] = [];
     (window as unknown as { storageCalls: string[] }).storageCalls = calls;
@@ -37,11 +69,7 @@ test('nothing reads or writes storage before the visitor interacts', async ({ pa
       } as never;
     }
   });
-  await page.goto('/');
-  await expect(page.locator(fab)).toBeVisible();
-  await page.waitForTimeout(500);
-  expect(await page.evaluate(() => (window as unknown as { storageCalls: string[] }).storageCalls)).toEqual([]);
-});
+}
 
 test('a panel that fails to load leaves the launcher, says why, and works on the next try', async ({ page }) => {
   let fail = true;
@@ -70,4 +98,51 @@ test('the single-file build (chatcops.full.min.js) still works on its own', asyn
   await expect(page.locator('.cc-message-assistant').last()).toContainText('Hello from the test server.');
   expect(requested).not.toContain('/chatcops.panel.js');
   expect(requested).not.toContain('/chatcops.min.js');
+});
+
+const chunkRequests = (urls: string[]) => urls.filter((url) => new URL(url).pathname.startsWith('/chunks/'));
+
+test('the pre-chat form downloads only on pages that use it, and works', async ({ page }) => {
+  const requested: string[] = [];
+  page.on('request', (request) => requested.push(request.url()));
+
+  await page.goto('/');
+  await page.locator(fab).click();
+  await expect(page.locator('.cc-panel')).toHaveClass(/cc-visible/);
+  expect(chunkRequests(requested)).toEqual([]);
+
+  requested.length = 0;
+  await page.goto('/prechat.html');
+  await page.locator(fab).hover();
+  await expect.poll(() => chunkRequests(requested).some((url) => url.includes('/chunks/prechat-form-'))).toBe(true);
+  await page.locator(fab).click();
+  await page.locator('.cc-prechat-input').fill('Sam');
+  await page.locator('.cc-prechat-submit').click();
+  await expect(page.locator('.cc-message-assistant').first()).toContainText('Hi Sam!');
+  await page.locator('.cc-input').fill('Hi there');
+  await page.locator('.cc-send-btn').click();
+  await expect(page.locator('.cc-message-assistant').last()).toContainText('Hello from the test server.');
+});
+
+test('the chat loads its translation next to the panel, and falls back to English without one', async ({ page }) => {
+  const requested: string[] = [];
+  page.on('request', (request) => requested.push(new URL(request.url()).pathname));
+  await page.goto('/locale.html');
+  await page.waitForTimeout(300);
+  expect(requested).not.toContain('/locales/zz.js');
+
+  await page.locator(fab).click();
+  await expect(page.locator('.cc-message-assistant').first()).toContainText('Zz welcome from the translation file');
+  await expect(page.locator('.cc-input')).toHaveAttribute('placeholder', 'Zz type here');
+
+  // A language with no file: one failed request, then English.
+  const warnings: string[] = [];
+  page.on('console', (message) => message.type() === 'warning' && warnings.push(message.text()));
+  await page.goto('/locale.html');
+  await page.evaluate(() => {
+    (window as unknown as { ChatCops: { init(config: object): void } }).ChatCops.init({ apiUrl: '/api/chat', locale: 'qq' });
+  });
+  await page.locator(fab).click();
+  await expect(page.locator('.cc-message-assistant').first()).toContainText('How can I help you today?');
+  expect(warnings.some((text) => text.includes('"qq" strings could not load'))).toBe(true);
 });

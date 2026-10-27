@@ -1,11 +1,14 @@
 import launcherStyles from '../styles/launcher.css?inline';
 import { CHAT_ICON } from '../dom/icons.js';
-import { HOST_ID, nextHostId } from '../dom/shadow.js';
+import { HOST_ID, nextHostId, resolveDirection } from '../dom/shadow.js';
 import { applyTheme } from '../theme.js';
+import type { WidgetLocaleStrings } from '../i18n.js';
 import type { Widget, WidgetConfig, WidgetEventHandler, WidgetEventType } from '../widget.js';
 
 export interface PanelModule {
   Widget: typeof Widget;
+  /** Starts loading what the config needs (the pre-chat form's chunk). */
+  prefetch?: (config: WidgetConfig) => void;
 }
 
 /** `window.ChatCops` in the script tag build. */
@@ -20,6 +23,25 @@ export interface ChatCopsLoader {
 }
 
 const DEFAULT_BUBBLE_DELAY = 3000;
+
+/** A translation file in `dist/locales/`: the widget's strings for one language. */
+export interface LocaleModule {
+  default: Partial<WidgetLocaleStrings>;
+}
+
+/**
+ * Where a language's strings are: `locales/<language>.js` next to the panel,
+ * by the language part of the code (`pt-BR` loads `pt`). English is built in,
+ * so it has no file.
+ */
+export function localeUrlFor(panelUrl: string, locale: string): string | undefined {
+  const language = locale.toLowerCase().split(/[-_]/)[0];
+  if (language === 'en' || !/^[a-z]{2,3}$/.test(language)) return undefined;
+  const panel = new URL(panelUrl);
+  const url = new URL(`locales/${language}.js`, panel);
+  url.search = panel.search;
+  return url.href;
+}
 
 /**
  * Where the panel is, given the loader's own URL: next to the file
@@ -41,8 +63,14 @@ export function panelUrlFor(loaderUrl: string, version: string): string {
  * the page asks for it (`open()`, `autoOpen`, a welcome bubble, inline mode).
  * Hovering or focusing the launcher starts the download, so the click rarely
  * waits. Nothing here touches storage or the network before that.
+ *
+ * `loadLocale` fetches the strings for `config.locale` alongside the panel.
+ * If they can't load, the chat opens in English.
  */
-export function createLoader(loadPanel: () => Promise<PanelModule>): ChatCopsLoader {
+export function createLoader(
+  loadPanel: () => Promise<PanelModule>,
+  loadLocale: (locale: string) => Promise<LocaleModule> | undefined = () => undefined
+): ChatCopsLoader {
   let config: WidgetConfig | undefined;
   let widget: Widget | undefined;
   let loading: Promise<Widget | undefined> | undefined;
@@ -50,6 +78,26 @@ export function createLoader(loadPanel: () => Promise<PanelModule>): ChatCopsLoa
   let button: HTMLButtonElement | undefined;
   const timers: Array<ReturnType<typeof setTimeout>> = [];
   const handlers = new Map<WidgetEventType, Set<WidgetEventHandler<never>>>();
+  const locales = new Map<string, Promise<Partial<WidgetLocaleStrings> | undefined>>();
+
+  /** The translated strings for a config, loaded once per locale. */
+  function strings(current: WidgetConfig): Promise<Partial<WidgetLocaleStrings> | undefined> {
+    const code = current.locale;
+    if (!code) return Promise.resolve(undefined);
+    let found = locales.get(code);
+    if (!found) {
+      found = Promise.resolve(loadLocale(code)).then(
+        (module) => (module && typeof module.default === 'object' ? module.default : undefined),
+        (error: unknown) => {
+          locales.delete(code);
+          console.warn(`[chatcops] The "${code}" strings could not load, so the chat is in English:`, error instanceof Error ? error.message : error);
+          return undefined;
+        }
+      );
+      locales.set(code, found);
+    }
+    return found;
+  }
 
   /**
    * Loads the chat and swaps it in for the launcher. The loader already
@@ -59,11 +107,17 @@ export function createLoader(loadPanel: () => Promise<PanelModule>): ChatCopsLoa
   function mount(overrides: Partial<WidgetConfig> = { welcomeBubble: undefined }): Promise<Widget | undefined> {
     const current = config;
     if (!current) return Promise.resolve(undefined);
-    loading ??= loadPanel().then(
-      (panel) => {
+    loading ??= Promise.all([loadPanel(), strings(current)]).then(
+      ([panel, translated]) => {
         // Destroyed, or initialized again, while the chat was loading.
         if (config !== current) return undefined;
-        const next = new panel.Widget({ ...current, autoOpen: undefined, ...overrides });
+        const next = new panel.Widget({
+          ...current,
+          // The site's own strings win over the translation.
+          strings: translated ? { ...translated, ...current.strings } : current.strings,
+          autoOpen: undefined,
+          ...overrides,
+        });
         for (const [event, set] of handlers) {
           for (const handler of set) next.on(event, handler as WidgetEventHandler);
         }
@@ -93,6 +147,7 @@ export function createLoader(loadPanel: () => Promise<PanelModule>): ChatCopsLoa
     launcher = document.createElement('div');
     launcher.id = nextHostId();
     launcher.className = HOST_ID;
+    launcher.dir = resolveDirection(current.dir, current.locale);
     document.body.appendChild(launcher);
     const shadow = launcher.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
@@ -106,7 +161,13 @@ export function createLoader(loadPanel: () => Promise<PanelModule>): ChatCopsLoa
     button.setAttribute('aria-label', current.strings?.openChat ?? 'Open chat');
     button.setAttribute('aria-expanded', 'false');
     button.innerHTML = CHAT_ICON;
-    const prefetch = () => void loadPanel().catch(() => undefined);
+    const prefetch = () => {
+      void strings(current);
+      void loadPanel().then(
+        (panel) => panel.prefetch?.(current),
+        () => undefined
+      );
+    };
     button.addEventListener('pointerenter', prefetch, { once: true });
     button.addEventListener('focus', prefetch, { once: true });
     button.addEventListener('click', () => api.open());

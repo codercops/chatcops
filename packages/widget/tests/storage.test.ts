@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { ConversationStorage } from '../src/storage.js';
+import { ConversationStorage, keyStore } from '../src/storage.js';
 
 describe('ConversationStorage', () => {
   beforeEach(() => {
@@ -38,20 +38,6 @@ describe('ConversationStorage', () => {
     expect(storage.load()).toBeNull();
   });
 
-  it('generates a session ID', () => {
-    const storage = new ConversationStorage();
-    const id = storage.getSessionId();
-    expect(id).toBeTruthy();
-    expect(typeof id).toBe('string');
-  });
-
-  it('returns same session ID within session', () => {
-    const storage = new ConversationStorage();
-    const id1 = storage.getSessionId();
-    const id2 = storage.getSessionId();
-    expect(id1).toBe(id2);
-  });
-
   it('uses different keys for different sites', () => {
     const storage1 = new ConversationStorage('site-a');
     const storage2 = new ConversationStorage('site-b');
@@ -60,41 +46,83 @@ describe('ConversationStorage', () => {
     expect(storage2.load()).toBeNull();
   });
 
-  it('persists and restores pre-chat completion and userData', () => {
+  it('keeps pre-chat answers with the conversation', () => {
     const storage = new ConversationStorage();
-    expect(storage.isPreChatCompleted('session-1')).toBe(false);
-    expect(storage.getPreChatData('session-1')).toBeNull();
-
-    storage.setPreChatCompleted('session-1', { name: 'Alice', email: 'alice@example.com' });
-    expect(storage.isPreChatCompleted('session-1')).toBe(true);
-    expect(storage.getPreChatData('session-1')).toEqual({ name: 'Alice', email: 'alice@example.com' });
+    storage.save({ id: 'conv-1', messages: [], userData: { name: 'Alice', email: 'alice@example.com' }, preChatDone: true, updatedAt: Date.now() });
+    expect(storage.load()).toMatchObject({ userData: { name: 'Alice', email: 'alice@example.com' }, preChatDone: true });
   });
 
-  it('swallows storage errors on pre-chat operations', () => {
+  it('ignores pre-chat answers that are not an object', () => {
+    localStorage.setItem('chatcops_conversation', JSON.stringify({ id: 'c', messages: [], userData: ['x'], updatedAt: Date.now() }));
+    expect(new ConversationStorage().load()).toMatchObject({ userData: undefined, preChatDone: false });
+  });
+
+  it.each([
+    ['local', () => localStorage, () => sessionStorage],
+    ['session', () => sessionStorage, () => localStorage],
+  ] as const)('persistence %s writes only to its own storage', (mode, own, other) => {
+    const storage = new ConversationStorage('m', mode);
+    storage.save({ id: 'conv-1', messages: [], updatedAt: Date.now() });
+    expect(own().getItem('chatcops_conversation_m')).not.toBeNull();
+    expect(other().getItem('chatcops_conversation_m')).toBeNull();
+    expect(new ConversationStorage('m', mode).load()?.id).toBe('conv-1');
+  });
+
+  it("persistence none keeps the conversation in memory and touches no storage", () => {
+    const setItem = vi.spyOn(localStorage, 'setItem');
+    const getItem = vi.spyOn(sessionStorage, 'getItem');
+    const storage = new ConversationStorage(undefined, 'none');
+    storage.save({ id: 'conv-1', messages: [], updatedAt: Date.now() });
+    expect(storage.load()?.id).toBe('conv-1');
+    expect(new ConversationStorage(undefined, 'none').load()).toBeNull();
+    expect(setItem).not.toHaveBeenCalled();
+    expect(getItem).not.toHaveBeenCalled();
+  });
+
+  it('drops a conversation older than historyTtlDays when it is read', () => {
+    const day = 24 * 60 * 60 * 1000;
+    const storage = new ConversationStorage(undefined, 'local', 7);
+    storage.save({ id: 'old', messages: [], updatedAt: 1_000_000 });
+    expect(storage.load(1_000_000 + 6 * day)?.id).toBe('old');
+    expect(storage.load(1_000_000 + 8 * day)).toBeNull();
+    expect(localStorage.getItem('chatcops_conversation')).toBeNull();
+  });
+
+  it('defaults to a 30 day history', () => {
+    const day = 24 * 60 * 60 * 1000;
     const storage = new ConversationStorage();
+    storage.save({ id: 'c', messages: [], updatedAt: 0 });
+    expect(storage.load(29 * day)?.id).toBe('c');
+    expect(storage.load(31 * day)).toBeNull();
+  });
 
-    const setItemSpy = vi.spyOn(sessionStorage, 'setItem').mockImplementation(() => {
-      throw new Error('QuotaExceeded');
-    });
-    expect(() => storage.setPreChatCompleted('session-2', { name: 'Bob' })).not.toThrow();
-    expect(() => storage.setPreChatData('session-2', { name: 'Bob' })).not.toThrow();
-    setItemSpy.mockRestore();
+  it('uses 30 days when historyTtlDays is not a usable number', () => {
+    const day = 24 * 60 * 60 * 1000;
+    for (const bad of [Number.NaN, -1, Number.POSITIVE_INFINITY]) {
+      const storage = new ConversationStorage(undefined, 'local', bad);
+      storage.save({ id: 'c', messages: [], updatedAt: 0 });
+      expect(storage.load(29 * day)?.id).toBe('c');
+      expect(storage.load(31 * day)).toBeNull();
+    }
+  });
 
-    const getItemSpy = vi.spyOn(sessionStorage, 'getItem').mockImplementation(() => {
+  it('never throws when storage is blocked or full', () => {
+    const blocked = () => {
       throw new Error('SecurityError');
-    });
-    expect(storage.isPreChatCompleted('session-2')).toBe(false);
-    expect(storage.getPreChatData('session-2')).toBeNull();
-    getItemSpy.mockRestore();
-  });
-
-  it('returns null when pre-chat data in storage is malformed', () => {
-    const storage = new ConversationStorage();
-    sessionStorage.setItem('chatcops-prechat-data-malformed', 'not-valid-json');
-    expect(storage.getPreChatData('malformed')).toBeNull();
-
-    sessionStorage.setItem('chatcops-prechat-data-array', JSON.stringify(['not', 'an', 'object']));
-    expect(storage.getPreChatData('array')).toBeNull();
+    };
+    const broken = { getItem: blocked, setItem: blocked, removeItem: blocked };
+    vi.stubGlobal('localStorage', broken);
+    vi.stubGlobal('sessionStorage', broken);
+    try {
+      for (const mode of ['local', 'session'] as const) {
+        const store = keyStore(mode);
+        expect(() => store.set('k', 'v')).not.toThrow();
+        expect(store.get('k')).toBeNull();
+        expect(() => store.remove('k')).not.toThrow();
+      }
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it.each([
@@ -139,9 +167,10 @@ describe('ConversationStorage', () => {
     const validUser = { id: 'm1', role: 'user' as const, content: 'Hello', timestamp: 100 };
     const validAssistant = { id: 'm2', role: 'assistant' as const, content: 'Hi there!', timestamp: 200 };
     const validEmptyContent = { id: 'm7', role: 'assistant' as const, content: '', timestamp: 700 };
+    const updatedAt = Date.now();
     const conversationData = {
       id: 'conv-1',
-      updatedAt: 123456789,
+      updatedAt,
       metadata: { topic: 'support' },
       messages: [
         validUser,
@@ -164,7 +193,7 @@ describe('ConversationStorage', () => {
     const loaded = storage.load();
     expect(loaded).not.toBeNull();
     expect(loaded?.id).toBe('conv-1');
-    expect(loaded?.updatedAt).toBe(123456789);
+    expect(loaded?.updatedAt).toBe(updatedAt);
     expect((loaded as unknown as Record<string, unknown> | null)?.metadata).toEqual({ topic: 'support' });
     expect(loaded?.messages).toEqual([validUser, validAssistant, validEmptyContent]);
     expect(localStorage.getItem('chatcops_conversation_test')).not.toBeNull();

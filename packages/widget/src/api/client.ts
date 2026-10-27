@@ -1,5 +1,5 @@
 import type { WirePart } from './protocol.js';
-import { turnstileToken } from './turnstile.js';
+import { keyStore, type KeyStore } from '../storage.js';
 import type { WidgetChatRequest, WidgetChatChunk } from './types.js';
 
 export interface ChatClientOptions {
@@ -10,6 +10,8 @@ export interface ChatClientOptions {
   turnstileSiteKey?: string;
   /** The host site's signed token for a signed-in visitor, sent when asking for a session. */
   userToken?: string;
+  /** Where the session token is kept. Defaults to localStorage; the widget passes its own store. */
+  store?: KeyStore;
 }
 
 export interface SendMessageOptions {
@@ -28,8 +30,9 @@ export class ChatClient {
   private apiUrl: string;
   private timeout: number;
   private sessionKey: string;
-  /** The last token, kept across page loads so the server can resume the conversation. */
-  private saved: Partial<Session> = {};
+  /** The last token, kept across page loads so the server can resume the conversation. Read on first use. */
+  private saved?: Partial<Session>;
+  private store: KeyStore;
   private turnstileSiteKey?: string;
   private userToken?: string;
 
@@ -39,11 +42,7 @@ export class ChatClient {
     this.userToken = options.userToken;
     this.timeout = options.timeout ?? 30000;
     this.sessionKey = `chatcops-session:${options.apiUrl}`;
-    try {
-      this.saved = JSON.parse(localStorage.getItem(this.sessionKey) || '{}');
-    } catch {
-      // Storage unavailable: tokens last for this page only.
-    }
+    this.store = options.store ?? keyStore('local');
   }
 
   async *sendMessage(
@@ -101,7 +100,15 @@ export class ChatClient {
           body: JSON.stringify(body),
           signal: controller.signal,
         });
-      const saved = this.saved;
+      let saved = this.saved;
+      if (!saved) {
+        try {
+          saved = (JSON.parse(this.store.get(this.sessionKey) || '{}') as Partial<Session> | null) ?? {};
+        } catch {
+          saved = {};
+        }
+        this.saved = saved;
+      }
       const resumable = saved.conversationId === request.conversationId;
       // Servers before 0.6 ignore `protocol` and answer in the old format.
       let response = await post(this.apiUrl, { protocol: 1, ...request }, resumable ? saved.token : undefined);
@@ -115,16 +122,16 @@ export class ChatClient {
           conversationId: request.conversationId,
           previousToken: saved.token,
           userToken: this.userToken,
-          turnstileToken: this.turnstileSiteKey && !resumable ? await turnstileToken(this.turnstileSiteKey) : undefined,
+          // Its own chunk: only sites with a Turnstile key download it.
+          turnstileToken:
+            this.turnstileSiteKey && !resumable
+              ? await (await import('./turnstile.js')).turnstileToken(this.turnstileSiteKey)
+              : undefined,
         });
         if (minted.ok) {
           const session = (await minted.json()) as Session;
           this.saved = session;
-          try {
-            localStorage.setItem(this.sessionKey, JSON.stringify(session));
-          } catch {
-            // Storage full or unavailable: the token still works on this page.
-          }
+          this.store.set(this.sessionKey, JSON.stringify(session));
           if (session.conversationId !== request.conversationId) {
             request = { ...request, conversationId: session.conversationId };
             yield { conversationId: session.conversationId };
