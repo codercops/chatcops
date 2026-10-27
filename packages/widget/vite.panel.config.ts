@@ -20,6 +20,14 @@ export default defineConfig({
   build: {
     emptyOutDir: false,
     minify: 'terser',
+    terserOptions: {
+      compress: { passes: 2 },
+      mangle: {
+        properties: {
+          regex: /^(?:mounted|fab|panel|bubble|preChatFormEl|namespace|hydrated|isStreaming|destroyed|abortController|retryRequests|eventHandlers|containerEl|autoOpenTimer|unreadReplies|savedOverflow|shadow|unreadLabel|openLabel|closeLabel|badge|el|inline|messagesContainer|isVisible|typingEl|suggestionsEl|area|textarea|sendBtn|onSend|timerId)$/,
+        },
+      },
+    },
     cssCodeSplit: false,
     rollupOptions: {
       input: { panel: resolve(__dirname, 'src/panel.ts'), ...locales },

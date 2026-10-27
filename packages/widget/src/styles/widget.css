@@ -50,10 +50,6 @@
   visibility: hidden;
 }
 
-.cc-panel.cc-inline.cc-visible {
-  transform: none;
-}
-
 /* Panel header */
 .cc-header {
   display: flex;
@@ -64,19 +60,19 @@
   flex-shrink: 0;
 }
 
-.cc-header-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  margin-inline-end: 12px;
-  object-fit: cover;
-}
-
+.cc-header-avatar,
 .cc-header-avatar-placeholder {
   width: 36px;
   height: 36px;
   border-radius: 50%;
   margin-inline-end: 12px;
+}
+
+.cc-header-avatar {
+  object-fit: cover;
+}
+
+.cc-header-avatar-placeholder {
   background: var(--cc-accent);
   display: flex;
   align-items: center;
@@ -176,6 +172,27 @@
   background: var(--cc-bg-surface);
   color: var(--cc-text);
   border-end-start-radius: 4px;
+}
+
+.cc-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 16px 12px;
+}
+
+.cc-suggestion {
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-radius);
+  padding: 8px 12px;
+  background: var(--cc-bg-surface);
+  color: var(--cc-text);
+  cursor: pointer;
+  font: inherit;
+}
+
+.cc-suggestion:hover {
+  border-color: var(--cc-accent);
 }
 
 .cc-message a {
@@ -518,6 +535,7 @@
 /* Keyboard focus indicators (the launcher's are in launcher.css) */
 .cc-header-close:focus-visible,
 .cc-send-btn:focus-visible,
+.cc-suggestion:focus-visible,
 .cc-message-retry:focus-visible,
 .cc-message-regenerate:focus-visible,
 .cc-bubble-close:focus-visible,

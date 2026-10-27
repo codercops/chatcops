@@ -29,6 +29,7 @@ export interface WidgetLocaleStrings {
   preChatInvalidEmail: string;
   retryButton: string;
   regenerateButton: string;
+  suggestionsLabel: string;
   unreadCount: string;
 }
 
@@ -62,6 +63,7 @@ const en: WidgetLocaleStrings = {
   preChatInvalidEmail: 'Please enter a valid email',
   retryButton: 'Retry',
   regenerateButton: 'Regenerate',
+  suggestionsLabel: 'Suggested questions',
   unreadCount: '{count} unread',
 };
 

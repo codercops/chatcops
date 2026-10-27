@@ -173,6 +173,99 @@ describe('Widget', () => {
     widget.destroy();
   });
 
+  it('shows configured suggestions in a labelled group in a new conversation', () => {
+    const widget = new Widget({
+      apiUrl: 'https://api.test/chat',
+      suggestions: ['Compare plans', 'Book a demo'],
+      strings: { suggestionsLabel: 'Popular questions' },
+    });
+    widget.init();
+    widget.open();
+
+    const root = getInternals(widget).shadow;
+    const group = root.querySelector('.cc-suggestions');
+    expect(group?.getAttribute('role')).toBe('group');
+    expect(group?.getAttribute('aria-label')).toBe('Popular questions');
+    expect(Array.from(group?.querySelectorAll('button') ?? []).map((button) => button.textContent))
+      .toEqual(['Compare plans', 'Book a demo']);
+    widget.destroy();
+  });
+
+  it('sends a selected suggestion and removes the suggestion row', () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat', suggestions: ['Compare plans'] });
+    widget.init();
+    widget.open();
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementation(async function* () {
+      yield { done: true };
+    });
+
+    const root = getInternals(widget).shadow;
+    (root.querySelector('.cc-suggestion') as HTMLButtonElement).click();
+    expect(root.querySelector('.cc-suggestions')).toBeNull();
+    expect(getInternals(widget).messages.some((message) => message.role === 'user' && message.content === 'Compare plans')).toBe(true);
+    widget.destroy();
+  });
+
+  it('does not show suggestions for restored conversations with user messages or while the pre-chat form is open', async () => {
+    localStorage.setItem('chatcops_conversation', JSON.stringify({
+      id: 'restored',
+      messages: [{ id: 'saved-user', role: 'user', content: 'Hi', timestamp: Date.now() }],
+      updatedAt: Date.now(),
+    }));
+    const restoredWidget = new Widget({ apiUrl: '/chat', suggestions: ['Book a demo'] });
+    restoredWidget.init();
+    restoredWidget.open();
+    expect(getInternals(restoredWidget).shadow.querySelector('.cc-suggestions')).toBeNull();
+    restoredWidget.destroy();
+
+    localStorage.clear();
+    const preChatWidget = new Widget({
+      apiUrl: '/chat',
+      suggestions: ['Book a demo'],
+      preChatForm: { enabled: true, fields: [{ name: 'email', label: 'Email', type: 'email' }] },
+    });
+    preChatWidget.init();
+    preChatWidget.open();
+    await vi.dynamicImportSettled();
+    expect(getInternals(preChatWidget).shadow.querySelector('.cc-prechat')).not.toBeNull();
+    expect(getInternals(preChatWidget).shadow.querySelector('.cc-suggestions')).toBeNull();
+    preChatWidget.destroy();
+  });
+
+  it('shows suggestions after restoring a pre-chat-completed conversation with no messages', () => {
+    new ConversationStorage().save({
+      id: 'pre-chat-completed',
+      messages: [],
+      preChatDone: true,
+      updatedAt: Date.now(),
+    });
+    const widget = new Widget({
+      apiUrl: '/chat',
+      suggestions: ['Book a demo'],
+      preChatForm: { enabled: true, fields: [{ name: 'email', label: 'Email', type: 'email' }] },
+    });
+    widget.init();
+    widget.open();
+
+    expect(getInternals(widget).shadow.querySelector('.cc-suggestions')).not.toBeNull();
+    widget.destroy();
+  });
+
+  it('hides suggestions when the visitor sends their first message', async () => {
+    const widget = new Widget({ apiUrl: '/chat', suggestions: ['Book a demo'] });
+    widget.init();
+    widget.open();
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementation(async function* () {
+      yield { done: true };
+    });
+
+    const root = getInternals(widget).shadow;
+    expect(root.querySelector('.cc-suggestions')).not.toBeNull();
+    await getInternals(widget).handleSend('Hello');
+    expect(root.querySelector('.cc-suggestions')).toBeNull();
+    widget.destroy();
+  });
+
   it('strings: { closeButton } overrides the close aria-label on both the panel header and the FAB', () => {
     const widget = new Widget({
       apiUrl: 'https://api.test/chat',

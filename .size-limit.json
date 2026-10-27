@@ -8,7 +8,7 @@
   {
     "name": "widget, chat panel (chatcops.panel.js, loaded on open)",
     "path": "packages/widget/dist/chatcops.panel.js",
-    "limit": "14 KB",
+    "limit": "16 KB",
     "gzip": true
   },
   {
@@ -20,13 +20,13 @@
   {
     "name": "widget, single file (chatcops.full.min.js)",
     "path": "packages/widget/dist/chatcops.full.min.js",
-    "limit": "16 KB",
+    "limit": "18 KB",
     "gzip": true
   },
   {
-    "name": "widget, ESM",
+    "name": "widget, ESM (unminified: sites bundle and minify it, so this only catches runaway growth)",
     "path": "packages/widget/dist/chatcops.esm.js",
-    "limit": "21 KB",
+    "limit": "30 KB",
     "gzip": true
   }
 ]
