@@ -20,7 +20,7 @@
       "content": [
         {
           "type": "tool_use",
-          "id": "toolu_01QKy92Xp2dpvYaJw29ZUsm6",
+          "id": "toolu_016BaRGdU2KRKR6YHt8v586q",
           "name": "get_weather",
           "input": {
             "city": "Paris"
@@ -28,7 +28,7 @@
         },
         {
           "type": "tool_use",
-          "id": "toolu_01LZeAVKaFR7yv47ZJHY4XXs",
+          "id": "toolu_01XjkjErNjTg8hU4pinCR85v",
           "name": "get_weather",
           "input": {
             "city": "Tokyo"
@@ -41,13 +41,13 @@
       "content": [
         {
           "type": "tool_result",
-          "tool_use_id": "toolu_01QKy92Xp2dpvYaJw29ZUsm6",
+          "tool_use_id": "toolu_016BaRGdU2KRKR6YHt8v586q",
           "content": "{\"success\":true,\"data\":{\"city\":\"Paris\",\"tempC\":14}}",
           "is_error": false
         },
         {
           "type": "tool_result",
-          "tool_use_id": "toolu_01LZeAVKaFR7yv47ZJHY4XXs",
+          "tool_use_id": "toolu_01XjkjErNjTg8hU4pinCR85v",
           "content": "{\"success\":true,\"data\":{\"city\":\"Tokyo\",\"tempC\":19}}",
           "is_error": false
         }

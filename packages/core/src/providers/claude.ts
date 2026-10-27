@@ -41,7 +41,11 @@ export function claudeSupportsEffort(model: string): boolean {
   return version.family === 'opus' && version.major === 4 && version.minor === 5;
 }
 
-/** Fable, Mythos, every 5.x model and Opus 4.7+ reject non-default `temperature`. */
+/**
+ * Fable, Mythos, every 5.x model and Opus 4.7+ reject non-default `temperature`.
+ * Since API version 2026-10-21 no Claude model takes it, so the provider no
+ * longer uses this; it stays exported for code that does.
+ */
 export function claudeRejectsTemperature(model: string): boolean {
   const version = parseClaudeModel(model);
   if (!version) return false;
@@ -105,9 +109,11 @@ const isToolResultBlock = (block: ContentBlockParam) => block.type === 'tool_res
  * their signatures, as Claude requires within a tool loop.
  */
 export function toClaudeStepMessages(messages: ChatMessage[]): MessageParam[] {
-  const out: { role: MessageParam['role']; content: ContentBlockParam[] }[] = [];
+  // Only user and assistant turns: the system prompt goes in `system`.
+  type Role = 'user' | 'assistant';
+  const out: { role: Role; content: ContentBlockParam[] }[] = [];
 
-  const push = (role: MessageParam['role'], blocks: ContentBlockParam[]) => {
+  const push = (role: Role, blocks: ContentBlockParam[]) => {
     if (blocks.length === 0) return;
     const last = out.at(-1);
     if (!last || last.role !== role) {
@@ -123,7 +129,7 @@ export function toClaudeStepMessages(messages: ChatMessage[]): MessageParam[] {
   };
 
   for (const turn of normalizeTurns(messages)) {
-    let role: MessageParam['role'] = turn.role;
+    let role: Role = turn.role;
     let run: ContentBlockParam[] = [];
     for (const part of turn.parts) {
       const block = toClaudeBlock(part);
@@ -244,13 +250,13 @@ export class ClaudeProvider implements AIProvider {
     params: Pick<ProviderStepParams, 'systemPrompt' | 'systemContext' | 'tools' | 'maxTokens' | 'temperature'>,
     messages: Anthropic.Messages.MessageParam[]
   ) {
-    let temperature = params.temperature;
-    if (temperature != null && claudeRejectsTemperature(this.model)) {
+    // API version 2026-10-21 removed `temperature` for every Claude model:
+    // sending it is a 400, so it's never sent.
+    if (params.temperature != null) {
       warnOnce(
-        `claude-temperature-${this.model}`,
-        `${this.model} doesn't accept \`temperature\`, so it is not sent. Use \`effort\` to trade speed for depth.`
+        'claude-temperature',
+        "Claude's API no longer accepts `temperature`, so it is not sent. Use `effort` to trade speed for depth."
       );
-      temperature = undefined;
     }
 
     return {
@@ -259,7 +265,6 @@ export class ClaudeProvider implements AIProvider {
       system: this.system(params),
       messages,
       ...(params.tools?.length ? { tools: toClaudeTools(params.tools) } : {}),
-      ...(temperature != null ? { temperature } : {}),
       ...(this.effort ? { output_config: { effort: this.effort } } : {}),
     } satisfies Anthropic.Messages.MessageCreateParamsNonStreaming;
   }
