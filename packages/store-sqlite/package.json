@@ -31,11 +31,16 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "peerDependencies": {
-    "@chatcops/core": "workspace:^"
+    "@chatcops/core": "workspace:^",
+    "sqlite-vec": "^0.1.9"
+  },
+  "peerDependenciesMeta": {
+    "sqlite-vec": { "optional": true }
   },
   "devDependencies": {
     "@chatcops/core": "workspace:*",
     "@types/node": "^22",
+    "sqlite-vec": "^0.1.9",
     "typescript": "^5.7.0",
     "vitest": "^4.1.11"
   },

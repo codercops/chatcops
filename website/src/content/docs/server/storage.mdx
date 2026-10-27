@@ -223,6 +223,25 @@ A filter matches when every key matches: a value has to be equal and of the same
 
 To check your own store, run the conformance suite from `@chatcops/core/testing`. Its vector checks run when the storage has `vectors`, need at least 4 dimensions, and tag every record with the run's id, so they work against a shared index.
 
+### SQLite with sqlite-vec
+
+Install the optional peer dependency to keep embeddings in the same SQLite file:
+
+```bash
+npm install @chatcops/store-sqlite sqlite-vec
+```
+
+```typescript
+import { sqliteStorage } from '@chatcops/store-sqlite';
+
+const storage = sqliteStorage({
+  path: './chatcops.db',
+  vectors: { dimensions: 1024 },
+});
+```
+
+Use the embedder's dimensions. `storage.vectors` supports cosine similarity, typed metadata filters, source deletion, and FTS5 keyword search with Japanese and Chinese word segmentation. Without `vectors`, SQLite storage does not load or require `sqlite-vec`. A caller-supplied database must be opened with `allowExtension: true` to enable vectors.
+
 ### Postgres with pgvector
 
 The Postgres store can keep chunks in a pgvector table with cosine search and full-text keyword search. Install pgvector on the database, then run the vector migration separately from the regular conversation migration. This keeps `migrate()` usable on Postgres servers where the extension is not installed:
