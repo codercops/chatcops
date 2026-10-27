@@ -323,7 +323,6 @@ export class Widget {
     this.panel.show();
     if (!this.isInline) {
       this.fab?.setOpen(true);
-      this.fab?.hideBadge();
       this.bubble?.hide();
     }
     this.lockScroll();

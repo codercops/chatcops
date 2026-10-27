@@ -50,10 +50,6 @@
   visibility: hidden;
 }
 
-.cc-panel.cc-inline.cc-visible {
-  transform: none;
-}
-
 /* Panel header */
 .cc-header {
   display: flex;
@@ -64,19 +60,19 @@
   flex-shrink: 0;
 }
 
-.cc-header-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  margin-inline-end: 12px;
-  object-fit: cover;
-}
-
+.cc-header-avatar,
 .cc-header-avatar-placeholder {
   width: 36px;
   height: 36px;
   border-radius: 50%;
   margin-inline-end: 12px;
+}
+
+.cc-header-avatar {
+  object-fit: cover;
+}
+
+.cc-header-avatar-placeholder {
   background: var(--cc-accent);
   display: flex;
   align-items: center;
