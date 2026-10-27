@@ -142,6 +142,37 @@ const handler = chatcopsMiddleware({
 - SQLite for single-server deployments ([#247](https://github.com/codercops/chatcops/issues/247)).
 - Cloudflare storage for D1, KV, and Durable Objects counters ([#249](https://github.com/codercops/chatcops/issues/249)).
 
+## Vector stores
+
+`@chatcops/store-cloudflare` can add semantic and keyword retrieval with a D1 database and a Cloudflare Vectorize index:
+
+```bash
+npm install @chatcops/store-cloudflare
+```
+
+Create the Vectorize index with the same dimensions as your embedding model and cosine distance, then create metadata indexes for every key used in filters:
+
+```bash
+npx wrangler vectorize create-index CHATCOPS_VECTORS --dimensions=1536 --metric=cosine
+npx wrangler vectorize create-metadata-index CHATCOPS_VECTORS --property-name=locale --type=string
+npx wrangler vectorize create-metadata-index CHATCOPS_VECTORS --property-name=collection --type=string
+npx wrangler vectorize create-metadata-index CHATCOPS_VECTORS --property-name=run --type=string
+```
+
+Bind both services and pass the same dimension count to the store:
+
+```typescript
+import { cloudflareStorage } from '@chatcops/store-cloudflare';
+
+const storage = cloudflareStorage({
+  d1: env.DB,
+  vectorize: env.CHATCOPS_VECTORS,
+  vectorDimensions: 1536,
+});
+```
+
+Vectorize stores embeddings and filterable metadata; D1 keeps the full text and source details and provides FTS5 keyword search. Create a metadata index for each key you pass in `filter`; unindexed metadata cannot be filtered by Vectorize. The index metric must be `cosine`.
+
 ## Custom stores
 
 The server accepts a custom conversation store through `storage`:
