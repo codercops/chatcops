@@ -250,6 +250,32 @@ await storage.vectors?.upsert([
 
 Use the same `dimensions` and `tablePrefix` for both `migrateVectors()` and `postgresStorage()`. `keywordQuery()` uses Postgres full-text ranking and splits words with `Intl.Segmenter`, including Japanese and Chinese. Filtered vector queries use pgvector iterative HNSW scans, which requires pgvector 0.8 or newer.
 
+### Upstash Vector
+
+The Upstash store uses an existing dense index configured for cosine distance. Set its dimensions to match your embedder. The store preserves the page source in reserved metadata fields, so `deleteBySource()` can remove all of a page's chunks. Configure a dedicated test index with at least four dimensions to run conformance; tests do not reset the index.
+
+```bash
+npm install @chatcops/store-upstash-vector @upstash/vector
+```
+
+```typescript
+import { memoryStorage } from '@chatcops/core';
+import { Index } from '@upstash/vector';
+import { upstashVectors } from '@chatcops/store-upstash-vector';
+
+const dimensions = 1024;
+const index = new Index({
+  url: process.env.UPSTASH_VECTOR_REST_URL!,
+  token: process.env.UPSTASH_VECTOR_REST_TOKEN!,
+});
+const storage = {
+  ...memoryStorage(),
+  vectors: upstashVectors({ index, dimensions }),
+};
+```
+
+Metadata filters require every key to match and accept any value in an array. For sparse indexes and hybrid indexes with a sparse text embedding model, pass `keywordSearch: true` to expose `keywordQuery`. Dense indexes leave that method absent. The SDK does not encode the configured index kind in its `Index` type, so only enable this option for supported indexes.
+
 ## Retention
 
 The handler exposes `purge()` for retention cleanup. `retention.conversationsDays` defaults to 30 days. Call `purge()` from a scheduled job or deploy task; it returns the number of deleted conversations, or `null` when the store can't purge:
