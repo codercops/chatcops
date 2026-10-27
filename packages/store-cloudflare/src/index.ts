@@ -5,11 +5,13 @@ import { CloudflareEvents } from './events.js';
 import { D1KvStore } from './kv.js';
 import { checkRowHook, type ExtraColumns, type RowHookFunction } from './row-hook.js';
 import { ensureSchema } from './schema.js';
-import type { D1Database, DurableObjectNamespace } from './types.js';
+import type { D1Database, DurableObjectNamespace, VectorizeIndex } from './types.js';
+import { CloudflareVectors } from './vectors.js';
 
 export { ChatCopsCounter } from './counters.js';
 export { SCHEMA_SQL, SCHEMA_VERSION, initializeSchema } from './schema.js';
 export type {
+  CloudflareBindings,
   D1Database,
   D1ExecResult,
   D1PreparedStatement,
@@ -19,6 +21,7 @@ export type {
   DurableObjectState,
   DurableObjectStorage,
   DurableObjectStub,
+  VectorizeIndex,
 } from './types.js';
 export type { ExtraColumns, RowHookContext, RowHookFunction } from './row-hook.js';
 
@@ -41,12 +44,16 @@ export interface CloudflareStorageOptions {
   rowHook?: RowHookFunction;
   /** Optional custom clock for testing. */
   now?: () => number;
+  /** Optional Cloudflare Vectorize index for semantic and keyword search. */
+  vectorize?: VectorizeIndex;
+  /** Embedding dimensions configured on the Vectorize index. Required with vectorize. */
+  vectorDimensions?: number;
 }
 
 /**
  * Cloudflare storage for ChatCops: conversations, rate limit counters,
- * turn locks, and analytics events backed by Cloudflare D1, Workers KV,
- * and Durable Objects.
+ * turn locks, analytics events, and optional Vectorize retrieval backed by
+ * Cloudflare D1, Workers KV, Durable Objects, and Vectorize.
  */
 export function cloudflareStorage(options: CloudflareStorageOptions): ChatCopsStorage {
   if (!options?.d1) {
@@ -57,6 +64,11 @@ export function cloudflareStorage(options: CloudflareStorageOptions): ChatCopsSt
   const ensure = () => ensureSchema(options.d1);
   const hook = checkRowHook(options.extraColumns, options.rowHook);
 
+  const vectorDimensions = options.vectorDimensions ?? 0;
+  if (options.vectorize && (!Number.isInteger(vectorDimensions) || vectorDimensions < 1)) {
+    throw new Error('cloudflareStorage requires a positive vectorDimensions when vectorize is provided');
+  }
+
   return {
     conversations: new CloudflareConversations(options.d1, now, ensure, hook),
     counters: options.counters
@@ -66,6 +78,7 @@ export function cloudflareStorage(options: CloudflareStorageOptions): ChatCopsSt
     // so key-value data always lives in D1.
     kv: new D1KvStore(options.d1, now, ensure),
     events: new CloudflareEvents(options.d1, ensure),
+    ...(options.vectorize ? { vectors: new CloudflareVectors(vectorDimensions, options.d1, options.vectorize, ensure) } : {}),
     close: async () => {},
   };
 }

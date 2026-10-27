@@ -8,6 +8,7 @@ Cloudflare storage for [ChatCops](https://chat.codercops.com): conversations, ex
 - **Exact Counters:** Globally coordinated rate limits and token budgets through Durable Objects (`ChatCopsCounter`), with automatic fallback to D1 `UPSERT ... RETURNING`.
 - **Turn locks:** In D1, with an atomic `setIfAbsent`, so one reply per conversation holds across every isolate. Workers KV isn't used: it has no atomic `setIfAbsent`, and its TTLs start at 60 seconds.
 - **Analytics Events:** Time-bucketed event queries in D1 for dashboards and reporting.
+- **Vector search:** Optional Cloudflare Vectorize embeddings with D1-backed text, source data, filters, and FTS5 keyword search.
 
 ## Install
 
@@ -94,6 +95,20 @@ export default {
 | `extraColumns` | `string[]` or `Record<string, string>` | No | Columns you've added yourself, filled in by `rowHook`. See below. |
 | `rowHook` | `(context) => Record<string, unknown>` | No | Values for `extraColumns` on each new row. |
 | `now` | `() => number` | No | Clock function for testing (defaults to `Date.now`). |
+
+## Vectorize
+
+Pass a Vectorize index and its configured dimensions to expose `storage.vectors`:
+
+```ts
+const storage = cloudflareStorage({
+  d1: env.DB,
+  vectorize: env.VECTORIZE,
+  vectorDimensions: 1536,
+});
+```
+
+Create the index with `cosine` distance and create a Vectorize metadata index for every metadata key used in vector filters. The store keeps vectors and filterable metadata in Vectorize, while D1 stores the complete text and source details and powers `keywordQuery` with FTS5. Miniflare cannot run Vectorize; the package tests use an in-memory binding double.
 
 ## Extra columns
 
