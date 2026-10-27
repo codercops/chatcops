@@ -1,0 +1,37 @@
+import type { WidgetLocaleStrings } from '../i18n.js';
+
+const ar: Partial<WidgetLocaleStrings> = {
+  welcomeMessage: 'كيف يمكنني مساعدتك اليوم؟',
+  inputPlaceholder: 'اكتب رسالة…',
+  sendButton: 'إرسال',
+  closeButton: 'إغلاق',
+  openChat: 'فتح المحادثة',
+  defaultName: 'مساعد الذكاء الاصطناعي',
+  defaultSubtitle: 'متصل',
+  greetingWithName: 'مرحبًا، {name}!',
+  selectPlaceholder: 'اختر {label}…',
+  dismissBubble: 'إخفاء',
+  errorGeneric: 'حدث خطأ ما. يُرجى المحاولة مرة أخرى.',
+  errorNetwork: 'حدث خطأ في الاتصال. يُرجى التحقق من اتصالك بالإنترنت.',
+  errorRateLimit: 'أرسلت رسائل كثيرة جدًا. يُرجى الانتظار قليلًا.',
+  errorRateLimitWait: 'أرسلت رسائل كثيرة جدًا. يُرجى المحاولة مرة أخرى بعد {seconds} ثانية.',
+  errorBudget: 'وصلت هذه المحادثة إلى حد الاستخدام.',
+  errorBudgetDaily: 'وصل المساعد إلى حد الاستخدام اليومي. يُرجى المحاولة لاحقًا.',
+  errorUnavailable: 'المساعد غير متاح حاليًا. يُرجى المحاولة مرة أخرى بعد قليل.',
+  errorCutOff: 'انقطع الرد قبل اكتماله.',
+  typingIndicator: 'يكتب…',
+  poweredBy: 'مدعوم من ChatCops',
+  newConversation: 'محادثة جديدة',
+  welcomeBubbleDefault: 'هل تحتاج إلى مساعدة؟ تواصل معنا!',
+  preChatTitle: 'قبل أن نبدأ…',
+  preChatSubtitle: 'أخبرنا قليلًا عنك',
+  preChatSubmit: 'ابدأ المحادثة',
+  preChatRequired: 'هذا الحقل مطلوب.',
+  preChatInvalidEmail: 'يُرجى إدخال عنوان بريد إلكتروني صالح.',
+  retryButton: 'إعادة المحاولة',
+  regenerateButton: 'إنشاء رد جديد',
+  suggestionsLabel: 'أسئلة مقترحة',
+  unreadCount: 'عدد الرسائل غير المقروءة: {count}',
+};
+
+export default ar;
