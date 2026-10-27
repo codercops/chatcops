@@ -1,0 +1,37 @@
+import type { WidgetLocaleStrings } from '../i18n.js';
+
+const ja: Partial<WidgetLocaleStrings> = {
+  welcomeMessage: '今日はどのようなお手伝いができますか？',
+  inputPlaceholder: 'メッセージを入力…',
+  sendButton: '送信',
+  closeButton: '閉じる',
+  openChat: 'チャットを開く',
+  defaultName: 'AIアシスタント',
+  defaultSubtitle: 'オンライン',
+  greetingWithName: 'こんにちは、{name}さん！',
+  selectPlaceholder: '{label}を選択…',
+  dismissBubble: '閉じる',
+  errorGeneric: '問題が発生しました。もう一度お試しください。',
+  errorNetwork: '接続エラーが発生しました。ネットワーク接続をご確認ください。',
+  errorRateLimit: 'メッセージの送信が多すぎます。しばらくお待ちください。',
+  errorRateLimitWait: 'メッセージの送信が多すぎます。{seconds}秒後にもう一度お試しください。',
+  errorBudget: 'このチャットの利用上限に達しました。',
+  errorBudgetDaily: 'アシスタントの本日の利用上限に達しました。後でもう一度お試しください。',
+  errorUnavailable: '現在、アシスタントを利用できません。しばらくしてからもう一度お試しください。',
+  errorCutOff: '返信が途中で終了しました。',
+  typingIndicator: '入力中…',
+  poweredBy: 'ChatCops 提供',
+  newConversation: '新しい会話',
+  welcomeBubbleDefault: 'お困りですか？お気軽にご相談ください！',
+  preChatTitle: '始める前に…',
+  preChatSubtitle: '簡単に自己紹介をお願いします',
+  preChatSubmit: 'チャットを開始',
+  preChatRequired: 'この項目は必須です。',
+  preChatInvalidEmail: '有効なメールアドレスを入力してください。',
+  retryButton: '再試行',
+  regenerateButton: '再生成',
+  suggestionsLabel: 'おすすめの質問',
+  unreadCount: '未読メッセージ {count} 件',
+};
+
+export default ja;

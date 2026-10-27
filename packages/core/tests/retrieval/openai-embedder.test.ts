@@ -49,6 +49,24 @@ describe('openaiEmbedder', () => {
     expect(JSON.parse(String(init?.body))).toEqual({ model: 'text-embedding-3-small', input: ['1', '2'], encoding_format: 'float', dimensions: 3 });
   });
 
+  it.each([
+    [0, 1],
+    [-3, 1],
+    [2.7, 2],
+    [5000, 2048],
+  ])('keeps batchSize %s to %s texts per request, so a bad value never stalls or overflows', async (batchSize, expected) => {
+    const sizes: number[] = [];
+    const send = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const input = JSON.parse(String(init?.body)).input as string[];
+      sizes.push(input.length);
+      return json(embeddings(input.map(() => [1])));
+    });
+    const texts = Array.from({ length: Math.max(expected, 2) * 2 + 1 }, (_, i) => `t${i}`);
+    await openaiEmbedder({ apiKey: 'k', dimensions: 1, batchSize, fetch: send }).embed(texts, 'document');
+    expect(Math.max(...sizes)).toBe(expected);
+    expect(sizes.reduce((a, b) => a + b, 0)).toBe(texts.length);
+  });
+
   it("doesn't ask older models for a size, and makes no request for no texts", async () => {
     const send = vi.fn(async () => json(embeddings([[1, 2]])));
     const embedder = openaiEmbedder({ apiKey: 'k', model: 'text-embedding-ada-002', dimensions: 2, fetch: send });

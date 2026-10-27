@@ -1,3 +1,4 @@
+import { batchSizeFor, checkedVectors, inBatches, postWithRetries } from './http.js';
 import type { Embedder } from './types.js';
 
 export interface VoyageEmbedderOptions {
@@ -25,7 +26,6 @@ export interface VoyageEmbedderOptions {
   fetch?: typeof fetch;
 }
 
-const MAX_ATTEMPTS = 3;
 const MAX_BATCH_SIZE = 1000;
 // The models whose docs list `output_dimension`. The others make one fixed length.
 const SHORTENABLE = /^voyage-(?:4|3\.5|3-large|code-3)(?:-|$)/;
@@ -40,67 +40,28 @@ export function voyageEmbedder(options: VoyageEmbedderOptions): Embedder {
   const model = options.model ?? 'voyage-4-large';
   const dimensions = options.dimensions ?? 1024;
   const baseUrl = (options.baseUrl ?? 'https://api.voyageai.com/v1').replace(/\/$/, '');
-  const batchSize = Math.min(Math.max(Math.floor(options.batchSize ?? 128) || 1, 1), MAX_BATCH_SIZE);
+  const batchSize = batchSizeFor(options.batchSize, 128, MAX_BATCH_SIZE);
   const send = options.fetch ?? fetch;
   const shortens = SHORTENABLE.test(model);
-
-  async function request(input: string[], kind: 'document' | 'query', signal?: AbortSignal): Promise<Float32Array[]> {
-    for (let attempt = 1; ; attempt++) {
-      const response = await send(`${baseUrl}/embeddings`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${options.apiKey}` },
-        body: JSON.stringify({ model, input, input_type: kind, ...(shortens ? { output_dimension: dimensions } : {}) }),
-        signal,
-      });
-      if (response.ok) {
-        const body = (await response.json()) as { data?: Array<{ index: number; embedding: number[] }> };
-        const data = [...(body.data ?? [])].sort((a, b) => a.index - b.index);
-        if (data.length !== input.length) {
-          throw new Error(`Voyage returned ${data.length} embeddings for ${input.length} texts.`);
-        }
-        return data.map(({ embedding }) => {
-          if (embedding.length !== dimensions) {
-            throw new Error(`Voyage returned ${embedding.length} dimensions from ${model}, but the embedder is set to ${dimensions}.`);
-          }
-          return Float32Array.from(embedding);
-        });
-      }
-      const retryable = response.status === 429 || response.status >= 500;
-      if (!retryable || attempt >= MAX_ATTEMPTS) {
-        // The body explains the error (`{"detail": "..."}`) and never holds the key.
-        const detail = (await response.text().catch(() => '')).slice(0, 300);
-        throw new Error(`Voyage embeddings failed with HTTP ${response.status}${detail ? `: ${detail}` : ''}`);
-      }
-      const wait = Number(response.headers.get('retry-after'));
-      await sleep(Number.isFinite(wait) && wait > 0 ? Math.min(wait, 30) * 1000 : 1000 * attempt, signal);
-    }
-  }
 
   return {
     id: `voyage:${model}@${dimensions}`,
     dimensions,
-    async embed(texts, kind, embedOptions = {}) {
-      const vectors: Float32Array[] = [];
-      for (let start = 0; start < texts.length; start += batchSize) {
-        vectors.push(...(await request(texts.slice(start, start + batchSize), kind, embedOptions.signal)));
-      }
-      return vectors;
-    },
+    embed: (texts, kind, embedOptions = {}) =>
+      inBatches(texts, batchSize, async (input) => {
+        const response = await postWithRetries(
+          'Voyage',
+          send,
+          {
+            url: `${baseUrl}/embeddings`,
+            headers: { authorization: `Bearer ${options.apiKey}` },
+            body: { model, input, input_type: kind, ...(shortens ? { output_dimension: dimensions } : {}) },
+          },
+          embedOptions.signal
+        );
+        const body = (await response.json()) as { data?: Array<{ index: number; embedding: number[] }> };
+        const data = [...(body.data ?? [])].sort((a, b) => a.index - b.index);
+        return checkedVectors('Voyage', model, data.map((item) => item.embedding), input.length, dimensions);
+      }),
   };
-}
-
-function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) return reject(signal.reason);
-    const timer = setTimeout(done, ms);
-    function done() {
-      signal?.removeEventListener('abort', abort);
-      resolve();
-    }
-    function abort() {
-      clearTimeout(timer);
-      reject(signal?.reason);
-    }
-    signal?.addEventListener('abort', abort, { once: true });
-  });
 }
