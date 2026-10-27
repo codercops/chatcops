@@ -94,6 +94,7 @@ export type {
   Retriever,
   Reranker,
   OpenAIEmbedderOptions,
+  GeminiEmbedderOptions,
   VoyageEmbedderOptions,
   RetrieverKnowledgeOptions,
   VectorRetrieverOptions,
@@ -101,6 +102,7 @@ export type {
 } from './retrieval/index.js';
 export {
   openaiEmbedder,
+  geminiEmbedder,
   voyageEmbedder,
   retrieverKnowledge,
   formatSources,

@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { ClaudeProvider } from '../dist/providers/claude.js';
 import { GeminiProvider } from '../dist/providers/gemini.js';
 import { OpenAIProvider } from '../dist/providers/openai.js';
+import { geminiEmbedder } from '../dist/retrieval/gemini-embedder.js';
 import { openaiEmbedder } from '../dist/retrieval/openai-embedder.js';
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), '..', 'tests', 'fixtures');
@@ -177,12 +178,19 @@ async function recordEmbeddings() {
   await embedder.embed(['How much is the Team plan?'], 'query');
 }
 
+async function recordGeminiEmbeddings() {
+  const embedder = geminiEmbedder({ apiKey: process.env.GEMINI_API_KEY, dimensions: 8, fetch: recorder('gemini-embeddings', 'basic') });
+  await embedder.embed(['The Team plan costs $20 a month.', 'Our office is in Lisbon.'], 'document');
+  await embedder.embed(['How much is the Team plan?'], 'query');
+}
+
 const providers = {
   openai: () => recordCases('openai', openai),
   'openai-embeddings': recordEmbeddings,
   // Gemini sends no thought text unless asked; its signature rides on the
   // function call part, which the one-tool case covers.
   gemini: () => recordCases('gemini', gemini),
+  'gemini-embeddings': recordGeminiEmbeddings,
   claude: async () => {
     await recordCases('claude', (name) => claude(name));
     await recordThinkingTool('claude', claude('thinking-tool', { effort: 'high' }));

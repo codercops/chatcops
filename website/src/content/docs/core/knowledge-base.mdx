@@ -126,6 +126,14 @@ const handler = chatcopsMiddleware({
 });
 ```
 
+`geminiEmbedder` does the same with [Google's Gemini API](https://ai.google.dev/gemini-api/docs/embeddings). It defaults to `gemini-embedding-001` at 1024 dimensions:
+
+```typescript
+import { geminiEmbedder } from '@chatcops/core';
+
+const embedder = geminiEmbedder({ apiKey: process.env.GEMINI_API_KEY! });
+```
+
 `voyageEmbedder` does the same with [Voyage AI](https://docs.voyageai.com/reference/embeddings-api). It uses `voyage-4-large` at 1024 dimensions by default, and tells Voyage whether it is embedding a document or a search query, which Voyage embeds differently:
 
 ```typescript
