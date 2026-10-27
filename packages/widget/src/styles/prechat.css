@@ -40,7 +40,7 @@
 
 .cc-prechat-label .cc-required {
   color: #ef4444;
-  margin-left: 2px;
+  margin-inline-start: 2px;
 }
 
 .cc-prechat-input,
@@ -105,7 +105,18 @@
   cursor: not-allowed;
 }
 
+.cc-prechat-input:focus-visible,
+.cc-prechat-select:focus-visible,
+.cc-prechat-textarea:focus-visible,
 .cc-prechat-submit:focus-visible {
-  outline: 2px solid var(--cc-accent);
-  outline-offset: 3px;
+  outline: 2px solid transparent;
+  box-shadow: var(--cc-focus-ring);
+}
+
+@media (max-width: 640px) {
+  .cc-prechat-input,
+  .cc-prechat-select,
+  .cc-prechat-textarea {
+    font-size: 16px;
+  }
 }
