@@ -44,7 +44,7 @@ export class PostgresVectorStore implements VectorStore {
       const words = segmentWords(record.text).join(' ');
       await this.db.query(
         `INSERT INTO ${this.table} (id, source_id, source, text, metadata, embedding, keyword_vector)
-         VALUES ($1, $2, $3::jsonb, $4, $5::jsonb, $6::vector, to_tsvector('simple', $7))
+         VALUES ($1, $2, $3::text::jsonb, $4, $5::text::jsonb, $6::text::vector, to_tsvector('simple', $7))
          ON CONFLICT (id) DO UPDATE SET source_id = EXCLUDED.source_id, source = EXCLUDED.source,
            text = EXCLUDED.text, metadata = EXCLUDED.metadata, embedding = EXCLUDED.embedding,
            keyword_vector = EXCLUDED.keyword_vector`,
@@ -61,9 +61,9 @@ export class PostgresVectorStore implements VectorStore {
     const where = metadataWhere(filter, params);
     params.push(limit);
     const sql = `WITH nearest AS MATERIALIZED (
-      SELECT id, text, source, metadata, embedding <=> $1::vector AS distance
+      SELECT id, text, source, metadata, embedding <=> $1::text::vector AS distance
       FROM ${this.table} ${where}
-      ORDER BY embedding <=> $1::vector
+      ORDER BY embedding <=> $1::text::vector
       LIMIT $${params.length}
     )
     SELECT id, text, source, metadata, coalesce(1 - distance, 0)::float8 AS score
@@ -124,10 +124,10 @@ function metadataWhere(filter: MetadataFilter | undefined, params: unknown[]): s
     const keyParam = `$${params.length}`;
     if (Array.isArray(value)) {
       params.push(JSON.stringify(value));
-      clauses.push(`EXISTS (SELECT 1 FROM jsonb_array_elements($${params.length}::jsonb) AS wanted(value) WHERE metadata -> ${keyParam}::text = wanted.value)`);
+      clauses.push(`EXISTS (SELECT 1 FROM jsonb_array_elements($${params.length}::text::jsonb) AS wanted(value) WHERE metadata -> ${keyParam}::text = wanted.value)`);
     } else {
       params.push(JSON.stringify(value));
-      clauses.push(`metadata -> ${keyParam}::text = $${params.length}::jsonb`);
+      clauses.push(`metadata -> ${keyParam}::text = $${params.length}::text::jsonb`);
     }
   }
   return clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';

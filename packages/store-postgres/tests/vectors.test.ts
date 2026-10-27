@@ -38,6 +38,9 @@ describe('PostgresVectorStore', () => {
     ]);
 
     expect(calls[0].text).toContain("to_tsvector('simple', $7)");
+    expect(calls[0].text).toContain('$3::text::jsonb');
+    expect(calls[0].text).toContain('$5::text::jsonb');
+    expect(calls[0].text).toContain('$6::text::vector');
     expect(calls[0].params?.[5]).toBe('[1,0,0,0]');
     expect(calls[0].params?.[6]).toContain('料金');
   });
@@ -48,8 +51,8 @@ describe('PostgresVectorStore', () => {
     const results = await store.query({ vector: new Float32Array([1, 0, 0, 0]), topK: 2, filter: { page: 1 } });
 
     expect(calls[0].text).toBe("SET LOCAL hnsw.iterative_scan = 'relaxed_order'");
-    expect(calls[1].text).toContain('ORDER BY embedding <=> $1::vector');
-    expect(calls[1].text).toContain('metadata -> $2::text = $3::jsonb');
+    expect(calls[1].text).toContain('ORDER BY embedding <=> $1::text::vector');
+    expect(calls[1].text).toContain('metadata -> $2::text = $3::text::jsonb');
     expect(calls[1].params).toEqual(['[1,0,0,0]', 'page', '1', 2]);
     expect(results).toEqual([{ ...row, score: 0.75 }]);
   });
