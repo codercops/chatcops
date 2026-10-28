@@ -49,9 +49,19 @@ The single-file build (`chatcops.full.min.js`) loads nothing else, so pass `stri
 
 | Code | Language |
 |------|----------|
+| `ar` | Arabic |
 | `en` | English (default, built in) |
+| `de` | German |
+| `es` | Spanish |
+| `fr` | French |
 | `hi` | Hindi |
+| `it` | Italian |
+| `ja` | Japanese |
+| `ko` | Korean |
+| `nl` | Dutch |
+| `pt` | Portuguese (Brazil) |
 | `ur` | Urdu |
+| `zh` | Chinese (Simplified) |
 
 Any other `locale` uses the English strings, with your `strings` on top. Hindi is loaded as a separate file only when requested. To add a language, see `packages/widget/src/locales/README.md` and [#55](https://github.com/codercops/chatcops/issues/55).
 
@@ -90,6 +100,7 @@ interface LocaleStrings {
   preChatInvalidEmail: string;
   retryButton: string;
   regenerateButton: string;
+  suggestionsLabel: string;
 }
 ```
 

@@ -86,6 +86,47 @@ export { toolToDefinition, LeadCaptureTool } from './tools/index.js';
 export type { KnowledgeSource, FAQPair } from './knowledge/index.js';
 export { TextKnowledgeSource, FAQKnowledgeSource } from './knowledge/index.js';
 
+// Retrieval
+export type {
+  Embedder,
+  RetrievedChunk,
+  RetrievalQuery,
+  Retriever,
+  Reranker,
+  OpenAIEmbedderOptions,
+  GeminiEmbedderOptions,
+  VoyageEmbedderOptions,
+  CohereRerankerOptions,
+  WorkersAiBinding,
+  WorkersAiEmbedderOptions,
+  WorkersAiRerankerOptions,
+  RetrieverKnowledgeOptions,
+  VectorRetrieverOptions,
+  HybridRetrieverOptions,
+} from './retrieval/index.js';
+export {
+  openaiEmbedder,
+  geminiEmbedder,
+  voyageEmbedder,
+  cohereReranker,
+  workersAiEmbedder,
+  workersAiReranker,
+  retrieverKnowledge,
+  formatSources,
+  uniqueChunks,
+  SOURCES_INSTRUCTION,
+  vectorRetriever,
+  hybridRetriever,
+  reciprocalRankFusion,
+  retrievalQueryText,
+  CitationParser,
+  parseCitations,
+  sourcePart,
+  sourcesContext,
+  CITE_INSTRUCTION,
+  NATIVE_SOURCES_INSTRUCTION,
+} from './retrieval/index.js';
+
 // Conversation
 export type { ConversationStore } from './conversation/index.js';
 export { ConversationManager, MemoryStore } from './conversation/index.js';
@@ -105,12 +146,24 @@ export type {
   ListQuery,
   MemoryStorageOptions,
   ConversationStoreWithAppend,
+  KeywordQuery,
+  MetadataFilter,
+  MetadataValue,
+  ScoredRecord,
+  VectorQuery,
+  VectorRecord,
+  VectorSource,
+  VectorStore,
+  MemoryVectorsOptions,
 } from './storage/index.js';
 export {
   ConflictError,
   isConflictError,
   CONFLICT_ERROR_CODE,
   memoryStorage,
+  memoryVectors,
+  matchesFilter,
+  segmentWords,
   withAppend,
   isLegacyConversationStore,
 } from './storage/index.js';

@@ -249,6 +249,11 @@ function fromPart(part: WirePart): WidgetChatChunk | null {
       return { content: part.delta };
     case 'lead-captured':
       return { leadCaptured: true, leadData: part.lead };
+    case 'source': {
+      const { url, title } = part;
+      if (!url.startsWith('http://') && !url.startsWith('https://')) return null;
+      return { source: { url, title } };
+    }
     case 'error':
       return errorChunk(part.code === 'budget_exceeded' && part.scope !== 'conversation' ? 'budget_daily' : part.code, part.retryAfterMs);
     case 'finish':

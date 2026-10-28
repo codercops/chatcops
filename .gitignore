@@ -23,3 +23,6 @@ e2e/playwright-report/
 
 # Private keys (the release bot key is downloaded as a .pem)
 *.pem
+
+# chatcops CLI test projects
+packages/cli/tests/.tmp

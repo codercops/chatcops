@@ -14,6 +14,7 @@ export interface MessageData {
   errorType?: MessageErrorType;
   /** Shown under the content when a reply fails after some of it already streamed. */
   errorText?: string;
+  sources?: Array<{ url: string; title?: string }>;
 }
 
 export interface MessageActions {
@@ -22,11 +23,14 @@ export interface MessageActions {
   retryLabel?: string;
   regenerateLabel?: string;
   typingLabel?: string;
+  sourcesLabel?: string;
 }
 
 export class Messages {
   private container: HTMLDivElement;
+  private announcement: HTMLDivElement;
   private typingEl: HTMLDivElement | null = null;
+  private suggestionsEl: HTMLDivElement | null = null;
   private actions?: MessageActions;
 
   constructor(parent: HTMLElement, actions?: MessageActions) {
@@ -36,10 +40,32 @@ export class Messages {
     this.container.setAttribute('role', 'log');
     this.container.setAttribute('aria-live', 'polite');
     parent.appendChild(this.container);
+
+    this.announcement = document.createElement('div');
+    this.announcement.className = 'cc-reply-announcement cc-sr-only';
+    this.announcement.setAttribute('aria-live', 'polite');
+    this.announcement.setAttribute('aria-atomic', 'true');
+    parent.appendChild(this.announcement);
+  }
+
+  beginReply(): void {
+    this.announcement.textContent = '';
+    this.container.setAttribute('aria-live', 'off');
+  }
+
+  finishReply(msg?: MessageData): void {
+    if (msg?.role === 'assistant' && (msg.status === 'complete' || msg.status === 'error')) {
+      const rendered = this.findMessage(msg.id);
+      const content = rendered?.querySelector('.cc-message-content')?.textContent?.trim() ?? '';
+      const error = rendered?.querySelector('.cc-message-error-note')?.textContent?.trim() ?? '';
+      this.announcement.textContent = [content, error && error !== content ? error : ''].filter(Boolean).join(' ');
+    }
+    this.container.setAttribute('aria-live', 'polite');
   }
 
   addMessage(msg: MessageData): HTMLDivElement {
     this.removeTyping();
+    if (msg.role === 'user') this.removeSuggestions();
     const el = this.createMessageElement(msg);
     this.container.appendChild(el);
     this.scrollToBottom();
@@ -68,6 +94,31 @@ export class Messages {
       this.typingEl.remove();
       this.typingEl = null;
     }
+  }
+
+  showSuggestions(suggestions: string[], label: string, onSelect: (suggestion: string) => void): void {
+    this.removeSuggestions();
+    if (suggestions.length === 0) return;
+
+    const group = document.createElement('div');
+    group.className = 'cc-suggestions';
+    group.setAttribute('role', 'group');
+    group.setAttribute('aria-label', label);
+    for (const suggestion of suggestions) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'cc-suggestion';
+      button.textContent = suggestion;
+      button.addEventListener('click', () => onSelect(suggestion));
+      group.appendChild(button);
+    }
+    this.container.appendChild(group);
+    this.suggestionsEl = group;
+  }
+
+  removeSuggestions(): void {
+    this.suggestionsEl?.remove();
+    this.suggestionsEl = null;
   }
 
   clear(): void {
@@ -154,6 +205,32 @@ export class Messages {
     content.className = 'cc-message-content';
     content.innerHTML = msg.role === 'assistant' ? renderMarkdown(msg.content) : this.escapeHtml(msg.content);
     el.appendChild(content);
+
+    if (msg.role === 'assistant' && Array.isArray(msg.sources) && msg.sources.length > 0) {
+      const safeUrls = msg.sources.filter((s) => typeof s.url === 'string' && (s.url.startsWith('http://') || s.url.startsWith('https://')));
+      if (safeUrls.length > 0) {
+        const nav = document.createElement('nav');
+        nav.className = 'cc-message-sources';
+        nav.setAttribute('aria-label', this.actions?.sourcesLabel ?? 'Sources');
+        const ol = document.createElement('ol');
+        for (const source of safeUrls) {
+          const li = document.createElement('li');
+          const a = document.createElement('a');
+          a.href = source.url;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          try {
+            a.textContent = source.title ?? new URL(source.url).hostname;
+          } catch {
+            a.textContent = source.title ?? source.url;
+          }
+          li.appendChild(a);
+          ol.appendChild(li);
+        }
+        nav.appendChild(ol);
+        el.appendChild(nav);
+      }
+    }
 
     if (msg.status === 'error' && msg.errorText) {
       const note = document.createElement('div');

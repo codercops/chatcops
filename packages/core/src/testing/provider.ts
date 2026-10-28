@@ -13,6 +13,8 @@ export interface ScriptedProviderOptions {
   name?: string;
   /** Wait this long before each event, to test streaming and timeouts. */
   delayMs?: number;
+  /** Act like a provider with native citations: steps get `sources`, and can yield `source` events. */
+  citations?: 'native';
 }
 
 export interface ScriptedProvider extends AIProvider {
@@ -79,6 +81,7 @@ export function scriptedProvider(script: ScriptedStep[], options: ScriptedProvid
   const provider: ScriptedProvider = {
     name: options.name ?? 'scripted',
     model: 'scripted',
+    ...(options.citations ? { citations: options.citations } : {}),
     calls,
     async *step(params) {
       const entry = script[calls.length];

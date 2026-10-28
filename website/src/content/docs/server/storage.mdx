@@ -178,6 +178,155 @@ The history sent to the model is trimmed to about 32,000 tokens: the visitor's f
 
 The complete interface is defined by [`ConversationStore`](https://github.com/codercops/chatcops/blob/dev/packages/core/src/storage/types.ts). The broader `ChatCopsStorage` object can also provide optional counter, KV, and event stores for distributed rate limits, turn locks, and analytics.
 
+## Vector stores
+
+`vectors` holds embedded chunks of your site's pages, for answering from them. The server doesn't search it yet; retrieval and citations build on it next. The interface is in place now so store packages can add it.
+
+`memoryVectors` keeps vectors in the process and compares a query with every record. Use it for tests, local development, and indexes of a few thousand chunks:
+
+```typescript
+import { memoryStorage, memoryVectors } from '@chatcops/core';
+
+const storage = {
+  ...memoryStorage(),
+  vectors: memoryVectors({ dimensions: 1024 }),
+};
+
+await storage.vectors.upsert([
+  {
+    id: 'pricing-0',
+    vector: new Float32Array(1024),
+    text: 'The Team plan is $20 a month.',
+    source: { id: 'https://example.com/pricing', url: 'https://example.com/pricing', title: 'Pricing' },
+    metadata: { locale: 'en' },
+  },
+]);
+
+const results = await storage.vectors.query({
+  vector: new Float32Array(1024),
+  topK: 5,
+  filter: { locale: ['en', 'de'] },
+});
+```
+
+A `VectorStore` needs:
+
+| Method | What it does |
+|---|---|
+| `dimensions` | The length of every vector. Storing or searching with another length is an error. |
+| `upsert(records)` | Adds records, replacing any with the same id. |
+| `query({ vector, topK, filter })` | The nearest records by cosine similarity, best first. |
+| `keywordQuery({ text, topK, filter })` | Optional full-text search, for hybrid retrieval. Words are split with `Intl.Segmenter`, so Japanese and Chinese work. |
+| `deleteBySource(sourceId)` | Removes every chunk of a page. |
+
+A filter matches when every key matches: a value has to be equal and of the same type, and an array matches any of its values. Results don't include the vectors.
+
+To check your own store, run the conformance suite from `@chatcops/core/testing`. Its vector checks run when the storage has `vectors`, need at least 4 dimensions, and tag every record with the run's id, so they work against a shared index.
+
+### SQLite with sqlite-vec
+
+Install the optional peer dependency to keep embeddings in the same SQLite file:
+
+```bash
+npm install @chatcops/store-sqlite sqlite-vec
+```
+
+```typescript
+import { sqliteStorage } from '@chatcops/store-sqlite';
+
+const storage = sqliteStorage({
+  path: './chatcops.db',
+  vectors: { dimensions: 1024 },
+});
+```
+
+Use the embedder's dimensions. `storage.vectors` supports cosine similarity, typed metadata filters, source deletion, and FTS5 keyword search with Japanese and Chinese word segmentation. Without `vectors`, SQLite storage does not load or require `sqlite-vec`. A caller-supplied database must be opened with `allowExtension: true` to enable vectors.
+
+### Postgres with pgvector
+
+The Postgres store can keep chunks in a pgvector table with cosine search and full-text keyword search. Install pgvector on the database, then run the vector migration separately from the regular conversation migration. This keeps `migrate()` usable on Postgres servers where the extension is not installed:
+
+```typescript
+import { Pool } from 'pg';
+import { migrate, migrateVectors, postgresStorage } from '@chatcops/store-postgres';
+
+const db = new Pool({ connectionString: process.env.DATABASE_URL });
+const dimensions = 1024;
+await migrate(db);
+await migrateVectors(db, { dimensions });
+
+const storage = postgresStorage({ db, dimensions });
+await storage.vectors?.upsert([
+  {
+    id: 'pricing-0',
+    vector: new Float32Array(dimensions),
+    text: 'The Team plan is $20 a month.',
+    source: { id: 'pricing', url: 'https://example.com/pricing', title: 'Pricing' },
+    metadata: { locale: 'en' },
+  },
+]);
+```
+
+Use the same `dimensions` and `tablePrefix` for both `migrateVectors()` and `postgresStorage()`. `keywordQuery()` uses Postgres full-text ranking and splits words with `Intl.Segmenter`, including Japanese and Chinese. Filtered vector queries use pgvector iterative HNSW scans, which requires pgvector 0.8 or newer.
+
+### Cloudflare Vectorize
+
+`@chatcops/store-cloudflare` can add semantic and keyword retrieval with a D1 database and a Cloudflare Vectorize index:
+
+```bash
+npm install @chatcops/store-cloudflare
+```
+
+Create the Vectorize index with the same dimensions as your embedding model and cosine distance, then create metadata indexes for every key used in filters:
+
+```bash
+npx wrangler vectorize create-index CHATCOPS_VECTORS --dimensions=1024 --metric=cosine
+npx wrangler vectorize create-metadata-index CHATCOPS_VECTORS --property-name=locale --type=string
+npx wrangler vectorize create-metadata-index CHATCOPS_VECTORS --property-name=collection --type=string
+```
+
+Bind both services and pass the same dimension count to the store:
+
+```typescript
+import { cloudflareStorage, type CloudflareBindings } from '@chatcops/store-cloudflare';
+
+declare const env: CloudflareBindings;
+
+const storage = cloudflareStorage({
+  d1: env.DB,
+  vectorize: env.CHATCOPS_VECTORS,
+  vectorDimensions: 1024,
+});
+```
+
+Vectorize stores embeddings and filterable metadata; D1 keeps the full text and source details and provides FTS5 keyword search. Create a metadata index for each key you pass in `filter`; unindexed metadata cannot be filtered by Vectorize. The index metric must be `cosine`. Vectorize writes can take a few seconds to become searchable.
+
+### Upstash Vector
+
+The Upstash store uses an existing dense index configured for cosine distance. Set its dimensions to match your embedder. The store preserves the page source in reserved metadata fields, so `deleteBySource()` can remove all of a page's chunks. Configure a dedicated test index with at least four dimensions to run conformance; tests do not reset the index.
+
+```bash
+npm install @chatcops/store-upstash-vector @upstash/vector
+```
+
+```typescript
+import { memoryStorage } from '@chatcops/core';
+import { Index } from '@upstash/vector';
+import { upstashVectors } from '@chatcops/store-upstash-vector';
+
+const dimensions = 1024;
+const index = new Index({
+  url: process.env.UPSTASH_VECTOR_REST_URL!,
+  token: process.env.UPSTASH_VECTOR_REST_TOKEN!,
+});
+const storage = {
+  ...memoryStorage(),
+  vectors: upstashVectors({ index, dimensions }),
+};
+```
+
+Metadata filters require every key to match and accept any value in an array. For sparse indexes and hybrid indexes with a sparse text embedding model, pass `keywordSearch: true` to expose `keywordQuery`. Dense indexes leave that method absent. The SDK does not encode the configured index kind in its `Index` type, so only enable this option for supported indexes.
+
 ## Retention
 
 The handler exposes `purge()` for retention cleanup. `retention.conversationsDays` defaults to 30 days. Call `purge()` from a scheduled job or deploy task; it returns the number of deleted conversations, or `null` when the store can't purge:

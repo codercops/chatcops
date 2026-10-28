@@ -1,7 +1,7 @@
 // Records real provider responses for the replay tests in tests/fixtures.
 //
 //   pnpm --filter @chatcops/core build
-//   cd packages/core && node --env-file=../../.env scripts/record-fixtures.mjs [claude] [openai] [gemini]
+//   cd packages/core && node --env-file=../../.env scripts/record-fixtures.mjs [claude] [openai] [gemini] [openai-embeddings]
 //
 // Only request and response bodies are written, never headers, and the script
 // stops if a body contains an API key. Recording costs a few cents per run.
@@ -12,6 +12,8 @@ import { fileURLToPath } from 'node:url';
 import { ClaudeProvider } from '../dist/providers/claude.js';
 import { GeminiProvider } from '../dist/providers/gemini.js';
 import { OpenAIProvider } from '../dist/providers/openai.js';
+import { geminiEmbedder } from '../dist/retrieval/gemini-embedder.js';
+import { openaiEmbedder } from '../dist/retrieval/openai-embedder.js';
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), '..', 'tests', 'fixtures');
 const SECRETS = ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GEMINI_API_KEY']
@@ -169,11 +171,55 @@ const openai = (name) =>
 const gemini = (name) =>
   new GeminiProvider({ type: 'gemini', apiKey: process.env.GEMINI_API_KEY, fetch: recorder('gemini', name) });
 
+/** Retrieved chunks sent as search results, to record Claude's native citations. */
+const CITATION_SOURCES = [
+  {
+    id: 'pricing-0',
+    text: 'The Team plan costs $20 per user per month, billed annually. The Starter plan is free for up to 3 users.',
+    score: 1,
+    source: { id: 'https://example.test/pricing', url: 'https://example.test/pricing', title: 'Pricing', section: 'Plans' },
+  },
+  {
+    id: 'refunds-0',
+    text: 'Refunds are available within 30 days of purchase. Contact support with your order number.',
+    score: 0.8,
+    source: { id: 'https://example.test/refunds', url: 'https://example.test/refunds', title: 'Refund policy' },
+  },
+];
+
+async function recordCitations(provider) {
+  const sources = [];
+  for await (const event of provider.step({
+    messages: [user('How much is the Team plan, and can I get a refund?')],
+    systemPrompt: SYSTEM,
+    sources: CITATION_SOURCES,
+  })) {
+    if (event.type === 'source') sources.push(event.index);
+  }
+  if (!sources.length) throw new Error('claude/citations: no citations in the reply');
+}
+
+/** Two documents and a query at 8 dimensions, so the fixture stays small. */
+async function recordEmbeddings() {
+  const embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY, dimensions: 8, fetch: recorder('openai-embeddings', 'basic') });
+  await embedder.embed(['The Team plan costs $20 a month.', 'Our office is in Lisbon.'], 'document');
+  await embedder.embed(['How much is the Team plan?'], 'query');
+}
+
+async function recordGeminiEmbeddings() {
+  const embedder = geminiEmbedder({ apiKey: process.env.GEMINI_API_KEY, dimensions: 8, fetch: recorder('gemini-embeddings', 'basic') });
+  await embedder.embed(['The Team plan costs $20 a month.', 'Our office is in Lisbon.'], 'document');
+  await embedder.embed(['How much is the Team plan?'], 'query');
+}
+
 const providers = {
   openai: () => recordCases('openai', openai),
+  'openai-embeddings': recordEmbeddings,
+  'claude-citations': () => recordCitations(claude('citations')),
   // Gemini sends no thought text unless asked; its signature rides on the
   // function call part, which the one-tool case covers.
   gemini: () => recordCases('gemini', gemini),
+  'gemini-embeddings': recordGeminiEmbeddings,
   claude: async () => {
     await recordCases('claude', (name) => claude(name));
     await recordThinkingTool('claude', claude('thinking-tool', { effort: 'high' }));

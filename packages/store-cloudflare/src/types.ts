@@ -33,6 +33,20 @@ export interface D1ExecResult {
   duration: number;
 }
 
+/** The subset of a Vectorize index used by the Cloudflare vector store. */
+export interface VectorizeIndex {
+  upsert(vectors: Array<{ id: string; values: number[]; metadata?: Record<string, unknown> }>): Promise<unknown>;
+  query(
+    vector: number[] | Float32Array,
+    options: {
+      topK: number;
+      filter?: Record<string, unknown>;
+      returnMetadata?: boolean | 'all' | 'indexed';
+    }
+  ): Promise<{ matches?: Array<{ id: string; score?: number; metadata?: Record<string, unknown> }> }>;
+  deleteByIds(ids: string[]): Promise<unknown>;
+}
+
 export interface DurableObjectId {
   toString(): string;
   equals(other: DurableObjectId): boolean;
@@ -76,4 +90,9 @@ export interface DurableObjectStorage {
   setAlarm(scheduledTime: number | Date, options?: unknown): Promise<void>;
   getAlarm?(options?: unknown): Promise<number | null>;
   deleteAlarm?(options?: unknown): Promise<void>;
+}
+
+export interface CloudflareBindings {
+  DB: D1Database;
+  CHATCOPS_VECTORS: VectorizeIndex;
 }

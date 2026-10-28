@@ -181,7 +181,7 @@ describe('the script tag loader', () => {
     await vi.advanceTimersByTimeAsync(10);
     const bubble = shadow()?.querySelector('.cc-bubble');
     expect(bubble?.classList.contains('cc-visible')).toBe(true);
-    expect(bubble?.textContent).toContain('Need help?');
+    expect(bubble?.querySelector('button.cc-bubble-trigger')?.textContent).toBe('Need help?');
     loader.destroy();
   });
 

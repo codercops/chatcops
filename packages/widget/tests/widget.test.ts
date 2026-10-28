@@ -173,6 +173,145 @@ describe('Widget', () => {
     widget.destroy();
   });
 
+  it('opens from the welcome text button, but only dismisses from the close button', () => {
+    vi.useFakeTimers();
+    const onOpen = vi.fn();
+    const widget = new Widget({
+      apiUrl: 'https://api.test/chat',
+      welcomeBubble: { text: 'Need help?', delay: 1000, showOnce: false },
+      onOpen,
+    });
+    widget.init();
+
+    const root = getInternals(widget).shadow;
+    const bubble = root.querySelector('.cc-bubble') as HTMLElement;
+    const trigger = bubble.querySelector('.cc-bubble-trigger') as HTMLButtonElement;
+    const close = bubble.querySelector('.cc-bubble-close') as HTMLButtonElement;
+    expect(trigger.tagName).toBe('BUTTON');
+    expect(trigger.type).toBe('button');
+    expect(trigger.textContent).toBe('Need help?');
+    expect(trigger.parentElement).toBe(bubble);
+    expect(close.parentElement).toBe(bubble);
+    expect(bubble.hasAttribute('inert')).toBe(true);
+
+    vi.advanceTimersByTime(1000);
+    expect(bubble.classList.contains('cc-visible')).toBe(true);
+    expect(bubble.hasAttribute('inert')).toBe(false);
+    bubble.click();
+    expect(onOpen).not.toHaveBeenCalled();
+    close.click();
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(bubble.hasAttribute('inert')).toBe(true);
+    widget.destroy();
+
+    const second = new Widget({
+      apiUrl: 'https://api.test/chat',
+      welcomeBubble: { text: 'Need help?', delay: 1000, showOnce: false },
+      onOpen,
+    });
+    second.init();
+    vi.advanceTimersByTime(1000);
+    const secondBubble = getInternals(second).shadow.querySelector('.cc-bubble') as HTMLElement;
+    (secondBubble.querySelector('.cc-bubble-trigger') as HTMLButtonElement).click();
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(secondBubble.hasAttribute('inert')).toBe(true);
+    expect(getInternals(second).shadow.querySelector('.cc-panel')?.classList.contains('cc-visible')).toBe(true);
+    second.destroy();
+  });
+
+  it('shows configured suggestions in a labelled group in a new conversation', () => {
+    const widget = new Widget({
+      apiUrl: 'https://api.test/chat',
+      suggestions: ['Compare plans', 'Book a demo'],
+      strings: { suggestionsLabel: 'Popular questions' },
+    });
+    widget.init();
+    widget.open();
+
+    const root = getInternals(widget).shadow;
+    const group = root.querySelector('.cc-suggestions');
+    expect(group?.getAttribute('role')).toBe('group');
+    expect(group?.getAttribute('aria-label')).toBe('Popular questions');
+    expect(Array.from(group?.querySelectorAll('button') ?? []).map((button) => button.textContent))
+      .toEqual(['Compare plans', 'Book a demo']);
+    widget.destroy();
+  });
+
+  it('sends a selected suggestion and removes the suggestion row', () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat', suggestions: ['Compare plans'] });
+    widget.init();
+    widget.open();
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementation(async function* () {
+      yield { done: true };
+    });
+
+    const root = getInternals(widget).shadow;
+    (root.querySelector('.cc-suggestion') as HTMLButtonElement).click();
+    expect(root.querySelector('.cc-suggestions')).toBeNull();
+    expect(getInternals(widget).messages.some((message) => message.role === 'user' && message.content === 'Compare plans')).toBe(true);
+    widget.destroy();
+  });
+
+  it('does not show suggestions for restored conversations with user messages or while the pre-chat form is open', async () => {
+    localStorage.setItem('chatcops_conversation', JSON.stringify({
+      id: 'restored',
+      messages: [{ id: 'saved-user', role: 'user', content: 'Hi', timestamp: Date.now() }],
+      updatedAt: Date.now(),
+    }));
+    const restoredWidget = new Widget({ apiUrl: '/chat', suggestions: ['Book a demo'] });
+    restoredWidget.init();
+    restoredWidget.open();
+    expect(getInternals(restoredWidget).shadow.querySelector('.cc-suggestions')).toBeNull();
+    restoredWidget.destroy();
+
+    localStorage.clear();
+    const preChatWidget = new Widget({
+      apiUrl: '/chat',
+      suggestions: ['Book a demo'],
+      preChatForm: { enabled: true, fields: [{ name: 'email', label: 'Email', type: 'email' }] },
+    });
+    preChatWidget.init();
+    preChatWidget.open();
+    await vi.dynamicImportSettled();
+    expect(getInternals(preChatWidget).shadow.querySelector('.cc-prechat')).not.toBeNull();
+    expect(getInternals(preChatWidget).shadow.querySelector('.cc-suggestions')).toBeNull();
+    preChatWidget.destroy();
+  });
+
+  it('shows suggestions after restoring a pre-chat-completed conversation with no messages', () => {
+    new ConversationStorage().save({
+      id: 'pre-chat-completed',
+      messages: [],
+      preChatDone: true,
+      updatedAt: Date.now(),
+    });
+    const widget = new Widget({
+      apiUrl: '/chat',
+      suggestions: ['Book a demo'],
+      preChatForm: { enabled: true, fields: [{ name: 'email', label: 'Email', type: 'email' }] },
+    });
+    widget.init();
+    widget.open();
+
+    expect(getInternals(widget).shadow.querySelector('.cc-suggestions')).not.toBeNull();
+    widget.destroy();
+  });
+
+  it('hides suggestions when the visitor sends their first message', async () => {
+    const widget = new Widget({ apiUrl: '/chat', suggestions: ['Book a demo'] });
+    widget.init();
+    widget.open();
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementation(async function* () {
+      yield { done: true };
+    });
+
+    const root = getInternals(widget).shadow;
+    expect(root.querySelector('.cc-suggestions')).not.toBeNull();
+    await getInternals(widget).handleSend('Hello');
+    expect(root.querySelector('.cc-suggestions')).toBeNull();
+    widget.destroy();
+  });
+
   it('strings: { closeButton } overrides the close aria-label on both the panel header and the FAB', () => {
     const widget = new Widget({
       apiUrl: 'https://api.test/chat',
@@ -348,6 +487,71 @@ describe('Widget', () => {
     expect(welcome).toBeDefined();
     expect(welcome?.dataset.aiGenerated).toBeUndefined();
     expect(assistant.at(-1)?.dataset.aiGenerated).toBe('true');
+  });
+
+  it('announces a streamed reply once after completion, including repeated identical replies', async () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    const shadow = getInternals(widget).shadow;
+    const log = shadow.querySelector('.cc-messages') as HTMLElement;
+    const announcement = shadow.querySelector('.cc-reply-announcement') as HTMLElement;
+    const during: Array<[string | null, string | null]> = [];
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementation(async function* () {
+      yield { content: '**Hello**' };
+      during.push([log.getAttribute('aria-live'), announcement.textContent]);
+      yield { content: ' world' };
+      during.push([log.getAttribute('aria-live'), announcement.textContent]);
+      yield { done: true };
+    });
+
+    await getInternals(widget).handleSend('Hi');
+    expect(during).toEqual([['off', ''], ['off', '']]);
+    expect(announcement.textContent).toBe('Hello world');
+    expect(log.getAttribute('aria-live')).toBe('polite');
+
+    await getInternals(widget).handleSend('Again');
+    expect(during).toEqual([['off', ''], ['off', ''], ['off', ''], ['off', '']]);
+    expect(announcement.textContent).toBe('Hello world');
+    widget.destroy();
+  });
+
+  it.each([
+    ['empty error', [{ error: 'provider_error' }], 'Something went wrong. Please try again.'],
+    ['partial error', [{ content: 'Partial reply' }, { error: 'provider_error' }], 'Partial reply Something went wrong. Please try again.'],
+    ['cut-off reply', [{ content: 'Partial reply' }, { error: 'cut_off' }], 'Partial reply The reply was cut off.'],
+  ])('announces the %s once and restores the message log', async (_case, chunks, expected) => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    const shadow = getInternals(widget).shadow;
+    const log = shadow.querySelector('.cc-messages') as HTMLElement;
+    const announcement = shadow.querySelector('.cc-reply-announcement') as HTMLElement;
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementationOnce(async function* () {
+      for (const chunk of chunks) {
+        yield chunk;
+        expect(log.getAttribute('aria-live')).toBe('off');
+        expect(announcement.textContent).toBe('');
+      }
+    });
+
+    await getInternals(widget).handleSend('Hi');
+    expect(announcement.textContent).toBe(expected);
+    expect(log.getAttribute('aria-live')).toBe('polite');
+    widget.destroy();
+  });
+
+  it('announces a caught stream failure after partial content', async () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementationOnce(async function* () {
+      yield { content: 'Partial reply' };
+      throw new Error('network failed');
+    });
+
+    await getInternals(widget).handleSend('Hi');
+    const shadow = getInternals(widget).shadow;
+    expect(shadow.querySelector('.cc-reply-announcement')?.textContent).toBe('Partial reply Something went wrong. Please try again.');
+    expect(shadow.querySelector('.cc-messages')?.getAttribute('aria-live')).toBe('polite');
+    widget.destroy();
   });
 
   it('keeps the ai generated mark on failed, retried and regenerated replies', async () => {

@@ -50,10 +50,6 @@
   visibility: hidden;
 }
 
-.cc-panel.cc-inline.cc-visible {
-  transform: none;
-}
-
 /* Panel header */
 .cc-header {
   display: flex;
@@ -64,19 +60,19 @@
   flex-shrink: 0;
 }
 
-.cc-header-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  margin-inline-end: 12px;
-  object-fit: cover;
-}
-
+.cc-header-avatar,
 .cc-header-avatar-placeholder {
   width: 36px;
   height: 36px;
   border-radius: 50%;
   margin-inline-end: 12px;
+}
+
+.cc-header-avatar {
+  object-fit: cover;
+}
+
+.cc-header-avatar-placeholder {
   background: var(--cc-accent);
   display: flex;
   align-items: center;
@@ -178,6 +174,27 @@
   border-end-start-radius: 4px;
 }
 
+.cc-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 16px 12px;
+}
+
+.cc-suggestion {
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-radius);
+  padding: 8px 12px;
+  background: var(--cc-bg-surface);
+  color: var(--cc-text);
+  cursor: pointer;
+  font: inherit;
+}
+
+.cc-suggestion:hover {
+  border-color: var(--cc-accent);
+}
+
 .cc-message a {
   color: var(--cc-accent);
   text-decoration: underline;
@@ -191,6 +208,22 @@
   margin-top: 6px;
   font-size: 12px;
   color: var(--cc-text-secondary);
+}
+
+.cc-message-sources {
+  margin-block-start: 8px;
+  font-size: 12px;
+  color: var(--cc-text-secondary);
+}
+
+.cc-message-sources ol {
+  margin: 0;
+  padding-inline-start: 1.2em;
+}
+
+.cc-message-sources a {
+  color: var(--cc-text-secondary);
+  text-decoration: underline;
 }
 
 .cc-message code {
@@ -424,7 +457,6 @@
   transform: translateY(8px);
   pointer-events: none;
   transition: opacity 0.3s, transform 0.3s;
-  cursor: pointer;
 }
 
 .cc-bubble.cc-visible {
@@ -437,6 +469,21 @@
   /* Physical placement: the site's bottom-left choice stays on the left. */
   right: auto;
   left: 20px;
+}
+
+.cc-bubble-trigger {
+  appearance: none;
+  display: block;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: start;
+  cursor: pointer;
 }
 
 .cc-bubble-close {
@@ -518,8 +565,10 @@
 /* Keyboard focus indicators (the launcher's are in launcher.css) */
 .cc-header-close:focus-visible,
 .cc-send-btn:focus-visible,
+.cc-suggestion:focus-visible,
 .cc-message-retry:focus-visible,
 .cc-message-regenerate:focus-visible,
+.cc-bubble-trigger:focus-visible,
 .cc-bubble-close:focus-visible,
 .cc-input:focus-visible {
   outline: 2px solid transparent;

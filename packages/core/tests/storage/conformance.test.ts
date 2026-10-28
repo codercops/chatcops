@@ -1,8 +1,9 @@
 import type { Conversation, ConversationStore } from '../../src/index.js';
-import { memoryStorage, withAppend } from '../../src/index.js';
+import { memoryStorage, memoryVectors, withAppend } from '../../src/index.js';
 import { runStorageConformance } from '../../src/testing/index.js';
 
 runStorageConformance('memoryStorage', () => memoryStorage());
+runStorageConformance('memoryStorage with memoryVectors', () => ({ ...memoryStorage(), vectors: memoryVectors({ dimensions: 8 }) }));
 
 /** A 0.4-style store: get, save and delete only, with no shared references. */
 class JsonStore implements ConversationStore {

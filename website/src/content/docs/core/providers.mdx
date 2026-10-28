@@ -70,7 +70,7 @@ The server config's `maxTokens` (default 4096) and `temperature` are passed to t
 
 ### Temperature on newer models
 
-Claude 5.x models, Claude Opus 4.7 and later, and OpenAI reasoning models (GPT-5 and later, o-series) don't accept a custom `temperature`. ChatCops leaves it out for those models and logs a one-time warning. Use `effort` instead.
+Claude's API no longer takes `temperature` on any model (API version 2026-10-21), and OpenAI reasoning models (GPT-5 and later, o-series) don't accept a custom one either. ChatCops leaves it out for those and logs a one-time warning. Use `effort` instead. Gemini and other OpenAI models still use it.
 
 ## OpenAI-compatible servers
 
@@ -133,7 +133,7 @@ interface ProviderChatParams {
   systemPrompt: string;
   tools?: ToolDefinition[];
   maxTokens?: number;      // Default: 4096
-  temperature?: number;    // Left out on models that don't accept it
+  temperature?: number;    // Left out for Claude and models that don't accept it
 }
 ```
 

@@ -1,0 +1,36 @@
+import type { WidgetLocaleStrings } from '../i18n.js';
+
+const de: Partial<WidgetLocaleStrings> = {
+  welcomeMessage: 'Wie kann ich Ihnen heute helfen?',
+  inputPlaceholder: 'Nachricht eingeben…',
+  sendButton: 'Senden',
+  closeButton: 'Schließen',
+  openChat: 'Chat öffnen',
+  defaultName: 'KI-Assistent',
+  defaultSubtitle: 'Online',
+  greetingWithName: 'Hallo, {name}!',
+  selectPlaceholder: '{label} auswählen…',
+  dismissBubble: 'Ausblenden',
+  errorGeneric: 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.',
+  errorNetwork: 'Verbindungsfehler. Bitte überprüfen Sie Ihre Internetverbindung.',
+  errorRateLimit: 'Sie haben zu viele Nachrichten gesendet. Bitte warten Sie einen Moment.',
+  errorRateLimitWait: 'Sie haben zu viele Nachrichten gesendet. Bitte versuchen Sie es in {seconds} Sekunden erneut.',
+  errorBudget: 'Das Limit für diesen Chat ist erreicht.',
+  errorBudgetDaily: 'Der Assistent hat sein Tageslimit erreicht. Bitte versuchen Sie es später erneut.',
+  errorUnavailable: 'Der Assistent ist momentan nicht verfügbar. Bitte versuchen Sie es später erneut.',
+  errorCutOff: 'Die Antwort wurde unterbrochen.',
+  typingIndicator: 'Der Assistent schreibt…',
+  poweredBy: 'Bereitgestellt von ChatCops',
+  newConversation: 'Neuer Chat',
+  welcomeBubbleDefault: 'Brauchen Sie Hilfe? Schreiben Sie uns!',
+  preChatTitle: 'Bevor wir beginnen…',
+  preChatSubtitle: 'Erzählen Sie uns ein wenig über sich',
+  preChatSubmit: 'Chat starten',
+  preChatRequired: 'Dieses Feld ist erforderlich.',
+  preChatInvalidEmail: 'Bitte geben Sie eine gültige E-Mail-Adresse ein.',
+  retryButton: 'Erneut versuchen',
+  regenerateButton: 'Erneut generieren',
+  unreadCount: 'Ungelesene Nachrichten: {count}',
+};
+
+export default de;

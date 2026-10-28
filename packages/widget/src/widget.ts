@@ -75,6 +75,7 @@ export interface WidgetConfig {
     subtitle?: string;
   };
   welcomeMessage?: string;
+  suggestions?: string[];
   welcomeBubble?: {
     text: string;
     delay?: number;
@@ -257,6 +258,7 @@ export class Widget {
         retryLabel: this.locale.retryButton,
         regenerateLabel: this.locale.regenerateButton,
         typingLabel: this.locale.typingIndicator,
+        sourcesLabel: this.locale.sourcesLabel,
       },
       onSend: (text) => this.handleSend(text),
       onClose: () => this.close(),
@@ -322,7 +324,6 @@ export class Widget {
     this.panel.show();
     if (!this.isInline) {
       this.fab?.setOpen(true);
-      this.fab?.hideBadge();
       this.bubble?.hide();
     }
     this.lockScroll();
@@ -477,7 +478,17 @@ export class Widget {
       };
       this.messages.push(welcomeMsg);
       this.panel.addMessage(welcomeMsg);
+      this.renderSuggestions();
     }
+  }
+
+  private renderSuggestions(suggestions: string[] = this.config.suggestions ?? []): void {
+    if (this.messages.some((message) => message.role === 'user')) return;
+    this.panel.messages.showSuggestions(
+      suggestions,
+      this.locale.suggestionsLabel,
+      (suggestion) => { void this.handleSend(suggestion); }
+    );
   }
 
   private async handleSend(text: string): Promise<void> {
@@ -560,6 +571,7 @@ export class Widget {
     this.isStreaming = true;
     this.panel.input.setDisabled(true);
     this.panel.messages.clearRegenerateButtons();
+    this.panel.messages.beginReply();
     this.panel.messages.showTyping();
 
     const assistantMsg: MessageData = {
@@ -567,6 +579,7 @@ export class Widget {
       role: 'assistant',
       content: '',
       status: 'streaming',
+      sources: [],
     };
 
     let firstChunk = true;
@@ -624,6 +637,11 @@ export class Widget {
         if (chunk.leadCaptured) {
           this.config.onLeadCaptured?.(chunk.leadData);
           this.emit('leadCaptured', chunk.leadData);
+        }
+
+        if (chunk.source) {
+          assistantMsg.sources ??= [];
+          assistantMsg.sources.push(chunk.source);
         }
 
         if (chunk.content) {
@@ -690,6 +708,7 @@ export class Widget {
       }
 
       if (!this.destroyed) {
+        this.panel.messages.finishReply(assistantMsg);
         this.isStreaming = false;
         this.panel.input.setDisabled(false);
         this.panel.input.focus();
@@ -795,6 +814,7 @@ export class Widget {
         status: m.status,
         errorType: m.errorType,
         timestamp: Date.now(),
+        ...(m.sources && m.sources.length > 0 ? { sources: m.sources } : {}),
       })),
       ...(this.userData ? { userData: this.userData } : {}),
       ...(this.preChatDone ? { preChatDone: true } : {}),

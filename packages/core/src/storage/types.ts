@@ -104,6 +104,82 @@ export interface EventSink {
   query?(query: EventQuery): Promise<EventCount[]>;
 }
 
+export type MetadataValue = string | number | boolean;
+
+/**
+ * Which records a search may return. Every key has to match: a value matches
+ * a record whose metadata has exactly that value (same type), and an array
+ * matches any of its values. A record without the key never matches.
+ *
+ * ```ts
+ * { locale: 'de', collection: ['docs', 'pricing'] }
+ * ```
+ */
+export type MetadataFilter = Record<string, MetadataValue | MetadataValue[]>;
+
+/** The page or document a chunk came from. */
+export interface VectorSource {
+  /** Groups a page's chunks, so they can be replaced or removed together. */
+  id: string;
+  url: string;
+  title?: string;
+  /** The heading path inside the page, such as `Pricing > Enterprise`. */
+  section?: string;
+  /** When the page last changed (ms). */
+  updatedAt?: number;
+}
+
+/** One chunk of text and its embedding. */
+export interface VectorRecord {
+  id: string;
+  vector: Float32Array;
+  text: string;
+  source: VectorSource;
+  metadata?: Record<string, MetadataValue>;
+}
+
+/** A search result: the record without its vector, and how well it matched. */
+export interface ScoredRecord {
+  id: string;
+  text: string;
+  source: VectorSource;
+  metadata?: Record<string, MetadataValue>;
+  /**
+   * Higher is better. `query` scores are cosine similarity (-1 to 1);
+   * `keywordQuery` scores depend on the store (BM25 in memory). The two
+   * aren't on the same scale, so hybrid search combines them by rank.
+   */
+  score: number;
+}
+
+export interface VectorQuery {
+  vector: Float32Array;
+  topK: number;
+  filter?: MetadataFilter;
+}
+
+export interface KeywordQuery {
+  text: string;
+  topK: number;
+  filter?: MetadataFilter;
+}
+
+/**
+ * Embedded chunks for retrieval. Every vector has `dimensions` numbers; a
+ * vector of another length is an error, both stored and searched.
+ */
+export interface VectorStore {
+  readonly dimensions: number;
+  /** Adds records, replacing any with the same id. */
+  upsert(records: VectorRecord[]): Promise<void>;
+  /** The `topK` nearest records by cosine similarity, best first. */
+  query(query: VectorQuery): Promise<ScoredRecord[]>;
+  /** Full-text search, for hybrid retrieval. Best first. */
+  keywordQuery?(query: KeywordQuery): Promise<ScoredRecord[]>;
+  /** Removes every record from that source. */
+  deleteBySource(sourceId: string): Promise<void>;
+}
+
 /**
  * Everything the server stores. Only `conversations` is required. Without
  * `counters`, rate limits are kept per process; without `kv`, per-conversation
@@ -114,6 +190,8 @@ export interface ChatCopsStorage {
   counters?: CounterStore;
   kv?: KeyValueStore;
   events?: EventSink;
+  /** Embedded chunks, for answering from the site's own pages. */
+  vectors?: VectorStore;
   /** Closes connections, for scripts and tests. */
   close?(): Promise<void>;
 }

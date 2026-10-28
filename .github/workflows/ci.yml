@@ -26,7 +26,7 @@ jobs:
           SRH_TOKEN: chatcops_test_token
           SRH_CONNECTION_STRING: redis://redis:6379
       postgres:
-        image: postgres:17-alpine
+        image: pgvector/pgvector:pg17
         ports: ['5432:5432']
         env:
           POSTGRES_PASSWORD: postgres
