@@ -26,6 +26,7 @@ export interface MessageActions {
 
 export class Messages {
   private container: HTMLDivElement;
+  private announcement: HTMLDivElement;
   private typingEl: HTMLDivElement | null = null;
   private suggestionsEl: HTMLDivElement | null = null;
   private actions?: MessageActions;
@@ -37,6 +38,27 @@ export class Messages {
     this.container.setAttribute('role', 'log');
     this.container.setAttribute('aria-live', 'polite');
     parent.appendChild(this.container);
+
+    this.announcement = document.createElement('div');
+    this.announcement.className = 'cc-reply-announcement cc-sr-only';
+    this.announcement.setAttribute('aria-live', 'polite');
+    this.announcement.setAttribute('aria-atomic', 'true');
+    parent.appendChild(this.announcement);
+  }
+
+  beginReply(): void {
+    this.announcement.textContent = '';
+    this.container.setAttribute('aria-live', 'off');
+  }
+
+  finishReply(msg?: MessageData): void {
+    if (msg?.role === 'assistant' && (msg.status === 'complete' || msg.status === 'error')) {
+      const rendered = this.findMessage(msg.id);
+      const content = rendered?.querySelector('.cc-message-content')?.textContent?.trim() ?? '';
+      const error = rendered?.querySelector('.cc-message-error-note')?.textContent?.trim() ?? '';
+      this.announcement.textContent = [content, error && error !== content ? error : ''].filter(Boolean).join(' ');
+    }
+    this.container.setAttribute('aria-live', 'polite');
   }
 
   addMessage(msg: MessageData): HTMLDivElement {

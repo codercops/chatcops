@@ -68,6 +68,45 @@ describe('Messages', () => {
     expect(container.getAttribute('aria-live')).toBe('polite');
   });
 
+  it('announces only the completed assistant text outside the muted log', () => {
+    const log = parent.querySelector('.cc-messages') as HTMLElement;
+    const announcement = parent.querySelector('.cc-reply-announcement') as HTMLElement;
+    expect(announcement.parentElement).toBe(parent);
+    expect(announcement.classList.contains('cc-sr-only')).toBe(true);
+    expect(announcement.getAttribute('aria-live')).toBe('polite');
+    expect(announcement.getAttribute('aria-atomic')).toBe('true');
+
+    messages.addMessage({ id: 'visitor', role: 'user', content: 'Hi' });
+    expect(announcement.textContent).toBe('');
+    messages.beginReply();
+    expect(log.getAttribute('aria-live')).toBe('off');
+    messages.addMessage({ id: 'reply', role: 'assistant', content: '**Hel**', status: 'streaming' });
+    messages.updateMessage({ id: 'reply', role: 'assistant', content: '**Hello** world', status: 'streaming' });
+    expect(announcement.textContent).toBe('');
+
+    const completed = { id: 'reply', role: 'assistant' as const, content: '**Hello** world', status: 'complete' as const };
+    messages.updateMessage(completed);
+    messages.finishReply(completed);
+    expect(announcement.textContent).toBe('Hello world');
+    expect(log.getAttribute('aria-live')).toBe('polite');
+  });
+
+  it('clears the old announcement for a new reply and includes a partial reply error once', () => {
+    const announcement = parent.querySelector('.cc-reply-announcement') as HTMLElement;
+    messages.addMessage({ id: 'reply', role: 'assistant', content: 'Partial', status: 'streaming' });
+    messages.beginReply();
+    const failed = { id: 'reply', role: 'assistant' as const, content: 'Partial', status: 'error' as const, errorText: 'Connection lost.' };
+    messages.updateMessage(failed);
+    messages.finishReply(failed);
+    expect(announcement.textContent).toBe('Partial Connection lost.');
+
+    messages.beginReply();
+    expect(announcement.textContent).toBe('');
+    expect(parent.querySelector('.cc-messages')?.getAttribute('aria-live')).toBe('off');
+    messages.finishReply();
+    expect(parent.querySelector('.cc-messages')?.getAttribute('aria-live')).toBe('polite');
+  });
+
   it('gives the typing indicator text and hides the dots', () => {
     messages = new Messages(parent, { typingLabel: 'Escribiendo...' });
     messages.showTyping();
