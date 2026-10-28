@@ -130,6 +130,32 @@ ChatCops.on('open', onOpen);
 ChatCops.off('open', onOpen);
 ```
 
+### `ChatCops.setUser(user)`
+
+Tell the widget who the signed-in visitor is.
+
+- `token` is the identity token for [signed-in visitors](/server/setup/#signed-in-visitors), which your server signs.
+- `name` and `email` are sent to the bot as visitor details with the first message of a conversation, and the name greets them.
+
+Switching to another user, or `setUser(null)` when the visitor signs out, clears the chat, so one person's conversation never shows for the next. With the script tag build, a call before the chat has loaded is kept until it does.
+
+```typescript
+declare const session: { name: string; email: string; chatToken: string };
+
+ChatCops.setUser({ name: session.name, email: session.email, token: session.chatToken });
+
+// When the visitor signs out:
+ChatCops.setUser(null);
+```
+
+### `ChatCops.setContext(data)`
+
+Details the bot should know for the next messages, such as the visitor's plan or what's in their cart. They're sent with each message as page context: at most 20 fields, keys up to 40 characters, values up to 500. The bot sees them as details the page added, not as verified facts. `setContext(null)` removes them. Nothing is sent when `pageContext: false`.
+
+```typescript
+ChatCops.setContext({ plan: 'Team', seats: '12' });
+```
+
 ### `ChatCops.registerLocale(code, strings, options?)`
 
 Add a language the widget doesn't ship, or replace one of its own. Strings you leave out stay in English. Pass `{ dir: 'rtl' }` for a right-to-left language. Register before `init()`, then use the code as `locale`.

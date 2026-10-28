@@ -110,6 +110,94 @@ describe('Widget methods', () => {
   });
 });
 
+describe('setUser and setContext', () => {
+  const bodies = () => vi.mocked(globalThis.fetch).mock.calls.map(([, init]) => JSON.parse(String((init as RequestInit).body)));
+
+  it('setContext sends the details as page context with each message, and null removes them', async () => {
+    const widget = new Widget({ apiUrl: '/chat' });
+    widget.init();
+    widget.setContext({ plan: 'Team', seats: '12' });
+    let stream = mockChatStream();
+    let sent = widget.sendMessage('Can I add a seat?');
+    await tick();
+    await reply(stream, 'Yes.');
+    await sent;
+    widget.setContext(null);
+    stream = mockChatStream();
+    sent = widget.sendMessage('Thanks');
+    await tick();
+    await reply(stream, 'Anytime.');
+    await sent;
+    const [first, second] = bodies();
+    expect(first.pageContext.data).toEqual({ plan: 'Team', seats: '12' });
+    expect(second.pageContext.data).toBeUndefined();
+    widget.destroy();
+  });
+
+  it('setUser sends name and email as visitor details with the first message, and greets by name', async () => {
+    const widget = new Widget({ apiUrl: '/chat', welcomeMessage: 'How can I help?' });
+    widget.init();
+    widget.setUser({ name: 'Sam', email: 'sam@acme.test' });
+    widget.newConversation();
+    expect(texts(widget).join(' ')).toContain('Sam');
+    const stream = mockChatStream();
+    const sent = widget.sendMessage('Hi');
+    await tick();
+    await reply(stream, 'Hello Sam.');
+    await sent;
+    expect(bodies()[0].userData).toEqual({ name: 'Sam', email: 'sam@acme.test' });
+    widget.destroy();
+  });
+
+  it('switching users or signing out clears the chat; signing in from anonymous keeps it', async () => {
+    const widget = new Widget({ apiUrl: '/chat' });
+    widget.init();
+    const stream = mockChatStream();
+    const sent = widget.sendMessage('A question');
+    await tick();
+    await reply(stream, 'An answer.');
+    await sent;
+
+    widget.setUser({ token: 'user-a' });
+    expect(internals(widget).messages.some((m) => m.content === 'A question')).toBe(true);
+    widget.setUser({ token: 'user-a' });
+    expect(internals(widget).messages.some((m) => m.content === 'A question')).toBe(true);
+
+    widget.setUser({ token: 'user-b' });
+    expect(internals(widget).messages.some((m) => m.content === 'A question')).toBe(false);
+    internals(widget).messages.push({ role: 'user', content: 'B wrote this' });
+    widget.setUser(null);
+    expect(internals(widget).messages.some((m) => m.content === 'B wrote this')).toBe(false);
+    widget.destroy();
+  });
+
+  it('sends the visitor details again with the first message of a new conversation', async () => {
+    const widget = new Widget({ apiUrl: '/chat', preChatForm: { enabled: true, fields: [{ name: 'name', label: 'Name', type: 'text' }] } });
+    widget.init();
+    internals(widget).userData = { name: 'Sam' };
+    (internals(widget) as unknown as { v1: boolean; preChatDone: boolean }).v1 = true;
+    (internals(widget) as unknown as { preChatDone: boolean }).preChatDone = true;
+    let stream = mockChatStream();
+    let sent = widget.sendMessage('First');
+    await tick();
+    await reply(stream, 'One.');
+    await sent;
+    stream = mockChatStream();
+    sent = widget.sendMessage('Second');
+    await tick();
+    await reply(stream, 'Two.');
+    await sent;
+    widget.newConversation();
+    stream = mockChatStream();
+    sent = widget.sendMessage('Fresh start');
+    await tick();
+    await reply(stream, 'Three.');
+    await sent;
+    expect(bodies().map((body) => body.userData)).toEqual([{ name: 'Sam' }, undefined, { name: 'Sam' }]);
+    widget.destroy();
+  });
+});
+
 describe('the ChatCops API (npm and single-file builds)', () => {
   it('toggles, and has the version', () => {
     ChatCops.init({ apiUrl: '/chat' });
@@ -196,6 +284,33 @@ describe('the script tag loader API', () => {
     await tick();
     expect(fresh).toHaveBeenCalledOnce();
     expect(clear).toHaveBeenCalledOnce();
+    loader.destroy();
+  });
+
+  it('keeps setUser and setContext until the chat loads, without loading it or touching storage', async () => {
+    const load = panel();
+    const loader = createLoader(load);
+    const getItem = vi.spyOn(Storage.prototype, 'getItem');
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem');
+    loader.setUser({ name: 'Sam', token: 'user-a' });
+    loader.init({ apiUrl: '/chat', welcomeMessage: 'How can I help?' });
+    loader.setContext({ plan: 'Team' });
+    await tick();
+    expect(load).not.toHaveBeenCalled();
+    expect(getItem).not.toHaveBeenCalled();
+    expect(setItem).not.toHaveBeenCalled();
+    expect(removeItem).not.toHaveBeenCalled();
+
+    const setUser = vi.spyOn(Widget.prototype, 'setUser');
+    const setContext = vi.spyOn(Widget.prototype, 'setContext');
+    loader.open();
+    await tick();
+    await tick();
+    expect(setUser).toHaveBeenCalledWith({ name: 'Sam', token: 'user-a' });
+    expect(setContext).toHaveBeenCalledWith({ plan: 'Team' });
+    loader.setContext(null);
+    expect(setContext).toHaveBeenLastCalledWith(null);
     loader.destroy();
   });
 

@@ -74,6 +74,19 @@ const ChatCops = {
     if (options?.dir) setLanguageDirection(code, options.dir);
   },
 
+  /**
+   * The signed-in visitor: `token` for the server, `name` and `email` as
+   * visitor details. Another user, or `null` to sign out, clears the chat.
+   */
+  setUser(user: { name?: string; email?: string; token?: string } | null): void {
+    instance?.setUser(user);
+  },
+
+  /** Details the bot should know for the next messages, such as `{ plan: 'Team' }`. `null` removes them. */
+  setContext(data: Record<string, string> | null): void {
+    instance?.setContext(data);
+  },
+
   /** The widget's version. */
   version: VERSION,
 

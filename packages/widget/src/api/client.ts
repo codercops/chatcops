@@ -45,6 +45,23 @@ export class ChatClient {
     this.store = options.store ?? keyStore('local');
   }
 
+  /**
+   * The signed-in visitor's identity token for the next session, or none.
+   * The session token from before is dropped, so the next message gets one
+   * for the new identity (the server starts a new conversation for a
+   * different user).
+   */
+  setUserToken(token: string | undefined): void {
+    if (token === this.userToken) return;
+    this.userToken = token;
+    this.saved = {};
+    this.store.remove(this.sessionKey);
+  }
+
+  get identity(): string | undefined {
+    return this.userToken;
+  }
+
   async *sendMessage(
     request: WidgetChatRequest,
     options: SendMessageOptions = {}

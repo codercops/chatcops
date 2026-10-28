@@ -30,6 +30,10 @@ export interface ChatCopsLoader {
   clear(): void;
   /** Adds or replaces a language for `locale`: its strings (English for any left out), and `dir`. */
   registerLocale(code: string, strings: Partial<WidgetLocaleStrings>, options?: { dir?: 'ltr' | 'rtl' }): void;
+  /** The signed-in visitor (token, name, email). Another user, or `null`, clears the chat. Kept until the chat loads. */
+  setUser(user: { name?: string; email?: string; token?: string } | null): void;
+  /** Details the bot should know for the next messages. `null` removes them. Kept until the chat loads. */
+  setContext(data: Record<string, string> | null): void;
   /** The widget's version. */
   readonly version: string;
 }
@@ -93,6 +97,10 @@ export function createLoader(
   const locales = new Map<string, Promise<Partial<WidgetLocaleStrings> | undefined>>();
   /** Languages the page registered: no file to fetch, and their direction passed to the panel. */
   const registered = new Map<string, { strings: Partial<WidgetLocaleStrings>; dir?: 'ltr' | 'rtl' }>();
+  // setUser() and setContext() before the chat loads: applied when it does,
+  // so a signed-in page doesn't load the chat early.
+  let user: Parameters<ChatCopsLoader['setUser']>[0] | undefined;
+  let context: Record<string, string> | null | undefined;
   const directionOf = (current: WidgetConfig) => current.dir ?? (current.locale ? registered.get(current.locale)?.dir : undefined);
 
   /** The translated strings for a config, loaded once per locale. */
@@ -143,6 +151,8 @@ export function createLoader(
         launcher?.remove();
         launcher = button = undefined;
         next.init();
+        if (user !== undefined) next.setUser(user);
+        if (context !== undefined) next.setContext(context);
         widget = next;
         return next;
       },
@@ -239,6 +249,16 @@ export function createLoader(
     registerLocale(code, strings, options) {
       registered.set(code, { strings, ...(options?.dir ? { dir: options.dir } : {}) });
       if (options?.dir) setLanguageDirection(code, options.dir);
+    },
+
+    setUser(next) {
+      user = next;
+      widget?.setUser(next);
+    },
+
+    setContext(next) {
+      context = next;
+      widget?.setContext(next);
     },
 
     version: VERSION,

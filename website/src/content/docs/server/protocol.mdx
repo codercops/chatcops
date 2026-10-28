@@ -78,6 +78,7 @@ Provides current webpage context to the assistant. The server validates:
 - `title`: String, maximum 500 characters.
 - `description` *(optional)*: String, maximum 1,000 characters.
 - `contentSnippet` *(optional)*: String, maximum 2,000 characters.
+- `data` *(optional)*: Details the site added with the widget's `setContext()`, at most 20 string fields, keys up to 40 characters and values up to 500. They reach the model as page details that aren't verified.
 
 ```json
 {

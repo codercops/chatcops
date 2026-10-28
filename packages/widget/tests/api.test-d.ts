@@ -14,6 +14,16 @@ describe('the widget API types', () => {
     expectTypeOf<ChatCopsLoader['version']>().toBeString();
   });
 
+  it('types setUser and setContext the same in both builds', () => {
+    type User = { name?: string; email?: string; token?: string } | null;
+    expectTypeOf(ChatCops.setUser).parameters.toEqualTypeOf<[User]>();
+    expectTypeOf<ChatCopsLoader['setUser']>().parameters.toEqualTypeOf<[User]>();
+    expectTypeOf(ChatCops.setContext).parameters.toEqualTypeOf<[Record<string, string> | null]>();
+    expectTypeOf<ChatCopsLoader['setContext']>().parameters.toEqualTypeOf<[Record<string, string> | null]>();
+    // @ts-expect-error: context values are strings
+    ChatCops.setContext({ seats: 12 });
+  });
+
   it('takes partial strings and an optional direction in registerLocale', () => {
     expectTypeOf(ChatCops.registerLocale).parameters.toEqualTypeOf<[string, Partial<WidgetLocaleStrings>, ({ dir?: 'ltr' | 'rtl' } | undefined)?]>();
     ChatCops.registerLocale('nl', { sendButton: 'Verzenden' });

@@ -171,6 +171,12 @@ export class Widget {
   private destroyed = false;
   /** Goes up on newConversation() and clear(), so a reply from before is ignored. */
   private generation = 0;
+  /** What the site added with setContext(), sent with every message. */
+  private pageData?: Record<string, string>;
+  /** The conversation the visitor details were last sent with: a v1 server keeps them from its first message. */
+  private userDataSentWith?: string;
+  /** Visitor details came from setUser(), so they're sent without a pre-chat form. */
+  private userFromSite = false;
   private abortController?: AbortController;
   private retryRequests = new Map<string, SendRequestOptions>();
   private eventHandlers = new Map<WidgetEventType, Set<AnyHandler>>();
@@ -414,6 +420,37 @@ export class Widget {
     if (this.config.preChatForm?.enabled && !this.preChatDone) this.showPreChatForm();
     else this.showChatView();
     if (!forget) this.saveHistory();
+  }
+
+  /**
+   * The signed-in visitor. `token` is the identity token for the server
+   * (signed-in visitors); `name` and `email` are sent as visitor details, and
+   * the name greets them. Switching to another user, or signing out with
+   * `null`, clears the chat, so one person's conversation never shows for
+   * the next.
+   */
+  setUser(user: { name?: string; email?: string; token?: string } | null): void {
+    const previous = this.client.identity;
+    const token = user?.token;
+    if (previous !== undefined && previous !== token) this.clear();
+    this.client.setUserToken(token);
+    if (!user) return;
+    const details = Object.fromEntries(
+      Object.entries({ name: user.name, email: user.email }).filter((entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1] !== '')
+    );
+    if (Object.keys(details).length) {
+      this.userData = { ...this.userData, ...details };
+      this.userFromSite = true;
+    }
+  }
+
+  /**
+   * Details about the page or the visitor that the bot should know for the
+   * next messages, such as `{ plan: 'Team' }`. Sent with each message as
+   * page context; `null` removes them. Ignored when `pageContext: false`.
+   */
+  setContext(data: Record<string, string> | null): void {
+    this.pageData = data && Object.keys(data).length ? { ...data } : undefined;
   }
 
   private isStale(generation: number): boolean {
@@ -793,11 +830,16 @@ export class Widget {
     options: SendRequestOptions
   ): WidgetChatRequest {
     const pageContext = this.config.pageContext !== false
-      ? { url: window.location.href, title: document.title }
+      ? { url: window.location.href, title: document.title, ...(this.pageData ? { data: this.pageData } : {}) }
       : undefined;
 
-    // A v1 server keeps the answers from the first message; 0.5 servers need them every time.
-    const includeUserData = Boolean(this.config.preChatForm?.enabled && this.userData && !this.v1);
+    // A v1 server keeps the details from a conversation's first message; 0.5 servers need them every time.
+    const includeUserData = Boolean(
+      (this.config.preChatForm?.enabled || this.userFromSite) &&
+        this.userData &&
+        (!this.v1 || this.userDataSentWith !== this.conversationId)
+    );
+    if (includeUserData) this.userDataSentWith = this.conversationId;
 
     return {
       conversationId: this.conversationId,
