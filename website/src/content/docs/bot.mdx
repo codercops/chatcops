@@ -1,0 +1,38 @@
+---
+title: ChatCopsBot
+description: The crawler that sites using ChatCops run to index their own pages, and how to control it.
+---
+
+If you saw `ChatCopsBot` in your server logs, a site is building a search index for its ChatCops chat assistant with [`@chatcops/ingest`](/core/knowledge-base/#building-an-index-from-your-site). ChatCops is open source software that each site runs itself, so the requests come from whoever is running it, not from a central ChatCops service. Usually that's you, or someone indexing a site they look after.
+
+The user agent looks like this:
+
+```
+ChatCopsBot/0.1 (+https://chat.codercops.com/bot)
+```
+
+## What it does
+
+- It reads the pages listed in a sitemap, or a list of URLs it was given. It doesn't follow links to discover more.
+- It obeys `robots.txt`: the `ChatCopsBot` group if there is one, otherwise `*`, including `Crawl-delay`. When `robots.txt` can't be read (a 5xx answer, or no answer), it fetches nothing from that site.
+- It fetches four pages at a time by default, and sends conditional requests on later runs, so unchanged pages answer `304`.
+- It keeps the readable text of each page to answer visitors' questions, with a link back to the page.
+
+## Blocking it
+
+Add a group to your `robots.txt`:
+
+```
+User-agent: ChatCopsBot
+Disallow: /
+```
+
+Or allow only part of the site:
+
+```
+User-agent: ChatCopsBot
+Allow: /docs/
+Disallow: /
+```
+
+Whoever runs the crawler can turn the `robots.txt` check off or change the user agent, the same as with any crawler library. If one is ignoring your `robots.txt`, block it by IP the way you would any other client. If you think this software is being misused, [open an issue](https://github.com/codercops/chatcops/issues).

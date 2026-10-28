@@ -2,10 +2,11 @@
  "embedder": "openai:text-embedding-3-small@512",
  "dimensions": 512,
  "pages": {
+  "bot.mdx": "8694b700aeffda9c",
   "core/analytics.mdx": "7493017389a0c5ee",
-  "core/knowledge-base.mdx": "f8862a801e406922",
+  "core/knowledge-base.mdx": "1e953b172594259f",
   "core/providers.mdx": "eff5629b27dc1e61",
-  "core/testing.mdx": "53aad9784e855f8c",
+  "core/testing.mdx": "6d36d95a8793c92d",
   "core/tools.mdx": "4f7e16807ec2f372",
   "examples/cloudflare-full.mdx": "f177ad4c1be1cd14",
   "examples/express-full.mdx": "7b72bd066dd3451e",
@@ -18,15 +19,15 @@
   "server/cloudflare.mdx": "133f1a6c407a8c89",
   "server/express.mdx": "c17272d2788b7fe3",
   "server/fetch-runtimes.mdx": "3f8a9a248f7e4788",
-  "server/protocol.mdx": "3a9af623c379f39a",
+  "server/protocol.mdx": "a61fdbc586056f13",
   "server/security.mdx": "80db6ba0ec5b0591",
-  "server/setup.mdx": "af80d7f17d9df83b",
-  "server/storage.mdx": "f1eccfb442016d6e",
+  "server/setup.mdx": "f829e46159edab92",
+  "server/storage.mdx": "f8267702cf0b53ab",
   "server/vercel.mdx": "820ad4b412d56874",
-  "widget/api.mdx": "c18a53084df6b46e",
-  "widget/configuration.mdx": "5cc5d2e9b267b301",
+  "widget/api.mdx": "17cb09583c9971df",
+  "widget/configuration.mdx": "556e9ac45ba4d58b",
   "widget/events.mdx": "184357696a0d1f0b",
-  "widget/i18n.mdx": "9dcf4981e3f8e4f3",
+  "widget/i18n.mdx": "3fdc2d1f29895c9f",
   "widget/pre-chat-form.mdx": "88cb4543323e91c5",
   "widget/theming.mdx": "1d2f2d376db6f58c"
  },
@@ -102,12 +103,12 @@
   },
   {
    "id": "037dc000d18dab0ca11e1e651b59f02a6a03453068dd223513777edb2e9fa3ae",
-   "text": "Storage > Retention > Vercel Cron Jobs\n\n:::note\nVercel Cron Jobs are available on all plans. On the Hobby plan, each cron job is limited to running at most once per day, which is sufficient for daily retention cleanup.\n:::",
+   "text": "Storage > Retention > Express / Node.js\n\nUse [`node-cron`](https://github.com/node-cron/node-cron) to call `purge()` on a schedule from the same process as your Express server:\n\n```bash\nnpm install node-cron pg @types/pg\n```\n\n```typescript\nimport express from 'express';\nimport cron from 'node-cron';\nimport { Pool } from 'pg';\nimport { chatcopsMiddleware, createChatHandler, type ChatCopsServerConfig } from '@chatcops/server';\nimport { postgresStorage } from '@chatcops/store-postgres';\n\nconst db = new Pool({ connectionString: process.env.DATABASE_URL });\nconst storage = postgresStorage({ db });\n\nconst config: ChatCopsServerConfig = {\n  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n  systemPrompt: 'You are a helpful assistant.',\n  storage,\n  retention: { conversationsDays: 30 },\n};\n\nconst handler = createChatHandler(config);\n\nconst app = express();\napp.use(express.json());\napp.use('/api/chat', chatcopsMiddleware(config));\n\n// Run at 03:00 every day.\ncron.schedule('0 3 * * *', async () => {\n  try {\n    const deleted = await handler.purge();\n    if (typeof deleted === 'number') {\n      console.log(`[chatcops] Purged ${deleted} old conversations`);\n    } else {\n      console.warn('[chatcops] purge() returned null: store does not support purge');\n    }\n  } catch (err) {\n    console.error('[chatcops] Scheduled purge failed:', err);\n  }\n});\n```\n\nAlternatively, keep the purge logic in a standalone script and invoke it from an external scheduler (systemd timer, AWS EventBridge, GitHub Actions cron, etc.). Run database migrations separately as part of your deployment, not on every cleanup run:",
    "source": {
     "id": "https://chat.codercops.com/server/storage/",
     "url": "https://chat.codercops.com/server/storage/",
     "title": "Storage",
-    "section": "Retention > Vercel Cron Jobs"
+    "section": "Retention > Express / Node.js"
    }
   },
   {
@@ -162,12 +163,12 @@
   },
   {
    "id": "0a8a00afae34b0260b0f4535bb75bc26e60dd5ef99ba299dbbc61e695416316b",
-   "text": "Storage > Retention > Vercel Cron Jobs\n\nVercel Cron Jobs call an API route on a schedule. Create a route that runs `purge()` and protect it with a shared secret so only Vercel's cron runner can trigger it:\n\n```typescript\n// app/api/purge/route.ts  (Next.js App Router)\nimport { createChatHandler } from '@chatcops/server';\nimport { NextRequest, NextResponse } from 'next/server';\n// Import the createChatHandler instance from your application module.\n// Replace '@/lib/chatcops' with the actual path where your handler is created,\n// configured with the same storage and retention settings as your chat route.\nconst handler = createChatHandler({\n  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n  systemPrompt: 'Be helpful.',\n});\n\nexport const runtime = 'nodejs';\n\nexport async function GET(req: NextRequest) {\n  const secret = process.env.CRON_SECRET;\n  if (!secret) {\n    return NextResponse.json({ error: 'CRON_SECRET is not configured' }, { status: 500 });\n  }\n  const auth = req.headers.get('authorization');\n  if (auth !== `Bearer ${secret}`) {\n    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });\n  }\n\n  try {\n    const deleted = await handler.purge();\n    if (typeof deleted === 'number') {\n      return NextResponse.json({ deleted });\n    }\n    return NextResponse.json({ deleted: null, message: 'Store does not support purge' });\n  } catch (err) {\n    console.error('[chatcops] Purge failed:', err);\n    return NextResponse.json({ error: 'Purge failed' }, { status: 500 });\n  }\n}\n```\n\nRegister the cron trigger in `vercel.json`. The path must match the route above:\n\n```json\n{\n  \"crons\": [\n    {\n      \"path\": \"/api/purge\",\n      \"schedule\": \"0 3 * * *\"\n    }\n  ]\n}\n```\n\nVercel automatically sends an `Authorization: Bearer ` header when it invokes the route. Set `CRON_SECRET` in your Vercel project's environment variables. The route rejects any caller whose header doesn't match, and returns 500 when the secret is not configured at all.",
+   "text": "Storage > Retention\n\nThe handler exposes `purge()` for retention cleanup. `retention.conversationsDays` defaults to 30 days. Call `purge()` from a scheduled job or deploy task; it returns the number of deleted conversations, or `null` when the store can't purge:\n\n```typescript\nimport { createChatHandler } from '@chatcops/server';\nimport { Pool } from 'pg';\nimport { postgresStorage } from '@chatcops/store-postgres';\n\nconst handler = createChatHandler({\n  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n  systemPrompt: 'Be helpful.',\n  storage: postgresStorage({ db: new Pool({ connectionString: process.env.DATABASE_URL }) }),\n  retention: { conversationsDays: 30 },\n});\n\nconst deleted = await handler.purge();\nif (typeof deleted === 'number') {\n  console.log(`Purged ${deleted} old conversations`);\n}\n```\n\n`purge()` returns `null` only when a custom conversation store does not implement the optional `purge` capability, such as a custom store with only `get`, `save`, and `delete`. The built-in memory, SQLite, Postgres, and Redis stores all implement `purge()`.",
    "source": {
     "id": "https://chat.codercops.com/server/storage/",
     "url": "https://chat.codercops.com/server/storage/",
     "title": "Storage",
-    "section": "Retention > Vercel Cron Jobs"
+    "section": "Retention"
    }
   },
   {
@@ -192,12 +193,12 @@
   },
   {
    "id": "0d707f9417829dc0624a743fb00c188f015c465c0ec35b980fd9d5b71853c477",
-   "text": "Storage > Vector stores > Postgres with pgvector\n\nThe Postgres store can keep chunks in a pgvector table with cosine search and full-text keyword search. Install pgvector on the database, then run the vector migration separately from the regular conversation migration. This keeps `migrate()` usable on Postgres servers where the extension is not installed:\n\n```typescript\nimport { Pool } from 'pg';\nimport { migrate, migrateVectors, postgresStorage } from '@chatcops/store-postgres';\n\nconst db = new Pool({ connectionString: process.env.DATABASE_URL });\nconst dimensions = 1024;\nawait migrate(db);\nawait migrateVectors(db, { dimensions });\n\nconst storage = postgresStorage({ db, dimensions });\nawait storage.vectors?.upsert([\n  {\n    id: 'pricing-0',\n    vector: new Float32Array(dimensions),\n    text: 'The Team plan is $20 a month.',\n    source: { id: 'pricing', url: 'https://example.com/pricing', title: 'Pricing' },\n    metadata: { locale: 'en' },\n  },\n]);\n```\n\nUse the same `dimensions` and `tablePrefix` for both `migrateVectors()` and `postgresStorage()`. `keywordQuery()` uses Postgres full-text ranking and splits words with `Intl.Segmenter`, including Japanese and Chinese. Filtered vector queries use pgvector iterative HNSW scans, which requires pgvector 0.8 or newer.",
+   "text": "Storage > Custom stores\n\nThe history sent to the model is trimmed to about 32,000 tokens: the visitor's first message plus as many recent ones as fit. Stored history keeps up to 100 messages per conversation.\n\nThe complete interface is defined by [`ConversationStore`](https://github.com/codercops/chatcops/blob/dev/packages/core/src/storage/types.ts). The broader `ChatCopsStorage` object can also provide optional counter, KV, and event stores for distributed rate limits, turn locks, and analytics.",
    "source": {
     "id": "https://chat.codercops.com/server/storage/",
     "url": "https://chat.codercops.com/server/storage/",
     "title": "Storage",
-    "section": "Vector stores > Postgres with pgvector"
+    "section": "Custom stores"
    }
   },
   {
@@ -250,13 +251,23 @@
    }
   },
   {
+   "id": "11a6b6fbe8c244f59ea95e86afbd1a02683836ac131fef86078166c15d6490cb",
+   "text": "Knowledge Base > Retrieval from a vector store\n\nEmbedders turn text into vectors. `openaiEmbedder` calls OpenAI's embeddings API (`text-embedding-3-small` at 1024 dimensions by default), while `workersAiEmbedder` runs inside Cloudflare Workers using the native `env.AI` binding (`@cf/baai/bge-m3` at 1024 dimensions by default, batched up to 100 texts). A retriever searches a vector store with them, and `retrieverKnowledge` turns the retriever into a knowledge source:\n\n```typescript\nimport { hybridRetriever, memoryVectors, openaiEmbedder, retrieverKnowledge } from '@chatcops/core';\nimport { chatcopsMiddleware } from '@chatcops/server';\n\nconst embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! });\nconst vectors = memoryVectors({ dimensions: embedder.dimensions });\n\nconst handler = chatcopsMiddleware({\n  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n  systemPrompt: 'Answer questions about Acme.',\n  knowledge: [retrieverKnowledge(hybridRetriever({ store: vectors, embedder }), { topK: 5 })],\n});\n```\n\n`geminiEmbedder` does the same with [Google's Gemini API](https://ai.google.dev/gemini-api/docs/embeddings). It defaults to `gemini-embedding-001` at 1024 dimensions:\n\n```typescript\nimport { geminiEmbedder } from '@chatcops/core';\n\nconst embedder = geminiEmbedder({ apiKey: process.env.GEMINI_API_KEY! });\n```\n\n`voyageEmbedder` does the same with [Voyage AI](https://docs.voyageai.com/reference/embeddings-api). It uses `voyage-4-large` at 1024 dimensions by default, and tells Voyage whether it is embedding a document or a search query, which Voyage embeds differently:\n\n```typescript\nimport { voyageEmbedder } from '@chatcops/core';\n\nconst embedder = voyageEmbedder({ apiKey: process.env.VOYAGE_API_KEY! });\n```",
+   "source": {
+    "id": "https://chat.codercops.com/core/knowledge-base/",
+    "url": "https://chat.codercops.com/core/knowledge-base/",
+    "title": "Knowledge Base",
+    "section": "Retrieval from a vector store"
+   }
+  },
+  {
    "id": "12cb9e9793bd2a7b33eeb49b97a7438972f2c129526028ab51d16ab0b8067893",
-   "text": "Storage > Retention > Express / Node.js\n\nUse [`node-cron`](https://github.com/node-cron/node-cron) to call `purge()` on a schedule from the same process as your Express server:\n\n```bash\nnpm install node-cron pg @types/pg\n```\n\n```typescript\nimport express from 'express';\nimport cron from 'node-cron';\nimport { Pool } from 'pg';\nimport { chatcopsMiddleware, createChatHandler, type ChatCopsServerConfig } from '@chatcops/server';\nimport { postgresStorage } from '@chatcops/store-postgres';\n\nconst db = new Pool({ connectionString: process.env.DATABASE_URL });\nconst storage = postgresStorage({ db });\n\nconst config: ChatCopsServerConfig = {\n  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n  systemPrompt: 'You are a helpful assistant.',\n  storage,\n  retention: { conversationsDays: 30 },\n};\n\nconst handler = createChatHandler(config);\n\nconst app = express();\napp.use(express.json());\napp.use('/api/chat', chatcopsMiddleware(config));\n\n// Run at 03:00 every day.\ncron.schedule('0 3 * * *', async () => {\n  try {\n    const deleted = await handler.purge();\n    if (typeof deleted === 'number') {\n      console.log(`[chatcops] Purged ${deleted} old conversations`);\n    } else {\n      console.warn('[chatcops] purge() returned null: store does not support purge');\n    }\n  } catch (err) {\n    console.error('[chatcops] Scheduled purge failed:', err);\n  }\n});\n```\n\nAlternatively, keep the purge logic in a standalone script and invoke it from an external scheduler (systemd timer, AWS EventBridge, GitHub Actions cron, etc.). Run database migrations separately as part of your deployment, not on every cleanup run:",
+   "text": "Storage > Vector stores > Cloudflare Vectorize\n\n`@chatcops/store-cloudflare` can add semantic and keyword retrieval with a D1 database and a Cloudflare Vectorize index:\n\n```bash\nnpm install @chatcops/store-cloudflare\n```\n\nCreate the Vectorize index with the same dimensions as your embedding model and cosine distance, then create metadata indexes for every key used in filters:\n\n```bash\nnpx wrangler vectorize create-index CHATCOPS_VECTORS --dimensions=1024 --metric=cosine\nnpx wrangler vectorize create-metadata-index CHATCOPS_VECTORS --property-name=locale --type=string\nnpx wrangler vectorize create-metadata-index CHATCOPS_VECTORS --property-name=collection --type=string\n```\n\nBind both services and pass the same dimension count to the store:\n\n```typescript\nimport { cloudflareStorage, type CloudflareBindings } from '@chatcops/store-cloudflare';\n\ndeclare const env: CloudflareBindings;\n\nconst storage = cloudflareStorage({\n  d1: env.DB,\n  vectorize: env.CHATCOPS_VECTORS,\n  vectorDimensions: 1024,\n});\n```\n\nVectorize stores embeddings and filterable metadata; D1 keeps the full text and source details and provides FTS5 keyword search. Create a metadata index for each key you pass in `filter`; unindexed metadata cannot be filtered by Vectorize. The index metric must be `cosine`. Vectorize writes can take a few seconds to become searchable.",
    "source": {
     "id": "https://chat.codercops.com/server/storage/",
     "url": "https://chat.codercops.com/server/storage/",
     "title": "Storage",
-    "section": "Retention > Express / Node.js"
+    "section": "Vector stores > Cloudflare Vectorize"
    }
   },
   {
@@ -280,13 +291,23 @@
    }
   },
   {
+   "id": "157404fac160c7d98fbd3531a169ad777bdca4c57af00001834d417557261156",
+   "text": "API Reference > Auto-Initialization > Popup (default)\n\n```html\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js\"\n  data-api-url=\"https://your-api.com/chat\"\n  data-accent=\"#6366f1\"\n></script>\n```",
+   "source": {
+    "id": "https://chat.codercops.com/widget/api/",
+    "url": "https://chat.codercops.com/widget/api/",
+    "title": "API Reference",
+    "section": "Auto-Initialization > Popup (default)"
+   }
+  },
+  {
    "id": "191f37efabb6c5a42279946db31085bb53cd6c42afa6530d027bb9d92547f5e9",
-   "text": "Widget Configuration > Inline Mode Behavior\n\nWhen using `mode: 'inline'`:\n\n- The chat panel renders inside the specified container element\n- No floating action button (FAB) is created\n- No welcome bubble is shown\n- The panel is visible immediately (no toggle needed)\n- `autoOpen` is ignored (always open)\n- The panel fills 100% width and height of the container\n- Mobile responsive overrides do not apply — the container controls sizing\n- `open()` and `close()` still work programmatically",
+   "text": "Widget Configuration > CSS Custom Properties\n\nThe widget uses Shadow DOM and exposes these CSS custom properties on its host element:\n\n| Variable | Description | Default |\n|----------|-------------|---------|\n| `--cc-accent` | Primary accent color | `#6366f1` |\n| `--cc-accent-hover` | Hover state of accent | `#4f46e5` |\n| `--cc-text` | Primary text color | `#ffffff` |\n| `--cc-bg` | Background color | `#0a0a0a` |\n| `--cc-bg-surface` | Surface background | `#1a1a1a` |\n| `--cc-bg-input` | Input area background | `#2a2a2a` |\n| `--cc-border` | Border color | `#333333` |\n| `--cc-text-secondary` | Secondary text | `#a0a0a0` |\n| `--cc-font` | Font family | `system-ui` |\n| `--cc-radius` | Border radius | `12px` |\n| `--cc-shadow` | Panel box shadow | `0 8px 32px rgba(0, 0, 0, 0.4)` |\n| `--cc-fab-size` | FAB button size | `56px` |\n| `--cc-panel-width` | Chat panel width | `400px` |\n| `--cc-panel-height` | Chat panel height | `560px` |\n| `--cc-focus-ring` | Focus ring | `0 0 0 2px var(--cc-bg), 0 0 0 4px var(--cc-accent)` |",
    "source": {
     "id": "https://chat.codercops.com/widget/configuration/",
     "url": "https://chat.codercops.com/widget/configuration/",
     "title": "Widget Configuration",
-    "section": "Inline Mode Behavior"
+    "section": "CSS Custom Properties"
    }
   },
   {
@@ -320,12 +341,12 @@
   },
   {
    "id": "1bab0cea78c6913f4802380f0b7f96f405971570f0431b55083ab05eb4c50587",
-   "text": "Testing your bot > Recorded replays > GitHub Actions\n\n```yaml\nname: Evals\non: [pull_request]\njobs:\n  evals:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with: { node-version: 22 }\n      - run: npm ci\n      - run: npx chatcops test\n```",
+   "text": "Testing your bot > Recorded replays\n\nA few things to know about recordings:\n\n- Headers aren't saved, and neither are query parameters like `key` or `api_key`. API keys usually travel in one of those, so they stay out of the files. The request and response bodies are saved, which means your system prompt and the replies are in the files, so treat them like the rest of your code. Request bodies stay readable JSON, so a re-recording's diff shows what you changed. Responses over 4 kB, such as a streamed reply with one event per token, are saved gzipped in base64, which keeps the files about a tenth of the size.\n- `repeat` records every run, and replay plays them back in the same order.\n- Replays answer at once, so `latency` in a replayed run is not the real latency.",
    "source": {
     "id": "https://chat.codercops.com/core/testing/",
     "url": "https://chat.codercops.com/core/testing/",
     "title": "Testing your bot",
-    "section": "Recorded replays > GitHub Actions"
+    "section": "Recorded replays"
    }
   },
   {
@@ -460,12 +481,12 @@
   },
   {
    "id": "24c119e54522b94c9590322a002a41a201ebca369e782b48075f5b116abcd9af",
-   "text": "Testing your bot > Costs\n\nWith `prices` in the config, every turn and judge call gets a cost, and the run prints what it spent. Prices are in US dollars per million tokens, keyed by the model id. Copy them from your provider's pricing page, since they change.\n\n```ts\nimport { defineConfig } from '@chatcops/cli';\n\nexport default defineConfig({\n  server: { provider: { type: 'openai', apiKey: process.env.OPENAI_API_KEY!, model: 'gpt-5-mini' }, systemPrompt: 'You answer questions about Acme.' },\n  prices: {\n    // Example numbers only: use your provider's current prices.\n    'gpt-5-mini': { input: 0.25, output: 2 },\n    'gemini-3.5-flash-lite': { input: 0.1, output: 0.4 },\n  },\n});\n```\n\n`--max-cost 0.50` stops starting new turns once the run has spent 50 cents. Turns already running finish, so a run can go a little over. It needs a price for the bot's model and for the judge's, and refuses to run without them. Replays spend nothing, so `--max-cost` doesn't count them.",
+   "text": "Testing your bot > JavaScript checks\n\nFor checks YAML can't express, point `javascript` at a module. The path is relative to the eval file:\n\n```yaml\nexpect:\n  - javascript: ./checks/mentions-plan.mjs\n```\n\nThe module's default export is called with `(turn, conversation)` and may be async. It should return a boolean, or an object with `pass`, and optionally `reason` and `score`:\n\n```js\n// evals/checks/mentions-plan.mjs\nexport default function (turn) {\n  return turn.text.includes('plan');\n}\n```\n\n```js\n// evals/checks/no-apology.mjs\nexport default async function (turn, conversation) {\n  const hasApology = /sorry|apologize/i.test(turn.text);\n  return { pass: !hasApology, reason: hasApology ? 'reply contains an apology' : 'no apology found' };\n}\n```\n\nA missing file, a module without a default function, or a throw inside it are failures with the file name in the reason. Each module is loaded once per run, not once per turn. `.ts` modules work on Node with type stripping, the same as the config file.",
    "source": {
     "id": "https://chat.codercops.com/core/testing/",
     "url": "https://chat.codercops.com/core/testing/",
     "title": "Testing your bot",
-    "section": "Costs"
+    "section": "JavaScript checks"
    }
   },
   {
@@ -499,6 +520,16 @@
    }
   },
   {
+   "id": "2d99d587389e832e176845d473f046587dd4ee12ee59e96f9cd56bd6f76a31b6",
+   "text": "ChatCopsBot > Blocking it\n\nAdd a group to your `robots.txt`:\n\n```\nUser-agent: ChatCopsBot\nDisallow: /\n```\n\nOr allow only part of the site:\n\n```\nUser-agent: ChatCopsBot\nAllow: /docs/\nDisallow: /\n```\n\nWhoever runs the crawler can turn the `robots.txt` check off or change the user agent, the same as with any crawler library. If one is ignoring your `robots.txt`, block it by IP the way you would any other client. If you think this software is being misused, [open an issue](https://github.com/codercops/chatcops/issues).",
+   "source": {
+    "id": "https://chat.codercops.com/bot/",
+    "url": "https://chat.codercops.com/bot/",
+    "title": "ChatCopsBot",
+    "section": "Blocking it"
+   }
+  },
+  {
    "id": "2e4688407d7dfb932df0a1a26186cbfa8e3a1020dcb76b82df9e861ef74d8f85",
    "text": "Knowledge Base > KnowledgeSource Interface\n\n```typescript\nimport type { RetrievalQuery, RetrievedChunk } from '@chatcops/core';\n\ninterface KnowledgeSource {\n  type: string;\n  getContext(query: string): Promise<string>;\n  // Optional: the matching chunks themselves, with the conversation so far.\n  retrieve?(query: RetrievalQuery): Promise<RetrievedChunk[]>;\n}\n```\n\nWhen a source has `retrieve`, the server uses it instead of `getContext`. It passes the visitor's message and the last few messages before it, so a follow-up like \"how long does it take?\" can be searched in context. The chunks from every source are numbered and given to the model in one fenced block, marked as reference material that never contains instructions, since crawled pages sometimes do. That's what citations will build on.",
    "source": {
@@ -510,7 +541,7 @@
   },
   {
    "id": "2ec93aa9f914c0505350c6cf02f4e5d862f812dd0210fff16bf8aca8bbd810d4",
-   "text": "Testing your bot > Eval files\n\nBy default the command runs every `evals/**/*.chat.yaml` file. Pass globs to pick others:\n\n```bash\nnpx chatcops test \"evals/pricing/*.chat.yaml\"\n```\n\nAn eval file has a name and a list of tests. Each test is one conversation, a turn at a time:\n\n```yaml\nversion: 1\nname: Pricing\ntests:\n  - name: quotes the Team price\n    tags: [pricing]\n    turns:\n      - user: How much is the Team plan?\n        expect:\n          - contains: \"$19\"\n          - not-contains: \"$29\"\n\n  - name: remembers the plan on a follow-up\n    turns:\n      - user: Tell me about the Team plan.\n      - user: How much is it per year?\n        expect:\n          - contains: \"$190\"\n```\n\nEach assertion has one key. `contains` takes a string or a list of strings that must all appear in the reply, `judge` has a model grade the reply ([below](#judged-by-a-model)), and every assertion also works with a `not-` prefix to say the opposite. An assertion name that doesn't exist fails the whole run before anything is sent, so a typo can't make a test pass by checking nothing.\n\nThree assertions catch a prompt change that makes replies longer, slower or more expensive:\n\n- `tokens-under: 800` checks the turn's input plus output tokens. `tokens-under: { input: 600, output: 200 }` checks them separately, and you can give only one of them. A turn without usage fails.\n- `latency-under: 3000` checks the time to the end of the reply, in milliseconds. Replays answer at once, so it only means something in live and recorded runs.\n- `cost-under: 0.01` checks what the turn cost in US dollars. It needs the model in `prices` ([Costs](#costs)), and a turn without a price fails with a reason that says so.\n\nA test can also set:",
+   "text": "Testing your bot > Eval files\n\nBy default the command runs every `evals/**/*.chat.yaml` file. Pass globs to pick others:\n\n```bash\nnpx chatcops test \"evals/pricing/*.chat.yaml\"\n```\n\nAn eval file has a name and a list of tests. Each test is one conversation, a turn at a time:\n\n```yaml\nversion: 1\nname: Pricing\ntests:\n  - name: quotes the Team price\n    tags: [pricing]\n    turns:\n      - user: How much is the Team plan?\n        expect:\n          - contains: \"$19\"\n          - not-contains: \"$29\"\n\n  - name: remembers the plan on a follow-up\n    turns:\n      - user: Tell me about the Team plan.\n      - user: How much is it per year?\n        expect:\n          - contains: \"$190\"\n```\n\nEach assertion has one key. `contains` takes a string or a list of strings that must all appear in the reply, `judge` has a model grade the reply ([below](#judged-by-a-model)), and every assertion also works with a `not-` prefix to say the opposite. An assertion name that doesn't exist fails the whole run before anything is sent, so a typo can't make a test pass by checking nothing.\n\nThree assertions catch a prompt change that makes replies longer, slower or more expensive:\n\n- `tokens-under: 800` checks the turn's input plus output tokens. `tokens-under: { input: 600, output: 200 }` checks them separately, and you can give only one of them. A turn without usage fails.\n- `latency-under: 3000` checks the time to the end of the reply, in milliseconds. Replays answer at once, so it only means something in live and recorded runs.\n- `cost-under: 0.01` checks what the turn cost in US dollars. It needs the model in `prices` ([Costs](#costs)), and a turn without a price fails with a reason that says so.\n\nTwo assertions check what ChatCops adds to a reply:",
    "source": {
     "id": "https://chat.codercops.com/core/testing/",
     "url": "https://chat.codercops.com/core/testing/",
@@ -530,12 +561,12 @@
   },
   {
    "id": "338182d90edaedee9b365fef8f39171d2296e7bca8abdf6ef05ffebad99cc7a2",
-   "text": "Storage > Vector stores > Cloudflare Vectorize\n\n`@chatcops/store-cloudflare` can add semantic and keyword retrieval with a D1 database and a Cloudflare Vectorize index:\n\n```bash\nnpm install @chatcops/store-cloudflare\n```\n\nCreate the Vectorize index with the same dimensions as your embedding model and cosine distance, then create metadata indexes for every key used in filters:\n\n```bash\nnpx wrangler vectorize create-index CHATCOPS_VECTORS --dimensions=1024 --metric=cosine\nnpx wrangler vectorize create-metadata-index CHATCOPS_VECTORS --property-name=locale --type=string\nnpx wrangler vectorize create-metadata-index CHATCOPS_VECTORS --property-name=collection --type=string\n```\n\nBind both services and pass the same dimension count to the store:\n\n```typescript\nimport { cloudflareStorage, type CloudflareBindings } from '@chatcops/store-cloudflare';\n\ndeclare const env: CloudflareBindings;\n\nconst storage = cloudflareStorage({\n  d1: env.DB,\n  vectorize: env.CHATCOPS_VECTORS,\n  vectorDimensions: 1024,\n});\n```\n\nVectorize stores embeddings and filterable metadata; D1 keeps the full text and source details and provides FTS5 keyword search. Create a metadata index for each key you pass in `filter`; unindexed metadata cannot be filtered by Vectorize. The index metric must be `cosine`. Vectorize writes can take a few seconds to become searchable.",
+   "text": "Storage > Vector stores\n\n`vectors` holds embedded chunks of your site's pages, for answering from them. The server doesn't search it yet; retrieval and citations build on it next. The interface is in place now so store packages can add it.\n\n`memoryVectors` keeps vectors in the process and compares a query with every record. Use it for tests, local development, and indexes of a few thousand chunks:\n\n```typescript\nimport { memoryStorage, memoryVectors } from '@chatcops/core';\n\nconst storage = {\n  ...memoryStorage(),\n  vectors: memoryVectors({ dimensions: 1024 }),\n};\n\nawait storage.vectors.upsert([\n  {\n    id: 'pricing-0',\n    vector: new Float32Array(1024),\n    text: 'The Team plan is $20 a month.',\n    source: { id: 'https://example.com/pricing', url: 'https://example.com/pricing', title: 'Pricing' },\n    metadata: { locale: 'en' },\n  },\n]);\n\nconst results = await storage.vectors.query({\n  vector: new Float32Array(1024),\n  topK: 5,\n  filter: { locale: ['en', 'de'] },\n});\n```\n\nA `VectorStore` needs:\n\n| Method | What it does |\n|---|---|\n| `dimensions` | The length of every vector. Storing or searching with another length is an error. |\n| `upsert(records)` | Adds records, replacing any with the same id. |\n| `query({ vector, topK, filter })` | The nearest records by cosine similarity, best first. |\n| `keywordQuery({ text, topK, filter })` | Optional full-text search, for hybrid retrieval. Words are split with `Intl.Segmenter`, so Japanese and Chinese work. |\n| `deleteBySource(sourceId)` | Removes every chunk of a page. |\n\nA filter matches when every key matches: a value has to be equal and of the same type, and an array matches any of its values. Results don't include the vectors.\n\nTo check your own store, run the conformance suite from `@chatcops/core/testing`. Its vector checks run when the storage has `vectors`, need at least 4 dimensions, and tag every record with the run's id, so they work against a shared index.",
    "source": {
     "id": "https://chat.codercops.com/server/storage/",
     "url": "https://chat.codercops.com/server/storage/",
     "title": "Storage",
-    "section": "Vector stores > Cloudflare Vectorize"
+    "section": "Vector stores"
    }
   },
   {
@@ -580,7 +611,7 @@
   },
   {
    "id": "35819326e24e776f14524e0ca02bcd196cc66b73c1e74df5f4c10053e3b0ece0",
-   "text": "Storage\n\nThe server uses storage for conversation history and, when the configured store provides the capability, counters, turn locks, and analytics events.\n\nBy default, conversations are kept in memory for one server process. The memory store holds up to 1000 conversations, evicting the least recently used first, and drops conversations that have been idle for 7 days. That is useful for local development, but it is not reliable for Vercel, Lambda, Workers, or any multi-instance deployment: instances do not share memory, and a restart removes the data. Use a persistent store when conversations must survive restarts or be available to every instance.",
+   "text": "Storage\n\nThe server uses storage for conversation history and, when the configured store provides the capability, counters, turn locks, and analytics events.\n\nBy default, conversations are kept in memory for one server process. The memory store holds up to 1000 conversations, evicting the least recently used first, and drops conversations that have been idle for 7 days. That is useful for local development, but it is not reliable for Vercel, Lambda, Workers, or any multi-instance deployment: instances do not share memory, and a restart removes the data. Use a persistent store when conversations must survive restarts or be available to every instance.\n\nTo change the memory store's limits, pass your own as `storage`:\n\n```typescript\nimport { memoryStorage } from '@chatcops/core';\n\nconst storage = memoryStorage({\n  maxConversations: 5000,                  // default 1000, least recently used dropped first\n  conversationTtlMs: 24 * 60 * 60 * 1000,  // default 7 days idle\n  maxKeys: 50_000,                          // counters and keys each, default 10,000\n  maxEvents: 50_000,                        // analytics events, default 10,000, oldest dropped first\n});\n```\n\nPast `maxKeys`, expired counters and keys are swept first, and only then are the oldest dropped.",
    "source": {
     "id": "https://chat.codercops.com/server/storage/",
     "url": "https://chat.codercops.com/server/storage/",
@@ -598,6 +629,26 @@
    }
   },
   {
+   "id": "393c84f503c02979b7b6221d0023941fd1d6b50302287a04a97d1fb97a21e357",
+   "text": "Storage > Retention > Cloudflare Workers\n\nRegister the cron trigger in `wrangler.toml`:\n\n```toml\nname = \"chatcops-worker\"\nmain = \"src/index.ts\"\ncompatibility_date = \"2024-01-01\"\n\n[triggers]\ncrons = [\"0 3 * * *\"]\n```\n\nWhen using a custom conversation store, the store must implement `ConversationStore.purge` for scheduled cleanup to work. `purge()` returns `null` when the store does not implement it, making scheduled cleanup a no-op.\n\n:::note\nThe in-memory store implements `purge()`, but each process or Worker instance only purges its own in-memory data. Scheduled cleanup is most useful when the application uses shared, persistent storage.\n:::",
+   "source": {
+    "id": "https://chat.codercops.com/server/storage/",
+    "url": "https://chat.codercops.com/server/storage/",
+    "title": "Storage",
+    "section": "Retention > Cloudflare Workers"
+   }
+  },
+  {
+   "id": "396c82eb86fa1ffb0cf502e8e77f8a73f9d8c03fa125986af594f745c5ff2db3",
+   "text": "Knowledge Base > Retrieval from a vector store\n\nUse [Cohere](https://docs.cohere.com/reference/rerank) or [Voyage](https://docs.voyageai.com/reference/reranker-api) to improve the ordering of retrieved candidates. `cohereReranker` defaults to `rerank-v5.0-pro`, while `voyageReranker` defaults to `rerank-3`. Both use the same reranker interface, so either can be passed to `hybridRetriever` in the same way:\n\n```typescript\nimport { cohereReranker, hybridRetriever, memoryVectors, openaiEmbedder } from '@chatcops/core';\n\nconst embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! });\nconst vectors = memoryVectors({ dimensions: embedder.dimensions });\nconst reranker = cohereReranker({ apiKey: process.env.COHERE_API_KEY! });\n\nconst retriever = hybridRetriever({ store: vectors, embedder, reranker });\n```\n\nEach embedder and reranker that calls an API takes `baseUrl`, for a proxy in front of it. For `openaiEmbedder` it can be any OpenAI-compatible embeddings API, such as a local model server. The default is the provider's own API.\n\n`workersAiReranker({ ai })` uses Cloudflare's [`@cf/baai/bge-reranker-base`](https://developers.cloudflare.com/workers-ai/models/bge-reranker-base/) model through the Workers AI binding. It sends the query and candidate text to the model, then maps its ranked context ids back to the original chunks. It uses the same `env.AI` binding as `workersAiEmbedder`; add this binding to `wrangler.toml` if you have not already:\n\n```toml\n[ai]\nbinding = \"AI\"\n```\n\n`memoryVectors` keeps the whole index in memory, which suits tests and small sites. It holds at most `maxRecords` chunks (50,000 by default), and an upsert past that fails rather than dropping anything. For a bigger index, or one that survives a restart, use one of the [vector stores](/server/storage/#vector-stores).\n\nThe index has to be built and searched with the same embedder; a retriever refuses an embedder whose vectors are a different size from the store's. A command that builds the index from your sitemap is next.",
+   "source": {
+    "id": "https://chat.codercops.com/core/knowledge-base/",
+    "url": "https://chat.codercops.com/core/knowledge-base/",
+    "title": "Knowledge Base",
+    "section": "Retrieval from a vector store"
+   }
+  },
+  {
    "id": "39740684059d5b5d4d854be532617060435805f915914ed36b1c5696b924b6fe",
    "text": "Cloudflare Workers Adapter > Full Example\n\n```typescript\nimport { chatcopsCloudflareHandler } from '@chatcops/server';\nimport { LeadCaptureTool } from '@chatcops/core';\n\nlet handler: ReturnType<typeof chatcopsCloudflareHandler> | undefined;\nfunction getHandler(env: Record<string, string>) {\n  handler ??= chatcopsCloudflareHandler({\n    provider: {\n      type: 'gemini',\n      apiKey: env.GOOGLE_AI_API_KEY,\n      model: 'gemini-3.5-flash-lite',\n    },\n    systemPrompt: env.SYSTEM_PROMPT || 'You are a helpful assistant.',\n    tools: [\n      new LeadCaptureTool(async (lead) => {\n        // Use Cloudflare KV, D1, or external webhook\n        await fetch(env.WEBHOOK_URL, {\n          method: 'POST',\n          headers: { 'Content-Type': 'application/json' },\n          body: JSON.stringify(lead),\n        });\n      }),\n    ],\n    allowedOrigins: ['*'],\n    rateLimit: { maxRequests: 20, windowMs: 60_000 },\n  });\n  return handler;\n}\n\nexport default {\n  async fetch(request: Request, env: Record<string, string>): Promise<Response> {\n    return getHandler(env)(request);\n  },\n};\n```",
    "source": {
@@ -609,22 +660,32 @@
   },
   {
    "id": "3ad14754758756485b2e869505a7550cfe9f1abe79f74d36e9d0941c18735905",
-   "text": "Storage > Retention > Cloudflare Workers\n\nCreate a fresh handler inside `scheduled()` using the invocation's `env` so that no environment-specific secret is cached at global scope:\n\n```typescript\n// src/index.ts\nimport { chatcopsCloudflareHandler, createChatHandler } from '@chatcops/server';\nimport { Redis } from '@upstash/redis/cloudflare';\nimport { redisStorage } from '@chatcops/store-redis';\n\ninterface Env {\n  ANTHROPIC_API_KEY: string;\n  UPSTASH_REDIS_REST_URL: string;\n  UPSTASH_REDIS_REST_TOKEN: string;\n}\n\nfunction makeStorage(env: Env) {\n  const redis = new Redis({\n    url: env.UPSTASH_REDIS_REST_URL,\n    token: env.UPSTASH_REDIS_REST_TOKEN,\n  });\n  // retention.conversationsDays determines the cutoff used by purge().\n  // purge() removes old conversations and their corresponding index entries.\n  // conversationTtlMs is an optional Redis key-expiration safety net.\n  return redisStorage({ redis, prefix: 'chatcops' });\n}\n\n// The fetch handler is built once per isolate; env is the same on every request.\nlet fetchHandler: ReturnType<typeof chatcopsCloudflareHandler> | undefined;\nfunction getFetchHandler(env: Env) {\n  fetchHandler ??= chatcopsCloudflareHandler({\n    provider: { type: 'claude', apiKey: env.ANTHROPIC_API_KEY },\n    systemPrompt: 'You are a helpful assistant.',\n    storage: makeStorage(env),\n    retention: { conversationsDays: 30 },\n    allowedOrigins: ['*'],\n  });\n  return fetchHandler;\n}\n\nexport default {\n  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {\n    return getFetchHandler(env)(request, env, ctx);\n  },\n\n  async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext) {\n    // Build a dedicated handler for this invocation using the current env bindings.\n    const purgeHandler = createChatHandler({\n      provider: { type: 'claude', apiKey: env.ANTHROPIC_API_KEY },\n      systemPrompt: '',\n      storage: makeStorage(env),\n      retention: { conversationsDays: 30 },\n    });\n\n    ctx.waitUntil(\n      purgeHandler\n        .purge()\n        .then((deleted) => {\n          if (typeof deleted === 'number') {\n            console.log(`[chatcops] Purged ${deleted} old conversations`);\n          } else {\n            console.warn('[chatcops] purge() returned null: store does not support purge');\n          }\n        })\n        .catch((err) => {\n          console.error('[chatcops] Scheduled purge failed:', err);\n        })\n    );\n  },\n};\n```",
+   "text": "Storage > Retention > Vercel Cron Jobs\n\nVercel Cron Jobs call an API route on a schedule. Create a route that runs `purge()` and protect it with a shared secret so only Vercel's cron runner can trigger it:\n\n```typescript\n// app/api/purge/route.ts  (Next.js App Router)\nimport { createChatHandler } from '@chatcops/server';\nimport { NextRequest, NextResponse } from 'next/server';\n// Import the createChatHandler instance from your application module.\n// Replace '@/lib/chatcops' with the actual path where your handler is created,\n// configured with the same storage and retention settings as your chat route.\nconst handler = createChatHandler({\n  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n  systemPrompt: 'Be helpful.',\n});\n\nexport const runtime = 'nodejs';\n\nexport async function GET(req: NextRequest) {\n  const secret = process.env.CRON_SECRET;\n  if (!secret) {\n    return NextResponse.json({ error: 'CRON_SECRET is not configured' }, { status: 500 });\n  }\n  const auth = req.headers.get('authorization');\n  if (auth !== `Bearer ${secret}`) {\n    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });\n  }\n\n  try {\n    const deleted = await handler.purge();\n    if (typeof deleted === 'number') {\n      return NextResponse.json({ deleted });\n    }\n    return NextResponse.json({ deleted: null, message: 'Store does not support purge' });\n  } catch (err) {\n    console.error('[chatcops] Purge failed:', err);\n    return NextResponse.json({ error: 'Purge failed' }, { status: 500 });\n  }\n}\n```\n\nRegister the cron trigger in `vercel.json`. The path must match the route above:\n\n```json\n{\n  \"crons\": [\n    {\n      \"path\": \"/api/purge\",\n      \"schedule\": \"0 3 * * *\"\n    }\n  ]\n}\n```\n\nVercel automatically sends an `Authorization: Bearer ` header when it invokes the route. Set `CRON_SECRET` in your Vercel project's environment variables. The route rejects any caller whose header doesn't match, and returns 500 when the secret is not configured at all.",
    "source": {
     "id": "https://chat.codercops.com/server/storage/",
     "url": "https://chat.codercops.com/server/storage/",
     "title": "Storage",
-    "section": "Retention > Cloudflare Workers"
+    "section": "Retention > Vercel Cron Jobs"
+   }
+  },
+  {
+   "id": "3b1dee1f6467e5efa246739662d085d677354c24fdad7a3a0a16f7c5b25f011a",
+   "text": "API Reference > Methods > `ChatCops.setContext(data)`\n\nDetails the bot should know for the next messages, such as the visitor's plan or what's in their cart. They're sent with each message as page context: at most 20 fields, keys up to 40 characters, values up to 500. The bot sees them as details the page added, not as verified facts. `setContext(null)` removes them. Nothing is sent when `pageContext: false`.\n\n```typescript\nChatCops.setContext({ plan: 'Team', seats: '12' });\n```",
+   "source": {
+    "id": "https://chat.codercops.com/widget/api/",
+    "url": "https://chat.codercops.com/widget/api/",
+    "title": "API Reference",
+    "section": "Methods > `ChatCops.setContext(data)`"
    }
   },
   {
    "id": "3b46458f1cd4529a34ea03bd592c825490cdfbb9e119876ba08eb947960e9743",
-   "text": "Knowledge Base > Building an index from your site > From the command line\n\n`@chatcops/cli` wraps the same thing in a command, reading `chatcops.config.ts`:\n\n```typescript\nimport { memoryStorage, memoryVectors, openaiEmbedder } from '@chatcops/core';\nimport { defineConfig } from '@chatcops/cli';\n\nexport default defineConfig({\n  embedder: openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! }),\n  storage: { ...memoryStorage(), vectors: memoryVectors({ dimensions: 1024 }) },\n  ingest: { sources: [{ type: 'sitemap', url: 'https://example.com/sitemap.xml' }] },\n});\n```\n\n```bash\nnpx chatcops ingest              # build or update the index\nnpx chatcops ingest --dry-run    # see what would be indexed\nnpx chatcops search \"how much is the Team plan?\"\n```\n\nUse a persistent store in a real config. Add `--json` in CI for one JSON object per line. The command exits with 1 when some pages failed, and 2 when it couldn't run at all.",
+   "text": "Knowledge Base > Building an index from your site > Ingest options\n\n`sources` is a list of any of these:\n\n| Source | Reads |\n|---|---|\n| `{ type: 'sitemap', url }` | A sitemap, a sitemap index, or a gzipped one (`.xml.gz`) |\n| `{ type: 'urls', urls }` | The pages you list |\n| `{ type: 'directory', path, baseUrl }` | Local `.md`, `.mdx` and `.html` files, cited as if published under `baseUrl` |\n\nThe rest of the config:",
    "source": {
     "id": "https://chat.codercops.com/core/knowledge-base/",
     "url": "https://chat.codercops.com/core/knowledge-base/",
     "title": "Knowledge Base",
-    "section": "Building an index from your site > From the command line"
+    "section": "Building an index from your site > Ingest options"
    }
   },
   {
@@ -698,32 +759,32 @@
   },
   {
    "id": "40b149be95950e9da63a0a931a7805c39ff9a1013ff49c3c864513fb0e937e90",
-   "text": "API Reference > Auto-Initialization\n\nWhen using the CDN script tag, the widget auto-initializes by reading `data-*` attributes:",
+   "text": "API Reference > Methods > `ChatCops.clear()`\n\nLike `newConversation()`, and also removes what the widget saved in this browser: the transcript and the pre-chat answers, so the form shows again. Use it when a visitor signs out.\n\n```typescript\nChatCops.clear();\n```",
    "source": {
     "id": "https://chat.codercops.com/widget/api/",
     "url": "https://chat.codercops.com/widget/api/",
     "title": "API Reference",
-    "section": "Auto-Initialization"
+    "section": "Methods > `ChatCops.clear()`"
    }
   },
   {
    "id": "40baf510a304de36d16dbb9c74238cfed43745889b9a3c5f7147496a3dfa3501",
-   "text": "Testing your bot > Recorded replays\n\nRunning tests calls your model for real, which costs tokens and needs the API key. For CI, record the calls once and replay them:\n\n```bash\nnpx chatcops test --record   # calls the APIs and saves what they answer\nnpx chatcops test --replay   # answers every call from the recordings\n```\n\n`--record` saves each eval file's calls next to it, in `__cassettes__/<file>.jsonl` (so `evals/pricing.chat.yaml` records to `evals/__cassettes__/pricing.chat.jsonl`). It records every HTTP call a test makes: the model, embedding calls for knowledge search, and tools that call APIs without a mock. Commit the folder with your eval files.\n\nWhen the `CI` environment variable is set, as it is on GitHub Actions and most CI services, `chatcops test` replays by default, so CI needs no API keys and costs nothing. A provider config without an `apiKey` gets a stand-in key during replay, since nothing is sent. Keep the config file loading when a key is missing: read `process.env.ANTHROPIC_API_KEY` as it is, and don't throw at load time. `--live` calls the APIs anyway.\n\nEach call is matched by its method, URL and body within its test. Any change that changes what gets sent fails the test instead of passing on an old answer:\n\n- a new word in the system prompt\n- another model\n- a tool added or removed\n- a new knowledge page in the context\n\nThe message says where the request changed:\n\n```text\n✗ evals/pricing.chat.yaml > quotes the Team price\n    A call changed since it was recorded (POST https://api.anthropic.com/v1/messages, at system[0].text). Run chatcops test --record to record it again.\n```\n\nRun `--record` again after a change like that, check that the tests still pass, and commit the new recordings. `--record --filter` updates only the tests it ran, and recordings of tests you deleted are dropped the next time the file is recorded.\n\nA few things to know about recordings:",
+   "text": "Testing your bot > Options\n\n| Option | What it does |\n| --- | --- |\n| `[files...]` | Globs of eval files. Default `evals/**/*.chat.yaml`. |\n| `--filter <text>` | Only tests whose name contains the text, or `tag:<name>` for a tag |\n| `--repeat <n>` | Run every test n times, instead of each test's own `repeat` |\n| `--concurrency <n>` | Tests run at once. Default 4. |\n| `--reporter <name>` | `pretty` (the default) or `json`, which prints one JSON object with every turn's reply, tool calls, sources and token usage. Repeatable. |\n| `--json` | The same as `--reporter json` |\n| `--judge-model <provider:model>` | The judge for `judge` assertions: `gemini`, `openai` or `claude`, with a model id or without one for the default |\n| `--max-cost <usd>` | Stop starting turns once the run has spent this much. Needs `prices`. |\n| `--config <file>` | A config file other than `chatcops.config.*` in the current folder |\n\nA failed test prints the reason for each failed assertion and the reply it checked:\n\n```text\n✗ evals/pricing.chat.yaml > quotes the Team price\n    turn 1: the reply doesn't contain \"$19\"\n    reply: The Team plan is $29 a month, billed monthly.\n\n1 passed, 1 failed.\n```",
    "source": {
     "id": "https://chat.codercops.com/core/testing/",
     "url": "https://chat.codercops.com/core/testing/",
     "title": "Testing your bot",
-    "section": "Recorded replays"
+    "section": "Options"
    }
   },
   {
    "id": "40e4c8714ab3e973aefffb84f56615099649ec7dffd977f57caeb03dc13d1ce4",
-   "text": "API Reference > Methods > `ChatCops.destroy()`\n\nCompletely remove the widget from the DOM and clean up all event listeners.\n\n- **Popup mode:** Removes FAB, panel, and welcome bubble from the page.\n- **Inline mode:** Removes the widget from the container element.\n\n```typescript\nChatCops.destroy();\n```",
+   "text": "API Reference > Methods > `ChatCops.toggle()`\n\nOpen the chat if it's closed, and close it if it's open. With the script tag build, the first call loads the chat.\n\n```typescript\ndocument.querySelector('#help-btn')?.addEventListener('click', () => ChatCops.toggle());\n```",
    "source": {
     "id": "https://chat.codercops.com/widget/api/",
     "url": "https://chat.codercops.com/widget/api/",
     "title": "API Reference",
-    "section": "Methods > `ChatCops.destroy()`"
+    "section": "Methods > `ChatCops.toggle()`"
    }
   },
   {
@@ -738,12 +799,12 @@
   },
   {
    "id": "43f4d77bbea484dfd90553ad7402a4698b6b7b8c1bfd8f201d951eb52e230c25",
-   "text": "Widget Configuration > Script Tag Attribute Reference\n\n| Attribute | Config Key | Description |\n|-----------|-----------|-------------|\n| `data-api-url` | `apiUrl` | API endpoint URL (required) |\n| `data-mode` | `mode` | `'popup'` or `'inline'` |\n| `data-container` | `container` | CSS selector for inline container |\n| `data-theme-mode` | `theme.mode` | `'light'`, `'dark'` or `'auto'` |\n| `data-accent` | `theme.accent` | Primary accent color |\n| `data-accent-dark` | `theme.accentDark` | Accent color in dark mode |\n| `data-text-color` | `theme.textColor` | Primary text color |\n| `data-bg-color` | `theme.bgColor` | Background color |\n| `data-font-family` | `theme.fontFamily` | Font family |\n| `data-border-radius` | `theme.borderRadius` | Border radius. A bare number is px (`12`), or use any CSS length (`1rem`) |\n| `data-position` | `theme.position` | `'bottom-right'` or `'bottom-left'` |\n| `data-brand-name` | `branding.name` | Header title |\n| `data-brand-avatar` | `branding.avatar` | Avatar image URL |\n| `data-brand-subtitle` | `branding.subtitle` | Subtitle text |\n| `data-welcome-message` | `welcomeMessage` | First assistant message |\n| `data-disclosure` | `disclosure` | `\"false\"` turns the AI disclosure off |\n| `data-disclosure-text` | `disclosure.text` | Wording of the AI disclosure |\n| `data-disclosure-url` | `disclosure.learnMoreUrl` | \"Learn more\" link in the AI disclosure |\n| `data-welcome-bubble` | `welcomeBubble.text` | Welcome bubble text |\n| `data-welcome-bubble-delay` | `welcomeBubble.delay` | Bubble delay in ms |\n| `data-placeholder` | `placeholder` | Input placeholder |\n| `data-auto-open` | `autoOpen` | Auto-open delay in ms or `true` |\n| `data-locale` | `locale` | Language code |\n| `data-dir` | `dir` | Text direction: `'ltr'`, `'rtl'` or `'auto'` |\n| `data-persistence` | `persistence` | `'local'`, `'session'` or `'none'` |\n| `data-history-ttl-days` | `historyTtlDays` | Days a saved conversation is kept |\n| `data-turnstile-site-key` | `turnstileSiteKey` | Cloudflare Turnstile site key, when the server checks Turnstile |\n| `data-user-token` | `userToken` | Signed token for a signed-in visitor, when the server has `identity` set |",
+   "text": "Widget Configuration > WidgetConfig Interface\n\nSee the [pre-chat form guide](/widget/pre-chat-form) for field behavior, validation, and how answers are sent to the server. The form is configured with JavaScript; it has no `data-*` attributes.",
    "source": {
     "id": "https://chat.codercops.com/widget/configuration/",
     "url": "https://chat.codercops.com/widget/configuration/",
     "title": "Widget Configuration",
-    "section": "Script Tag Attribute Reference"
+    "section": "WidgetConfig Interface"
    }
   },
   {
@@ -757,12 +818,12 @@
   },
   {
    "id": "48f36d7ff9710468142d12c22339f23e113e29dd7797de86ce0d8efcf97d80e9",
-   "text": "API Reference > Auto-Initialization > Inline\n\n```html\n<div id=\"my-chat\" style=\"width: 400px; height: 500px;\"></div>\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js\"\n  data-api-url=\"https://your-api.com/chat\"\n  data-mode=\"inline\"\n  data-container=\"#my-chat\"\n></script>\n```\n\nThe script tag approach is equivalent to calling `ChatCops.init()` with the corresponding config. You can still use the programmatic API after auto-init (e.g., `ChatCops.open()`).",
+   "text": "API Reference > Methods > `ChatCops.on(event, callback)`\n\nSubscribe to widget events. Returns an unsubscribe function.\n\nHandlers can be registered before `init()` (including from inline scripts before `DOMContentLoaded`), and are preserved across repeated `init()` calls.\n\n```typescript\nconst unsub = ChatCops.on('message', (data) => {\n  console.log('New message:', data);\n});\n\n// Later, remove the listener:\nunsub();\n```",
    "source": {
     "id": "https://chat.codercops.com/widget/api/",
     "url": "https://chat.codercops.com/widget/api/",
     "title": "API Reference",
-    "section": "Auto-Initialization > Inline"
+    "section": "Methods > `ChatCops.on(event, callback)`"
    }
   },
   {
@@ -796,8 +857,18 @@
    }
   },
   {
+   "id": "4a929cdd387e9944acb0537bac99b030ef78510964ceb77244e6aae4ba9d926f",
+   "text": "Storage > Retention > Cloudflare Workers\n\nAdd a `scheduled` export to your Worker. Cloudflare calls it on the cron triggers you define in `wrangler.toml`.\n\nThis example uses [`@chatcops/store-redis`](/server/storage/#redis) with Upstash's HTTP-based Redis client because it runs directly in Workers over HTTP without extra database-connection setup:\n\n```bash\nnpm install @chatcops/store-redis @upstash/redis\n```\n\nCreate a fresh handler inside `scheduled()` using the invocation's `env` so that no environment-specific secret is cached at global scope:",
+   "source": {
+    "id": "https://chat.codercops.com/server/storage/",
+    "url": "https://chat.codercops.com/server/storage/",
+    "title": "Storage",
+    "section": "Retention > Cloudflare Workers"
+   }
+  },
+  {
    "id": "4b8a60504e3c5911bec528e3bd3b7404052770d4e891e52c29cb69ba8688472a",
-   "text": "Internationalization > Available Locales\n\n| Code | Language |\n|------|----------|\n| `ar` | Arabic |\n| `en` | English (default, built in) |\n| `de` | German |\n| `es` | Spanish |\n| `fr` | French |\n| `hi` | Hindi |\n| `it` | Italian |\n| `ja` | Japanese |\n| `ko` | Korean |\n| `nl` | Dutch |\n| `pt` | Portuguese (Brazil) |\n| `ur` | Urdu |\n| `zh` | Chinese (Simplified) |\n\nAny other `locale` uses the English strings, with your `strings` on top. Hindi is loaded as a separate file only when requested. To add a language, see `packages/widget/src/locales/README.md` and [#55](https://github.com/codercops/chatcops/issues/55).",
+   "text": "Internationalization > Available Locales\n\n| Code | Language |\n|------|----------|\n| `ar` | Arabic |\n| `en` | English (default, built in) |\n| `de` | German |\n| `es` | Spanish |\n| `fr` | French |\n| `he` | Hebrew |\n| `hi` | Hindi |\n| `it` | Italian |\n| `ja` | Japanese |\n| `ko` | Korean |\n| `nl` | Dutch |\n| `pt` | Portuguese (Brazil) |\n| `ur` | Urdu |\n| `zh` | Chinese (Simplified) |\n\nAny other `locale` uses the English strings, with your `strings` on top. Hindi is loaded as a separate file only when requested. To add a language, see `packages/widget/src/locales/README.md` and [#55](https://github.com/codercops/chatcops/issues/55).",
    "source": {
     "id": "https://chat.codercops.com/widget/i18n/",
     "url": "https://chat.codercops.com/widget/i18n/",
@@ -866,12 +937,22 @@
   },
   {
    "id": "5376fc0566b965051012b0692c8333b28060592259e4b97ce98e2d344af42533",
-   "text": "Storage > Coming soon\n\n- SQLite for single-server deployments ([#247](https://github.com/codercops/chatcops/issues/247)).\n- Cloudflare storage for D1, KV, and Durable Objects counters ([#249](https://github.com/codercops/chatcops/issues/249)).",
+   "text": "Storage > SQLite\n\n`@chatcops/store-sqlite` keeps everything in one SQLite file, for a single server process. It uses Node's built-in `node:sqlite` (Node 22.13 or later), so there's no native dependency to build. Like the Postgres store, it ships with the next release.\n\n```typescript\nimport { chatcopsMiddleware } from '@chatcops/server';\nimport { sqliteStorage } from '@chatcops/store-sqlite';\n\nconst storage = sqliteStorage({ path: './chatcops.db' });\n\nconst handler = chatcopsMiddleware({\n  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n  systemPrompt: 'You are a helpful customer support assistant.',\n  storage,\n});\n```\n\nThe tables are created on first use. `path: ':memory:'` is handy in tests, and `database` takes a `DatabaseSync` you opened yourself (better-sqlite3 works too). Call `await storage.close?.()` on shutdown, and back the file up the way you back up anything else on that server. Node may print an `ExperimentalWarning` the first time `node:sqlite` loads, which is expected.",
    "source": {
     "id": "https://chat.codercops.com/server/storage/",
     "url": "https://chat.codercops.com/server/storage/",
     "title": "Storage",
-    "section": "Coming soon"
+    "section": "SQLite"
+   }
+  },
+  {
+   "id": "53fac7c09f696ab34ef6a2ab7d25bed3f4183f4a57a755ab066a577e8d5f6a6d",
+   "text": "API Reference > Methods > `ChatCops.registerLocale(code, strings, options?)`\n\nAdd a language the widget doesn't ship, or replace one of its own. Strings you leave out stay in English. Pass `{ dir: 'rtl' }` for a right-to-left language. Register before `init()`, then use the code as `locale`.\n\n```typescript\nChatCops.registerLocale('sv', {\n  welcomeMessage: 'Hur kan jag hjälpa dig?',\n  inputPlaceholder: 'Skriv ett meddelande…',\n  sendButton: 'Skicka',\n});\nChatCops.init({ apiUrl: '/api/chat', locale: 'sv' });\n```\n\nSee [Internationalization](/widget/i18n/) for every string.",
+   "source": {
+    "id": "https://chat.codercops.com/widget/api/",
+    "url": "https://chat.codercops.com/widget/api/",
+    "title": "API Reference",
+    "section": "Methods > `ChatCops.registerLocale(code, strings, options?)`"
    }
   },
   {
@@ -904,13 +985,23 @@
    }
   },
   {
+   "id": "55895aa1efc0dfb52da1d524a35839e976643022a149c4406322844a2679fc5e",
+   "text": "API Reference > ESM Usage\n\n```typescript\nimport ChatCops from '@chatcops/widget';\n\n// Popup\nChatCops.init({ apiUrl: '/api/chat' });\n\n// Inline with element reference\nconst el = document.getElementById('chat');\nif (!el) throw new Error('Chat container not found');\nChatCops.init({\n  apiUrl: '/api/chat',\n  mode: 'inline',\n  container: el,\n});\n\n// Use methods as needed\nChatCops.on('message', (msg) => console.log(msg));\n```",
+   "source": {
+    "id": "https://chat.codercops.com/widget/api/",
+    "url": "https://chat.codercops.com/widget/api/",
+    "title": "API Reference",
+    "section": "ESM Usage"
+   }
+  },
+  {
    "id": "574cea65011ac976372efdd7a3c6743e2d646b4469d136735434da093e02eed4",
-   "text": "Storage > Retention > Cloudflare Workers\n\nRegister the cron trigger in `wrangler.toml`:\n\n```toml\nname = \"chatcops-worker\"\nmain = \"src/index.ts\"\ncompatibility_date = \"2024-01-01\"\n\n[triggers]\ncrons = [\"0 3 * * *\"]\n```\n\nWhen using a custom conversation store, the store must implement `ConversationStore.purge` for scheduled cleanup to work. `purge()` returns `null` when the store does not implement it, making scheduled cleanup a no-op.\n\n:::note\nThe in-memory store implements `purge()`, but each process or Worker instance only purges its own in-memory data. Scheduled cleanup is most useful when the application uses shared, persistent storage.\n:::",
+   "text": "Storage > Retention > Vercel Cron Jobs\n\n:::note\nVercel Cron Jobs are available on all plans. On the Hobby plan, each cron job is limited to running at most once per day, which is sufficient for daily retention cleanup.\n:::",
    "source": {
     "id": "https://chat.codercops.com/server/storage/",
     "url": "https://chat.codercops.com/server/storage/",
     "title": "Storage",
-    "section": "Retention > Cloudflare Workers"
+    "section": "Retention > Vercel Cron Jobs"
    }
   },
   {
@@ -935,12 +1026,12 @@
   },
   {
    "id": "59aede6257aa0db413b29de67ccc278daf7f80aaf41fb113ed152ca2cb11f1d9",
-   "text": "API Reference > Auto-Initialization > Popup (default)\n\n```html\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js\"\n  data-api-url=\"https://your-api.com/chat\"\n  data-accent=\"#6366f1\"\n></script>\n```",
+   "text": "API Reference > Methods > `ChatCops.destroy()`\n\nCompletely remove the widget from the DOM and clean up all event listeners.\n\n- **Popup mode:** Removes FAB, panel, and welcome bubble from the page.\n- **Inline mode:** Removes the widget from the container element.\n\n```typescript\nChatCops.destroy();\n```",
    "source": {
     "id": "https://chat.codercops.com/widget/api/",
     "url": "https://chat.codercops.com/widget/api/",
     "title": "API Reference",
-    "section": "Auto-Initialization > Popup (default)"
+    "section": "Methods > `ChatCops.destroy()`"
    }
   },
   {
@@ -954,7 +1045,7 @@
   },
   {
    "id": "5be572099d5beb7fb6ee32e68499b1dfde8ce3f21265ae40189afe5af6362181",
-   "text": "Server Setup > Request Schema\n\nThe server validates incoming requests with Zod:\n\n```typescript\ninterface ChatRequest {\n  conversationId: string,  // 1-128 chars\n  message: string,         // 1-10000 chars\n  messageId?: string,      // Optional, 1-128 chars\n  protocol?: 1,            // Optional, asks for protocol v1 (see Response format)\n  regenerate?: boolean | { assistantMessageId: string },  // Optional\n  pageContext?: {           // Optional page context\n    url: string,           // Valid URL (the prompt gets the first 2000 chars)\n    title: string,         // Max 500 chars\n    description?: string,  // Max 1000 chars\n    contentSnippet?: string, // Max 2000 chars\n  },\n  locale?: string,         // Max 10 chars\n  userData?: {              // Optional pre-chat data, max 50 fields\n    [key: string]: string,  // Key max 100 chars, value max 500 chars\n  },\n}\n```\n\nThe widget sends pre-chat answers in `userData`. See the [pre-chat form guide](/widget/pre-chat-form) for how the widget collects and submits these answers. Use the `preChatFields` option in [`ChatCopsServerConfig`](#chatcopsserverconfig) to limit which fields the server keeps.",
+   "text": "Server Setup > Request Schema\n\nThe server validates incoming requests with Zod:\n\n```typescript\ninterface ChatRequest {\n  conversationId: string,  // 1-128 chars\n  message: string,         // 1-10000 chars\n  messageId?: string,      // Optional, 1-128 chars\n  protocol?: 1,            // Optional, asks for protocol v1 (see Response format)\n  regenerate?: boolean | { assistantMessageId: string },  // Optional\n  pageContext?: {           // Optional page context\n    url: string,           // Valid URL (the prompt gets the first 2000 chars)\n    title: string,         // Max 500 chars\n    description?: string,  // Max 1000 chars\n    contentSnippet?: string, // Max 2000 chars\n    data?: { [key: string]: string },  // From the widget's setContext(): max 20 fields, keys 40 chars, values 500\n  },\n  locale?: string,         // Max 10 chars\n  userData?: {              // Optional pre-chat data, max 50 fields\n    [key: string]: string,  // Key max 100 chars, value max 500 chars\n  },\n}\n```\n\nThe widget sends pre-chat answers in `userData`. See the [pre-chat form guide](/widget/pre-chat-form) for how the widget collects and submits these answers. Use the `preChatFields` option in [`ChatCopsServerConfig`](#chatcopsserverconfig) to limit which fields the server keeps.",
    "source": {
     "id": "https://chat.codercops.com/server/setup/",
     "url": "https://chat.codercops.com/server/setup/",
@@ -984,12 +1075,22 @@
   },
   {
    "id": "61d6bdd811ff91da5241dae508630d4bc36fa336fa2e908514807df32f90caf9",
-   "text": "API Reference > Methods > `ChatCops.on(event, callback)`\n\nSubscribe to widget events. Returns an unsubscribe function.\n\nHandlers can be registered before `init()` (including from inline scripts before `DOMContentLoaded`), and are preserved across repeated `init()` calls.\n\n```typescript\nconst unsub = ChatCops.on('message', (data) => {\n  console.log('New message:', data);\n});\n\n// Later, remove the listener:\nunsub();\n```",
+   "text": "API Reference > Methods > `ChatCops.sendMessage(text, options?)`\n\nSend a message as if the visitor typed it, for example from a \"Ask about pricing\" button on your page. The chat opens first, unless you pass `{ open: false }`. The promise resolves when the reply has finished. While a reply is still coming, another message is ignored, as it is in the input.\n\n```typescript\ndocument.querySelector('#pricing-question')?.addEventListener('click', () => {\n  void ChatCops.sendMessage('How much is the Team plan?');\n});\n```",
    "source": {
     "id": "https://chat.codercops.com/widget/api/",
     "url": "https://chat.codercops.com/widget/api/",
     "title": "API Reference",
-    "section": "Methods > `ChatCops.on(event, callback)`"
+    "section": "Methods > `ChatCops.sendMessage(text, options?)`"
+   }
+  },
+  {
+   "id": "639a0763a9690f63442bcc981aa764223ccfe8fd2608af68ee5018ce0fce2ed3",
+   "text": "Testing your bot > Unit tests with a scripted model > Testing a store\n\nIf you write your own storage, `runStorageConformance` runs the checks every built-in store passes. It covers saving and appending, version conflicts, counters, expiry, events and, when the store has `vectors`, vector search:\n\n```typescript\nimport { runStorageConformance } from '@chatcops/core/testing';\nimport { memoryStorage } from '@chatcops/core';\n\nrunStorageConformance('my store', () => memoryStorage(), { ttlMs: 1500 });\n```\n\nCall it at the top level of a Vitest file. `ttlMs` (150 by default) is the expiry the checks use, and they wait about twice that, so raise it for a backend that rounds expiry to seconds. `skip` leaves out checks a backend can't meet in a test run: `'kv-ttl'`, `'counter-ttl'`, `'conversation-concurrency'`, `'counter-concurrency'` or `'vector-keyword-cjk'`. For example, Workers KV's shortest TTL is 60 seconds, so skip `'kv-ttl'` there.",
+   "source": {
+    "id": "https://chat.codercops.com/core/testing/",
+    "url": "https://chat.codercops.com/core/testing/",
+    "title": "Testing your bot",
+    "section": "Unit tests with a scripted model > Testing a store"
    }
   },
   {
@@ -1034,12 +1135,12 @@
   },
   {
    "id": "666383e7d9834f25b652cef9d9c0ca9d3cc14959c3b022b4d439f8bbf588b589",
-   "text": "Widget Configuration > CSS Custom Properties\n\nThe widget uses Shadow DOM and exposes these CSS custom properties on its host element:\n\n| Variable | Description | Default |\n|----------|-------------|---------|\n| `--cc-accent` | Primary accent color | `#6366f1` |\n| `--cc-accent-hover` | Hover state of accent | `#4f46e5` |\n| `--cc-text` | Primary text color | `#ffffff` |\n| `--cc-bg` | Background color | `#0a0a0a` |\n| `--cc-bg-surface` | Surface background | `#1a1a1a` |\n| `--cc-bg-input` | Input area background | `#2a2a2a` |\n| `--cc-border` | Border color | `#333333` |\n| `--cc-text-secondary` | Secondary text | `#a0a0a0` |\n| `--cc-font` | Font family | `system-ui` |\n| `--cc-radius` | Border radius | `12px` |\n| `--cc-shadow` | Panel box shadow | `0 8px 32px rgba(0, 0, 0, 0.4)` |\n| `--cc-fab-size` | FAB button size | `56px` |\n| `--cc-panel-width` | Chat panel width | `400px` |\n| `--cc-panel-height` | Chat panel height | `560px` |\n| `--cc-focus-ring` | Focus ring | `0 0 0 2px var(--cc-bg), 0 0 0 4px var(--cc-accent)` |",
+   "text": "Widget Configuration > Script Tag Attribute Reference\n\n| Attribute | Config Key | Description |\n|-----------|-----------|-------------|\n| `data-api-url` | `apiUrl` | API endpoint URL (required) |\n| `data-mode` | `mode` | `'popup'` or `'inline'` |\n| `data-container` | `container` | CSS selector for inline container |\n| `data-theme-mode` | `theme.mode` | `'light'`, `'dark'` or `'auto'` |\n| `data-accent` | `theme.accent` | Primary accent color |\n| `data-accent-dark` | `theme.accentDark` | Accent color in dark mode |\n| `data-text-color` | `theme.textColor` | Primary text color |\n| `data-bg-color` | `theme.bgColor` | Background color |\n| `data-font-family` | `theme.fontFamily` | Font family |\n| `data-border-radius` | `theme.borderRadius` | Border radius. A bare number is px (`12`), or use any CSS length (`1rem`) |\n| `data-position` | `theme.position` | `'bottom-right'` or `'bottom-left'` |\n| `data-brand-name` | `branding.name` | Header title |\n| `data-brand-avatar` | `branding.avatar` | Avatar image URL |\n| `data-brand-subtitle` | `branding.subtitle` | Subtitle text |\n| `data-welcome-message` | `welcomeMessage` | First assistant message |\n| `data-disclosure` | `disclosure` | `\"false\"` turns the AI disclosure off |\n| `data-disclosure-text` | `disclosure.text` | Wording of the AI disclosure |\n| `data-disclosure-url` | `disclosure.learnMoreUrl` | \"Learn more\" link in the AI disclosure |\n| `data-welcome-bubble` | `welcomeBubble.text` | Welcome bubble text |\n| `data-welcome-bubble-delay` | `welcomeBubble.delay` | Bubble delay in ms |\n| `data-placeholder` | `placeholder` | Input placeholder |\n| `data-auto-open` | `autoOpen` | Auto-open delay in ms or `true` |\n| `data-locale` | `locale` | Language code |\n| `data-dir` | `dir` | Text direction: `'ltr'`, `'rtl'` or `'auto'` |\n| `data-persistence` | `persistence` | `'local'`, `'session'` or `'none'` |\n| `data-history-ttl-days` | `historyTtlDays` | Days a saved conversation is kept |\n| `data-turnstile-site-key` | `turnstileSiteKey` | Cloudflare Turnstile site key, when the server checks Turnstile |\n| `data-user-token` | `userToken` | Signed token for a signed-in visitor, when the server has `identity` set |",
    "source": {
     "id": "https://chat.codercops.com/widget/configuration/",
     "url": "https://chat.codercops.com/widget/configuration/",
     "title": "Widget Configuration",
-    "section": "CSS Custom Properties"
+    "section": "Script Tag Attribute Reference"
    }
   },
   {
@@ -1133,6 +1234,16 @@
    }
   },
   {
+   "id": "6c81f22a1038d5f694f0c19b0d6ab953455e84df58984c5508555cd11d155aff",
+   "text": "Widget Configuration > Inline Mode Behavior\n\nWhen using `mode: 'inline'`:\n\n- The chat panel renders inside the specified container element\n- No floating action button (FAB) is created\n- No welcome bubble is shown\n- The panel is visible immediately (no toggle needed)\n- `autoOpen` is ignored (always open)\n- The panel fills 100% width and height of the container\n- Mobile responsive overrides do not apply — the container controls sizing\n- `open()` and `close()` still work programmatically",
+   "source": {
+    "id": "https://chat.codercops.com/widget/configuration/",
+    "url": "https://chat.codercops.com/widget/configuration/",
+    "title": "Widget Configuration",
+    "section": "Inline Mode Behavior"
+   }
+  },
+  {
    "id": "6dd34acacc7c90f6b980b6a3ed48d879d29118ccc8b3cb929421b8af0c220775",
    "text": "Pre-chat Form > What happens to answers\n\nThe widget includes the answers as `userData` on the next chat request. If that request fails, it sends the answers again with the retry. The server accepts at most 50 fields, with field names up to 100 characters and values up to 500 characters.\n\nThe server saves the answers with the conversation's first message and uses those saved answers for the rest of the conversation; later requests cannot replace them. Configure the server's [`preChatFields` allowlist](/server/setup#chatcopsserverconfig) to keep only the fields your server needs.",
    "source": {
@@ -1204,12 +1315,12 @@
   },
   {
    "id": "757370e73d27049e40d14237cebf100c1c5e3da81bca3e6aa2911b58cddd668e",
-   "text": "Storage > Retention\n\nThe handler exposes `purge()` for retention cleanup. `retention.conversationsDays` defaults to 30 days. Call `purge()` from a scheduled job or deploy task; it returns the number of deleted conversations, or `null` when the store can't purge:\n\n```typescript\nimport { createChatHandler } from '@chatcops/server';\nimport { Pool } from 'pg';\nimport { postgresStorage } from '@chatcops/store-postgres';\n\nconst handler = createChatHandler({\n  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n  systemPrompt: 'Be helpful.',\n  storage: postgresStorage({ db: new Pool({ connectionString: process.env.DATABASE_URL }) }),\n  retention: { conversationsDays: 30 },\n});\n\nconst deleted = await handler.purge();\nif (typeof deleted === 'number') {\n  console.log(`Purged ${deleted} old conversations`);\n}\n```\n\n`purge()` returns `null` only when a custom conversation store does not implement the optional `purge` capability, such as a custom store with only `get`, `save`, and `delete`. The built-in memory, SQLite, Postgres, and Redis stores all implement `purge()`.",
+   "text": "Storage > Vector stores > Postgres with pgvector\n\nThe Postgres store can keep chunks in a pgvector table with cosine search and full-text keyword search. Install pgvector on the database, then run the vector migration separately from the regular conversation migration. This keeps `migrate()` usable on Postgres servers where the extension is not installed:\n\n```typescript\nimport { Pool } from 'pg';\nimport { migrate, migrateVectors, postgresStorage } from '@chatcops/store-postgres';\n\nconst db = new Pool({ connectionString: process.env.DATABASE_URL });\nconst dimensions = 1024;\nawait migrate(db);\nawait migrateVectors(db, { dimensions });\n\nconst storage = postgresStorage({ db, dimensions });\nawait storage.vectors?.upsert([\n  {\n    id: 'pricing-0',\n    vector: new Float32Array(dimensions),\n    text: 'The Team plan is $20 a month.',\n    source: { id: 'pricing', url: 'https://example.com/pricing', title: 'Pricing' },\n    metadata: { locale: 'en' },\n  },\n]);\n```\n\nUse the same `dimensions` and `tablePrefix` for both `migrateVectors()` and `postgresStorage()`. `keywordQuery()` uses Postgres full-text ranking and splits words with `Intl.Segmenter`, including Japanese and Chinese. Filtered vector queries use pgvector iterative HNSW scans, which requires pgvector 0.8 or newer.",
    "source": {
     "id": "https://chat.codercops.com/server/storage/",
     "url": "https://chat.codercops.com/server/storage/",
     "title": "Storage",
-    "section": "Retention"
+    "section": "Vector stores > Postgres with pgvector"
    }
   },
   {
@@ -1244,12 +1355,12 @@
   },
   {
    "id": "79d3d2c053a95ca6f9eaf271bb8afbca43d2bda6a592f35c8dfd05bd7e97ec35",
-   "text": "Knowledge Base > Citations\n\nWhen knowledge sources return chunks (through `retrieve`), answers say which pages they came from. Each page the reply cites becomes a `source` part in the stream, once per page, after the text that cites it, and is saved with the reply:\n\n```json\n{ \"type\": \"source\", \"sourceId\": \"https://example.com/pricing\", \"url\": \"https://example.com/pricing\", \"title\": \"Pricing\", \"snippet\": \"The Team plan costs $20 per user per month…\" }\n```\n\nHow the model cites depends on the provider:\n\n| Provider | Sources go to the model as | Citations come back as |\n|---|---|---|\n| Claude | `search_result` blocks before the visitor's message | Claude's own citations, mapped to `source` parts |\n| OpenAI, Gemini, others | A numbered `<sources>` block in the system context | `[1]`, `[2]` in the text; numbers that match no source are removed |\n\nEither way, retrieved text is framed as reference material that never contains instructions, and it can't add or unlock tools. Sources with only `getContext` work as before: their text goes in the context, without citations.",
+   "text": "Knowledge Base > Building an index from your site > Ingest options\n\nThe rest of the config:\n\n| Option | Default | What it does |\n|---|---|---|\n| `embedder`, `store`, `manifest` | required | What turns text into vectors, the vector store, and the key-value store that remembers what's indexed |\n| `index` | `'default'` | Names the index, so a new one can be built next to the old |\n| `include`, `exclude` | everything | URL globs: `*` matches within a path segment, `**` across them. Only pages matching an `include` are indexed, and none matching an `exclude` |\n| `selectors` | none | A CSS selector for the content, by URL glob, such as `{ '**/docs/**': 'main article' }`, for pages where automatic extraction picks the wrong part. The first glob that matches wins |\n| `chunk` | `{ targetTokens: 500, overlapTokens: 60 }` | About how long each chunk is, and how much of the previous chunk in the same section it repeats. Chunks are at least 50 tokens, and the overlap is at most half a chunk |\n| `metadata` | none | `(doc) => ({ ... })`: extra metadata for every chunk of a page, such as `{ collection: 'docs' }`, to filter on later |\n| `maxPages` | no limit | Index at most this many pages (after `include` and `exclude`), for a quick look at a big site |\n| `concurrency` | 4 | Pages fetched at once |\n| `timeoutMs` | 30,000 | For each page |\n| `userAgent` | `ChatCopsBot/<version> (+https://chat.codercops.com/bot)` | Sent with every request. `robots.txt` is always read for the `ChatCopsBot` group, whatever this says |\n| `respectRobots` | `true` | See above |\n| `dryRun` | `false` | Discover, fetch, extract and chunk, but embed and write nothing |\n| `force` | `false` | Embed every page again, changed or not |\n| `prune` | `false` | Remove pages that are in the index but weren't found this time. Skipped when the sitemap or `robots.txt` couldn't be read, since the missing pages may still be there |\n| `onEvent` | none | Progress: `{ type: 'discovered', pages, errors }` once, then `{ type: 'page', url, status }` for each page (`indexed`, `unchanged`, `skipped` or `failed`, with `chunks` or a `reason`), and `{ type: 'pruned', url }` |\n| `fetch` | global `fetch` | For tests, or to go through a proxy |",
    "source": {
     "id": "https://chat.codercops.com/core/knowledge-base/",
     "url": "https://chat.codercops.com/core/knowledge-base/",
     "title": "Knowledge Base",
-    "section": "Citations"
+    "section": "Building an index from your site > Ingest options"
    }
   },
   {
@@ -1292,6 +1403,16 @@
    }
   },
   {
+   "id": "7c3d26cb23d5dcdb20f030006fb91365eb660468c438f816a0980d512f251af0",
+   "text": "API Reference > React / Framework Usage\n\nFor inline mode in React or other frameworks, pass the container element directly:\n\n```tsx\nimport { useEffect, useRef } from 'react';\nimport ChatCops from '@chatcops/widget';\n\nfunction Chat() {\n  const ref = useRef(null);\n\n  useEffect(() => {\n    if (!ref.current) return;\n    ChatCops.init({\n      apiUrl: '/api/chat',\n      mode: 'inline',\n      container: ref.current,\n    });\n    return () => ChatCops.destroy();\n  }, []);\n\n  return <div ref={ref} style={{ width: 400, height: 500 }} />;\n}\n```",
+   "source": {
+    "id": "https://chat.codercops.com/widget/api/",
+    "url": "https://chat.codercops.com/widget/api/",
+    "title": "API Reference",
+    "section": "React / Framework Usage"
+   }
+  },
+  {
    "id": "7c6b97b57eb177df4976318bc368de80592a40b31b6834477402796833b3927a",
    "text": "Protocol > Request Body\n\nThe server validates chat requests using Zod (`chatRequestSchema` in `@chatcops/server`).",
    "source": {
@@ -1311,6 +1432,16 @@
    }
   },
   {
+   "id": "7ddac5b47aa225c5669f4fcc1b4344b9dddbb3f660c9176d9a761e1b92b1a757",
+   "text": "ChatCopsBot > What it does\n\n- It reads the pages listed in a sitemap, or a list of URLs it was given. It doesn't follow links to discover more.\n- It obeys `robots.txt`: the `ChatCopsBot` group if there is one, otherwise `*`, including `Crawl-delay`. When `robots.txt` can't be read (a 5xx answer, or no answer), it fetches nothing from that site.\n- It fetches four pages at a time by default, and sends conditional requests on later runs, so unchanged pages answer `304`.\n- It keeps the readable text of each page to answer visitors' questions, with a link back to the page.",
+   "source": {
+    "id": "https://chat.codercops.com/bot/",
+    "url": "https://chat.codercops.com/bot/",
+    "title": "ChatCopsBot",
+    "section": "What it does"
+   }
+  },
+  {
    "id": "7ecd19b97d25f2989662d0e78ff150f74301e90b8f1777ad42269cca33facefe",
    "text": "Cloudflare Worker Full Example > Deploy\n\n```bash\nnpx wrangler deploy\n```",
    "source": {
@@ -1318,6 +1449,26 @@
     "url": "https://chat.codercops.com/examples/cloudflare-full/",
     "title": "Cloudflare Worker Full Example",
     "section": "Deploy"
+   }
+  },
+  {
+   "id": "7eee0cd0192ec59f0b7cb3c31eee304e69f3b7f20744954920b082acb9659ba7",
+   "text": "Storage > Retention > Cloudflare Workers\n\nCreate a fresh handler inside `scheduled()` using the invocation's `env` so that no environment-specific secret is cached at global scope:\n\n```typescript\n// src/index.ts\nimport { chatcopsCloudflareHandler, createChatHandler } from '@chatcops/server';\nimport { Redis } from '@upstash/redis/cloudflare';\nimport { redisStorage } from '@chatcops/store-redis';\n\ninterface Env {\n  ANTHROPIC_API_KEY: string;\n  UPSTASH_REDIS_REST_URL: string;\n  UPSTASH_REDIS_REST_TOKEN: string;\n}\n\nfunction makeStorage(env: Env) {\n  const redis = new Redis({\n    url: env.UPSTASH_REDIS_REST_URL,\n    token: env.UPSTASH_REDIS_REST_TOKEN,\n  });\n  // retention.conversationsDays determines the cutoff used by purge().\n  // purge() removes old conversations and their corresponding index entries.\n  // conversationTtlMs is an optional Redis key-expiration safety net.\n  return redisStorage({ redis, prefix: 'chatcops' });\n}\n\n// The fetch handler is built once per isolate; env is the same on every request.\nlet fetchHandler: ReturnType<typeof chatcopsCloudflareHandler> | undefined;\nfunction getFetchHandler(env: Env) {\n  fetchHandler ??= chatcopsCloudflareHandler({\n    provider: { type: 'claude', apiKey: env.ANTHROPIC_API_KEY },\n    systemPrompt: 'You are a helpful assistant.',\n    storage: makeStorage(env),\n    retention: { conversationsDays: 30 },\n    allowedOrigins: ['*'],\n  });\n  return fetchHandler;\n}\n\nexport default {\n  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {\n    return getFetchHandler(env)(request, env, ctx);\n  },\n\n  async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext) {\n    // Build a dedicated handler for this invocation using the current env bindings.\n    const purgeHandler = createChatHandler({\n      provider: { type: 'claude', apiKey: env.ANTHROPIC_API_KEY },\n      systemPrompt: '',\n      storage: makeStorage(env),\n      retention: { conversationsDays: 30 },\n    });\n\n    ctx.waitUntil(\n      purgeHandler\n        .purge()\n        .then((deleted) => {\n          if (typeof deleted === 'number') {\n            console.log(`[chatcops] Purged ${deleted} old conversations`);\n          } else {\n            console.warn('[chatcops] purge() returned null: store does not support purge');\n          }\n        })\n        .catch((err) => {\n          console.error('[chatcops] Scheduled purge failed:', err);\n        })\n    );\n  },\n};\n```",
+   "source": {
+    "id": "https://chat.codercops.com/server/storage/",
+    "url": "https://chat.codercops.com/server/storage/",
+    "title": "Storage",
+    "section": "Retention > Cloudflare Workers"
+   }
+  },
+  {
+   "id": "7f53ef9f11333857aaf5103a673f3c38d83167c5e8080f63ce0768dc505948ec",
+   "text": "API Reference > Auto-Initialization\n\nWhen using the CDN script tag, the widget auto-initializes by reading `data-*` attributes:",
+   "source": {
+    "id": "https://chat.codercops.com/widget/api/",
+    "url": "https://chat.codercops.com/widget/api/",
+    "title": "API Reference",
+    "section": "Auto-Initialization"
    }
   },
   {
@@ -1342,12 +1493,12 @@
   },
   {
    "id": "84857bbe4a82e4eaca3ae72b0406e9f4ccd3f713c6047a0a426fbb0897b87659",
-   "text": "Storage > Vector stores > SQLite with sqlite-vec\n\nInstall the optional peer dependency to keep embeddings in the same SQLite file:\n\n```bash\nnpm install @chatcops/store-sqlite sqlite-vec\n```\n\n```typescript\nimport { sqliteStorage } from '@chatcops/store-sqlite';\n\nconst storage = sqliteStorage({\n  path: './chatcops.db',\n  vectors: { dimensions: 1024 },\n});\n```\n\nUse the embedder's dimensions. `storage.vectors` supports cosine similarity, typed metadata filters, source deletion, and FTS5 keyword search with Japanese and Chinese word segmentation. Without `vectors`, SQLite storage does not load or require `sqlite-vec`. A caller-supplied database must be opened with `allowExtension: true` to enable vectors.",
+   "text": "Storage > Custom stores\n\nThe server accepts a custom conversation store through `storage`:\n\n```typescript\nimport type { Conversation, ConversationStore } from '@chatcops/core';\nimport { chatcopsMiddleware } from '@chatcops/server';\n\nconst myStore: ConversationStore = {\n  async get(id: string): Promise<Conversation | null> {\n    // Read the conversation from your database.\n    return null;\n  },\n  async save(conversation: Conversation): Promise<void> {\n    // Persist the complete conversation.\n  },\n  async delete(id: string): Promise<void> {\n    // Delete the conversation.\n  },\n};\n\nconst handler = chatcopsMiddleware({\n  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n  systemPrompt: 'Be helpful.',\n  storage: { conversations: myStore },\n});\n```\n\nA store with only `get`, `save`, and `delete` works, but the server logs one warning at startup. In that mode, each write saves the complete conversation, so two instances writing the same conversation concurrently can overwrite one another and lose a message.\n\nImplement `append` when the backing system can perform an atomic append. The server uses it to make concurrent writes safe across instances. `append(id, messages, { expectedVersion, metadata })` adds the messages after the existing ones and resolves to the new `{ version }`. A conversation that doesn't exist yet is at version 0. When `expectedVersion` is given and the stored version has moved on, throw `ConflictError` (from `@chatcops/core`) and write nothing. `metadata` is merged into the conversation's metadata, new keys winning. `runStorageConformance` from [`@chatcops/core/testing`](/core/testing/#testing-a-store) checks all of this.\n\n`updateMessage`, `removeMessage`, `list`, and `purge` are optional capabilities; implement them when the application needs those operations.\n\nThe history sent to the model is trimmed to about 32,000 tokens: the visitor's first message plus as many recent ones as fit. Stored history keeps up to 100 messages per conversation.",
    "source": {
     "id": "https://chat.codercops.com/server/storage/",
     "url": "https://chat.codercops.com/server/storage/",
     "title": "Storage",
-    "section": "Vector stores > SQLite with sqlite-vec"
+    "section": "Custom stores"
    }
   },
   {
@@ -1431,12 +1582,12 @@
   },
   {
    "id": "8ee9b547c1fd9e74ee1010324d50f60799307f1c744ce755140001e9aec13dc1",
-   "text": "Knowledge Base > Retrieval from a vector store\n\nEmbedders turn text into vectors. `openaiEmbedder` calls OpenAI's embeddings API (`text-embedding-3-small` at 1024 dimensions by default), while `workersAiEmbedder` runs inside Cloudflare Workers using the native `env.AI` binding (`@cf/baai/bge-m3` at 1024 dimensions by default, batched up to 100 texts). A retriever searches a vector store with them, and `retrieverKnowledge` turns the retriever into a knowledge source:\n\n```typescript\nimport { hybridRetriever, memoryVectors, openaiEmbedder, retrieverKnowledge } from '@chatcops/core';\nimport { chatcopsMiddleware } from '@chatcops/server';\n\nconst embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! });\nconst vectors = memoryVectors({ dimensions: embedder.dimensions });\n\nconst handler = chatcopsMiddleware({\n  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n  systemPrompt: 'Answer questions about Acme.',\n  knowledge: [retrieverKnowledge(hybridRetriever({ store: vectors, embedder }), { topK: 5 })],\n});\n```\n\n`geminiEmbedder` does the same with [Google's Gemini API](https://ai.google.dev/gemini-api/docs/embeddings). It defaults to `gemini-embedding-001` at 1024 dimensions:\n\n```typescript\nimport { geminiEmbedder } from '@chatcops/core';\n\nconst embedder = geminiEmbedder({ apiKey: process.env.GEMINI_API_KEY! });\n```\n\n`voyageEmbedder` does the same with [Voyage AI](https://docs.voyageai.com/reference/embeddings-api). It uses `voyage-4-large` at 1024 dimensions by default, and tells Voyage whether it is embedding a document or a search query, which Voyage embeds differently:\n\n```typescript\nimport { voyageEmbedder } from '@chatcops/core';\n\nconst embedder = voyageEmbedder({ apiKey: process.env.VOYAGE_API_KEY! });\n```",
+   "text": "Knowledge Base > Building an index from your site > Ingest options\n\n`ingest()` resolves to counts: `discovered`, `indexed`, `unchanged`, `skipped`, `failed`, `pruned`, `chunks`, and `embedded` (texts sent to the embedder, 0 on a run where nothing changed), plus `errors` for discovery and `robots.txt` problems, and `pruneSkipped` with the reason when you asked for `prune` and it didn't run.",
    "source": {
     "id": "https://chat.codercops.com/core/knowledge-base/",
     "url": "https://chat.codercops.com/core/knowledge-base/",
     "title": "Knowledge Base",
-    "section": "Retrieval from a vector store"
+    "section": "Building an index from your site > Ingest options"
    }
   },
   {
@@ -1548,6 +1699,16 @@
    }
   },
   {
+   "id": "9c199487f55ca9ca03c6ad2c253f4f9bd1df0c2c9cab97ce6e401e93cd48d8a3",
+   "text": "Testing your bot > Unit tests with a scripted model\n\nEach model step takes the next entry of the script:\n\n- `textStep(text, { chunkSize, usage })` streams `text` in pieces of `chunkSize` characters (8 by default).\n- `toolStep(calls, { text })` calls tools, optionally after some text.\n- A list of provider events, or a function that builds them from the step's params, for anything else.\n- An `Error` makes that step fail, and `'hang'` waits until the request is aborted, for testing disconnects.\n\n`scriptedProvider(script, { delayMs })` waits `delayMs` before each event, to test timeouts and streaming. `citations: 'native'` makes it act like Claude, getting `sources` on each step. `provider.calls` keeps the params of every step, with the messages as they were then.",
+   "source": {
+    "id": "https://chat.codercops.com/core/testing/",
+    "url": "https://chat.codercops.com/core/testing/",
+    "title": "Testing your bot",
+    "section": "Unit tests with a scripted model"
+   }
+  },
+  {
    "id": "9c68c15e0ed899fbbb0ed27e898ebf34eb617263af12a8c7f8c87260606cdbae",
    "text": "Protocol > Stream Format and Framing\n\nProtocol v1 uses HTTP Server-Sent Events (SSE). Successful streaming replies return with HTTP `200 OK` and headers:\n\n```http\nHTTP/1.1 200 OK\nContent-Type: text/event-stream; charset=utf-8\nCache-Control: no-cache, no-transform\nX-Accel-Buffering: no\nx-chatcops-protocol: 1\nAccess-Control-Expose-Headers: Retry-After, X-ChatCops-Protocol\n```",
    "source": {
@@ -1579,7 +1740,7 @@
   },
   {
    "id": "9ee68e2f18c43625cdec2defdcde2352243866703de2ded235df641563cd7bd8",
-   "text": "Testing your bot > Recorded replays\n\nA few things to know about recordings:\n\n- Headers aren't saved, and neither are query parameters like `key` or `api_key`. API keys usually travel in one of those, so they stay out of the files. The request and response bodies are saved, which means your system prompt and the replies are in the files, so treat them like the rest of your code. Request bodies stay readable JSON, so a re-recording's diff shows what you changed. Responses over 4 kB, such as a streamed reply with one event per token, are saved gzipped in base64, which keeps the files about a tenth of the size.\n- `repeat` records every run, and replay plays them back in the same order.\n- Replays answer at once, so `latency` in a replayed run is not the real latency.",
+   "text": "Testing your bot > Recorded replays\n\nRunning tests calls your model for real, which costs tokens and needs the API key. For CI, record the calls once and replay them:\n\n```bash\nnpx chatcops test --record   # calls the APIs and saves what they answer\nnpx chatcops test --replay   # answers every call from the recordings\n```\n\n`--record` saves each eval file's calls next to it, in `__cassettes__/<file>.jsonl` (so `evals/pricing.chat.yaml` records to `evals/__cassettes__/pricing.chat.jsonl`). It records every HTTP call a test makes: the model, embedding calls for knowledge search, and tools that call APIs without a mock. Commit the folder with your eval files.\n\nWhen the `CI` environment variable is set, as it is on GitHub Actions and most CI services, `chatcops test` replays by default, so CI needs no API keys and costs nothing. A provider config without an `apiKey` gets a stand-in key during replay, since nothing is sent. Keep the config file loading when a key is missing: read `process.env.ANTHROPIC_API_KEY` as it is, and don't throw at load time. `--live` calls the APIs anyway.\n\nEach call is matched by its method, URL and body within its test. Any change that changes what gets sent fails the test instead of passing on an old answer:\n\n- a new word in the system prompt\n- another model\n- a tool added or removed\n- a new knowledge page in the context\n\nThe message says where the request changed:\n\n```text\n✗ evals/pricing.chat.yaml > quotes the Team price\n    A call changed since it was recorded (POST https://api.anthropic.com/v1/messages, at system[0].text). Run chatcops test --record to record it again.\n```\n\nRun `--record` again after a change like that, check that the tests still pass, and commit the new recordings. `--record --filter` updates only the tests it ran, and recordings of tests you deleted are dropped the next time the file is recorded.\n\nA few things to know about recordings:",
    "source": {
     "id": "https://chat.codercops.com/core/testing/",
     "url": "https://chat.codercops.com/core/testing/",
@@ -1647,12 +1808,12 @@
   },
   {
    "id": "aa236f32036c66e555b586ffc8929d0a014efc680d39442849bfaa56e0d4933e",
-   "text": "API Reference > ESM Usage\n\n```typescript\nimport ChatCops from '@chatcops/widget';\n\n// Popup\nChatCops.init({ apiUrl: '/api/chat' });\n\n// Inline with element reference\nconst el = document.getElementById('chat');\nif (!el) throw new Error('Chat container not found');\nChatCops.init({\n  apiUrl: '/api/chat',\n  mode: 'inline',\n  container: el,\n});\n\n// Use methods as needed\nChatCops.on('message', (msg) => console.log(msg));\n```",
+   "text": "API Reference > Methods > `ChatCops.off(event, callback)`\n\nRemove a specific event listener from both the persistent registry and the active widget instance.\n\n```typescript\nfunction onOpen() {\n  console.log('Widget opened');\n}\n\nChatCops.on('open', onOpen);\nChatCops.off('open', onOpen);\n```",
    "source": {
     "id": "https://chat.codercops.com/widget/api/",
     "url": "https://chat.codercops.com/widget/api/",
     "title": "API Reference",
-    "section": "ESM Usage"
+    "section": "Methods > `ChatCops.off(event, callback)`"
    }
   },
   {
@@ -1677,7 +1838,7 @@
   },
   {
    "id": "ace59a10adfbb8a96ea95c5a49d43030618d808393653ec0eef7e0d2f3f82faa",
-   "text": "Protocol > Errors Before Streaming > Pre-Stream Error Statuses\n\n| HTTP Status | Error Code (`WireErrorCode` or string) | Trigger Condition | Message / Response Body |\n|---|---|---|---|\n| `400` | `invalid_request` | The request body failed Zod schema validation or JSON parsing. | Lists invalid field paths (e.g. `\"Invalid request: message\"`), never input values. |\n| `401` | `session_required` | Session tokens are required and the request had no token, an invalid signature, or a token issued for another origin. | `{\"error\":{\"code\":\"session_required\",\"message\":\"...\"}}`. Obtain a token for this conversation from `<chat url>/session`. |\n| `401` | `token_expired` | The provided session token has expired. | Request a new token from `<chat url>/session`. |\n| `401` | `conversation_mismatch` | The session token is valid but was issued for a different conversation. | Obtain a token for the current conversation from `<chat url>/session`. |\n| `401` | `turnstile_failed` | `/session` endpoint only: Cloudflare Turnstile verification failed or was missing. | Returned when bot protection challenge fails. |\n| `403` | `origin_not_allowed` | The `Origin` header is not permitted by `allowedOrigins`. | Answered before the request body is parsed. Returns legacy format `{\"error\":\"origin_not_allowed\"}`. |\n| `405` | `Method not allowed` | An HTTP method other than `POST` or `OPTIONS` was used on the chat endpoint. | Answered before the request body is parsed. Returns legacy format `{\"error\":\"Method not allowed\"}`. |\n| `409` | `conversation_busy` | Another reply is currently being generated for this `conversationId`. | The server locks conversation turns to prevent state races. |\n| `413` | `payload_too_large` | The request body exceeds the maximum permitted size (default 256 KB). | Prevents excessive memory allocation. |\n| `429` | `rate_limited` | The client IP has exceeded the configured request rate limit. | Includes `retryAfterMs` in body and `Retry-After` in HTTP headers. |\n| `500` | `internal_error` | An unexpected server error occurred prior to stream initialization. | Generic catch-all failure. |\n| `503` | `provider_unavailable` | The AI provider failed setup or is not reachable (e.g. missing API key). | Server logs the underlying reason at startup. |",
+   "text": "Protocol > Errors Before Streaming > Pre-Stream Error Statuses\n\n| HTTP Status | Error Code (`WireErrorCode` or string) | Trigger Condition | Message / Response Body |\n|---|---|---|---|\n| `400` | `invalid_request` | The request body failed Zod schema validation or JSON parsing. | Lists invalid field paths (e.g. `\"Invalid request: message\"`), never input values. |\n| `401` | `session_required` | Session tokens are required and the request had no token, an invalid signature, or a token issued for another origin. | `{\"error\":{\"code\":\"session_required\",\"message\":\"...\"}}`. Obtain a token for this conversation from `<chat url>/session`. |\n| `401` | `token_expired` | The provided session token has expired. | Request a new token from `<chat url>/session`. |\n| `401` | `conversation_mismatch` | The session token is valid but was issued for a different conversation. | Obtain a token for the current conversation from `<chat url>/session`. |\n| `401` | `turnstile_failed` | `/session` endpoint only: Cloudflare Turnstile verification failed or was missing. | Returned when bot protection challenge fails. |\n| `403` | `origin_not_allowed` | The `Origin` header is not permitted by `allowedOrigins`. | Answered before the request body is parsed. Returns legacy format `{\"error\":\"origin_not_allowed\"}`. |\n| `405` | `Method not allowed` | An HTTP method other than `POST` or `OPTIONS` was used on the chat endpoint. | Answered before the request body is parsed, with `Allow: POST, OPTIONS`. Returns legacy format `{\"error\":\"Method not allowed\"}`. |\n| `409` | `conversation_busy` | Another reply is currently being generated for this `conversationId`. | The server locks conversation turns to prevent state races. |\n| `413` | `payload_too_large` | The request body exceeds the maximum permitted size (default 256 KB). | Prevents excessive memory allocation. |\n| `429` | `rate_limited` | The client IP has exceeded the configured request rate limit. | Includes `retryAfterMs` in body and `Retry-After` in HTTP headers. |\n| `500` | `internal_error` | An unexpected server error occurred prior to stream initialization. | Generic catch-all failure. |\n| `503` | `provider_unavailable` | The AI provider failed setup or is not reachable (e.g. missing API key). | Server logs the underlying reason at startup. |",
    "source": {
     "id": "https://chat.codercops.com/server/protocol/",
     "url": "https://chat.codercops.com/server/protocol/",
@@ -1707,12 +1868,12 @@
   },
   {
    "id": "af47b413c768d484ac46d374706af33ae892d94c4f0111480d52a6c8488da583",
-   "text": "Storage > Vector stores\n\n`vectors` holds embedded chunks of your site's pages, for answering from them. The server doesn't search it yet; retrieval and citations build on it next. The interface is in place now so store packages can add it.\n\n`memoryVectors` keeps vectors in the process and compares a query with every record. Use it for tests, local development, and indexes of a few thousand chunks:\n\n```typescript\nimport { memoryStorage, memoryVectors } from '@chatcops/core';\n\nconst storage = {\n  ...memoryStorage(),\n  vectors: memoryVectors({ dimensions: 1024 }),\n};\n\nawait storage.vectors.upsert([\n  {\n    id: 'pricing-0',\n    vector: new Float32Array(1024),\n    text: 'The Team plan is $20 a month.',\n    source: { id: 'https://example.com/pricing', url: 'https://example.com/pricing', title: 'Pricing' },\n    metadata: { locale: 'en' },\n  },\n]);\n\nconst results = await storage.vectors.query({\n  vector: new Float32Array(1024),\n  topK: 5,\n  filter: { locale: ['en', 'de'] },\n});\n```\n\nA `VectorStore` needs:\n\n| Method | What it does |\n|---|---|\n| `dimensions` | The length of every vector. Storing or searching with another length is an error. |\n| `upsert(records)` | Adds records, replacing any with the same id. |\n| `query({ vector, topK, filter })` | The nearest records by cosine similarity, best first. |\n| `keywordQuery({ text, topK, filter })` | Optional full-text search, for hybrid retrieval. Words are split with `Intl.Segmenter`, so Japanese and Chinese work. |\n| `deleteBySource(sourceId)` | Removes every chunk of a page. |\n\nA filter matches when every key matches: a value has to be equal and of the same type, and an array matches any of its values. Results don't include the vectors.\n\nTo check your own store, run the conformance suite from `@chatcops/core/testing`. Its vector checks run when the storage has `vectors`, need at least 4 dimensions, and tag every record with the run's id, so they work against a shared index.",
+   "text": "Storage > Extra columns\n\nThe Postgres, SQLite and D1 stores can fill in columns of your own on every new conversation and message row, such as the tenant a chat belongs to. Add the columns with your own migration, list them in `extraColumns`, and return their values from `rowHook`:\n\n```sql\nALTER TABLE chatcops_conversations ADD COLUMN workspace_id uuid;\nALTER TABLE chatcops_messages ADD COLUMN workspace_id uuid;\n```\n\n```typescript\nimport { Pool } from 'pg';\nimport { postgresStorage } from '@chatcops/store-postgres';\n\nconst db = new Pool({ connectionString: process.env.DATABASE_URL });\n\n// One storage per workspace, made when that workspace's handler is.\nfunction storageFor(workspaceId: string) {\n  return postgresStorage({\n    db,\n    extraColumns: { workspace_id: 'uuid' },\n    rowHook: () => ({ workspace_id: workspaceId }),\n  });\n}\n```\n\nThe hook runs when a row is inserted, never on updates. It gets `table` (`'conversations'` or `'messages'`), `conversationId`, the `metadata` passed with that write, and `message` for message rows. The server writes `visitor` (the pre-chat answers) and `uid` (a [signed-in visitor](/server/setup/#signed-in-visitors)) as metadata with a conversation's first message, so for anything else, close over the value as above. Every column in `extraColumns` is written to both tables, so add it to both. A column the hook leaves out is stored as null, and returning a key that isn't in `extraColumns` throws, with nothing from that write stored. Values are sent as query parameters, never put into the SQL.\n\n`extraColumns` is a list of names, or names with their SQL type as above (the default type is `text`). SQLite and D1 ignore the type, so one config works for all three. They store booleans as 1 or 0, so use an `INTEGER` column for those. Reads aren't filtered by these columns: scoping queries to a workspace is up to your own queries or row-level security.",
    "source": {
     "id": "https://chat.codercops.com/server/storage/",
     "url": "https://chat.codercops.com/server/storage/",
     "title": "Storage",
-    "section": "Vector stores"
+    "section": "Extra columns"
    }
   },
   {
@@ -1805,12 +1966,12 @@
   },
   {
    "id": "b67cc058f85683c293d856800b2a05423a8355e07eee052f974d6ea3ff9c190a",
-   "text": "Knowledge Base > Retrieval from a vector store\n\nThe newer Voyage models (`voyage-4`, `voyage-4-lite`, `voyage-3.5` and others) can shorten their vectors with `dimensions` (256, 512, 1024 or 2048). Other models make one fixed length, so set `dimensions` to that length. `batchSize` is how many texts go in one request (128 by default, at most 1,000); each model also limits the tokens in a request, so lower it for very long texts.\n\nIn a Cloudflare Worker, pass the `AI` binding directly:\n\n```typescript\nimport {\n  memoryVectors,\n  retrieverKnowledge,\n  vectorRetriever,\n  workersAiEmbedder,\n  workersAiReranker,\n  type WorkersAiBinding,\n} from '@chatcops/core';\n\ndeclare const env: { AI: WorkersAiBinding };\n\nconst embedder = workersAiEmbedder({ ai: env.AI });\nconst vectors = memoryVectors({ dimensions: embedder.dimensions });\nconst reranker = workersAiReranker({ ai: env.AI });\nconst knowledge = retrieverKnowledge(vectorRetriever({ store: vectors, embedder, reranker }), { topK: 5 });\n```\n\nThere are two retrievers:\n\n| Retriever | Searches by | Needs |\n|---|---|---|\n| `vectorRetriever({ store, embedder })` | Meaning: the question is embedded and compared with every chunk | Any vector store |\n| `hybridRetriever({ store, embedder })` | Meaning and exact words, merged by rank (reciprocal rank fusion, `rrfK` 60) | A store with `keywordQuery` |\n\nHybrid search is the better default when the store supports it. Words catch what meaning misses, such as product names, error codes and part numbers.\n\nBoth take `candidates` (how many records each search fetches, default 20) and an optional `reranker`, which reorders the candidates before the top ones are kept. A short follow-up question (\"how long does it take?\") is searched together with the visitor's previous question, so it finds the right pages.",
+   "text": "Knowledge Base > Building an index from your site > From the command line\n\n`@chatcops/cli` wraps the same thing in a command, reading `chatcops.config.ts`:\n\n```typescript\nimport { memoryStorage, memoryVectors, openaiEmbedder } from '@chatcops/core';\nimport { defineConfig } from '@chatcops/cli';\n\nexport default defineConfig({\n  embedder: openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! }),\n  storage: { ...memoryStorage(), vectors: memoryVectors({ dimensions: 1024 }) },\n  ingest: { sources: [{ type: 'sitemap', url: 'https://example.com/sitemap.xml' }] },\n});\n```\n\n```bash\nnpx chatcops ingest              # build or update the index\nnpx chatcops ingest --dry-run    # see what would be indexed\nnpx chatcops search \"how much is the Team plan?\"\n```\n\nUse a persistent store in a real config. Add `--json` in CI for one JSON object per line. The command exits with 1 when some pages failed, and 2 when it couldn't run at all.",
    "source": {
     "id": "https://chat.codercops.com/core/knowledge-base/",
     "url": "https://chat.codercops.com/core/knowledge-base/",
     "title": "Knowledge Base",
-    "section": "Retrieval from a vector store"
+    "section": "Building an index from your site > From the command line"
    }
   },
   {
@@ -1834,8 +1995,28 @@
    }
   },
   {
+   "id": "b72c5148c9b72f2cd97d941706dbdf6418e2f466aa144154b89e79c500b57ec0",
+   "text": "Testing your bot > Unit tests with a scripted model\n\n`chatcops test` checks what a real model says. For code around the bot, such as your tools, a custom store or a page that reads the stream, a model is slow and never answers the same way twice. `@chatcops/core/testing` has a provider that plays back a script instead:\n\n```typescript\nimport { expect, it } from 'vitest';\nimport { scriptedProvider, textStep, toolStep } from '@chatcops/core/testing';\nimport { chatcopsVercelHandler } from '@chatcops/server/vercel';\n\nit('looks the order up before answering', async () => {\n  const lookups: unknown[] = [];\n  const provider = scriptedProvider([\n    toolStep([{ name: 'lookup_order', input: { id: 'A-1' } }]),\n    textStep('Your order shipped on Monday.'),\n  ]);\n  const handler = chatcopsVercelHandler({\n    provider,\n    systemPrompt: 'You answer questions about orders.',\n    tools: [{\n      name: 'lookup_order',\n      description: 'Finds an order by id.',\n      inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },\n      async execute(input) {\n        lookups.push(input);\n        return { success: true, data: { shipped: 'Monday' } };\n      },\n    }],\n  });\n\n  const response = await handler(new Request('http://localhost/api/chat', {\n    method: 'POST',\n    headers: { 'content-type': 'application/json' },\n    body: JSON.stringify({ protocol: 1, conversationId: 'test-1', message: 'Where is order A-1?' }),\n  }));\n\n  // The reply is a stream of `data:` lines, one part each.\n  const parts = (await response.text())\n    .split('\\n')\n    .filter((line) => line.startsWith('data: {'))\n    .map((line) => JSON.parse(line.slice(6)));\n  const reply = parts.filter((part) => part.type === 'text-delta').map((part) => part.delta).join('');\n\n  expect(reply).toBe('Your order shipped on Monday.');\n  expect(lookups).toEqual([{ id: 'A-1' }]);\n  expect(provider.calls).toHaveLength(2); // the second step saw the tool's result\n});\n```\n\nEach model step takes the next entry of the script:",
+   "source": {
+    "id": "https://chat.codercops.com/core/testing/",
+    "url": "https://chat.codercops.com/core/testing/",
+    "title": "Testing your bot",
+    "section": "Unit tests with a scripted model"
+   }
+  },
+  {
+   "id": "b7a73f628fb40df1874616ae175537e5535f8d1f2a10e865fc1594a360b1b653",
+   "text": "API Reference > Methods > `ChatCops.update(changes)`\n\nChange how the running chat looks or what it says, without loading it again. It takes these options from `init()`:\n\n- `theme`, except `position`: moving the chat needs `init()`\n- `branding`, `placeholder` and `strings`\n- `disclosure`\n- `welcomeMessage` and `suggestions`\n\nWhat you leave out stays as it is, and that goes for each field inside `theme`, `branding` and `strings` too. A chat with only the welcome message shows the new one right away. Once the visitor has written, the new welcome message and suggestions wait for the next conversation. With the script tag build, a call before the chat has loaded is kept until it does, and the launcher button takes the new theme straight away.\n\n```typescript\n// A single-page app moving to its pricing page:\nChatCops.update({\n  branding: { name: 'Sales', subtitle: 'Usually replies in a minute' },\n  welcomeMessage: 'Questions about plans? Ask here.',\n  suggestions: ['Compare plans', 'Is there a free trial?'],\n});\n\n// Following the site's own dark mode toggle:\nChatCops.update({ theme: { mode: 'dark' } });\n```",
+   "source": {
+    "id": "https://chat.codercops.com/widget/api/",
+    "url": "https://chat.codercops.com/widget/api/",
+    "title": "API Reference",
+    "section": "Methods > `ChatCops.update(changes)`"
+   }
+  },
+  {
    "id": "b944f4e282fedbd0ed6a5c6dff1768924f83d5586adb9daf25bcbc42069cc7df",
-   "text": "Widget Configuration > WidgetConfig Interface\n\n```typescript\n// docs-check: skip — reference-only fragment uses private widget types\ninterface WidgetConfig {\n  apiUrl: string;\n  timeout?: number;              // Inactivity timeout in ms, default: 30000\n  turnstileSiteKey?: string;     // Cloudflare Turnstile site key, when the server has `turnstile` set\n  userToken?: string;            // Your server's signed token for a signed-in visitor (server `identity`)\n\n  // Display mode\n  mode?: 'popup' | 'inline';       // Default: 'popup'\n  container?: string | HTMLElement; // Required when mode is 'inline'\n  siteId?: string;                 // Names the saved conversation; set one per widget when a page has several\n\n  theme?: {\n    mode?: 'light' | 'dark' | 'auto';  // Default: 'auto', which follows the system setting\n    accent?: string;          // Hex color, default: '#4f46e5' (light), '#6366f1' (dark)\n    accentDark?: string;      // Hex color, the accent in dark mode. Default: accent\n    textColor?: string;       // Hex color, replaces the text color in every mode\n    bgColor?: string;         // Hex color, replaces the background in every mode\n    fontFamily?: string;      // CSS font-family\n    borderRadius?: string | number;  // px if a number or numeric string (12, '12'), or any CSS length ('1rem'). Default: 12\n    position?: 'bottom-right' | 'bottom-left';\n  };\n\n  branding?: {\n    name?: string;            // Header title\n    avatar?: string;          // URL or data URI\n    subtitle?: string;        // Below title in header\n  };\n\n  welcomeMessage?: string;    // First assistant message\n  disclosure?: false | {      // The \"you're chatting with an AI\" note, on by default\n    text?: string;            // Replaces the wording\n    learnMoreUrl?: string;    // Adds a \"Learn more\" link (http or https)\n  };\n  suggestions?: string[];     // Suggested question buttons shown in a new conversation\n  welcomeBubble?: {           // Popup mode only\n    text: string;             // Text shown on hover bubble\n    delay?: number;           // ms before bubble appears\n    showOnce?: boolean;       // Only show once per session\n  };\n  placeholder?: string;       // Input placeholder text\n  persistence?: 'local' | 'session' | 'none'; // Where the chat is saved, default: 'local'\n  historyTtlDays?: number;    // Drop saved chats older than this, default: 30\n  persistHistory?: boolean;   // Deprecated. false is the same as persistence: 'none'\n  maxMessages?: number;       // Max messages to persist, default: 50\n  pageContext?: boolean;       // Send page URL/title, default: true\n  autoOpen?: boolean | number; // Popup mode only. true = immediate, number = delay in ms\n  locale?: string;            // Sent to the server with each message. Only English strings are built in\n  dir?: 'ltr' | 'rtl' | 'auto'; // Text direction; defaults from locale, then document direction\n  strings?: Partial<WidgetLocaleStrings>; // Custom i18n overrides\n  preChatForm?: {\n    enabled: boolean;\n    title?: string;\n    subtitle?: string;\n    submitLabel?: string;\n    fields: Array<{\n      name: string;\n      type: 'text' | 'email' | 'select' | 'textarea';\n      label: string;\n      placeholder?: string;\n      required?: boolean;\n      options?: string[];\n    }>;\n  };\n\n  // Callbacks\n  onOpen?: () => void;\n  onClose?: () => void;\n  onMessage?: (message: MessageData) => void;\n  onError?: (error: Error) => void;\n  onLeadCaptured?: (leadData?: Record<string, unknown>) => void;\n  onPreChatSubmit?: (data: Record<string, string>) => void;\n}\n```",
+   "text": "Widget Configuration > WidgetConfig Interface\n\n`WidgetConfig` and the types it's made of are all exported from `@chatcops/widget`, so a site can type its own pieces of a config:\n\n```typescript\nimport type { PreChatFormConfig, ThemeConfig } from '@chatcops/widget';\n\nconst brand: ThemeConfig = { mode: 'auto', accent: '#2563eb', borderRadius: 12 };\nconst leadForm: PreChatFormConfig = {\n  enabled: true,\n  fields: [{ name: 'email', label: 'Work email', type: 'email', required: true }],\n};\n```",
    "source": {
     "id": "https://chat.codercops.com/widget/configuration/",
     "url": "https://chat.codercops.com/widget/configuration/",
@@ -1915,12 +2096,12 @@
   },
   {
    "id": "beb948ff9c2555b9fc905c5174aa36fb3387e4ede54dfd890c0a7e2f8197f14b",
-   "text": "API Reference > React / Framework Usage\n\nFor inline mode in React or other frameworks, pass the container element directly:\n\n```tsx\nimport { useEffect, useRef } from 'react';\nimport ChatCops from '@chatcops/widget';\n\nfunction Chat() {\n  const ref = useRef(null);\n\n  useEffect(() => {\n    if (!ref.current) return;\n    ChatCops.init({\n      apiUrl: '/api/chat',\n      mode: 'inline',\n      container: ref.current,\n    });\n    return () => ChatCops.destroy();\n  }, []);\n\n  return <div ref={ref} style={{ width: 400, height: 500 }} />;\n}\n```",
+   "text": "API Reference > Methods > `ChatCops.setUser(user)`\n\nTell the widget who the signed-in visitor is.\n\n- `token` is the identity token for [signed-in visitors](/server/setup/#signed-in-visitors), which your server signs.\n- `name` and `email` are sent to the bot as visitor details with the first message of a conversation, and the name greets them.\n\nSwitching to another user, or `setUser(null)` when the visitor signs out, clears the chat, so one person's conversation never shows for the next. With the script tag build, a call before the chat has loaded is kept until it does.\n\n```typescript\ndeclare const session: { name: string; email: string; chatToken: string };\n\nChatCops.setUser({ name: session.name, email: session.email, token: session.chatToken });\n\n// When the visitor signs out:\nChatCops.setUser(null);\n```",
    "source": {
     "id": "https://chat.codercops.com/widget/api/",
     "url": "https://chat.codercops.com/widget/api/",
     "title": "API Reference",
-    "section": "React / Framework Usage"
+    "section": "Methods > `ChatCops.setUser(user)`"
    }
   },
   {
@@ -1935,7 +2116,7 @@
   },
   {
    "id": "c088de2186ff1ce4ba24723152526fbaef9e33c69a39a74dbb37ae255707e6ea",
-   "text": "Widget Configuration > WidgetConfig Interface\n\nSee the [pre-chat form guide](/widget/pre-chat-form) for field behavior, validation, and how answers are sent to the server. The form is configured with JavaScript; it has no `data-*` attributes.",
+   "text": "Widget Configuration > WidgetConfig Interface\n\n```typescript\n// docs-check: skip, a reference listing rather than code to run\ninterface WidgetConfig {\n  apiUrl: string;\n  timeout?: number;              // Inactivity timeout in ms, default: 30000\n  turnstileSiteKey?: string;     // Cloudflare Turnstile site key, when the server has `turnstile` set\n  userToken?: string;            // Your server's signed token for a signed-in visitor (server `identity`)\n\n  // Display mode\n  mode?: 'popup' | 'inline';       // Default: 'popup'\n  container?: string | HTMLElement; // Required when mode is 'inline'\n  siteId?: string;                 // Names the saved conversation; set one per widget when a page has several\n\n  theme?: {\n    mode?: 'light' | 'dark' | 'auto';  // Default: 'auto', which follows the system setting\n    accent?: string;          // Hex color, default: '#4f46e5' (light), '#6366f1' (dark)\n    accentDark?: string;      // Hex color, the accent in dark mode. Default: accent\n    textColor?: string;       // Hex color, replaces the text color in every mode\n    bgColor?: string;         // Hex color, replaces the background in every mode\n    fontFamily?: string;      // CSS font-family\n    borderRadius?: string | number;  // px if a number or numeric string (12, '12'), or any CSS length ('1rem'). Default: 12\n    position?: 'bottom-right' | 'bottom-left';\n  };\n\n  branding?: {\n    name?: string;            // Header title\n    avatar?: string;          // URL or data URI\n    subtitle?: string;        // Below title in header\n  };\n\n  welcomeMessage?: string;    // First assistant message\n  disclosure?: false | {      // The \"you're chatting with an AI\" note, on by default\n    text?: string;            // Replaces the wording\n    learnMoreUrl?: string;    // Adds a \"Learn more\" link (http or https)\n  };\n  suggestions?: string[];     // Suggested question buttons shown in a new conversation\n  welcomeBubble?: {           // Popup mode only\n    text: string;             // Text shown on hover bubble\n    delay?: number;           // ms before bubble appears\n    showOnce?: boolean;       // Only show once per session\n  };\n  placeholder?: string;       // Input placeholder text\n  persistence?: 'local' | 'session' | 'none'; // Where the chat is saved, default: 'local'\n  historyTtlDays?: number;    // Drop saved chats older than this, default: 30\n  persistHistory?: boolean;   // Deprecated. false is the same as persistence: 'none'\n  maxMessages?: number;       // Max messages to persist, default: 50\n  pageContext?: boolean;       // Send page URL/title, default: true\n  autoOpen?: boolean | number; // Popup mode only. true = immediate, number = delay in ms\n  locale?: string;            // Sent to the server with each message. Only English strings are built in\n  dir?: 'ltr' | 'rtl' | 'auto'; // Text direction; defaults from locale, then document direction\n  strings?: Partial<WidgetLocaleStrings>; // Custom i18n overrides\n  preChatForm?: {\n    enabled: boolean;\n    title?: string;\n    subtitle?: string;\n    submitLabel?: string;\n    fields: Array<{\n      name: string;\n      type: 'text' | 'email' | 'select' | 'textarea';\n      label: string;\n      placeholder?: string;\n      required?: boolean;\n      options?: string[];\n    }>;\n  };\n\n  // Callbacks\n  onOpen?: () => void;\n  onClose?: () => void;\n  onMessage?: (message: MessageData) => void;\n  onError?: (error: Error) => void;\n  onLeadCaptured?: (leadData?: Record<string, unknown>) => void;\n  onPreChatSubmit?: (data: Record<string, string>) => void;\n}\n```",
    "source": {
     "id": "https://chat.codercops.com/widget/configuration/",
     "url": "https://chat.codercops.com/widget/configuration/",
@@ -1973,6 +2154,16 @@
    }
   },
   {
+   "id": "c24eed29f1d0f54184cd69d27eb3fb1aa9a9427fcd83c71d12ed4778a13ddf61",
+   "text": "Testing your bot > Recorded replays > GitHub Actions\n\n```yaml\nname: Evals\non: [pull_request]\njobs:\n  evals:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with: { node-version: 22 }\n      - run: npm ci\n      - run: npx chatcops test\n```",
+   "source": {
+    "id": "https://chat.codercops.com/core/testing/",
+    "url": "https://chat.codercops.com/core/testing/",
+    "title": "Testing your bot",
+    "section": "Recorded replays > GitHub Actions"
+   }
+  },
+  {
    "id": "c2bb8b490b03654b9b40df048b113ad7efa17cd09c46cb6b0319a182e31604d9",
    "text": "Knowledge Base > Building an index from your site\n\n`@chatcops/ingest` fills a vector store from your site: it reads your sitemap (or a list of URLs, or a folder of Markdown and HTML files), extracts each page's readable content, splits it into chunks along headings, and embeds them.\n\n```typescript\nimport { memoryStorage, memoryVectors, openaiEmbedder } from '@chatcops/core';\nimport { ingest } from '@chatcops/ingest';\n\nconst embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! });\nconst storage = memoryStorage();\nconst vectors = memoryVectors({ dimensions: embedder.dimensions });\n\nconst stats = await ingest({\n  sources: [{ type: 'sitemap', url: 'https://example.com/sitemap.xml' }],\n  exclude: ['**/blog/**'],\n  embedder,\n  store: vectors,\n  manifest: storage.kv!,\n});\n```\n\nIn production, use a persistent vector store and its key-value store as the `manifest`. Running it again then only embeds pages that changed: unchanged pages answer `304` to a conditional request, or extract to the same text. Hidden elements, scripts, styles and comments are removed before extraction. `prune: true` removes pages that are gone, but never after a sitemap failed to load. An index remembers which embedder built it and refuses a different one.\n\nNetwork sources respect `robots.txt` by default, using the `ChatCopsBot` group or falling back to `*`. Disallowed pages are skipped with the reason `blocked by robots.txt`. Policies are fetched once per origin per run, and `crawl-delay` sets the minimum interval between requests to that origin. A 4xx response permits crawling; a 5xx response or unreachable robots server blocks it. Up to five redirects are followed. Set `respectRobots: false` in the ingest config to opt out. Directory sources read local files and are never checked.",
    "source": {
@@ -2003,6 +2194,26 @@
    }
   },
   {
+   "id": "c5192fe97aa365cd3860352e231fe48c1ff246f5c27e7a5983a088e7d3c2fea1",
+   "text": "API Reference > Auto-Initialization > Inline\n\n```html\n<div id=\"my-chat\" style=\"width: 400px; height: 500px;\"></div>\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js\"\n  data-api-url=\"https://your-api.com/chat\"\n  data-mode=\"inline\"\n  data-container=\"#my-chat\"\n></script>\n```\n\nThe script tag approach is equivalent to calling `ChatCops.init()` with the corresponding config. You can still use the programmatic API after auto-init (e.g., `ChatCops.open()`).",
+   "source": {
+    "id": "https://chat.codercops.com/widget/api/",
+    "url": "https://chat.codercops.com/widget/api/",
+    "title": "API Reference",
+    "section": "Auto-Initialization > Inline"
+   }
+  },
+  {
+   "id": "c5fcbfec28a2e48340b51c565e25733b92f6ae9e01e79102c65bbb516f7a17d8",
+   "text": "Knowledge Base > Retrieval from a vector store\n\nThe newer Voyage models (`voyage-4`, `voyage-4-lite`, `voyage-3.5` and others) can shorten their vectors with `dimensions` (256, 512, 1024 or 2048). Other models make one fixed length, so set `dimensions` to that length. `batchSize` is how many texts go in one request (128 by default, at most 1,000); each model also limits the tokens in a request, so lower it for very long texts.\n\nIn a Cloudflare Worker, pass the `AI` binding directly:\n\n```typescript\nimport {\n  memoryVectors,\n  retrieverKnowledge,\n  vectorRetriever,\n  workersAiEmbedder,\n  workersAiReranker,\n  type WorkersAiBinding,\n} from '@chatcops/core';\n\ndeclare const env: { AI: WorkersAiBinding };\n\nconst embedder = workersAiEmbedder({ ai: env.AI });\nconst vectors = memoryVectors({ dimensions: embedder.dimensions });\nconst reranker = workersAiReranker({ ai: env.AI });\nconst knowledge = retrieverKnowledge(vectorRetriever({ store: vectors, embedder, reranker }), { topK: 5 });\n```\n\nThere are two retrievers:\n\n| Retriever | Searches by | Needs |\n|---|---|---|\n| `vectorRetriever({ store, embedder })` | Meaning: the question is embedded and compared with every chunk | Any vector store |\n| `hybridRetriever({ store, embedder })` | Meaning and exact words, merged by rank (reciprocal rank fusion, `rrfK` 60) | A store with `keywordQuery` |\n\nHybrid search is the better default when the store supports it. Words catch what meaning misses, such as product names, error codes and part numbers.\n\nBoth take `candidates` (how many records each search fetches, default 20) and an optional `reranker`, which reorders the candidates before the top ones are kept. A short follow-up question (\"how long does it take?\") is searched together with the visitor's previous question, so it finds the right pages.",
+   "source": {
+    "id": "https://chat.codercops.com/core/knowledge-base/",
+    "url": "https://chat.codercops.com/core/knowledge-base/",
+    "title": "Knowledge Base",
+    "section": "Retrieval from a vector store"
+   }
+  },
+  {
    "id": "c6b2cacf24c670fbb39612cd9a5d7eaa7000a8fa525d6b00d5aca9bfb0a946b6",
    "text": "Widget Configuration > Script Tag Attributes > Popup Mode (default)\n\n```html\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js\"\n  data-api-url=\"https://your-api.com/chat\"\n  data-accent=\"#6366f1\"\n  data-text-color=\"#FAFAF9\"\n  data-bg-color=\"#0A0A0A\"\n  data-font-family=\"Inter, sans-serif\"\n  data-border-radius=\"12\"\n  data-position=\"bottom-right\"\n  data-brand-name=\"Support Bot\"\n  data-brand-avatar=\"https://example.com/avatar.png\"\n  data-brand-subtitle=\"Usually replies instantly\"\n  data-welcome-message=\"Hi! How can I help you today?\"\n  data-welcome-bubble=\"Need help? Chat with us!\"\n  data-welcome-bubble-delay=\"3000\"\n  data-placeholder=\"Type a message...\"\n  data-locale=\"en\"\n  data-auto-open=\"1000\"\n></script>\n```",
    "source": {
@@ -2014,12 +2225,12 @@
   },
   {
    "id": "c6b8a0169dcb866348eb46fcd8c4a3b2a157d68cae2626d3a14c6fcda6b7b7b6",
-   "text": "Storage > Retention > Cloudflare Workers\n\nAdd a `scheduled` export to your Worker. Cloudflare calls it on the cron triggers you define in `wrangler.toml`.\n\nThis example uses [`@chatcops/store-redis`](/server/storage/#redis) with Upstash's HTTP-based Redis client because it runs directly in Workers over HTTP without extra database-connection setup:\n\n```bash\nnpm install @chatcops/store-redis @upstash/redis\n```\n\nCreate a fresh handler inside `scheduled()` using the invocation's `env` so that no environment-specific secret is cached at global scope:",
+   "text": "Storage > Retention > Express / Node.js\n\n```typescript\n// scripts/purge.ts\nimport { createChatHandler } from '@chatcops/server';\nimport { Pool } from 'pg';\nimport { postgresStorage } from '@chatcops/store-postgres';\n\nconst db = new Pool({ connectionString: process.env.DATABASE_URL });\n\ntry {\n  const handler = createChatHandler({\n    provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n    systemPrompt: '',\n    storage: postgresStorage({ db }),\n    retention: { conversationsDays: 30 },\n  });\n\n  const deleted = await handler.purge();\n  if (typeof deleted === 'number') {\n    console.log(`Purged ${deleted} old conversations`);\n  } else {\n    console.warn('purge() returned null: store does not support purge');\n  }\n} catch (err) {\n  console.error('Purge failed:', err);\n  process.exitCode = 1;\n} finally {\n  await db.end();\n}\n```\n\nRun it with `tsx`:\n\n```bash\nnpx tsx scripts/purge.ts\n```",
    "source": {
     "id": "https://chat.codercops.com/server/storage/",
     "url": "https://chat.codercops.com/server/storage/",
     "title": "Storage",
-    "section": "Retention > Cloudflare Workers"
+    "section": "Retention > Express / Node.js"
    }
   },
   {
@@ -2034,12 +2245,12 @@
   },
   {
    "id": "c9d1e894d74740998a94a69771cab5cc10833e406167898a7f7e5206714434ef",
-   "text": "Knowledge Base > Retrieval from a vector store\n\nUse [Cohere](https://docs.cohere.com/reference/rerank) or [Voyage](https://docs.voyageai.com/reference/reranker-api) to improve the ordering of retrieved candidates. `cohereReranker` defaults to `rerank-v5.0-pro`, while `voyageReranker` defaults to `rerank-3`. Both use the same reranker interface, so either can be passed to `hybridRetriever` in the same way:\n\n```typescript\nimport { cohereReranker, hybridRetriever, memoryVectors, openaiEmbedder } from '@chatcops/core';\n\nconst embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! });\nconst vectors = memoryVectors({ dimensions: embedder.dimensions });\nconst reranker = cohereReranker({ apiKey: process.env.COHERE_API_KEY! });\n\nconst retriever = hybridRetriever({ store: vectors, embedder, reranker });\n```\n\n`workersAiReranker({ ai })` uses Cloudflare's [`@cf/baai/bge-reranker-base`](https://developers.cloudflare.com/workers-ai/models/bge-reranker-base/) model through the Workers AI binding. It sends the query and candidate text to the model, then maps its ranked context ids back to the original chunks. It uses the same `env.AI` binding as `workersAiEmbedder`; add this binding to `wrangler.toml` if you have not already:\n\n```toml\n[ai]\nbinding = \"AI\"\n```\n\nThe index has to be built and searched with the same embedder; a retriever refuses an embedder whose vectors are a different size from the store's. A command that builds the index from your sitemap is next.",
+   "text": "Knowledge Base > Citations\n\nWhen knowledge sources return chunks (through `retrieve`), answers say which pages they came from. Each page the reply cites becomes a `source` part in the stream, once per page, after the text that cites it, and is saved with the reply:\n\n```json\n{ \"type\": \"source\", \"sourceId\": \"https://example.com/pricing\", \"url\": \"https://example.com/pricing\", \"title\": \"Pricing\", \"snippet\": \"The Team plan costs $20 per user per month…\" }\n```\n\nHow the model cites depends on the provider:\n\n| Provider | Sources go to the model as | Citations come back as |\n|---|---|---|\n| Claude | `search_result` blocks before the visitor's message | Claude's own citations, mapped to `source` parts |\n| OpenAI, Gemini, others | A numbered `<sources>` block in the system context | `[1]`, `[2]` in the text; numbers that match no source are removed |\n\nEither way, retrieved text is framed as reference material that never contains instructions, and it can't add or unlock tools. Sources with only `getContext` work as before: their text goes in the context, without citations.",
    "source": {
     "id": "https://chat.codercops.com/core/knowledge-base/",
     "url": "https://chat.codercops.com/core/knowledge-base/",
     "title": "Knowledge Base",
-    "section": "Retrieval from a vector store"
+    "section": "Citations"
    }
   },
   {
@@ -2084,7 +2295,7 @@
   },
   {
    "id": "ce2221b879e2784d9c0cbb0084ed80c77a23b437103082a64f00bfafb33c7bd4",
-   "text": "Testing your bot > Eval files\n\nA test can also set:\n\n- `pageContext`: the page the visitor is on (`url`, `title`, and optionally `description` and `contentSnippet`)\n- `locale` and `userData`, as the widget would send them\n- `mocks.tools`: a fixed result for a server tool, so the test doesn't place a real order or send a real email\n- `repeat` and `passRate`: run the test several times and pass when that share of runs passed (models aren't deterministic)\n\n`defaults` at the top of the file applies to every test in it. A test's own values win, and tool mocks are merged:\n\n```yaml\nversion: 1\nname: Orders\ndefaults:\n  pageContext: { url: \"https://acme.com/account\", title: \"Your account\" }\n  mocks:\n    tools:\n      lookup_order: { success: true, data: { status: \"shipped\" } }\ntests:\n  - name: says where the order is\n    repeat: 5\n    passRate: 0.8\n    turns:\n      - user: Where is order A-1001?\n        expect:\n          - contains: shipped\n```\n\nA mock for a tool your config doesn't have is an error, so a renamed tool can't leave a mock behind that no longer does anything.\n\nEval files can also be modules (`.chat.ts`, `.chat.mjs`) that export the same object as their default, when you'd rather build tests in code.",
+   "text": "Testing your bot > Eval files\n\nTwo assertions check what ChatCops adds to a reply:\n\n- `cites` takes a URL glob, or a list of them, and each has to match a page the reply cites (`cites: \"https://acme.test/pricing*\"`). Globs work the same as in `ingest.include`. `cites: true` means it cites at least one page.\n- `lead-captured: true` means the turn captured a lead. An object, such as `lead-captured: { email: jane@acme.test }`, also has to match those fields of the lead.\n\nA test can also set:\n\n- `pageContext`: the page the visitor is on (`url`, `title`, and optionally `description` and `contentSnippet`)\n- `locale` and `userData`, as the widget would send them\n- `mocks.tools`: a fixed result for a server tool, so the test doesn't place a real order or send a real email\n- `repeat` and `passRate`: run the test several times and pass when that share of runs passed (models aren't deterministic)\n\n`defaults` at the top of the file applies to every test in it. A test's own values win, and tool mocks are merged:\n\n```yaml\nversion: 1\nname: Orders\ndefaults:\n  pageContext: { url: \"https://acme.com/account\", title: \"Your account\" }\n  mocks:\n    tools:\n      lookup_order: { success: true, data: { status: \"shipped\" } }\ntests:\n  - name: says where the order is\n    repeat: 5\n    passRate: 0.8\n    turns:\n      - user: Where is order A-1001?\n        expect:\n          - contains: shipped\n```\n\nA mock for a tool your config doesn't have is an error, so a renamed tool can't leave a mock behind that no longer does anything.\n\nEval files can also be modules (`.chat.ts`, `.chat.mjs`) that export the same object as their default, when you'd rather build tests in code.",
    "source": {
     "id": "https://chat.codercops.com/core/testing/",
     "url": "https://chat.codercops.com/core/testing/",
@@ -2164,7 +2375,7 @@
   },
   {
    "id": "d58e0a204e613b862495c63b789d40baf04d9b9dc98fd468bd2ec41bb2cee2f7",
-   "text": "Protocol > Request Body > Nested Request Structures\n\n#### `pageContext`\nProvides current webpage context to the assistant. The server validates:\n- `url`: Valid URL string (`z.string().url()`). Only up to 2,000 characters reach the prompt.\n- `title`: String, maximum 500 characters.\n- `description` *(optional)*: String, maximum 1,000 characters.\n- `contentSnippet` *(optional)*: String, maximum 2,000 characters.\n\n```json\n{\n  \"url\": \"https://example.com/pricing\",\n  \"title\": \"Pricing & Plans - Acme Inc\",\n  \"description\": \"Flexible plans starting at $19/mo.\",\n  \"contentSnippet\": \"Starter: $19/mo. Pro: $49/mo. Enterprise: Custom.\"\n}\n```",
+   "text": "Protocol > Request Body > Nested Request Structures\n\n#### `pageContext`\nProvides current webpage context to the assistant. The server validates:\n- `url`: Valid URL string (`z.string().url()`). Only up to 2,000 characters reach the prompt.\n- `title`: String, maximum 500 characters.\n- `description` *(optional)*: String, maximum 1,000 characters.\n- `contentSnippet` *(optional)*: String, maximum 2,000 characters.\n- `data` *(optional)*: Details the site added with the widget's `setContext()`, at most 20 string fields, keys up to 40 characters and values up to 500. They reach the model as page details that aren't verified.\n\n```json\n{\n  \"url\": \"https://example.com/pricing\",\n  \"title\": \"Pricing & Plans - Acme Inc\",\n  \"description\": \"Flexible plans starting at $19/mo.\",\n  \"contentSnippet\": \"Starter: $19/mo. Pro: $49/mo. Enterprise: Custom.\"\n}\n```",
    "source": {
     "id": "https://chat.codercops.com/server/protocol/",
     "url": "https://chat.codercops.com/server/protocol/",
@@ -2182,13 +2393,23 @@
    }
   },
   {
+   "id": "d651e2a002581b70ca696f5cac9f8f31e1dab409af78aae84f85f636ad8044e1",
+   "text": "API Reference > Methods > `ChatCops.version`\n\nThe widget's version, such as `\"0.7.0\"`.",
+   "source": {
+    "id": "https://chat.codercops.com/widget/api/",
+    "url": "https://chat.codercops.com/widget/api/",
+    "title": "API Reference",
+    "section": "Methods > `ChatCops.version`"
+   }
+  },
+  {
    "id": "d67cd899bdbd09578761abf22b02f850019399d855002f72aa589e67080b67f9",
-   "text": "Testing your bot > Options\n\n| Option | What it does |\n| --- | --- |\n| `[files...]` | Globs of eval files. Default `evals/**/*.chat.yaml`. |\n| `--filter <text>` | Only tests whose name contains the text, or `tag:<name>` for a tag |\n| `--repeat <n>` | Run every test n times, instead of each test's own `repeat` |\n| `--concurrency <n>` | Tests run at once. Default 4. |\n| `--reporter <name>` | `pretty` (the default) or `json`, which prints one JSON object with every turn's reply, tool calls, sources and token usage. Repeatable. |\n| `--json` | The same as `--reporter json` |\n| `--judge-model <provider:model>` | The judge for `judge` assertions: `gemini`, `openai` or `claude`, with a model id or without one for the default |\n| `--max-cost <usd>` | Stop starting turns once the run has spent this much. Needs `prices`. |\n| `--config <file>` | A config file other than `chatcops.config.*` in the current folder |\n\nA failed test prints the reason for each failed assertion and the reply it checked:\n\n```text\n✗ evals/pricing.chat.yaml > quotes the Team price\n    turn 1: the reply doesn't contain \"$19\"\n    reply: The Team plan is $29 a month, billed monthly.\n\n1 passed, 1 failed.\n```",
+   "text": "Testing your bot > Costs\n\nWith `prices` in the config, every turn and judge call gets a cost, and the run prints what it spent. Prices are in US dollars per million tokens, keyed by the model id. Copy them from your provider's pricing page, since they change.\n\n```ts\nimport { defineConfig } from '@chatcops/cli';\n\nexport default defineConfig({\n  server: { provider: { type: 'openai', apiKey: process.env.OPENAI_API_KEY!, model: 'gpt-5-mini' }, systemPrompt: 'You answer questions about Acme.' },\n  prices: {\n    // Example numbers only: use your provider's current prices.\n    'gpt-5-mini': { input: 0.25, output: 2 },\n    'gemini-3.5-flash-lite': { input: 0.1, output: 0.4 },\n  },\n});\n```\n\n`--max-cost 0.50` stops starting new turns once the run has spent 50 cents. Turns already running finish, so a run can go a little over. It needs a price for the bot's model and for the judge's, and refuses to run without them. Replays spend nothing, so `--max-cost` doesn't count them.",
    "source": {
     "id": "https://chat.codercops.com/core/testing/",
     "url": "https://chat.codercops.com/core/testing/",
     "title": "Testing your bot",
-    "section": "Options"
+    "section": "Costs"
    }
   },
   {
@@ -2301,12 +2522,12 @@
   },
   {
    "id": "de0482f8790fdc5e9c96da2fc735c283af72992b7e40c411164d40f2aa028e32",
-   "text": "API Reference > Methods > `ChatCops.off(event, callback)`\n\nRemove a specific event listener from both the persistent registry and the active widget instance.\n\n```typescript\nfunction onOpen() {\n  console.log('Widget opened');\n}\n\nChatCops.on('open', onOpen);\nChatCops.off('open', onOpen);\n```",
+   "text": "API Reference > Methods > `ChatCops.newConversation()`\n\nStart a fresh conversation: a new conversation id, and the chat back to the welcome message. A reply that's still coming is stopped. Pre-chat answers are kept, so the visitor isn't asked again.\n\n```typescript\nChatCops.newConversation();\n```",
    "source": {
     "id": "https://chat.codercops.com/widget/api/",
     "url": "https://chat.codercops.com/widget/api/",
     "title": "API Reference",
-    "section": "Methods > `ChatCops.off(event, callback)`"
+    "section": "Methods > `ChatCops.newConversation()`"
    }
   },
   {
@@ -2361,12 +2582,12 @@
   },
   {
    "id": "e6e376e3c48198d9e1c918a5e21c49c88c4338ad680978c3e87a92e7030ac88b",
-   "text": "Storage > Retention > Express / Node.js\n\n```typescript\n// scripts/purge.ts\nimport { createChatHandler } from '@chatcops/server';\nimport { Pool } from 'pg';\nimport { postgresStorage } from '@chatcops/store-postgres';\n\nconst db = new Pool({ connectionString: process.env.DATABASE_URL });\n\ntry {\n  const handler = createChatHandler({\n    provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n    systemPrompt: '',\n    storage: postgresStorage({ db }),\n    retention: { conversationsDays: 30 },\n  });\n\n  const deleted = await handler.purge();\n  if (typeof deleted === 'number') {\n    console.log(`Purged ${deleted} old conversations`);\n  } else {\n    console.warn('purge() returned null: store does not support purge');\n  }\n} catch (err) {\n  console.error('Purge failed:', err);\n  process.exitCode = 1;\n} finally {\n  await db.end();\n}\n```\n\nRun it with `tsx`:\n\n```bash\nnpx tsx scripts/purge.ts\n```",
+   "text": "Storage > Vector stores > Upstash Vector\n\nThe Upstash store uses an existing dense index configured for cosine distance. Set its dimensions to match your embedder. The store preserves the page source in reserved metadata fields, so `deleteBySource()` can remove all of a page's chunks. Configure a dedicated test index with at least four dimensions to run conformance; tests do not reset the index.\n\n```bash\nnpm install @chatcops/store-upstash-vector @upstash/vector\n```\n\n```typescript\nimport { memoryStorage } from '@chatcops/core';\nimport { Index } from '@upstash/vector';\nimport { upstashVectors } from '@chatcops/store-upstash-vector';\n\nconst dimensions = 1024;\nconst index = new Index({\n  url: process.env.UPSTASH_VECTOR_REST_URL!,\n  token: process.env.UPSTASH_VECTOR_REST_TOKEN!,\n});\nconst storage = {\n  ...memoryStorage(),\n  vectors: upstashVectors({ index, dimensions }),\n};\n```\n\nMetadata filters require every key to match and accept any value in an array. For sparse indexes and hybrid indexes with a sparse text embedding model, pass `keywordSearch: true` to expose `keywordQuery`. Dense indexes leave that method absent. The SDK does not encode the configured index kind in its `Index` type, so only enable this option for supported indexes.",
    "source": {
     "id": "https://chat.codercops.com/server/storage/",
     "url": "https://chat.codercops.com/server/storage/",
     "title": "Storage",
-    "section": "Retention > Express / Node.js"
+    "section": "Vector stores > Upstash Vector"
    }
   },
   {
@@ -2438,6 +2659,15 @@
    }
   },
   {
+   "id": "ef021acf6ed7e66fbca2330b65c9d611edf5a5cce04313492b64a3b0055889e1",
+   "text": "ChatCopsBot\n\nIf you saw `ChatCopsBot` in your server logs, a site is building a search index for its ChatCops chat assistant with [`@chatcops/ingest`](/core/knowledge-base/#building-an-index-from-your-site). ChatCops is open source software that each site runs itself, so the requests come from whoever is running it, not from a central ChatCops service. Usually that's you, or someone indexing a site they look after.\n\nThe user agent looks like this:\n\n```\nChatCopsBot/0.1 (+https://chat.codercops.com/bot)\n```",
+   "source": {
+    "id": "https://chat.codercops.com/bot/",
+    "url": "https://chat.codercops.com/bot/",
+    "title": "ChatCopsBot"
+   }
+  },
+  {
    "id": "ef40bb53fef3d4a471990ff1988dfca85405b6d3048ca2bc027471f05382bdbc",
    "text": "Security > A production config > Express\n\n```typescript\nimport express from 'express';\nimport pg from 'pg';\nimport { chatcopsMiddleware } from '@chatcops/server';\nimport { postgresStorage } from '@chatcops/store-postgres';\n\nconst app = express();\n// Behind one proxy (a load balancer, nginx), so req.ip is the visitor's.\napp.set('trust proxy', 1);\napp.use(express.json());\n\napp.use(\n  '/api/chat',\n  chatcopsMiddleware({\n    provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n    systemPrompt: 'You are the Acme support assistant.',\n    storage: postgresStorage({ db: new pg.Pool({ connectionString: process.env.DATABASE_URL }) }),\n    allowedOrigins: ['https://acme.com', 'https://www.acme.com'],\n    sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],\n    budgets: { globalPerDay: { tokens: 20_000_000 } },\n  })\n);\n```\n\nMount it with `app.use` so `/api/chat/session` reaches it too.",
    "source": {
@@ -2487,12 +2717,12 @@
   },
   {
    "id": "f4c40dd47344690f9b05cbb4d20a976702d7c78c9aad274d955e1e0984488b77",
-   "text": "Storage > Custom stores\n\nThe server accepts a custom conversation store through `storage`:\n\n```typescript\nimport type { Conversation, ConversationStore } from '@chatcops/core';\nimport { chatcopsMiddleware } from '@chatcops/server';\n\nconst myStore: ConversationStore = {\n  async get(id: string): Promise<Conversation | null> {\n    // Read the conversation from your database.\n    return null;\n  },\n  async save(conversation: Conversation): Promise<void> {\n    // Persist the complete conversation.\n  },\n  async delete(id: string): Promise<void> {\n    // Delete the conversation.\n  },\n};\n\nconst handler = chatcopsMiddleware({\n  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n  systemPrompt: 'Be helpful.',\n  storage: { conversations: myStore },\n});\n```\n\nA store with only `get`, `save`, and `delete` works, but the server logs one warning at startup. In that mode, each write saves the complete conversation, so two instances writing the same conversation concurrently can overwrite one another and lose a message.\n\nImplement `append` when the backing system can perform an atomic append. The server uses it to make concurrent writes safe across instances. `updateMessage`, `removeMessage`, `list`, and `purge` are optional capabilities; implement them when the application needs those operations.\n\nThe history sent to the model is trimmed to about 32,000 tokens: the visitor's first message plus as many recent ones as fit. Stored history keeps up to 100 messages per conversation.\n\nThe complete interface is defined by [`ConversationStore`](https://github.com/codercops/chatcops/blob/dev/packages/core/src/storage/types.ts). The broader `ChatCopsStorage` object can also provide optional counter, KV, and event stores for distributed rate limits, turn locks, and analytics.",
+   "text": "Storage > Cloudflare D1\n\n`@chatcops/store-cloudflare` stores conversations, turn locks and analytics events in D1. Rate limit and budget counters go to a Durable Object when you bind one, and to D1 otherwise. It also ships with the next release.\n\n```typescript\n// docs-check: skip, needs the Workers types and bindings from wrangler\nimport { chatcopsCloudflareHandler } from '@chatcops/server/cloudflare';\nimport { ChatCopsCounter, cloudflareStorage } from '@chatcops/store-cloudflare';\n\n// Cloudflare finds the Durable Object class through the Worker's exports.\nexport { ChatCopsCounter };\n\nexport default {\n  async fetch(request: Request, env: Env, ctx: ExecutionContext) {\n    const handler = chatcopsCloudflareHandler({\n      provider: { type: 'claude', apiKey: env.ANTHROPIC_API_KEY },\n      systemPrompt: 'You are a helpful customer support assistant.',\n      storage: cloudflareStorage({ d1: env.DB, counters: env.COUNTERS }),\n    });\n    return handler(request, env, ctx);\n  },\n};\n```\n\nIn `wrangler.jsonc`, bind the D1 database as `DB` and the counter class as `COUNTERS`, with a migration that lists `ChatCopsCounter` under `new_sqlite_classes`. D1 has no interactive transactions, so a write to a conversation is one `batch()` that checks the version first. Two isolates answering the same conversation can't both write, and the loser gets a `ConflictError` with nothing half written. Workers KV isn't used for locks, since it has no atomic set-if-absent.",
    "source": {
     "id": "https://chat.codercops.com/server/storage/",
     "url": "https://chat.codercops.com/server/storage/",
     "title": "Storage",
-    "section": "Custom stores"
+    "section": "Cloudflare D1"
    }
   },
   {
@@ -2517,12 +2747,12 @@
   },
   {
    "id": "f79738c19324b5f7d6f11c3c79fb6d7c86c8ad3f333398403d5a6585bbdd0cdf",
-   "text": "Storage > Vector stores > Upstash Vector\n\nThe Upstash store uses an existing dense index configured for cosine distance. Set its dimensions to match your embedder. The store preserves the page source in reserved metadata fields, so `deleteBySource()` can remove all of a page's chunks. Configure a dedicated test index with at least four dimensions to run conformance; tests do not reset the index.\n\n```bash\nnpm install @chatcops/store-upstash-vector @upstash/vector\n```\n\n```typescript\nimport { memoryStorage } from '@chatcops/core';\nimport { Index } from '@upstash/vector';\nimport { upstashVectors } from '@chatcops/store-upstash-vector';\n\nconst dimensions = 1024;\nconst index = new Index({\n  url: process.env.UPSTASH_VECTOR_REST_URL!,\n  token: process.env.UPSTASH_VECTOR_REST_TOKEN!,\n});\nconst storage = {\n  ...memoryStorage(),\n  vectors: upstashVectors({ index, dimensions }),\n};\n```\n\nMetadata filters require every key to match and accept any value in an array. For sparse indexes and hybrid indexes with a sparse text embedding model, pass `keywordSearch: true` to expose `keywordQuery`. Dense indexes leave that method absent. The SDK does not encode the configured index kind in its `Index` type, so only enable this option for supported indexes.",
+   "text": "Storage > Vector stores > SQLite with sqlite-vec\n\nInstall the optional peer dependency to keep embeddings in the same SQLite file:\n\n```bash\nnpm install @chatcops/store-sqlite sqlite-vec\n```\n\n```typescript\nimport { sqliteStorage } from '@chatcops/store-sqlite';\n\nconst storage = sqliteStorage({\n  path: './chatcops.db',\n  vectors: { dimensions: 1024 },\n});\n```\n\nUse the embedder's dimensions. `storage.vectors` supports cosine similarity, typed metadata filters, source deletion, and FTS5 keyword search with Japanese and Chinese word segmentation. Without `vectors`, SQLite storage does not load or require `sqlite-vec`. A caller-supplied database must be opened with `allowExtension: true` to enable vectors.",
    "source": {
     "id": "https://chat.codercops.com/server/storage/",
     "url": "https://chat.codercops.com/server/storage/",
     "title": "Storage",
-    "section": "Vector stores > Upstash Vector"
+    "section": "Vector stores > SQLite with sqlite-vec"
    }
   },
   {

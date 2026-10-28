@@ -251,3 +251,73 @@ jobs:
       - run: npm ci
       - run: npx chatcops test
 ```
+
+## Unit tests with a scripted model
+
+`chatcops test` checks what a real model says. For code around the bot, such as your tools, a custom store or a page that reads the stream, a model is slow and never answers the same way twice. `@chatcops/core/testing` has a provider that plays back a script instead:
+
+```typescript
+import { expect, it } from 'vitest';
+import { scriptedProvider, textStep, toolStep } from '@chatcops/core/testing';
+import { chatcopsVercelHandler } from '@chatcops/server/vercel';
+
+it('looks the order up before answering', async () => {
+  const lookups: unknown[] = [];
+  const provider = scriptedProvider([
+    toolStep([{ name: 'lookup_order', input: { id: 'A-1' } }]),
+    textStep('Your order shipped on Monday.'),
+  ]);
+  const handler = chatcopsVercelHandler({
+    provider,
+    systemPrompt: 'You answer questions about orders.',
+    tools: [{
+      name: 'lookup_order',
+      description: 'Finds an order by id.',
+      inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+      async execute(input) {
+        lookups.push(input);
+        return { success: true, data: { shipped: 'Monday' } };
+      },
+    }],
+  });
+
+  const response = await handler(new Request('http://localhost/api/chat', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ protocol: 1, conversationId: 'test-1', message: 'Where is order A-1?' }),
+  }));
+
+  // The reply is a stream of `data:` lines, one part each.
+  const parts = (await response.text())
+    .split('\n')
+    .filter((line) => line.startsWith('data: {'))
+    .map((line) => JSON.parse(line.slice(6)));
+  const reply = parts.filter((part) => part.type === 'text-delta').map((part) => part.delta).join('');
+
+  expect(reply).toBe('Your order shipped on Monday.');
+  expect(lookups).toEqual([{ id: 'A-1' }]);
+  expect(provider.calls).toHaveLength(2); // the second step saw the tool's result
+});
+```
+
+Each model step takes the next entry of the script:
+
+- `textStep(text, { chunkSize, usage })` streams `text` in pieces of `chunkSize` characters (8 by default).
+- `toolStep(calls, { text })` calls tools, optionally after some text.
+- A list of provider events, or a function that builds them from the step's params, for anything else.
+- An `Error` makes that step fail, and `'hang'` waits until the request is aborted, for testing disconnects.
+
+`scriptedProvider(script, { delayMs })` waits `delayMs` before each event, to test timeouts and streaming. `citations: 'native'` makes it act like Claude, getting `sources` on each step. `provider.calls` keeps the params of every step, with the messages as they were then.
+
+### Testing a store
+
+If you write your own storage, `runStorageConformance` runs the checks every built-in store passes. It covers saving and appending, version conflicts, counters, expiry, events and, when the store has `vectors`, vector search:
+
+```typescript
+import { runStorageConformance } from '@chatcops/core/testing';
+import { memoryStorage } from '@chatcops/core';
+
+runStorageConformance('my store', () => memoryStorage(), { ttlMs: 1500 });
+```
+
+Call it at the top level of a Vitest file. `ttlMs` (150 by default) is the expiry the checks use, and they wait about twice that, so raise it for a backend that rounds expiry to seconds. `skip` leaves out checks a backend can't meet in a test run: `'kv-ttl'`, `'counter-ttl'`, `'conversation-concurrency'`, `'counter-concurrency'` or `'vector-keyword-cjk'`. For example, Workers KV's shortest TTL is 60 seconds, so skip `'kv-ttl'` there.

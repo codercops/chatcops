@@ -133,6 +133,39 @@ In production, use a persistent vector store and its key-value store as the `man
 
 Network sources respect `robots.txt` by default, using the `ChatCopsBot` group or falling back to `*`. Disallowed pages are skipped with the reason `blocked by robots.txt`. Policies are fetched once per origin per run, and `crawl-delay` sets the minimum interval between requests to that origin. A 4xx response permits crawling; a 5xx response or unreachable robots server blocks it. Up to five redirects are followed. Set `respectRobots: false` in the ingest config to opt out. Directory sources read local files and are never checked.
 
+### Ingest options
+
+`sources` is a list of any of these:
+
+| Source | Reads |
+|---|---|
+| `{ type: 'sitemap', url }` | A sitemap, a sitemap index, or a gzipped one (`.xml.gz`) |
+| `{ type: 'urls', urls }` | The pages you list |
+| `{ type: 'directory', path, baseUrl }` | Local `.md`, `.mdx` and `.html` files, cited as if published under `baseUrl` |
+
+The rest of the config:
+
+| Option | Default | What it does |
+|---|---|---|
+| `embedder`, `store`, `manifest` | required | What turns text into vectors, the vector store, and the key-value store that remembers what's indexed |
+| `index` | `'default'` | Names the index, so a new one can be built next to the old |
+| `include`, `exclude` | everything | URL globs: `*` matches within a path segment, `**` across them. Only pages matching an `include` are indexed, and none matching an `exclude` |
+| `selectors` | none | A CSS selector for the content, by URL glob, such as `{ '**/docs/**': 'main article' }`, for pages where automatic extraction picks the wrong part. The first glob that matches wins |
+| `chunk` | `{ targetTokens: 500, overlapTokens: 60 }` | About how long each chunk is, and how much of the previous chunk in the same section it repeats. Chunks are at least 50 tokens, and the overlap is at most half a chunk |
+| `metadata` | none | `(doc) => ({ ... })`: extra metadata for every chunk of a page, such as `{ collection: 'docs' }`, to filter on later |
+| `maxPages` | no limit | Index at most this many pages (after `include` and `exclude`), for a quick look at a big site |
+| `concurrency` | 4 | Pages fetched at once |
+| `timeoutMs` | 30,000 | For each page |
+| `userAgent` | `ChatCopsBot/<version> (+https://chat.codercops.com/bot)` | Sent with every request. `robots.txt` is always read for the `ChatCopsBot` group, whatever this says |
+| `respectRobots` | `true` | See above |
+| `dryRun` | `false` | Discover, fetch, extract and chunk, but embed and write nothing |
+| `force` | `false` | Embed every page again, changed or not |
+| `prune` | `false` | Remove pages that are in the index but weren't found this time. Skipped when the sitemap or `robots.txt` couldn't be read, since the missing pages may still be there |
+| `onEvent` | none | Progress: `{ type: 'discovered', pages, errors }` once, then `{ type: 'page', url, status }` for each page (`indexed`, `unchanged`, `skipped` or `failed`, with `chunks` or a `reason`), and `{ type: 'pruned', url }` |
+| `fetch` | global `fetch` | For tests, or to go through a proxy |
+
+`ingest()` resolves to counts: `discovered`, `indexed`, `unchanged`, `skipped`, `failed`, `pruned`, `chunks`, and `embedded` (texts sent to the embedder, 0 on a run where nothing changed), plus `errors` for discovery and `robots.txt` problems, and `pruneSkipped` with the reason when you asked for `prune` and it didn't run.
+
 ### From the command line
 
 `@chatcops/cli` wraps the same thing in a command, reading `chatcops.config.ts`:
@@ -252,11 +285,15 @@ const reranker = cohereReranker({ apiKey: process.env.COHERE_API_KEY! });
 const retriever = hybridRetriever({ store: vectors, embedder, reranker });
 ```
 
+Each embedder and reranker that calls an API takes `baseUrl`, for a proxy in front of it. For `openaiEmbedder` it can be any OpenAI-compatible embeddings API, such as a local model server. The default is the provider's own API.
+
 `workersAiReranker({ ai })` uses Cloudflare's [`@cf/baai/bge-reranker-base`](https://developers.cloudflare.com/workers-ai/models/bge-reranker-base/) model through the Workers AI binding. It sends the query and candidate text to the model, then maps its ranked context ids back to the original chunks. It uses the same `env.AI` binding as `workersAiEmbedder`; add this binding to `wrangler.toml` if you have not already:
 
 ```toml
 [ai]
 binding = "AI"
 ```
+
+`memoryVectors` keeps the whole index in memory, which suits tests and small sites. It holds at most `maxRecords` chunks (50,000 by default), and an upsert past that fails rather than dropping anything. For a bigger index, or one that survives a restart, use one of the [vector stores](/server/storage/#vector-stores).
 
 The index has to be built and searched with the same embedder; a retriever refuses an embedder whose vectors are a different size from the store's. A command that builds the index from your sitemap is next.

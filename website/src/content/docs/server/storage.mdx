@@ -7,6 +7,21 @@ The server uses storage for conversation history and, when the configured store 
 
 By default, conversations are kept in memory for one server process. The memory store holds up to 1000 conversations, evicting the least recently used first, and drops conversations that have been idle for 7 days. That is useful for local development, but it is not reliable for Vercel, Lambda, Workers, or any multi-instance deployment: instances do not share memory, and a restart removes the data. Use a persistent store when conversations must survive restarts or be available to every instance.
 
+To change the memory store's limits, pass your own as `storage`:
+
+```typescript
+import { memoryStorage } from '@chatcops/core';
+
+const storage = memoryStorage({
+  maxConversations: 5000,                  // default 1000, least recently used dropped first
+  conversationTtlMs: 24 * 60 * 60 * 1000,  // default 7 days idle
+  maxKeys: 50_000,                          // counters and keys each, default 10,000
+  maxEvents: 50_000,                        // analytics events, default 10,000, oldest dropped first
+});
+```
+
+Past `maxKeys`, expired counters and keys are swept first, and only then are the oldest dropped.
+
 ## Postgres
 
 The Postgres store is provided by `@chatcops/store-postgres`. It is currently private and will ship with the next release, so install it alongside the server package when that release is available:
@@ -137,10 +152,79 @@ const handler = chatcopsMiddleware({
 });
 ```
 
-## Coming soon
+## SQLite
 
-- SQLite for single-server deployments ([#247](https://github.com/codercops/chatcops/issues/247)).
-- Cloudflare storage for D1, KV, and Durable Objects counters ([#249](https://github.com/codercops/chatcops/issues/249)).
+`@chatcops/store-sqlite` keeps everything in one SQLite file, for a single server process. It uses Node's built-in `node:sqlite` (Node 22.13 or later), so there's no native dependency to build. Like the Postgres store, it ships with the next release.
+
+```typescript
+import { chatcopsMiddleware } from '@chatcops/server';
+import { sqliteStorage } from '@chatcops/store-sqlite';
+
+const storage = sqliteStorage({ path: './chatcops.db' });
+
+const handler = chatcopsMiddleware({
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+  systemPrompt: 'You are a helpful customer support assistant.',
+  storage,
+});
+```
+
+The tables are created on first use. `path: ':memory:'` is handy in tests, and `database` takes a `DatabaseSync` you opened yourself (better-sqlite3 works too). Call `await storage.close?.()` on shutdown, and back the file up the way you back up anything else on that server. Node may print an `ExperimentalWarning` the first time `node:sqlite` loads, which is expected.
+
+## Cloudflare D1
+
+`@chatcops/store-cloudflare` stores conversations, turn locks and analytics events in D1. Rate limit and budget counters go to a Durable Object when you bind one, and to D1 otherwise. It also ships with the next release.
+
+```typescript
+// docs-check: skip, needs the Workers types and bindings from wrangler
+import { chatcopsCloudflareHandler } from '@chatcops/server/cloudflare';
+import { ChatCopsCounter, cloudflareStorage } from '@chatcops/store-cloudflare';
+
+// Cloudflare finds the Durable Object class through the Worker's exports.
+export { ChatCopsCounter };
+
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    const handler = chatcopsCloudflareHandler({
+      provider: { type: 'claude', apiKey: env.ANTHROPIC_API_KEY },
+      systemPrompt: 'You are a helpful customer support assistant.',
+      storage: cloudflareStorage({ d1: env.DB, counters: env.COUNTERS }),
+    });
+    return handler(request, env, ctx);
+  },
+};
+```
+
+In `wrangler.jsonc`, bind the D1 database as `DB` and the counter class as `COUNTERS`, with a migration that lists `ChatCopsCounter` under `new_sqlite_classes`. D1 has no interactive transactions, so a write to a conversation is one `batch()` that checks the version first. Two isolates answering the same conversation can't both write, and the loser gets a `ConflictError` with nothing half written. Workers KV isn't used for locks, since it has no atomic set-if-absent.
+
+## Extra columns
+
+The Postgres, SQLite and D1 stores can fill in columns of your own on every new conversation and message row, such as the tenant a chat belongs to. Add the columns with your own migration, list them in `extraColumns`, and return their values from `rowHook`:
+
+```sql
+ALTER TABLE chatcops_conversations ADD COLUMN workspace_id uuid;
+ALTER TABLE chatcops_messages ADD COLUMN workspace_id uuid;
+```
+
+```typescript
+import { Pool } from 'pg';
+import { postgresStorage } from '@chatcops/store-postgres';
+
+const db = new Pool({ connectionString: process.env.DATABASE_URL });
+
+// One storage per workspace, made when that workspace's handler is.
+function storageFor(workspaceId: string) {
+  return postgresStorage({
+    db,
+    extraColumns: { workspace_id: 'uuid' },
+    rowHook: () => ({ workspace_id: workspaceId }),
+  });
+}
+```
+
+The hook runs when a row is inserted, never on updates. It gets `table` (`'conversations'` or `'messages'`), `conversationId`, the `metadata` passed with that write, and `message` for message rows. The server writes `visitor` (the pre-chat answers) and `uid` (a [signed-in visitor](/server/setup/#signed-in-visitors)) as metadata with a conversation's first message, so for anything else, close over the value as above. Every column in `extraColumns` is written to both tables, so add it to both. A column the hook leaves out is stored as null, and returning a key that isn't in `extraColumns` throws, with nothing from that write stored. Values are sent as query parameters, never put into the SQL.
+
+`extraColumns` is a list of names, or names with their SQL type as above (the default type is `text`). SQLite and D1 ignore the type, so one config works for all three. They store booleans as 1 or 0, so use an `INTEGER` column for those. Reads aren't filtered by these columns: scoping queries to a workspace is up to your own queries or row-level security.
 
 ## Custom stores
 
@@ -172,7 +256,9 @@ const handler = chatcopsMiddleware({
 
 A store with only `get`, `save`, and `delete` works, but the server logs one warning at startup. In that mode, each write saves the complete conversation, so two instances writing the same conversation concurrently can overwrite one another and lose a message.
 
-Implement `append` when the backing system can perform an atomic append. The server uses it to make concurrent writes safe across instances. `updateMessage`, `removeMessage`, `list`, and `purge` are optional capabilities; implement them when the application needs those operations.
+Implement `append` when the backing system can perform an atomic append. The server uses it to make concurrent writes safe across instances. `append(id, messages, { expectedVersion, metadata })` adds the messages after the existing ones and resolves to the new `{ version }`. A conversation that doesn't exist yet is at version 0. When `expectedVersion` is given and the stored version has moved on, throw `ConflictError` (from `@chatcops/core`) and write nothing. `metadata` is merged into the conversation's metadata, new keys winning. `runStorageConformance` from [`@chatcops/core/testing`](/core/testing/#testing-a-store) checks all of this.
+
+`updateMessage`, `removeMessage`, `list`, and `purge` are optional capabilities; implement them when the application needs those operations.
 
 The history sent to the model is trimmed to about 32,000 tokens: the visitor's first message plus as many recent ones as fit. Stored history keeps up to 100 messages per conversation.
 
