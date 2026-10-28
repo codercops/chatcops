@@ -9,5 +9,6 @@ export type WirePart =
   | { type: 'lead-captured'; lead: Record<string, unknown> }
   | { type: 'error'; code: string; message?: string; retryable: boolean; retryAfterMs?: number; scope?: string }
   | { type: 'finish'; reason: string }
+  | { type: 'source'; sourceId: string; url: string; title?: string; snippet?: string }
   /** Parts the widget doesn't use yet. */
-  | { type: 'text-start' | 'text-end' | 'source' | 'tool-call' | 'tool-result' | 'handoff' | 'agent-message' | 'suggestions' };
+  | { type: 'text-start' | 'text-end' | 'tool-call' | 'tool-result' | 'handoff' | 'agent-message' | 'suggestions' };
