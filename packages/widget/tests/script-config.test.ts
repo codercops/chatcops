@@ -35,6 +35,8 @@ describe('configFromScript', () => {
           welcomeBubbleDelay: '1500',
           autoOpen: '2000',
           placeholder: 'Ask me',
+          disclosureText: 'Acme Bot is an AI.',
+          disclosureUrl: 'https://acme.test/ai',
           locale: 'de',
           dir: 'rtl',
           persistence: 'session',
@@ -53,6 +55,7 @@ describe('configFromScript', () => {
       welcomeBubble: { text: 'Need help?', delay: 1500 },
       autoOpen: 2000,
       placeholder: 'Ask me',
+      disclosure: { text: 'Acme Bot is an AI.', learnMoreUrl: 'https://acme.test/ai' },
       locale: 'de',
       dir: 'rtl',
       persistence: 'session',
@@ -64,6 +67,11 @@ describe('configFromScript', () => {
     const config = configFromScript(script({ apiUrl: '/api/chat', persistence: 'cookie', historyTtlDays: 'forever' }));
     expect(config?.persistence).toBeUndefined();
     expect(config?.historyTtlDays).toBeUndefined();
+  });
+
+  it('turns the AI disclosure off with data-disclosure="false"', () => {
+    expect(configFromScript(script({ apiUrl: '/api/chat', disclosure: 'false' }))?.disclosure).toBe(false);
+    expect(configFromScript(script({ apiUrl: '/api/chat', disclosure: 'yes' }))?.disclosure).toEqual({ text: undefined, learnMoreUrl: undefined });
   });
 
   it('leaves out what the tag does not set', () => {

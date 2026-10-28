@@ -28,6 +28,7 @@ export class Messages {
   private container: HTMLDivElement;
   private typingEl: HTMLDivElement | null = null;
   private suggestionsEl: HTMLDivElement | null = null;
+  private disclosureEl: HTMLElement | null = null;
   private actions?: MessageActions;
 
   constructor(parent: HTMLElement, actions?: MessageActions) {
@@ -100,6 +101,30 @@ export class Messages {
   clear(): void {
     this.container.innerHTML = '';
     this.typingEl = null;
+    // A new conversation starts with the disclosure too.
+    if (this.disclosureEl) this.container.prepend(this.disclosureEl);
+  }
+
+  /**
+   * The note that visitors are talking to an AI, always first in the log.
+   * Only http(s) links become a "Learn more" link.
+   */
+  setDisclosure(text: string, learnMore?: { url: string; label: string }): void {
+    this.disclosureEl?.remove();
+    const note = document.createElement('div');
+    note.className = 'cc-disclosure';
+    note.setAttribute('role', 'note');
+    note.textContent = text;
+    if (learnMore && /^https?:\/\//i.test(learnMore.url)) {
+      const link = document.createElement('a');
+      link.href = learnMore.url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = learnMore.label;
+      note.append(' ', link);
+    }
+    this.disclosureEl = note;
+    this.container.prepend(note);
   }
 
   removeMessage(id: string): void {

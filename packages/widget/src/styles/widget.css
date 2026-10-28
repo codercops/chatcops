@@ -204,6 +204,20 @@
   color: var(--cc-on-accent);
 }
 
+.cc-disclosure {
+  margin-block-end: 4px;
+  padding: 8px 12px;
+  border: 1px solid var(--cc-border);
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--cc-text-secondary);
+}
+
+.cc-disclosure a {
+  color: inherit;
+  text-decoration: underline;
+}
+
 .cc-message-error-note {
   margin-top: 6px;
   font-size: 12px;

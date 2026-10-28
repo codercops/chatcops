@@ -31,6 +31,8 @@ export interface WidgetLocaleStrings {
   regenerateButton: string;
   suggestionsLabel: string;
   unreadCount: string;
+  disclosure: string;
+  disclosureLearnMore: string;
 }
 
 const en: WidgetLocaleStrings = {
@@ -65,6 +67,8 @@ const en: WidgetLocaleStrings = {
   regenerateButton: 'Regenerate',
   suggestionsLabel: 'Suggested questions',
   unreadCount: '{count} unread',
+  disclosure: "You're chatting with an AI assistant. It can make mistakes.",
+  disclosureLearnMore: 'Learn more',
 };
 
 const locales: Record<string, WidgetLocaleStrings> = { en };

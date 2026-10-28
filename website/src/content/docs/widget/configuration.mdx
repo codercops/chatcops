@@ -164,6 +164,24 @@ The pre-chat form's answers are saved with the conversation, so they expire with
 
 `persistHistory` is deprecated. `persistHistory: false` still works and means `persistence: 'none'`. It goes away in 1.0.
 
+### AI disclosure
+
+A new conversation starts with a short note: "You're chatting with an AI assistant. It can make mistakes." The EU AI Act (Article 50) asks that people know when they're talking to an AI, and the note stays at the top of the chat, also after "New conversation". Its strings are `disclosure` and `disclosureLearnMore` in the locale, and a language that doesn't have them yet shows them in English.
+
+Change the wording, or add a link to a page that explains more:
+
+```typescript
+ChatCops.init({
+  apiUrl: '/api/chat',
+  disclosure: {
+    text: 'Acme Assistant is an AI. It can get things wrong, so check anything important.',
+    learnMoreUrl: 'https://acme.com/ai',
+  },
+});
+```
+
+`disclosure: false` (or `data-disclosure="false"`) removes it. The widget then logs a note in the console, because telling visitors some other way is up to you.
+
 ### Streaming inactivity timeout
 
 Set `timeout` in `ChatCops.init()` to change the inactivity timeout in milliseconds.
@@ -208,6 +226,10 @@ interface WidgetConfig {
   };
 
   welcomeMessage?: string;    // First assistant message
+  disclosure?: false | {      // The "you're chatting with an AI" note, on by default
+    text?: string;            // Replaces the wording
+    learnMoreUrl?: string;    // Adds a "Learn more" link (http or https)
+  };
   suggestions?: string[];     // Suggested question buttons shown in a new conversation
   welcomeBubble?: {           // Popup mode only
     text: string;             // Text shown on hover bubble
@@ -268,6 +290,9 @@ See the [pre-chat form guide](/widget/pre-chat-form) for field behavior, validat
 | `data-brand-avatar` | `branding.avatar` | Avatar image URL |
 | `data-brand-subtitle` | `branding.subtitle` | Subtitle text |
 | `data-welcome-message` | `welcomeMessage` | First assistant message |
+| `data-disclosure` | `disclosure` | `"false"` turns the AI disclosure off |
+| `data-disclosure-text` | `disclosure.text` | Wording of the AI disclosure |
+| `data-disclosure-url` | `disclosure.learnMoreUrl` | "Learn more" link in the AI disclosure |
 | `data-welcome-bubble` | `welcomeBubble.text` | Welcome bubble text |
 | `data-welcome-bubble-delay` | `welcomeBubble.delay` | Bubble delay in ms |
 | `data-placeholder` | `placeholder` | Input placeholder |
