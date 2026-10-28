@@ -52,7 +52,8 @@ Test options:
   --filter <text>       Only tests whose name contains text, or tag:<name>
   --repeat <n>          Run each test n times
   --concurrency <n>     Tests run at once (default 4)
-  --json                Results as JSON
+  --reporter <name>     pretty (default) or json. Repeatable.
+  --json                Same as --reporter json
 
 All commands:
   --config <file>       Config file (default: chatcops.config.ts, .mts, .js or .mjs here)
@@ -117,6 +118,7 @@ function parse(argv: string[]) {
       'top-k': { type: 'string' },
       filter: { type: 'string' },
       repeat: { type: 'string' },
+      reporter: { type: 'string', multiple: true },
       help: { type: 'boolean', short: 'h' },
       version: { type: 'boolean', short: 'v' },
     },

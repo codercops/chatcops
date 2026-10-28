@@ -2,10 +2,10 @@ import { relative } from 'node:path';
 import type { ChatCopsServerConfig } from '@chatcops/server';
 import { ConfigError } from '../config.js';
 import { EXIT, wholeNumber, type Io, type Values } from '../main.js';
-import { unknownAssertions } from './assertions.js';
+import { unknownAssertions } from './assertions/index.js';
 import { DEFAULT_PATTERN, findFixtures, loadFixture, matchesFilter } from './load.js';
 import { runFixtures, withMocks } from './run.js';
-import type { TestResult } from './types.js';
+import { REPORTERS } from './reporters/index.js';
 
 /** `chatcops test`: finds and checks the eval files, runs them, reports. Exit 0 all passed, 1 some failed, 2 couldn't run. */
 export async function runTests(server: ChatCopsServerConfig, patterns: string[], values: Values, io: Io): Promise<number> {
@@ -33,41 +33,20 @@ export async function runTests(server: ChatCopsServerConfig, patterns: string[],
   }
   if (!fixtures.length) throw new ConfigError(`No tests match --filter ${values.filter}.`);
 
-  const json = !!values.json;
+  const reporters = (values.reporter?.length ? values.reporter : [values.json ? 'json' : 'pretty']).map((name) => {
+    const reporter = REPORTERS.get(name);
+    if (!reporter) throw new ConfigError(`--reporter ${name} doesn't exist. Use one of: ${[...REPORTERS.keys()].join(', ')}.`);
+    return reporter(io.stdout);
+  });
+  if (values.json && values.reporter?.length) throw new ConfigError('Use --reporter json, or --json, not both.');
+
   const results = await runFixtures(server, fixtures, {
     ...(concurrency !== undefined ? { concurrency } : {}),
     ...(repeat !== undefined ? { repeat } : {}),
-    onResult: json ? undefined : (result) => io.stdout.write(pretty(result)),
+    onResult: (result) => {
+      for (const reporter of reporters) reporter.onResult?.(result);
+    },
   });
-
-  const failed = results.filter((result) => !result.pass).length;
-  if (json) {
-    io.stdout.write(`${JSON.stringify({ passed: results.length - failed, failed, results })}\n`);
-  } else {
-    io.stdout.write(`\n${results.length - failed} passed, ${failed} failed.\n`);
-  }
-  return failed ? EXIT.problems : EXIT.ok;
-}
-
-/** One test's result for people: a line per test, the reasons under a failure. */
-export function pretty(result: TestResult): string {
-  const rate = result.runs.length > 1 ? ` (${result.runs.filter((run) => run.pass).length}/${result.runs.length} runs)` : '';
-  const head = `${result.pass ? '✓' : '✗'} ${result.fixture} > ${result.test}${rate}\n`;
-  if (result.pass) return head;
-
-  const lines: string[] = [];
-  const failedRun = result.runs.find((run) => !run.pass);
-  if (failedRun) {
-    failedRun.turns.forEach(({ turn, results }, i) => {
-      for (const check of results.filter((r) => !r.pass)) lines.push(`    turn ${i + 1}: ${check.reason ?? Object.keys(check.assertion)[0]}`);
-      if (results.some((r) => !r.pass)) lines.push(`    reply: ${clip(turn.text)}`);
-    });
-    if (failedRun.error) lines.push(`    ${failedRun.error}`);
-  }
-  return `${head}${lines.map((line) => `${line}\n`).join('')}`;
-}
-
-function clip(text: string): string {
-  const flat = text.replace(/\s+/g, ' ').trim();
-  return flat ? (flat.length > 200 ? `${flat.slice(0, 199)}…` : flat) : '(empty)';
+  for (const reporter of reporters) await reporter.onEnd?.(results);
+  return results.some((result) => !result.pass) ? EXIT.problems : EXIT.ok;
 }

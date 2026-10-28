@@ -41,7 +41,7 @@ tests:
           - not-contains: "$29"
 ```
 
-Options: `--filter` (a name, or `tag:<name>`), `--repeat`, `--concurrency`, `--json`. It exits 0 when all tests passed, 1 when some failed, 2 when it couldn't run. See [Testing your bot](https://chat.codercops.com/core/testing/).
+Options: `--filter` (a name, or `tag:<name>`), `--repeat`, `--concurrency`, `--reporter pretty|json` (repeatable), `--json`. It exits 0 when all tests passed, 1 when some failed, 2 when it couldn't run. See [Testing your bot](https://chat.codercops.com/core/testing/).
 
 Exit codes for ingest and search: 0 when everything worked, 1 when it finished with failed pages or discovery errors, 2 when it couldn't run (bad options, config problems, a different embedder than the index was built with).
 

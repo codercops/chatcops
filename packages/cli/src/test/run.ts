@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { memoryStorage, type ChatTool, type ToolResult, type WirePart } from '@chatcops/core';
 import { createChatHandler, type ChatCopsServerConfig } from '@chatcops/server';
 import { ConfigError } from '../config.js';
-import { check } from './assertions.js';
+import { check } from './assertions/index.js';
 import type { Fixture, TestCase, TestResult, TestRunResult, TurnResult } from './types.js';
 
 export interface RunOptions {

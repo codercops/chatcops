@@ -2,9 +2,9 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EXIT, main } from '../src/index.js';
-import { check, unknownAssertions } from '../src/test/assertions.js';
+import { check, unknownAssertions } from '../src/test/assertions/index.js';
 import { matchesFilter } from '../src/test/load.js';
-import { pretty } from '../src/test/command.js';
+import { pretty } from '../src/test/reporters/pretty.js';
 import type { TurnResult } from '../src/test/types.js';
 
 const TMP = resolve(__dirname, '.tmp-test');
@@ -225,6 +225,19 @@ tests:
     const both = await run(['test', 'evals/**/*.chat.yaml', 'other/*.chat.yaml'], dir);
     expect(both.stdout).toContain('4 passed');
     expect((await run(['test', '--filter', 'nothing'], dir)).code).toBe(EXIT.unusable);
+  });
+
+  it('reports with each --reporter given', async () => {
+    const dir = project({ 'evals/pricing.chat.yaml': PRICING });
+    const json = await run(['test', '--reporter', 'json'], dir);
+    expect(JSON.parse(json.stdout)).toMatchObject({ passed: 2, failed: 0 });
+    const both = await run(['test', '--reporter', 'pretty', '--reporter', 'json'], dir);
+    expect(both.stdout).toContain('✓ evals/pricing.chat.yaml > says hello');
+    expect(JSON.parse(both.stdout.trim().split('\n').at(-1) ?? '')).toMatchObject({ passed: 2 });
+    const unknown = await run(['test', '--reporter', 'html'], dir);
+    expect(unknown.stderr).toContain("--reporter html doesn't exist. Use one of: pretty, json.");
+    expect(unknown.code).toBe(EXIT.unusable);
+    expect((await run(['test', '--json', '--reporter', 'json'], dir)).stderr).toContain('not both');
   });
 
   it('loads module eval files', async () => {

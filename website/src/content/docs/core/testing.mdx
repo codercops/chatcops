@@ -101,7 +101,8 @@ Eval files can also be modules (`.chat.ts`, `.chat.mjs`) that export the same ob
 | `--filter <text>` | Only tests whose name contains the text, or `tag:<name>` for a tag |
 | `--repeat <n>` | Run every test n times, instead of each test's own `repeat` |
 | `--concurrency <n>` | Tests run at once. Default 4. |
-| `--json` | Print the results as one JSON object, with every turn's reply, tool calls, sources and token usage |
+| `--reporter <name>` | `pretty` (the default) or `json`, which prints one JSON object with every turn's reply, tool calls, sources and token usage. Repeatable. |
+| `--json` | The same as `--reporter json` |
 | `--config <file>` | A config file other than `chatcops.config.*` in the current folder |
 
 A failed test prints the reason for each failed assertion and the reply it checked:

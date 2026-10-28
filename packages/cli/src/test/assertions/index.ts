@@ -1,21 +1,13 @@
-import type { Assertion, AssertionCheck, AssertionResult, TurnResult } from './types.js';
+import type { Assertion, AssertionCheck, AssertionResult, TurnResult } from '../types.js';
+import { contains } from './text.js';
 
 /**
- * The checks a fixture can use, by key. Every key also works with a `not-`
- * prefix, which passes when the check fails (`not-contains`).
+ * The checks an eval file can use, by key. Every key also works with a
+ * `not-` prefix, which passes when the check fails (`not-contains`).
+ *
+ * To add one, write it in its own file in this folder and add it here.
  */
-export const ASSERTIONS = new Map<string, AssertionCheck>([
-  [
-    'contains',
-    (value, turn) => {
-      const wanted = asStrings(value, 'contains');
-      const missing = wanted.filter((text) => !turn.text.includes(text));
-      return missing.length
-        ? { pass: false, reason: `the reply doesn't contain ${missing.map((text) => JSON.stringify(text)).join(', ')}` }
-        : { pass: true, reason: `the reply contains ${wanted.map((text) => JSON.stringify(text)).join(', ')}` };
-    },
-  ],
-]);
+export const ASSERTIONS = new Map<string, AssertionCheck>([['contains', contains]]);
 
 /** The base name of an assertion and whether it's negated: `not-contains` is `contains`, negated. */
 export function assertionName(assertion: Assertion): { key: string; name: string; negated: boolean } {
@@ -40,10 +32,4 @@ export async function check(assertion: Assertion, turn: TurnResult, conversation
   } catch (error) {
     return { assertion, pass: false, reason: error instanceof Error ? error.message : String(error) };
   }
-}
-
-function asStrings(value: unknown, name: string): string[] {
-  const list = Array.isArray(value) ? value : [value];
-  if (!list.length || list.some((item) => typeof item !== 'string')) throw new Error(`${name} takes a string or a list of strings`);
-  return list as string[];
 }
