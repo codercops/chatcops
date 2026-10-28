@@ -266,7 +266,7 @@ describe('runTurn', () => {
 
 describe('runTurn with a provider written for 0.4 (chat only)', () => {
   function legacyProvider(chat: AIProvider['chat']): AIProvider {
-    return { name: 'custom', chat, chatSync: async () => '' };
+    return { name: 'custom', chat};
   }
 
   it('records the tools it runs, and sends their parts before the next text', async () => {

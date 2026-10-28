@@ -13,9 +13,6 @@ vi.mock('@chatcops/core', async (importOriginal) => {
         calls.push({ ...params, messages: params.messages.map((m) => ({ ...m })) });
         yield 'ok';
       },
-      async chatSync() {
-        return '';
-      },
     }),
   };
 });
@@ -28,7 +25,7 @@ async function send(body: Record<string, unknown>, store = new MemoryStore()) {
   const { handleChat, cleanup } = createChatHandler({
     provider: { type: 'claude', apiKey: 'k' },
     systemPrompt: 'You are the Acme support bot.',
-    conversationStore: store,
+    storage: { conversations: store },
   });
   for await (const _ of handleChat({ conversationId: 'c1', message: 'Hi', ...body })) {
     // drain

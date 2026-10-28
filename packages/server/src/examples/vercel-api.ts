@@ -14,5 +14,5 @@ export default chatcopsVercelHandler({
     apiKey: process.env.ANTHROPIC_API_KEY!,
   },
   systemPrompt: 'You are a helpful assistant.',
-  cors: '*',
+  allowedOrigins: ['*'],
 });

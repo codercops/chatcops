@@ -14,7 +14,7 @@ import { chatcopsCloudflareHandler } from '../../src/adapters/cloudflare.js';
 const config = {
   provider: { type: 'claude' as const, apiKey: 'test-key' },
   systemPrompt: 'Test',
-  cors: '*',
+  allowedOrigins: ['*'],
 };
 
 describe('chatcopsCloudflareHandler', () => {
@@ -48,7 +48,7 @@ describe('chatcopsCloudflareHandler', () => {
     const handlerWithCustomCors = chatcopsCloudflareHandler({
       provider: { type: 'claude' as const, apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: 'https://example.com',
+      allowedOrigins: ['https://example.com'],
     });
     const req = new Request('http://localhost/api/chat', { method: 'GET', headers: { Origin: 'https://example.com' } });
     const res = await handlerWithCustomCors(req);
@@ -112,7 +112,7 @@ describe('chatcopsCloudflareHandler', () => {
     const handlerWithCustomCors = chatcopsCloudflareHandler({
       provider: { type: 'claude' as const, apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: 'https://example.com',
+      allowedOrigins: ['https://example.com'],
     });
     const req = new Request('http://localhost/api/chat', {
       method: 'POST',

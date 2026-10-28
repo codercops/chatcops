@@ -52,7 +52,6 @@ describe('a provider object in the server config', () => {
         yield 'custom ';
         yield 'reply';
       },
-      chatSync: async () => 'custom reply',
     };
     const { handleChat, cleanup } = createChatHandler({ provider, systemPrompt: 'Be brief.' });
     const out = await chunks(handleChat(request('Hi')));
@@ -72,7 +71,7 @@ describe('the handler on runTurn', () => {
     const { handleChat, cleanup } = createChatHandler({
       provider,
       systemPrompt: 'Be brief.',
-      conversationStore,
+      storage: { conversations: conversationStore },
       tools: [{ name: 'lookup_order', description: 'Look up an order', inputSchema: { type: 'object', properties: {} }, execute: lookup }],
     });
 
@@ -141,7 +140,7 @@ describe('regenerate, retry and aborted replies', () => {
   function setup(script: Parameters<typeof scriptedProvider>[0]) {
     const provider = scriptedProvider(script);
     const conversationStore = memoryStorage().conversations;
-    const handler = createChatHandler({ provider, systemPrompt: 'Be brief.', conversationStore });
+    const handler = createChatHandler({ provider, systemPrompt: 'Be brief.', storage: { conversations: conversationStore } });
     const stored = async () => (await conversationStore.get('c1'))?.messages ?? [];
     return { provider, handler, stored };
   }
@@ -196,7 +195,7 @@ describe('regenerate, retry and aborted replies', () => {
       { id: 'u1', role: 'user', content: 'Question?', timestamp: 1 },
       { id: 'a1', role: 'assistant', content: 'Full ans', status: 'aborted', timestamp: 2 },
     ]);
-    const handler = createChatHandler({ provider, systemPrompt: 'Be brief.', conversationStore });
+    const handler = createChatHandler({ provider, systemPrompt: 'Be brief.', storage: { conversations: conversationStore } });
     await chunks(handler.handleChat({ ...request('Question?'), messageId: 'u1' }));
     handler.cleanup();
 

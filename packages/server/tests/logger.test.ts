@@ -35,7 +35,6 @@ describe('the server logger', () => {
       ]),
       systemPrompt: 'x',
       tools: [failing],
-      i18n: {},
       logger,
     } as Parameters<typeof createChatHandler>[0]);
 
@@ -45,7 +44,6 @@ describe('the server logger', () => {
     if (second.ok) await drain(second.parts);
 
     const events = lines.map((line) => `${line.level}:${line.event}`);
-    expect(events).toContain('warn:deprecated_option');
     expect(events).toContain('info:security');
     expect(events).toContain('error:tool_error');
     expect(events).toContain('error:provider_error');

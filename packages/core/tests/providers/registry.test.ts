@@ -5,7 +5,6 @@ function custom(name: string): AIProvider {
   return {
     name,
     async *chat() { yield name; },
-    async chatSync() { return name; },
   };
 }
 
@@ -18,7 +17,7 @@ describe('provider registry', () => {
 
     expect(await createProvider(config)).toBe(provider);
     expect(factory).toHaveBeenCalledExactlyOnceWith(config);
-    expect(await provider.chatSync({ messages: [], systemPrompt: '' })).toBe('custom-async');
+    expect(provider.name).toBe('custom-async');
   });
 
   it('replaces a custom factory on registration for hot reload', async () => {

@@ -40,10 +40,10 @@ describe('the storage option', () => {
     b.cleanup();
   });
 
-  it('refuses storage and conversationStore together', () => {
+  it('refuses conversationStore, which 1.0 removed', () => {
     expect(() =>
-      createChatHandler({ provider: scriptedProvider([]), systemPrompt: 'x', storage: memoryStorage(), conversationStore: new MemoryStore() })
-    ).toThrow('Set `storage` or `conversationStore`, not both.');
+      createChatHandler({ provider: scriptedProvider([]), systemPrompt: 'x', conversationStore: new MemoryStore() } as never)
+    ).toThrow('`conversationStore` was removed in 1.0. Use `storage: { conversations: yourStore }`');
   });
 
   it('warns once when a serverless deployment keeps conversations in memory', async () => {
@@ -79,7 +79,7 @@ describe('purge', () => {
 
   it('resolves null when the store has no purge', async () => {
     const conversationStore = { get: async () => null, save: async () => {}, delete: async () => {} };
-    const { purge, cleanup } = createChatHandler({ provider: scriptedProvider([]), systemPrompt: 'x', conversationStore });
+    const { purge, cleanup } = createChatHandler({ provider: scriptedProvider([]), systemPrompt: 'x', storage: { conversations: conversationStore } });
     expect(await purge()).toBeNull();
     cleanup();
   });

@@ -49,7 +49,6 @@ describe('provider configuration through the server', () => {
     registerProvider('server-custom', () => ({
       name: 'server-custom',
       async *chat() { yield 'Custom reply'; },
-      async chatSync() { return 'Custom reply'; },
     }));
     const handler = createChatHandler({ provider: { type: 'server-custom' }, systemPrompt: 'Test', budgets: false });
     try {

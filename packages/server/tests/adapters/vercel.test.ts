@@ -14,7 +14,7 @@ import { chatcopsVercelHandler } from '../../src/adapters/vercel.js';
 const config = {
   provider: { type: 'claude' as const, apiKey: 'test-key' },
   systemPrompt: 'Test',
-  cors: '*',
+  allowedOrigins: ['*'],
 };
 
 describe('chatcopsVercelHandler', () => {
@@ -48,7 +48,7 @@ describe('chatcopsVercelHandler', () => {
     const handlerWithCustomCors = chatcopsVercelHandler({
       provider: { type: 'claude' as const, apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: 'https://example.com',
+      allowedOrigins: ['https://example.com'],
     });
     const req = new Request('http://localhost/api/chat', { method: 'GET', headers: { Origin: 'https://example.com' } });
     const res = await handlerWithCustomCors(req);
@@ -112,7 +112,7 @@ describe('chatcopsVercelHandler', () => {
     const handlerWithCustomCors = chatcopsVercelHandler({
       provider: { type: 'claude' as const, apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: 'https://example.com',
+      allowedOrigins: ['https://example.com'],
     });
     const req = new Request('http://localhost/api/chat', {
       method: 'POST',

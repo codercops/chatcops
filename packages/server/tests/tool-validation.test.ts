@@ -4,7 +4,7 @@ vi.mock('@chatcops/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@chatcops/core')>();
   return {
     ...actual,
-    createProvider: vi.fn(async () => ({ name: 'fake', async *chat() {}, chatSync: async () => '' })),
+    createProvider: vi.fn(async () => ({ name: 'fake', async *chat() {}})),
   };
 });
 

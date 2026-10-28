@@ -1,8 +1,8 @@
-import { MAX_TOOL_ROUNDS } from '../providers/tool-execution.js';
-import type { AIProvider } from '../providers/types.js';
-import type { ProviderChatParams } from '../types.js';
-import { runTurn } from './run-turn.js';
-import { executorRegistry } from './tool-registry.js';
+import { MAX_TOOL_ROUNDS } from '../../src/providers/tool-execution.js';
+import type { AIProvider } from '../../src/providers/types.js';
+import type { ProviderChatParams } from '../../src/types.js';
+import { runTurn } from '../../src/agent/run-turn.js';
+import { executorRegistry } from '../../src/agent/tool-registry.js';
 
 type SteppingProvider = AIProvider & Required<Pick<AIProvider, 'step'>>;
 

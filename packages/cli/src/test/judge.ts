@@ -97,8 +97,8 @@ async function grade(provider: AIProvider, rubric: string, conversation: TurnRes
       if (event.type === 'text-delta') text += event.delta;
       else if (event.type === 'finish') usage = event.usage;
     }
-  } else {
-    text = await provider.chatSync({ messages, systemPrompt: SYSTEM_PROMPT, maxTokens: 400 });
+  } else if (provider.chat) {
+    for await (const chunk of provider.chat({ messages, systemPrompt: SYSTEM_PROMPT, maxTokens: 400 })) text += chunk;
   }
 
   const verdict = readVerdict(text);

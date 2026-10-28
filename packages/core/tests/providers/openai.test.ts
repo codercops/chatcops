@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { toOpenAITools } from '../../src/providers/base.js';
 import { OpenAIProvider } from '../../src/providers/openai.js';
 import type { ToolDefinition, ProviderChatParams } from '../../src/types.js';
+import { chatViaTurn } from '../helpers/chat-via-turn.js';
 
 describe('OpenAI provider helpers', () => {
   it('converts tools to OpenAI function format', () => {
@@ -84,7 +85,7 @@ describe('OpenAI tool call id fallback', () => {
       return Promise.resolve({ success: true, data: {} });
     });
 
-    await collect(provider.chat(params({ toolExecutor })));
+    await collect(chatViaTurn(provider, params({ toolExecutor })));
 
     expect(capturedIds).toHaveLength(2);
     expect(capturedIds[0]).toMatch(/^call_[0-9a-f-]{36}$/);
@@ -117,7 +118,7 @@ describe('OpenAI tool call id fallback', () => {
       return Promise.resolve({ success: true, data: {} });
     });
 
-    await collect(provider.chat(params({ toolExecutor })));
+    await collect(chatViaTurn(provider, params({ toolExecutor })));
 
     expect(capturedId).toBe('call_from_api');
   });

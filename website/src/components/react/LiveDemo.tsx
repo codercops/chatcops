@@ -21,7 +21,7 @@ export default function LiveDemo() {
       theme: {
         accent: '#6366f1',
       },
-      persistHistory: false,
+      persistence: 'none',
       // The landing page also has the popup widget; keep their conversations apart.
       siteId: 'landing-demo',
     });

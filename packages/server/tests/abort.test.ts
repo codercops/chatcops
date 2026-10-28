@@ -30,9 +30,6 @@ vi.mock('@chatcops/core', async (importOriginal) => {
         });
         yield ' and a tail nobody should see';
       },
-      async chatSync() {
-        return '';
-      },
     }),
   };
 });
@@ -63,7 +60,7 @@ describe('handleChat with a signal', () => {
     const { handleChat, cleanup } = createChatHandler({
       provider: { type: 'claude', apiKey: 'k' },
       systemPrompt: 'Test',
-      conversationStore: store,
+      storage: { conversations: store },
     });
     const controller = new AbortController();
     const chunks: string[] = [];

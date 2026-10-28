@@ -1,9 +1,6 @@
 import { consoleLogger, type Logger, type WebhookConfig } from '@chatcops/core';
 
-/**
- * The JSON body of every delivery. `event` and `timestamp` repeat `type` and
- * `created` for receivers written against the old format.
- */
+/** The JSON body of every delivery. */
 export interface WebhookEvent<T = unknown> {
   /** Unique per event, and the same on every retry, so receivers can drop duplicates. */
   id: string;
@@ -11,10 +8,6 @@ export interface WebhookEvent<T = unknown> {
   /** Milliseconds since the epoch. */
   created: number;
   data: T;
-  /** @deprecated Same as `type`. */
-  event: string;
-  /** @deprecated Same as `created`. */
-  timestamp: number;
 }
 
 export const DEFAULT_WEBHOOK_TIMEOUT_MS = 5000;
@@ -109,14 +102,11 @@ export class WebhookDispatcher {
     const matching = this.configs.filter((c) => c.events.includes(event) || c.events.includes('*'));
     if (matching.length === 0) return;
 
-    const created = Date.now();
     const envelope: WebhookEvent = {
       id: `evt_${crypto.randomUUID()}`,
       type: event,
-      created,
+      created: Date.now(),
       data,
-      event,
-      timestamp: created,
     };
     const body = JSON.stringify(envelope);
 

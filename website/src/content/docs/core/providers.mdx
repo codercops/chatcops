@@ -121,11 +121,11 @@ interface AIProvider {
   name: string;
   model?: string;
   // One model request: streams text, then reports tool calls, token usage
-  // and why the model stopped. Runs no tools. Optional, so providers written
-  // for 0.4 with only chat() keep working.
+  // and why the model stopped. Runs no tools. Every built-in provider has it.
   step?(params: ProviderStepParams): AsyncGenerator<ProviderEvent>;
-  chat(params: ProviderChatParams): AsyncGenerator<string>;
-  chatSync(params: ProviderChatParams): Promise<string>;
+  // A whole turn as text, running tools itself through params.toolExecutor.
+  // For simple custom providers. A provider needs step() or chat().
+  chat?(params: ProviderChatParams): AsyncGenerator<string>;
 }
 
 interface ProviderChatParams {
@@ -150,7 +150,6 @@ class MyProvider implements AIProvider {
   name = 'my-llm';
   constructor(_config: ProviderConfig) {}
   async *chat(_params: ProviderChatParams): AsyncGenerator<string> { yield 'Hello'; }
-  async chatSync(_params: ProviderChatParams): Promise<string> { return 'Hello'; }
 }
 
 registerProvider('my-llm', async (config) => new MyProvider(config));
@@ -172,7 +171,6 @@ import type { AIProvider } from '@chatcops/core';
 const provider: AIProvider = {
   name: 'my-llm',
   async *chat() { yield 'Hello'; },
-  async chatSync() { return 'Hello'; },
 };
 
 chatcopsMiddleware({
@@ -232,7 +230,7 @@ for await (const part of turn) {
 }
 ```
 
-Provider errors don't throw. They end the turn with an `error` part and a `finish` part with reason `error`. `chat()` and `chatSync()` on the built-in providers are thin wrappers over `runTurn()` that still throw as they did in 0.5. They're deprecated: use `runTurn()`, which also gives you the reply's parts, status and token usage.
+Provider errors don't throw. They end the turn with an `error` part and a `finish` part with reason `error`. The built-in providers have only `step()`, so to get a reply from one outside the server, use `runTurn()`. It also gives you the reply's parts, status and token usage. (`chat()` and `chatSync()` on the built-in providers were removed in 1.0.)
 
 For tests, `@chatcops/core/testing/provider` has `scriptedProvider()`, which plays back a script of steps instead of calling a model.
 

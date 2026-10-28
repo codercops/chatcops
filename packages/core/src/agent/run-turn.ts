@@ -264,7 +264,9 @@ export async function* runTurn(options: RunTurnOptions): AsyncGenerator<WirePart
   yield { type: 'start', protocol: PROTOCOL_VERSION, conversationId: options.conversationId, messageId: message.id };
 
   if (!provider.step) {
-    return yield* legacyTurn();
+    const chat = provider.chat?.bind(provider);
+    if (!chat) return yield* failed(new Error(`The provider "${provider.name}" has neither step() nor chat().`));
+    return yield* legacyTurn(chat);
   }
   const step = provider.step.bind(provider);
 
@@ -395,7 +397,7 @@ export async function* runTurn(options: RunTurnOptions): AsyncGenerator<WirePart
    * calls are recorded through the executor it's given, and their parts are
    * streamed before the next text, the way the 0.5 server sent them.
    */
-  async function* legacyTurn(): AsyncGenerator<WirePart, TurnResult> {
+  async function* legacyTurn(chat: NonNullable<AIProvider['chat']>): AsyncGenerator<WirePart, TurnResult> {
     // A 0.4 provider reports no usage, so its replies can only be checked, not charged.
     const budget = yield* checkBudget(1);
     if (budget.ended) return budget.ended;
@@ -422,7 +424,7 @@ export async function* runTurn(options: RunTurnOptions): AsyncGenerator<WirePart
     };
 
     try {
-      for await (const chunk of provider.chat({
+      for await (const chunk of chat({
         // Providers written for 0.4 read `content` only, so a reply the
         // visitor walked away from would look finished. Leave it out.
         messages: options.messages.filter((m) => m.status !== 'aborted'),

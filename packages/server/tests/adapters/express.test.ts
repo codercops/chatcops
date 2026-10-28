@@ -19,9 +19,6 @@ vi.mock('@chatcops/core', async (importOriginal) => {
       async *chat() {
         yield 'Hello';
       },
-      async chatSync() {
-        return 'Hello';
-      },
     }),
   };
 });
@@ -131,7 +128,7 @@ describe('express analytics sharing', () => {
     const config: ChatCopsServerConfig = {
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: '*',
+      allowedOrigins: ['*'],
     };
     const middleware = chatcopsMiddleware(config);
     const { fake, res } = createResponse();
@@ -215,7 +212,7 @@ describe('express analytics sharing', () => {
     const config: ChatCopsServerConfig = {
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: '*',
+      allowedOrigins: ['*'],
     };
     const middleware = chatcopsMiddleware(config);
     const { fake, res } = createResponse();
@@ -241,7 +238,7 @@ describe('express analytics sharing', () => {
     const config: ChatCopsServerConfig = {
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: '*',
+      allowedOrigins: ['*'],
     };
     const middleware = chatcopsMiddleware(config);
     const { fake, res } = createResponse();
@@ -285,7 +282,7 @@ describe('express analytics sharing', () => {
     const config: ChatCopsServerConfig = {
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: 'https://example.com',
+      allowedOrigins: ['https://example.com'],
     };
     const middleware = chatcopsMiddleware(config);
     const { fake, res } = createResponse();
@@ -307,7 +304,7 @@ describe('express analytics sharing', () => {
     const config: ChatCopsServerConfig = {
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: '*',
+      allowedOrigins: ['*'],
     };
     const middleware = chatcopsMiddleware(config);
     const { fake, res } = createResponse();
@@ -337,7 +334,7 @@ describe('express analytics sharing', () => {
     const config: ChatCopsServerConfig = {
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: '*',
+      allowedOrigins: ['*'],
       analytics: true,
     };
     vi.mocked(createChatHandler).mockClear();

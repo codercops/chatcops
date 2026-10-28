@@ -111,11 +111,7 @@ interface ChatCopsServerConfig {
   analytics?: boolean;
   storage?: ChatCopsStorage;            // where conversations, counters and locks live
   retention?: { conversationsDays?: number };   // for purge(); default 30
-  /** @deprecated Use `storage`. */
-  conversationStore?: ConversationStore;
   allowedOrigins?: string[];   // default ['*']
-  /** @deprecated Use `allowedOrigins`. */
-  cors?: string;
   clientIp?: (request: Request) => string | null | undefined;   // fetch handlers, see the fetch runtimes page
   sessionSecrets?: string[];   // turns on session tokens, see Session tokens below
   sessionTtlSec?: number;      // default 900
@@ -162,7 +158,7 @@ const handler = chatcopsMiddleware({
 });
 ```
 
-With a storage that has key-value support, the rule that only one reply is written per conversation at a time holds across all your server instances, not just within one. Setting both `storage` and the older `conversationStore` is an error.
+With a storage that has key-value support, the rule that only one reply is written per conversation at a time holds across all your server instances, not just within one.
 
 Nothing is deleted on its own. The handler's `purge()` deletes conversations last updated more than `retention.conversationsDays` (default 30) days ago. Call it on a schedule, from a cron job or a Workers cron trigger:
 
@@ -328,13 +324,11 @@ Each webhook gets a POST with a JSON body for every event it subscribes to:
   "id": "evt_6f1c…",
   "type": "lead:captured",
   "created": 1792411200000,
-  "data": { "lead": { "name": "Priya", "email": "priya@example.com" }, "conversationId": "c_123" },
-  "event": "lead:captured",
-  "timestamp": 1792411200000
+  "data": { "lead": { "name": "Priya", "email": "priya@example.com" }, "conversationId": "c_123" }
 }
 ```
 
-`id` is the same on every retry, so use it to ignore duplicates; it's also in the `X-ChatCops-Event-Id` header. `event` and `timestamp` repeat `type` and `created` for receivers written for older versions.
+`id` is the same on every retry, so use it to ignore duplicates; it's also in the `X-ChatCops-Event-Id` header.
 
 **Retries.** A delivery is tried up to 3 times. Network errors, 429 and 5xx responses are retried (a 429's `Retry-After` is honored, up to 10 seconds); other 4xx responses are final, and redirects aren't followed. A delivery that fails for good is logged with the event type, id and the receiver's origin, never the body.
 
@@ -406,7 +400,7 @@ Or pass your own: anything with `debug`, `info`, `warn` and `error` methods that
 | `budget_exceeded` | warn | A budget is used up, so a reply was refused |
 | `origin_refused` | warn | A page whose origin isn't in `allowedOrigins` was refused |
 | `insecure_config` | warn, error | A security setting needs attention at startup |
-| `reply_truncated`, `config_warning`, `memory_storage`, `client_ip`, `turnstile_unavailable`, `deprecated_option` | warn | Something to fix in the setup |
+| `reply_truncated`, `config_warning`, `memory_storage`, `client_ip`, `turnstile_unavailable` | warn | Something to fix in the setup |
 | `budgets`, `security`, `legacy_stream_format` | info | Startup notes, and the first request in the 0.5 stream format |
 
 ## Request Schema

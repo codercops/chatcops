@@ -80,10 +80,14 @@ export interface AIProvider {
   citations?: 'native';
   /**
    * Runs one model request and yields what comes back, without running any
-   * tools. Optional, so custom providers written for 0.4 that only have
-   * `chat()` keep working.
+   * tools. Every built-in provider has it. A provider needs `step()` or
+   * `chat()`.
    */
   step?(params: ProviderStepParams): AsyncGenerator<ProviderEvent>;
-  chat(params: ProviderChatParams): AsyncGenerator<string>;
-  chatSync(params: ProviderChatParams): Promise<string>;
+  /**
+   * The text of a whole turn, running tools through `params.toolExecutor`
+   * itself. For custom providers written before `step()`; one that has
+   * `step()` doesn't need it.
+   */
+  chat?(params: ProviderChatParams): AsyncGenerator<string>;
 }

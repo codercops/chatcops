@@ -1091,7 +1091,7 @@ describe('Widget streaming timeout configuration', () => {
   it.each([undefined, 750, 0])('uses the configured timeout (%s) through the real client', async (timeout) => {
     const transport = mockChatStream(false);
     const onError = vi.fn();
-    widget = new Widget({ apiUrl: '/chat', timeout, persistHistory: false, onError });
+    widget = new Widget({ apiUrl: '/chat', timeout, persistence: 'none', onError });
     widget.init();
     const pending = getInternals(widget).handleSend('Hello');
     const interval = timeout ?? 30000;
@@ -1113,7 +1113,7 @@ describe('Widget streaming timeout configuration', () => {
     const transport = mockChatStream();
     const onError = vi.fn();
     const onMessage = vi.fn();
-    widget = new Widget({ apiUrl: '/chat', timeout: 1000, persistHistory: false, onError, onMessage });
+    widget = new Widget({ apiUrl: '/chat', timeout: 1000, persistence: 'none', onError, onMessage });
     widget.init();
     const pending = getInternals(widget).handleSend('Hello');
     transport.send('data: {"content":"Partial reply"}\n\n');
@@ -1134,7 +1134,7 @@ describe('Widget streaming timeout configuration', () => {
 
   it('keeps the partial reply and adds the timeout error under it when an active stream later stalls', async () => {
     const transport = mockChatStream();
-    widget = new Widget({ apiUrl: '/chat', timeout: 1000, persistHistory: false });
+    widget = new Widget({ apiUrl: '/chat', timeout: 1000, persistence: 'none' });
     widget.init();
     const pending = getInternals(widget).handleSend('Hello');
     transport.send('data: {"content":"Partial reply"}\n\n');
@@ -1185,7 +1185,7 @@ describe('Widget streaming timeout configuration', () => {
       .mockResolvedValueOnce(new Response(reply1, { status: 200 }))
       .mockResolvedValueOnce(new Response(reply2, { status: 200 }));
 
-    const widget = new Widget({ apiUrl: 'https://api.test/chat', persistHistory: false });
+    const widget = new Widget({ apiUrl: 'https://api.test/chat', persistence: 'none' });
     widget.init();
 
     const root = getInternals(widget).shadow;

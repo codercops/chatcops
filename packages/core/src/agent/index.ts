@@ -8,4 +8,3 @@ export {
   type ToolRunContext,
 } from './tool-registry.js';
 export { RefusalError, ContentFilterError, MaxStepsError } from './errors.js';
-export { chatViaTurn, chatSyncViaTurn } from './chat.js';

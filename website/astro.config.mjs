@@ -107,6 +107,7 @@ export default defineConfig({
             { label: 'Quick Start', slug: 'getting-started/quick-start' },
             { label: 'Installation', slug: 'getting-started/installation' },
             { label: 'Upgrading from 0.5', slug: 'getting-started/upgrading' },
+            { label: 'Upgrading to 1.0', slug: 'getting-started/upgrading-to-1' },
           ],
         },
         {
