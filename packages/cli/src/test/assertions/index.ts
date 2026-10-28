@@ -1,5 +1,6 @@
 import type { Assertion, AssertionCheck, AssertionContext, AssertionResult, TurnResult } from '../types.js';
 import { judge } from './judge.js';
+import { cites, leadCaptured } from './parts.js';
 import { contains } from './text.js';
 import { costUnder, latencyUnder, tokensUnder } from './usage.js';
 
@@ -15,6 +16,8 @@ export const ASSERTIONS = new Map<string, AssertionCheck>([
   ['tokens-under', tokensUnder],
   ['latency-under', latencyUnder],
   ['cost-under', costUnder],
+  ['cites', cites],
+  ['lead-captured', leadCaptured],
 ]);
 
 /** The base name of an assertion and whether it's negated: `not-contains` is `contains`, negated. */

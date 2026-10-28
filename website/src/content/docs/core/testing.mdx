@@ -68,6 +68,11 @@ Three assertions catch a prompt change that makes replies longer, slower or more
 - `latency-under: 3000` checks the time to the end of the reply, in milliseconds. Replays answer at once, so it only means something in live and recorded runs.
 - `cost-under: 0.01` checks what the turn cost in US dollars. It needs the model in `prices` ([Costs](#costs)), and a turn without a price fails with a reason that says so.
 
+Two assertions check what ChatCops adds to a reply:
+
+- `cites` takes a URL glob, or a list of them, and each has to match a page the reply cites (`cites: "https://acme.test/pricing*"`). Globs work the same as in `ingest.include`. `cites: true` means it cites at least one page.
+- `lead-captured: true` means the turn captured a lead. An object, such as `lead-captured: { email: jane@acme.test }`, also has to match those fields of the lead.
+
 A test can also set:
 
 - `pageContext`: the page the visitor is on (`url`, `title`, and optionally `description` and `contentSnippet`)
