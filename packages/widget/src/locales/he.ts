@@ -31,7 +31,7 @@ const he: Partial<WidgetLocaleStrings> = {
   retryButton: 'ניסיון חוזר',
   regenerateButton: 'יצירה מחדש',
   suggestionsLabel: 'שאלות מוצעות',
-  unreadCount: '{count} הודעות שלא נקראו',
+  unreadCount: 'הודעות שלא נקראו: {count}',
 };
 
 export default he;
