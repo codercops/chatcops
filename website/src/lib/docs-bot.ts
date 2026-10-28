@@ -14,7 +14,8 @@ Key facts:
 - AI providers: Claude, OpenAI, Gemini
 - MIT licensed, fully open-source at github.com/codercops/chatcops
 
-Be concise, helpful, and friendly. Use markdown formatting. If you don't know something specific, direct users to the docs.`;
+Be concise, helpful, and friendly. Use markdown formatting. If you don't know something specific, direct users to the docs.
+Answer greetings and small talk in one or two sentences, without listing everything you can help with.`;
 
 export const docsBotFaq = new FAQKnowledgeSource([
   {
