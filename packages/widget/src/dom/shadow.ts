@@ -16,6 +16,13 @@ export interface ShadowOptions {
 
 const RTL_LANGUAGES = new Set(['ar', 'he', 'fa', 'ur']);
 
+/** Marks a registered language as right-to-left, or left-to-right. */
+export function setLanguageDirection(code: string, dir: 'ltr' | 'rtl'): void {
+  const language = code.toLowerCase().split(/[-_]/)[0];
+  if (dir === 'rtl') RTL_LANGUAGES.add(language);
+  else RTL_LANGUAGES.delete(language);
+}
+
 export function resolveDirection(configured: ShadowOptions['dir'], locale?: string): 'ltr' | 'rtl' | 'auto' {
   if (configured) return configured;
   const language = locale?.toLowerCase().split(/[-_]/)[0];

@@ -5,6 +5,9 @@ import {
   type WidgetEventHandler,
 } from './widget.js';
 import { configFromScript } from './script-config.js';
+import { setLanguageDirection } from './dom/shadow.js';
+import { registerWidgetLocale, type WidgetLocaleStrings } from './i18n.js';
+import { VERSION } from './version.js';
 
 export {
   Widget,
@@ -14,6 +17,7 @@ export {
   type WidgetEventHandler,
 } from './widget.js';
 export type { MessageData } from './dom/messages.js';
+export type { WidgetLocaleStrings } from './i18n.js';
 export { parseAutoOpen } from './script-config.js';
 
 let instance: Widget | null = null;
@@ -41,6 +45,37 @@ const ChatCops = {
   close(): void {
     instance?.close();
   },
+
+  toggle(): void {
+    instance?.toggle();
+  },
+
+  /** Sends `text` as the visitor (opening the chat unless `open: false`); resolves when the reply is done. */
+  sendMessage(text: string, options?: { open?: boolean }): Promise<void> {
+    return instance?.sendMessage(text, options) ?? Promise.resolve();
+  },
+
+  /** A fresh conversation: new id, the log back to the welcome message. */
+  newConversation(): void {
+    instance?.newConversation();
+  },
+
+  /** A fresh conversation, and the saved transcript and pre-chat answers removed from this browser. */
+  clear(): void {
+    instance?.clear();
+  },
+
+  /**
+   * Adds a language, or replaces one: its strings, with English for any it
+   * leaves out, and `dir: 'rtl'` for right-to-left. Use the code as `locale`.
+   */
+  registerLocale(code: string, strings: Partial<WidgetLocaleStrings>, options?: { dir?: 'ltr' | 'rtl' }): void {
+    registerWidgetLocale(code, strings);
+    if (options?.dir) setLanguageDirection(code, options.dir);
+  },
+
+  /** The widget's version. */
+  version: VERSION,
 
   destroy(): void {
     instance?.destroy();

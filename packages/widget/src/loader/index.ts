@@ -5,10 +5,10 @@
 import { configFromScript } from '../script-config.js';
 import { createLoader, localeUrlFor, panelUrlFor, type LocaleModule, type PanelModule } from './loader.js';
 
-declare const __CHATCOPS_VERSION__: string;
+import { VERSION } from '../version.js';
 
 const script = document.currentScript as HTMLScriptElement | null;
-const panelUrl = panelUrlFor(script?.src || location.href, __CHATCOPS_VERSION__);
+const panelUrl = panelUrlFor(script?.src || location.href, VERSION);
 
 const ChatCops = createLoader(
   () => import(/* @vite-ignore */ panelUrl) as Promise<PanelModule>,

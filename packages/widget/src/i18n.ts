@@ -80,6 +80,7 @@ export function getWidgetLocale(code: string, overrides?: Partial<WidgetLocaleSt
   return overrides ? { ...base, ...overrides } : base;
 }
 
-export function registerWidgetLocale(code: string, strings: WidgetLocaleStrings): void {
-  locales[code] = strings;
+/** Adds or replaces a language. Strings it leaves out stay in English. */
+export function registerWidgetLocale(code: string, strings: Partial<WidgetLocaleStrings>): void {
+  locales[code] = { ...en, ...strings };
 }

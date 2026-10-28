@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 import { resolve } from 'node:path';
 
@@ -16,7 +16,10 @@ const locales = existsSync(localeDir)
 // The chat panel as an ES module (chatcops.panel.js), loaded by the loader,
 // plus the chunks it loads itself (the pre-chat form) in dist/chunks/.
 // Built as an app entry rather than a library so it's fully minified.
+const { version } = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf8')) as { version: string };
+
 export default defineConfig({
+  define: { __CHATCOPS_VERSION__: JSON.stringify(version) },
   build: {
     emptyOutDir: false,
     minify: 'terser',

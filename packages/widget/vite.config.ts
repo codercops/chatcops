@@ -1,7 +1,11 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
+const { version } = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf8')) as { version: string };
+
 export default defineConfig({
+  define: { __CHATCOPS_VERSION__: JSON.stringify(version) },
   build: {
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),

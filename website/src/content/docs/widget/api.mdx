@@ -57,6 +57,40 @@ Close the chat panel.
 ChatCops.close();
 ```
 
+### `ChatCops.toggle()`
+
+Open the chat if it's closed, and close it if it's open. With the script tag build, the first call loads the chat.
+
+```typescript
+document.querySelector('#help-btn')?.addEventListener('click', () => ChatCops.toggle());
+```
+
+### `ChatCops.sendMessage(text, options?)`
+
+Send a message as if the visitor typed it, for example from a "Ask about pricing" button on your page. The chat opens first, unless you pass `{ open: false }`. The promise resolves when the reply has finished. While a reply is still coming, another message is ignored, as it is in the input.
+
+```typescript
+document.querySelector('#pricing-question')?.addEventListener('click', () => {
+  void ChatCops.sendMessage('How much is the Team plan?');
+});
+```
+
+### `ChatCops.newConversation()`
+
+Start a fresh conversation: a new conversation id, and the chat back to the welcome message. A reply that's still coming is stopped. Pre-chat answers are kept, so the visitor isn't asked again.
+
+```typescript
+ChatCops.newConversation();
+```
+
+### `ChatCops.clear()`
+
+Like `newConversation()`, and also removes what the widget saved in this browser: the transcript and the pre-chat answers, so the form shows again. Use it when a visitor signs out.
+
+```typescript
+ChatCops.clear();
+```
+
 ### `ChatCops.destroy()`
 
 Completely remove the widget from the DOM and clean up all event listeners.
@@ -95,6 +129,25 @@ function onOpen() {
 ChatCops.on('open', onOpen);
 ChatCops.off('open', onOpen);
 ```
+
+### `ChatCops.registerLocale(code, strings, options?)`
+
+Add a language the widget doesn't ship, or replace one of its own. Strings you leave out stay in English. Pass `{ dir: 'rtl' }` for a right-to-left language. Register before `init()`, then use the code as `locale`.
+
+```typescript
+ChatCops.registerLocale('sv', {
+  welcomeMessage: 'Hur kan jag hjälpa dig?',
+  inputPlaceholder: 'Skriv ett meddelande…',
+  sendButton: 'Skicka',
+});
+ChatCops.init({ apiUrl: '/api/chat', locale: 'sv' });
+```
+
+See [Internationalization](/widget/i18n/) for every string.
+
+### `ChatCops.version`
+
+The widget's version, such as `"0.7.0"`.
 
 ## Auto-Initialization
 

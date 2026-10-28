@@ -169,6 +169,8 @@ export class Widget {
   /** Set once the server answers in protocol v1 (0.6 and later). */
   private v1 = false;
   private destroyed = false;
+  /** Goes up on newConversation() and clear(), so a reply from before is ignored. */
+  private generation = 0;
   private abortController?: AbortController;
   private retryRequests = new Map<string, SendRequestOptions>();
   private eventHandlers = new Map<WidgetEventType, Set<AnyHandler>>();
@@ -361,6 +363,61 @@ export class Widget {
     } else {
       this.open();
     }
+  }
+
+  /**
+   * Sends `text` as the visitor, as if they typed it, and opens the chat
+   * first unless `open: false`. Resolves when the reply has finished. A
+   * message sent while a reply is still coming is ignored, as in the input.
+   */
+  async sendMessage(text: string, options: { open?: boolean } = {}): Promise<void> {
+    if (options.open === false) this.hydrate();
+    else this.open();
+    await this.handleSend(text);
+  }
+
+  /**
+   * Starts a fresh conversation: a new id, and the log back to the welcome
+   * message. A reply that's still coming is stopped. Pre-chat answers stay.
+   */
+  newConversation(): void {
+    this.reset(false);
+  }
+
+  /**
+   * Like newConversation(), and forgets what this browser saved: the
+   * transcript and the pre-chat answers, so the form shows again.
+   */
+  clear(): void {
+    this.reset(true);
+  }
+
+  private reset(forget: boolean): void {
+    this.generation++;
+    this.abortController?.abort();
+    this.abortController = undefined;
+    this.isStreaming = false;
+    this.retryRequests.clear();
+    this.messages = [];
+    this.conversationId = crypto.randomUUID();
+    // Nothing old to restore into the new conversation.
+    this.hydrated = true;
+    if (forget) {
+      this.userData = undefined;
+      this.preChatDone = false;
+      this.storage.clear();
+    }
+    this.preChatFormEl?.destroy();
+    this.preChatFormEl = undefined;
+    this.panel.messages.clear();
+    this.panel.input.setDisabled(false);
+    if (this.config.preChatForm?.enabled && !this.preChatDone) this.showPreChatForm();
+    else this.showChatView();
+    if (!forget) this.saveHistory();
+  }
+
+  private isStale(generation: number): boolean {
+    return this.destroyed || generation !== this.generation;
   }
 
   destroy(): void {
@@ -579,6 +636,8 @@ export class Widget {
 
   private async sendToServer(text: string, options: SendRequestOptions = {}): Promise<void> {
     if (this.isStreaming) return;
+    // A reply that's still running when the conversation is reset writes nothing to the new one.
+    const generation = this.generation;
 
     this.isStreaming = true;
     this.panel.input.setDisabled(true);
@@ -606,7 +665,7 @@ export class Widget {
         this.createRequest(text, options),
         { signal: abortController.signal }
       )) {
-        if (this.destroyed) break;
+        if (this.isStale(generation)) break;
         if (chunk.error) {
           const errorType = this.resolveErrorType(chunk.error);
           this.markFailed(assistantMsg, this.getErrorMessage(errorType, chunk.retryAfterMs));
@@ -668,7 +727,7 @@ export class Widget {
         }
       }
 
-      if (this.destroyed) return;
+      if (this.isStale(generation)) return;
 
       if (!hasError && !requestCompleted) {
         requestCompleted = true;
@@ -692,7 +751,7 @@ export class Widget {
         }
       }
     } catch (err) {
-      if (this.destroyed) return;
+      if (this.isStale(generation)) return;
 
       this.markFailed(assistantMsg, this.locale.errorGeneric);
       assistantMsg.errorType = 'network';
@@ -719,7 +778,7 @@ export class Widget {
         this.abortController = undefined;
       }
 
-      if (!this.destroyed) {
+      if (!this.isStale(generation)) {
         this.panel.messages.finishReply(assistantMsg);
         this.isStreaming = false;
         this.panel.input.setDisabled(false);
