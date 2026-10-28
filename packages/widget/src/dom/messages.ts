@@ -14,6 +14,7 @@ export interface MessageData {
   errorType?: MessageErrorType;
   /** Shown under the content when a reply fails after some of it already streamed. */
   errorText?: string;
+  sources?: Array<{ url: string; title?: string }>;
 }
 
 export interface MessageActions {
@@ -22,6 +23,7 @@ export interface MessageActions {
   retryLabel?: string;
   regenerateLabel?: string;
   typingLabel?: string;
+  sourcesLabel?: string;
 }
 
 /** How close to the bottom (px) the log has to be for new text to scroll it. */
@@ -35,8 +37,8 @@ const STREAM_INTERVAL_MS = 50;
 /**
  * A reply that's streaming. The text up to the last blank line outside a code
  * fence is rendered once, into its own block, and never touched again; only
- * the open block after it re-renders, at most once a frame. That keeps a long reply O(n) instead
- * of re-rendering all of it on every chunk.
+ * the open block after it re-renders, at most 20 times a second. That keeps
+ * a long reply O(n) instead of re-rendering all of it on every chunk.
  */
 interface Stream {
   text: string;
@@ -52,6 +54,7 @@ export class Messages {
   private container: HTMLDivElement;
   private streams = new Map<string, Stream>();
   private streamIntervalMs: number;
+  private announcement: HTMLDivElement;
   private typingEl: HTMLDivElement | null = null;
   private suggestionsEl: HTMLDivElement | null = null;
   private actions?: MessageActions;
@@ -64,6 +67,27 @@ export class Messages {
     this.container.setAttribute('role', 'log');
     this.container.setAttribute('aria-live', 'polite');
     parent.appendChild(this.container);
+
+    this.announcement = document.createElement('div');
+    this.announcement.className = 'cc-reply-announcement cc-sr-only';
+    this.announcement.setAttribute('aria-live', 'polite');
+    this.announcement.setAttribute('aria-atomic', 'true');
+    parent.appendChild(this.announcement);
+  }
+
+  beginReply(): void {
+    this.announcement.textContent = '';
+    this.container.setAttribute('aria-live', 'off');
+  }
+
+  finishReply(msg?: MessageData): void {
+    if (msg?.role === 'assistant' && (msg.status === 'complete' || msg.status === 'error')) {
+      const rendered = this.findMessage(msg.id);
+      const content = rendered?.querySelector('.cc-message-content')?.textContent?.trim() ?? '';
+      const error = rendered?.querySelector('.cc-message-error-note')?.textContent?.trim() ?? '';
+      this.announcement.textContent = [content, error && error !== content ? error : ''].filter(Boolean).join(' ');
+    }
+    this.container.setAttribute('aria-live', 'polite');
   }
 
   addMessage(msg: MessageData): HTMLDivElement {
@@ -274,6 +298,32 @@ export class Messages {
     content.className = 'cc-message-content';
     content.innerHTML = msg.role === 'assistant' ? renderMarkdown(msg.content) : this.escapeHtml(msg.content);
     el.appendChild(content);
+
+    if (msg.role === 'assistant' && Array.isArray(msg.sources) && msg.sources.length > 0) {
+      const safeUrls = msg.sources.filter((s) => typeof s.url === 'string' && (s.url.startsWith('http://') || s.url.startsWith('https://')));
+      if (safeUrls.length > 0) {
+        const nav = document.createElement('nav');
+        nav.className = 'cc-message-sources';
+        nav.setAttribute('aria-label', this.actions?.sourcesLabel ?? 'Sources');
+        const ol = document.createElement('ol');
+        for (const source of safeUrls) {
+          const li = document.createElement('li');
+          const a = document.createElement('a');
+          a.href = source.url;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          try {
+            a.textContent = source.title ?? new URL(source.url).hostname;
+          } catch {
+            a.textContent = source.title ?? source.url;
+          }
+          li.appendChild(a);
+          ol.appendChild(li);
+        }
+        nav.appendChild(ol);
+        el.appendChild(nav);
+      }
+    }
 
     if (msg.status === 'error' && msg.errorText) {
       const note = document.createElement('div');
