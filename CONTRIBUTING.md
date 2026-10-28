@@ -127,7 +127,8 @@ website/    Marketing site + Starlight docs (Astro)
 3. Run tests: `pnpm test`
 4. Run typecheck: `pnpm -r typecheck`
 5. Add a changeset if your change affects a published package (`core`, `widget` or `server`): `pnpm changeset`. Docs and website changes don't need one.
-6. Push your branch and open a PR against upstream `dev`.
+6. If you changed an exported type, function or option, run `pnpm -r build` and then `pnpm api`, and commit what changed in `api/`. Those files are each package's public types, made from the build, so a reviewer sees exactly how the API changes. CI fails when they're out of date (`pnpm api:check`). Comments and private class members aren't in them.
+7. Push your branch and open a PR against upstream `dev`.
 
 ### Branch strategy
 

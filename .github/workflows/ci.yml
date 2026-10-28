@@ -89,6 +89,11 @@ jobs:
       - name: Package checks
         run: pnpm publint
 
+      # api/*.api.md is each package's public types. A change to them has to
+      # come with the updated snapshot, so it's seen in review.
+      - name: Public API snapshot
+        run: pnpm api:check
+
       # Gzip budgets for the widget bundles are in .size-limit.json.
       - name: Widget size budget
         run: pnpm size

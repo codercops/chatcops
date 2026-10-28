@@ -14,11 +14,15 @@ export {
   Widget,
   type WidgetConfig,
   type WidgetUpdate,
+  type PreChatField,
+  type PreChatFormConfig,
   type WidgetEvents,
   type WidgetEventType,
   type WidgetEventHandler,
 } from './widget.js';
-export type { MessageData } from './dom/messages.js';
+export type { MessageData, MessageErrorType, MessageStatus } from './dom/messages.js';
+export type { ThemeConfig, ThemeMode } from './theme.js';
+export type { Persistence } from './storage.js';
 export type { WidgetLocaleStrings } from './i18n.js';
 export { parseAutoOpen } from './script-config.js';
 

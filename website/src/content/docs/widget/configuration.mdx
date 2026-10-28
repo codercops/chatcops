@@ -197,8 +197,20 @@ option is available through programmatic configuration.
 
 ## WidgetConfig Interface
 
+`WidgetConfig` and the types it's made of are all exported from `@chatcops/widget`, so a site can type its own pieces of a config:
+
 ```typescript
-// docs-check: skip — reference-only fragment uses private widget types
+import type { PreChatFormConfig, ThemeConfig } from '@chatcops/widget';
+
+const brand: ThemeConfig = { mode: 'auto', accent: '#2563eb', borderRadius: 12 };
+const leadForm: PreChatFormConfig = {
+  enabled: true,
+  fields: [{ name: 'email', label: 'Work email', type: 'email', required: true }],
+};
+```
+
+```typescript
+// docs-check: skip, a reference listing rather than code to run
 interface WidgetConfig {
   apiUrl: string;
   timeout?: number;              // Inactivity timeout in ms, default: 30000
