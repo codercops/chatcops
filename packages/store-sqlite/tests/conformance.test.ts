@@ -6,7 +6,9 @@ import { sqliteStorage } from '../src/index.js';
 import { afterAll } from 'vitest';
 
 runStorageConformance('sqlite (:memory:)', () => sqliteStorage({ path: ':memory:' }));
+runStorageConformance('sqlite vectors (:memory:)', () => sqliteStorage({ path: ':memory:', vectors: { dimensions: 4 } }));
 
 const directory = mkdtempSync(join(tmpdir(), 'chatcops-sqlite-conformance-'));
+runStorageConformance('sqlite vectors (file)', () => sqliteStorage({ path: join(directory, 'vectors.db'), vectors: { dimensions: 4 } }));
 runStorageConformance('sqlite (file)', () => sqliteStorage({ path: join(directory, 'chatcops.db') }));
 afterAll(() => rmSync(directory, { recursive: true, force: true }));

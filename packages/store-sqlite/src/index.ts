@@ -15,10 +15,13 @@ import {
 import { all, get, openDatabase, run, transaction, type SqliteDatabase } from './database.js';
 import { checkRowHook, type ExtraColumns, type RowHook, type RowHookContext, type RowHookFunction } from './row-hook.js';
 import { initializeSchema } from './schema.js';
+import { SqliteVectors } from './vectors.js';
 
 export type { ExtraColumns, RowHookContext, RowHookFunction } from './row-hook.js';
 
 export interface SqliteStorageOptions {
+  /** Opt in to sqlite-vec embeddings and FTS5 keyword search. */
+  vectors?: { dimensions: number };
   /** A database file, or `:memory:`. */
   path?: string;
   /** An open `node:sqlite` `DatabaseSync`, or a compatible better-sqlite3 database. */
@@ -361,10 +364,18 @@ class SqliteEvents implements EventSink {
 export function sqliteStorage(options: SqliteStorageOptions): ChatCopsStorage {
   if ((!options.path && !options.database) || (options.path && options.database)) throw new Error('sqliteStorage requires exactly one of path or database');
   const hook = checkRowHook(options.extraColumns, options.rowHook);
-  const database = options.database ?? openDatabase(options.path ?? '');
+  const database = options.database ?? openDatabase(options.path ?? '', !!options.vectors);
   initializeSchema(database);
+  let vectors: SqliteVectors | undefined;
+  try {
+    if (options.vectors) vectors = new SqliteVectors(database, options.vectors.dimensions);
+  } catch (error) {
+    if (!options.database) database.close?.();
+    throw error;
+  }
   const clock = now;
   return {
+    ...(vectors ? { vectors } : {}),
     conversations: new SqliteConversations(database, clock, hook),
     counters: new SqliteCounters(database, clock),
     kv: new SqliteKv(database, clock),

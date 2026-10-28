@@ -10,12 +10,13 @@ export interface SqliteDatabase {
   prepare(sql: string): SqliteStatement;
   exec(sql: string): void;
   close?(): void;
+  loadExtension?(path: string): void;
 }
 
 export type SqliteDatabaseLike = SqliteDatabase;
 
-export function openDatabase(path: string): SqliteDatabase {
-  return new DatabaseSync(path) as unknown as SqliteDatabase;
+export function openDatabase(path: string, allowExtension = false): SqliteDatabase {
+  return new DatabaseSync(path, { allowExtension }) as unknown as SqliteDatabase;
 }
 
 export function run<T>(db: SqliteDatabase, sql: string, ...params: unknown[]): T {
