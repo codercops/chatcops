@@ -1,0 +1,8 @@
+version: 1
+name: Pretty reporter failure demo
+tests:
+  - name: shows assertion failure details
+    turns:
+      - user: Say hello.
+        expect:
+          - contains: this phrase is intentionally missing

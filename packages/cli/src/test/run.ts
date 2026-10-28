@@ -51,6 +51,7 @@ export async function runFixtures(
     while (next < jobs.length) {
       const index = next++;
       const { file, path, test } = jobs[index];
+      const started = performance.now();
       results[index] = await runTest(file, test, options.repeat, (run) => {
         const once = () => runOnce(server, { file, path, test, run }, options);
         if (!options.cassettes) return once();
@@ -62,6 +63,7 @@ export async function runFixtures(
           return value;
         });
       });
+      results[index].durationMs = performance.now() - started;
       options.onResult?.(results[index]);
     }
   };

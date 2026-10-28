@@ -3,7 +3,7 @@
  "dimensions": 512,
  "pages": {
   "bot.mdx": "8694b700aeffda9c",
-  "core/analytics.mdx": "7493017389a0c5ee",
+  "core/analytics.mdx": "c8b8a1face21bac1",
   "core/knowledge-base.mdx": "1e953b172594259f",
   "core/providers.mdx": "eff5629b27dc1e61",
   "core/testing.mdx": "6d36d95a8793c92d",
@@ -690,12 +690,12 @@
   },
   {
    "id": "3b78ea885cd8a959af92ffeb5aceec4b754cb6be3361da0c7afa886b7435cdd7",
-   "text": "Analytics > Storage\n\nThe built-in collector stores events in memory (max 1000 events). With `analytics: true` and a `storage`, the server already writes events to the store's sink, buffered and flushed as each reply ends. To do the same in your own code, use `BufferedEventSink`. It batches up to 50 events by default and flushes every 2 seconds. Call `flush()` when you need to wait for queued writes, such as before a process exits:\n\n```typescript\nimport { BufferedEventSink, memoryStorage, statsFromSink } from '@chatcops/core';\n\nconst storage = memoryStorage();\nconst eventSink = storage.events;\nif (!eventSink) throw new Error('Event storage is not configured');\n\nconst analytics = new BufferedEventSink(eventSink, {\n  maxBatch: 50,\n  flushMs: 2000,\n});\n\nanalytics.track('custom:event', { key: 'value' });\nawait analytics.flush();\n\nconst now = Date.now();\nconst stats = await statsFromSink(eventSink, {\n  from: now - 24 * 60 * 60 * 1000,\n  to: now,\n});\n```\n\nUse a persistent `EventSink` implementation when events need to be shared across processes or survive restarts. Writes that fail are logged and dropped so analytics does not interrupt chat requests. `statsFromSink` requires the sink's optional `query` method; the range includes `from` and excludes `to`. It counts each `conversation:started` event as one conversation.",
+   "text": "Analytics > AnalyticsStats Interface\n\n```typescript\ninterface AnalyticsStats {\n  totalConversations: number;\n  totalMessages: number;\n  leadsCaptured: number;\n  leadsCapture: number;       // deprecated: the same as leadsCaptured, removed in 1.0\n  averageMessagesPerConversation: number;\n  eventCounts: Record<string, number>;\n}\n\ninterface AnalyticsEvent {\n  type: string;\n  data?: Record<string, unknown>;\n  timestamp: number;\n}\n```",
    "source": {
     "id": "https://chat.codercops.com/core/analytics/",
     "url": "https://chat.codercops.com/core/analytics/",
     "title": "Analytics",
-    "section": "Storage"
+    "section": "AnalyticsStats Interface"
    }
   },
   {
@@ -1095,7 +1095,7 @@
   },
   {
    "id": "63d04da6a31e4dbbb889a5b770a776259acd40b0fb7d75270de76ce9c64611b3",
-   "text": "Analytics > Reading Stats with Express\n\n`chatcopsAnalyticsHandler` returns the stats for the traffic handled by `chatcopsMiddleware`. Pass the **same config object** to both so they share one handler:\n\n```typescript\nimport express from 'express';\nimport { chatcopsMiddleware, chatcopsAnalyticsHandler } from '@chatcops/server';\n\nconst config = {\n  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n  systemPrompt: 'You are a helpful assistant.',\n  allowedOrigins: ['*'],\n  analytics: true,\n  analyticsToken: process.env.CHATCOPS_ANALYTICS_TOKEN,\n};\n\nconst app = express();\napp.use(express.json());\n\napp.use('/chat', chatcopsMiddleware(config));\napp.get('/analytics', chatcopsAnalyticsHandler(config));\n\napp.listen(3001);\n```\n\nWhen `analyticsToken` is set, requests must include a bearer token:\n\n```bash\ncurl -H \"Authorization: Bearer <token>\" http://localhost:3001/analytics\n```\n\nWhen unset, the endpoint is public and logs a warning the first time it is hit.\n\nWith a `storage` that has an event sink (`memoryStorage()`, Postgres, Redis, SQLite and Cloudflare stores all do), the server writes every event there too, and the endpoint counts from the store. Then the stats cover every server instance, not just the one answering. Pick the range with `from` and `to` in milliseconds. The default is the last 30 days:\n\n```bash\ncurl -H \"Authorization: Bearer <token>\" \"http://localhost:3001/analytics?from=1792368000000\"\n```\n\nWithout a store that can be queried, the stats come from the memory of the process that answers, which on serverless is one instance at a time. A range that isn't a number gets `400 {\"error\":\"invalid_range\"}`.\n\n`GET /analytics` responds with the aggregated stats (or `null` if `analytics` is not enabled):\n\n```json\n{\n  \"totalConversations\": 2,\n  \"totalMessages\": 4,\n  \"leadsCapture\": 0,\n  \"averageMessagesPerConversation\": 2,\n  \"eventCounts\": { \"conversation:started\": 2, \"message:sent\": 2, \"message:received\": 2 }\n}\n```",
+   "text": "Analytics > Reading Stats with Express\n\n`chatcopsAnalyticsHandler` returns the stats for the traffic handled by `chatcopsMiddleware`. Pass the **same config object** to both so they share one handler:\n\n```typescript\nimport express from 'express';\nimport { chatcopsMiddleware, chatcopsAnalyticsHandler } from '@chatcops/server';\n\nconst config = {\n  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n  systemPrompt: 'You are a helpful assistant.',\n  allowedOrigins: ['*'],\n  analytics: true,\n  analyticsToken: process.env.CHATCOPS_ANALYTICS_TOKEN,\n};\n\nconst app = express();\napp.use(express.json());\n\napp.use('/chat', chatcopsMiddleware(config));\napp.get('/analytics', chatcopsAnalyticsHandler(config));\n\napp.listen(3001);\n```\n\nWhen `analyticsToken` is set, requests must include a bearer token:\n\n```bash\ncurl -H \"Authorization: Bearer <token>\" http://localhost:3001/analytics\n```\n\nWhen unset, the endpoint is public and logs a warning the first time it is hit.\n\nWith a `storage` that has an event sink (`memoryStorage()`, Postgres, Redis, SQLite and Cloudflare stores all do), the server writes every event there too, and the endpoint counts from the store. Then the stats cover every server instance, not just the one answering. Pick the range with `from` and `to` in milliseconds. The default is the last 30 days:\n\n```bash\ncurl -H \"Authorization: Bearer <token>\" \"http://localhost:3001/analytics?from=1792368000000\"\n```\n\nWithout a store that can be queried, the stats come from the memory of the process that answers, which on serverless is one instance at a time. A range that isn't a number gets `400 {\"error\":\"invalid_range\"}`.\n\n`GET /analytics` responds with the aggregated stats (or `null` if `analytics` is not enabled):",
    "source": {
     "id": "https://chat.codercops.com/core/analytics/",
     "url": "https://chat.codercops.com/core/analytics/",
@@ -1131,6 +1131,16 @@
     "url": "https://chat.codercops.com/getting-started/quick-start/",
     "title": "Quick Start",
     "section": "2. Set Up the Server"
+   }
+  },
+  {
+   "id": "66147661895216d1a262bd9f4ab1c81d25b8165621f47fcaf7153e6e50c7b394",
+   "text": "Analytics > Client-Side Events\n\nCombine with widget events for full-stack analytics:\n\n```typescript\n// Client-side\ndeclare const gtag: (command: 'event', eventName: string) => void;\nChatCops.on('open', () => gtag('event', 'chat_opened'));\nChatCops.on('message', (...args: unknown[]) => {\n  const m = args[0] as { role: 'user' | 'assistant' };\n  if (m.role === 'user') gtag('event', 'chat_message_sent');\n});\n\n// Server-side (automatic with analytics: true)\n// conversation.started, message.sent, message.received, lead.captured\n```",
+   "source": {
+    "id": "https://chat.codercops.com/core/analytics/",
+    "url": "https://chat.codercops.com/core/analytics/",
+    "title": "Analytics",
+    "section": "Client-Side Events"
    }
   },
   {
@@ -1335,12 +1345,12 @@
   },
   {
    "id": "7763c462599fd01ce7ba4d064614664e503afbf971df9e7dd5746ff65c1f0323",
-   "text": "Analytics > AnalyticsCollector API\n\n```typescript\nimport { AnalyticsCollector } from '@chatcops/core';\n\nconst analytics = new AnalyticsCollector();\n\n// Track custom events\nanalytics.track('custom:event', { key: 'value' });\n\n// Get aggregated stats\nconst stats = analytics.getStats();\n// {\n//   totalConversations: 150,\n//   totalMessages: 2340,\n//   leadsCapture: 23,\n//   averageMessagesPerConversation: 15.6,\n//   eventCounts: { 'conversation:started': 150, ... }\n// }\n\n// Get raw events (optionally filter by type)\nconst allEvents = analytics.getEvents();\nconst leads = analytics.getEvents('lead:captured');\n\n// Clear all events\nanalytics.clear();\n```",
+   "text": "Analytics > Tracked Events\n\nWhen `analytics: true`, the server automatically tracks:\n\n| Event | When |\n|-------|------|\n| `conversation.started` | New conversation ID first seen |\n| `message.sent` | User sends a message |\n| `message.received` | AI responds |\n| `lead.captured` | Lead capture tool fires |\n\n`ANALYTICS_EVENTS` from `@chatcops/core` has these names, so code doesn't have to spell them. Before 0.8 they were `conversation:started`, `message:sent`, `message:received` and `lead:captured`. Until 1.0 those still work: `track()` and `getEvents()` read them as the new names, and stats count events a store saved under either one, so the numbers carry on across the upgrade. Webhook event names, such as `lead:captured` in a webhook's `events`, don't change.",
    "source": {
     "id": "https://chat.codercops.com/core/analytics/",
     "url": "https://chat.codercops.com/core/analytics/",
     "title": "Analytics",
-    "section": "AnalyticsCollector API"
+    "section": "Tracked Events"
    }
   },
   {
@@ -2612,12 +2622,12 @@
   },
   {
    "id": "e90dcb0b6ea8463a353b9598623e09647baf252d84b50f401dee9feb98a0031a",
-   "text": "Analytics > Client-Side Events\n\nCombine with widget events for full-stack analytics:\n\n```typescript\n// Client-side\ndeclare const gtag: (command: 'event', eventName: string) => void;\nChatCops.on('open', () => gtag('event', 'chat_opened'));\nChatCops.on('message', (...args: unknown[]) => {\n  const m = args[0] as { role: 'user' | 'assistant' };\n  if (m.role === 'user') gtag('event', 'chat_message_sent');\n});\n\n// Server-side (automatic with analytics: true)\n// conversation:started, message:sent, message:received, lead:captured\n```",
+   "text": "Analytics > Storage\n\nThe built-in collector stores events in memory (max 1000 events). With `analytics: true` and a `storage`, the server already writes events to the store's sink, buffered and flushed as each reply ends. To do the same in your own code, use `BufferedEventSink`. It batches up to 50 events by default and flushes every 2 seconds. Call `flush()` when you need to wait for queued writes, such as before a process exits:\n\n```typescript\nimport { BufferedEventSink, memoryStorage, statsFromSink } from '@chatcops/core';\n\nconst storage = memoryStorage();\nconst eventSink = storage.events;\nif (!eventSink) throw new Error('Event storage is not configured');\n\nconst analytics = new BufferedEventSink(eventSink, {\n  maxBatch: 50,\n  flushMs: 2000,\n});\n\nanalytics.track('pricing.viewed', { plan: 'Team' });\nawait analytics.flush();\n\nconst now = Date.now();\nconst stats = await statsFromSink(eventSink, {\n  from: now - 24 * 60 * 60 * 1000,\n  to: now,\n});\n```\n\nUse a persistent `EventSink` implementation when events need to be shared across processes or survive restarts. Writes that fail are logged and dropped so analytics does not interrupt chat requests. `statsFromSink` requires the sink's optional `query` method; the range includes `from` and excludes `to`. It counts each `conversation:started` event as one conversation.",
    "source": {
     "id": "https://chat.codercops.com/core/analytics/",
     "url": "https://chat.codercops.com/core/analytics/",
     "title": "Analytics",
-    "section": "Client-Side Events"
+    "section": "Storage"
    }
   },
   {
@@ -2679,12 +2689,12 @@
   },
   {
    "id": "f32a6affe4e4760c6f9bd82da76148bb42f8cb9ba374dfb7f53ff92018c78df7",
-   "text": "Analytics > AnalyticsStats Interface\n\n```typescript\ninterface AnalyticsStats {\n  totalConversations: number;\n  totalMessages: number;\n  leadsCapture: number;\n  averageMessagesPerConversation: number;\n  eventCounts: Record<string, number>;\n}\n\ninterface AnalyticsEvent {\n  type: string;\n  data?: Record<string, unknown>;\n  timestamp: number;\n}\n```",
+   "text": "Analytics > AnalyticsCollector API\n\n```typescript\nimport { AnalyticsCollector } from '@chatcops/core';\n\nconst analytics = new AnalyticsCollector();\n\n// Track custom events\nanalytics.track('pricing.viewed', { plan: 'Team' });\n\n// Get aggregated stats\nconst stats = analytics.getStats();\n// {\n//   totalConversations: 150,\n//   totalMessages: 2340,\n//   leadsCaptured: 23,\n//   averageMessagesPerConversation: 15.6,\n//   eventCounts: { 'conversation.started': 150, ... }\n// }\n\n// Get raw events (optionally filter by type)\nconst allEvents = analytics.getEvents();\nconst leads = analytics.getEvents('lead.captured');\n\n// Clear all events\nanalytics.clear();\n```",
    "source": {
     "id": "https://chat.codercops.com/core/analytics/",
     "url": "https://chat.codercops.com/core/analytics/",
     "title": "Analytics",
-    "section": "AnalyticsStats Interface"
+    "section": "AnalyticsCollector API"
    }
   },
   {
@@ -2727,12 +2737,12 @@
   },
   {
    "id": "f6347b1b0955920e4065bad185b674d14aae5bbd39c0bf5b20b20fae72f7225f",
-   "text": "Analytics > Tracked Events\n\nWhen `analytics: true`, the server automatically tracks:\n\n| Event | When |\n|-------|------|\n| `conversation:started` | New conversation ID first seen |\n| `message:sent` | User sends a message |\n| `message:received` | AI responds |\n| `lead:captured` | Lead capture tool fires |",
+   "text": "Analytics > Reading Stats with Express\n\n`GET /analytics` responds with the aggregated stats (or `null` if `analytics` is not enabled):\n\n```json\n{\n  \"totalConversations\": 2,\n  \"totalMessages\": 4,\n  \"leadsCaptured\": 0,\n  \"leadsCapture\": 0,\n  \"averageMessagesPerConversation\": 2,\n  \"eventCounts\": { \"conversation.started\": 2, \"message.sent\": 2, \"message.received\": 2, \"conversation:started\": 2, \"message:sent\": 2, \"message:received\": 2 }\n}\n```\n\n`leadsCapture` is the same number as `leadsCaptured`, under the name it had before 0.8, and the `noun:verb` keys in `eventCounts` repeat the new ones. Both go away in 1.0.",
    "source": {
     "id": "https://chat.codercops.com/core/analytics/",
     "url": "https://chat.codercops.com/core/analytics/",
     "title": "Analytics",
-    "section": "Tracked Events"
+    "section": "Reading Stats with Express"
    }
   },
   {

@@ -1,3 +1,4 @@
+import { performance } from 'node:perf_hooks';
 import { relative } from 'node:path';
 import { createProvider, isAIProvider, type AIProvider, type ProviderConfig } from '@chatcops/core';
 import type { ChatCopsServerConfig } from '@chatcops/server';
@@ -49,7 +50,7 @@ export async function runTests(
   const reporters = (values.reporter?.length ? values.reporter : [values.json ? 'json' : 'pretty']).map((name) => {
     const reporter = REPORTERS.get(name);
     if (!reporter) throw new ConfigError(`--reporter ${name} doesn't exist. Use one of: ${[...REPORTERS.keys()].join(', ')}.`);
-    return reporter(io.stdout);
+    return reporter(io.stdout, { verbose: values.verbose === true, env: io.env ?? process.env });
   });
   if (values.json && values.reporter?.length) throw new ConfigError('Use --reporter json, or --json, not both.');
 
@@ -91,6 +92,7 @@ export async function runTests(
     if (cassettes.mode === 'record') io.stderr.write('Recording API calls.\n');
   }
 
+  const started = performance.now();
   const results = await runFixtures(server, fixtures, {
     ...(cassettes ? { cassettes } : {}),
     ...(judge ? { judge } : {}),
@@ -103,9 +105,25 @@ export async function runTests(
       for (const reporter of reporters) reporter.onResult?.(result);
     },
   });
+  const elapsedMs = performance.now() - started;
   const costs = results.flatMap((r) => r.runs.flatMap((run) => run.turns.flatMap(({ turn, results: checks }) => [turn.costUsd, ...checks.map((c) => c.costUsd)])));
   const priced = costs.filter((cost): cost is number => cost !== undefined);
-  const summary = { mode, ...(judge ? { judge: judge.id } : {}), ...(priced.length ? { costUsd: priced.reduce((a, b) => a + b, 0) } : {}) };
+  const costIncomplete =
+    results.some((result) =>
+      result.runs.some(
+        (run) =>
+          run.turns.some(({ turn }) => turn.costUsd === undefined) ||
+          run.turns.some(({ results: checks }) => checks.some((check) => assertionName(check.assertion).name === 'judge' && check.costUsd === undefined))
+      )
+    );
+  const summary = {
+    mode,
+    ...(bot.model ? { model: bot.model } : {}),
+    elapsedMs,
+    costIncomplete,
+    ...(judge ? { judge: judge.id } : {}),
+    ...(priced.length ? { costUsd: priced.reduce((a, b) => a + b, 0) } : {}),
+  };
   for (const reporter of reporters) await reporter.onEnd?.(results, summary);
   if (cassettes?.mode === 'record') {
     const written = await cassettes.save(

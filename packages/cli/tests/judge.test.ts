@@ -83,8 +83,8 @@ describe('judge assertions', () => {
     const dir = project({ 'evals/judged.chat.yaml': JUDGED });
     const { code, stdout, stderr } = await run(['test', '--concurrency', '1'], dir);
     expect(stderr).toContain('Judge: grader:grader-1');
-    expect(stdout).toContain('✓ evals/judged.chat.yaml > right price');
-    expect(stdout).toContain('✗ evals/judged.chat.yaml > wrong reply');
+    expect(stdout).toContain(`${join('evals', 'judged.chat.yaml')}\n  ✓ right price`);
+    expect(stdout).toContain('  ✗ wrong reply');
     expect(stdout).toContain('turn 1: judge scored 0.20 (pass at 0.5): checked the price');
     expect(stdout).toContain('1 passed, 1 failed. Judged by grader:grader-1.');
     expect(code).toBe(EXIT.problems);
@@ -119,7 +119,10 @@ tests:
     const ok = project({ 'evals/judged.chat.yaml': JUDGED });
     const json = JSON.parse((await run(['test', '--json'], ok)).stdout);
     expect(json.results[0].runs[0].turns[1].results[0]).toMatchObject({ pass: true, score: 0.9 });
-    expect(json.summary).toEqual({ mode: 'live', judge: 'grader:grader-1' });
+    expect(json.summary).toMatchObject({ mode: 'live', judge: 'grader:grader-1' });
+    expect(json.summary.elapsedMs).toEqual(expect.any(Number));
+    expect(json.summary.costIncomplete).toBe(true);
+    expect(json.results[0].durationMs).toEqual(expect.any(Number));
   });
 
   it('refuses to run without a key for the default judge', async () => {
