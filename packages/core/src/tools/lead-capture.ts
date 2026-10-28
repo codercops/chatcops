@@ -1,5 +1,6 @@
+import { consoleLogger } from '../logger.js';
 import { z } from 'zod';
-import type { LeadData, MessagePart, ToolResult } from '../types.js';
+import type { LeadData, MessagePart, ToolContext, ToolResult } from '../types.js';
 import type { ChatTool } from './base.js';
 
 export type LeadCaptureCallback = (lead: LeadData) => void | Promise<void>;
@@ -35,7 +36,7 @@ export class LeadCaptureTool implements ChatTool {
     return result.success && result.data ? [{ type: 'lead-captured', lead: result.data as Record<string, unknown> }] : [];
   }
 
-  async execute(input: Record<string, unknown>): Promise<ToolResult> {
+  async execute(input: Record<string, unknown>, context?: ToolContext): Promise<ToolResult> {
     const parsed = leadInputSchema.safeParse(input);
     if (!parsed.success) {
       return {
@@ -57,7 +58,7 @@ export class LeadCaptureTool implements ChatTool {
       try {
         await this.onCapture(lead);
       } catch (err) {
-        console.error('[chatcops] Lead capture callback failed:', err);
+        (context?.logger ?? consoleLogger()).error('lead_capture_failed', 'Lead capture callback failed', { error: err });
         return {
           success: false,
           message: 'Failed to process lead capture callback.',

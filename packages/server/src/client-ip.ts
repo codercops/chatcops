@@ -1,3 +1,4 @@
+import { consoleLogger, type Logger } from '@chatcops/core';
 /**
  * The visitor's IP, for per-IP rate limits and budgets. Only headers a
  * platform sets itself are read, never ones a visitor can send. When the IP
@@ -26,10 +27,10 @@ export function onVercel(): boolean {
 
 const warned = new Set<string>();
 
-export function warnOnce(key: string, message: string): void {
+export function warnOnce(key: string, message: string, logger: Logger = consoleLogger()): void {
   if (warned.has(key)) return;
   warned.add(key);
-  console.warn(message);
+  logger.warn('client_ip', message, { key });
 }
 
 /** For tests. */
@@ -38,7 +39,7 @@ export function resetClientIpWarnings(): void {
 }
 
 /** The fetch handler for Vercel and other Fetch API runtimes. */
-export function fetchClientIp(request: Request, resolver: ClientIpResolver | undefined): string | undefined {
+export function fetchClientIp(request: Request, resolver: ClientIpResolver | undefined, logger?: Logger): string | undefined {
   if (resolver) return cleanIp(resolver(request));
   if (onVercel()) {
     const headers = request.headers;
@@ -46,17 +47,18 @@ export function fetchClientIp(request: Request, resolver: ClientIpResolver | und
   }
   warnOnce(
     'fetch',
-    `[chatcops] Not running on Vercel, so the visitor's IP isn't read from X-Forwarded-For, which a visitor can set themselves. Per-IP rate limits and budgets are off until you set \`clientIp\`. See ${DOCS}`
+    `Not running on Vercel, so the visitor's IP isn't read from X-Forwarded-For, which a visitor can set themselves. Per-IP rate limits and budgets are off until you set \`clientIp\`. See ${DOCS}`,
+    logger
   );
   return undefined;
 }
 
 /** Cloudflare sets CF-Connecting-IP on every request that reaches a Worker. */
-export function cloudflareClientIp(request: Request, resolver: ClientIpResolver | undefined): string | undefined {
+export function cloudflareClientIp(request: Request, resolver: ClientIpResolver | undefined, logger?: Logger): string | undefined {
   if (resolver) return cleanIp(resolver(request));
   const ip = cleanIp(request.headers.get('cf-connecting-ip'));
   if (!ip) {
-    warnOnce('cloudflare', '[chatcops] A request had no CF-Connecting-IP header, so per-IP rate limits and budgets were skipped for it.');
+    warnOnce('cloudflare', 'A request had no CF-Connecting-IP header, so per-IP rate limits and budgets were skipped for it.', logger);
   }
   return ip;
 }
@@ -73,11 +75,12 @@ interface ExpressLikeRequest {
  * that setting off, every visitor gets the proxy's address and shares one
  * rate limit and budget, so that case gets a warning.
  */
-export function expressClientIp(req: ExpressLikeRequest): string | undefined {
+export function expressClientIp(req: ExpressLikeRequest, logger?: Logger): string | undefined {
   if (req.headers?.['x-forwarded-for'] !== undefined && !req.app?.get?.('trust proxy')) {
     warnOnce(
       'express',
-      "[chatcops] A request had X-Forwarded-For, but Express's `trust proxy` setting is off, so the connection's IP is used. Behind a proxy that means every visitor gets the proxy's IP and shares one rate limit and budget. With one proxy in front, call app.set('trust proxy', 1)."
+      "A request had X-Forwarded-For, but Express's `trust proxy` setting is off, so the connection's IP is used. Behind a proxy that means every visitor gets the proxy's IP and shares one rate limit and budget. With one proxy in front, call app.set('trust proxy', 1).",
+      logger
     );
   }
   return cleanIp(req.ip ?? req.socket?.remoteAddress);

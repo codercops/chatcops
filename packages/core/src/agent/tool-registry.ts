@@ -1,3 +1,4 @@
+import type { Logger } from '../logger.js';
 import { runToolWithTimeout, serializeToolResult } from '../providers/tool-execution.js';
 import { toolToDefinition, type ChatTool } from '../tools/base.js';
 import type {
@@ -12,6 +13,7 @@ export interface ToolRunContext {
   conversationId: string;
   signal: AbortSignal;
   timeoutMs?: number;
+  logger?: Logger;
 }
 
 /** The tools a turn can call, and how to run them. */
@@ -39,13 +41,13 @@ export function toolRegistry(tools: ChatTool[] = []): ToolRegistry {
   const byName = new Map(tools.map((tool) => [tool.name, tool]));
   return {
     definitions: tools.map(toolToDefinition),
-    run(call, { conversationId, signal, timeoutMs }) {
+    run(call, { conversationId, signal, timeoutMs, logger }) {
       const tool = byName.get(call.name);
       if (!tool) return Promise.resolve({ success: false, message: `Unknown tool: ${call.name}` });
-      return runToolWithTimeout((toolSignal) => tool.execute(call.input, { conversationId, signal: toolSignal }), {
-        timeoutMs,
-        signal,
-      });
+      return runToolWithTimeout(
+        (toolSignal) => tool.execute(call.input, { conversationId, signal: toolSignal, ...(logger ? { logger } : {}) }),
+        { timeoutMs, signal, name: call.name, ...(logger ? { logger } : {}) }
+      );
     },
     emits(call, result) {
       const tool = byName.get(call.name);
@@ -61,11 +63,11 @@ export function toolRegistry(tools: ChatTool[] = []): ToolRegistry {
 export function executorRegistry(definitions: ToolDefinition[] = [], executor?: ProviderToolExecutor): ToolRegistry {
   return {
     definitions,
-    run(call, { signal, timeoutMs }) {
+    run(call, { signal, timeoutMs, logger }) {
       if (!executor) {
         return Promise.resolve({ success: false, message: `No tool executor is configured for "${call.name}".` });
       }
-      return runToolWithTimeout(() => executor(call), { timeoutMs, signal });
+      return runToolWithTimeout(() => executor(call), { timeoutMs, signal, name: call.name, ...(logger ? { logger } : {}) });
     },
     emits: (call, result) => legacyLeadPart(call.name, result),
   };

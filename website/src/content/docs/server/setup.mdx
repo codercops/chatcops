@@ -88,7 +88,7 @@ const handler = chatcopsMiddleware({
 ## ChatCopsServerConfig
 
 ```typescript
-import type { AIProvider, Budgets, ChatCopsStorage, ChatTool, ConversationStore, KnowledgeSource, LocaleStrings, WebhookConfig } from '@chatcops/core';
+import type { AIProvider, Budgets, ChatCopsStorage, ChatTool, ConversationStore, KnowledgeSource, LocaleStrings, Logger, WebhookConfig } from '@chatcops/core';
 
 interface ChatCopsServerConfig {
   // A config (see Providers for every option), or a provider object.
@@ -123,6 +123,7 @@ interface ChatCopsServerConfig {
   turnstile?: { secretKey: string; action?: string; expectedHostnames?: string[]; timeoutMs?: number };
   identity?: { secret: string; tiers?: Record<string, Budgets> };   // signed-in visitors, see below
   exposeUsage?: boolean;   // token usage in protocol v1 finish parts; default false
+  logger?: Logger;         // where notes and errors go, see Logging below; default consoleLogger()
   /** @deprecated Ignored by the server. Use the widget's `strings` option. */
   i18n?: {
     defaultLocale: string;
@@ -369,6 +370,44 @@ const config: Partial<ChatCopsServerConfig> = {
   webhooks: [{ url: 'http://localhost:4000/hooks', events: ['lead:captured'], allowPrivateNetwork: true }],
 };
 ```
+
+## Logging
+
+The server writes what it notices to a `Logger`: startup notes (budgets, security settings), refused requests, and every error it handles instead of throwing. Each line has a stable `event` name you can filter or alert on. By default the lines go to the console as `[chatcops] …`. For a log tool that parses JSON, use `jsonLogger()`, which writes one object per line to `console.error` (stderr on Node):
+
+```typescript
+import express from 'express';
+import { jsonLogger } from '@chatcops/core';
+import { chatcopsMiddleware } from '@chatcops/server';
+
+const app = express();
+app.post('/chat', chatcopsMiddleware({
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+  systemPrompt: 'You answer questions about Acme.',
+  logger: jsonLogger({ level: 'warn' }),
+}));
+```
+
+```json
+{"time":"2026-10-28T14:02:11.420Z","level":"error","event":"tool_error","message":"Tool lookup_order threw","tool":"lookup_order","error":{"name":"Error","message":"connect ECONNREFUSED","stack":"…"}}
+```
+
+Or pass your own: anything with `debug`, `info`, `warn` and `error` methods that take `(event, message, fields)`, so pino, winston or a platform logger is a few lines of glue.
+
+| Event | Level | When |
+|---|---|---|
+| `provider_error` | error | A reply failed at the model provider |
+| `provider_setup_failed` | error | The provider couldn't start (a missing key, an unknown type) |
+| `tool_error` | error | A tool threw. The full error is in `error`; see [Tools](/core/tools/#how-tools-work) for what the model sees |
+| `lead_capture_failed` | error | The lead capture callback threw |
+| `webhook_failed` | error | A webhook delivery failed after its retries |
+| `unhandled_error` | error | Anything else that went wrong while answering a request |
+| `analytics_write_failed`, `analytics_flush_failed` | error | Events couldn't be written to the store |
+| `budget_exceeded` | warn | A budget is used up, so a reply was refused |
+| `origin_refused` | warn | A page whose origin isn't in `allowedOrigins` was refused |
+| `insecure_config` | warn, error | A security setting needs attention at startup |
+| `reply_truncated`, `config_warning`, `memory_storage`, `client_ip`, `turnstile_unavailable`, `deprecated_option` | warn | Something to fix in the setup |
+| `budgets`, `security`, `legacy_stream_format` | info | Startup notes, and the first request in the 0.5 stream format |
 
 ## Request Schema
 

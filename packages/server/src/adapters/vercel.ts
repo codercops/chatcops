@@ -9,6 +9,6 @@ export function chatcopsVercelHandler(config: ChatCopsServerConfig) {
   const origins = originPolicy(config);
 
   return function handler(req: Request): Promise<Response> {
-    return fetchChatResponse(chat, origins, req, { clientIp: (request) => fetchClientIp(request, config.clientIp) });
+    return fetchChatResponse(chat, origins, req, { clientIp: (request) => fetchClientIp(request, config.clientIp, chat.logger) });
   };
 }

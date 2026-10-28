@@ -191,7 +191,7 @@ describe('default budgets', () => {
 
   it('describes budgets you set', () => {
     expect(describeBudgets({ perConversation: { tokens: 400_000, messages: 50 }, perIpPerDay: false, globalPerDay: { usd: 20 } })).toBe(
-      '[chatcops] Budgets: 400k tokens and 50 replies per conversation, $20 per day in total. Set `budgets` to change them, or `budgets: false` to turn them off.'
+      'Budgets: 400k tokens and 50 replies per conversation, $20 per day in total. Set `budgets` to change them, or `budgets: false` to turn them off.'
     );
   });
 });

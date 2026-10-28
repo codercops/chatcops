@@ -1,3 +1,4 @@
+import { consoleLogger, type Logger } from '@chatcops/core';
 /**
  * Startup checks for the security settings the server is about to add: the
  * allowed origins and the secrets that sign session tokens.
@@ -158,14 +159,17 @@ export function describeSecurity(summary: SecuritySummary): string {
     summary.sessionTtlSec === undefined
       ? 'session tokens off'
       : `session tokens on (${summary.sessionTtlSec}s${summary.requireSession === false ? ', not required' : ''})`;
-  return `[chatcops] Security: chat allowed from ${origins}; ${sessions}; Turnstile ${summary.turnstile ? 'on' : 'off'}.`;
+  return `Security: chat allowed from ${origins}; ${sessions}; Turnstile ${summary.turnstile ? 'on' : 'off'}.`;
 }
 
 /** Logs the problems `checkSecuritySettings` finds, errors first, then the summary line. */
-export function logSecurityAtStartup(settings: SecuritySettings & Omit<SecuritySummary, 'allowedOrigins'>): void {
+export function logSecurityAtStartup(
+  settings: SecuritySettings & Omit<SecuritySummary, 'allowedOrigins'>,
+  logger: Logger = consoleLogger()
+): void {
   const allowedOrigins = settings.allowedOrigins ?? ['*'];
   const problems = checkSecuritySettings({ ...settings, allowedOrigins });
-  for (const problem of problems.filter((p) => p.level === 'error')) console.error(`[chatcops] ERROR: ${problem.message}`);
-  for (const problem of problems.filter((p) => p.level === 'warning')) console.warn(`[chatcops] ${problem.message}`);
-  console.info(describeSecurity({ ...settings, allowedOrigins }));
+  for (const problem of problems.filter((p) => p.level === 'error')) logger.error('insecure_config', `ERROR: ${problem.message}`);
+  for (const problem of problems.filter((p) => p.level === 'warning')) logger.warn('insecure_config', problem.message);
+  logger.info('security', describeSecurity({ ...settings, allowedOrigins }));
 }
