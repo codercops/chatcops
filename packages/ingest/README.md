@@ -25,3 +25,11 @@ Use a persistent vector store (`@chatcops/store-postgres`, `store-sqlite`, `stor
 - `dryRun: true` discovers, extracts and chunks without embedding or writing anything.
 
 Node 22.13 or later.
+
+## robots.txt
+
+Network sources respect `robots.txt` by default. Each run fetches it once per origin, selecting `ChatCopsBot` rules (or `*`), with the longest matching rule winning and `allow` winning ties. Wildcards and `$` end anchors are supported. Disallowed pages are skipped with the reason `blocked by robots.txt`.
+
+A 4xx response allows crawling; a 5xx response or an unreachable robots server blocks it. Up to five redirects are followed. `crawl-delay` (seconds) sets a minimum interval between requests to an origin, including concurrent workers. Directory sources read local files and never check robots. Set `respectRobots: false` in the ingest config to opt out.
+
+`robotsFor(origin, fetch)` also exposes `Sitemap:` entries as `sitemaps`; ingestion still uses the sources you configure.

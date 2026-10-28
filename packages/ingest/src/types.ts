@@ -20,6 +20,8 @@ export interface IngestConfig {
   selectors?: Record<string, string>;
   /** Default `ChatCopsBot/<version> (+https://chat.codercops.com/bot)`. */
   userAgent?: string;
+  /** Obey robots.txt and crawl-delay for network sources. Default true. */
+  respectRobots?: boolean;
   /** Index at most this many pages (after include/exclude), for a quick look at a big site. */
   maxPages?: number;
   /** Pages fetched at once. Default 4. */

@@ -93,6 +93,59 @@ describe('ingest', () => {
     return { embedder, store, config };
   };
 
+  it('skips blocked pages with a reason, caches per run and can disable robots', async () => {
+    site.set('/robots.txt', 'User-agent: ChatCopsBot\nDisallow: /refunds', 'text/plain');
+    const { config } = setup({ sources: [{ type: 'urls', urls: ['/pricing', '/refunds', '/ja/pricing', '/files/manual.pdf'].map((path) => site.url + path) }] });
+    const reasons: string[] = [];
+    const before = site.requests.length;
+    try {
+      const stats = await ingest({ ...config, onEvent: (e) => { if (e.type === 'page' && e.reason) reasons.push(e.reason); } });
+      expect(stats).toMatchObject({ indexed: 2, skipped: 2, failed: 0 });
+      expect(reasons).toContain('blocked by robots.txt');
+      expect(site.requests.slice(before).filter((path) => path === '/robots.txt')).toHaveLength(1);
+      expect(site.requests.slice(before)).not.toContain('/refunds');
+      const next = site.requests.length;
+      expect((await ingest({ ...config, respectRobots: false })).indexed).toBe(1);
+      expect(site.requests.slice(next)).not.toContain('/robots.txt');
+      expect(site.requests.slice(next)).toContain('/refunds');
+      await ingest(config);
+      expect(site.requests.slice(next).filter((path) => path === '/robots.txt')).toHaveLength(1);
+    } finally { site.remove('/robots.txt'); }
+  });
+
+  it('spaces same-origin requests by crawl-delay even with concurrent workers', async () => {
+    site.set('/robots.txt', 'User-agent: *\nCrawl-delay: 0.03', 'text/plain');
+    const starts: number[] = [];
+    const { config } = setup({ fetch: async (input, init) => {
+      starts.push(performance.now());
+      return fetch(input, init);
+    } });
+    try {
+      expect((await ingest(config)).indexed).toBe(3);
+      expect(starts.length).toBeGreaterThan(4);
+      for (let i = 1; i < starts.length; i++) expect(starts[i] - starts[i - 1]).toBeGreaterThanOrEqual(29);
+    } finally { site.remove('/robots.txt'); }
+  });
+
+  it('keeps policies separate for different origins and blocks pages on robots failure', async () => {
+    const other = await fixtureSite();
+    site.set('/robots.txt', '', 'text/plain', 500);
+    other.set('/robots.txt', 'User-agent: *\nAllow: /', 'text/plain');
+    const reasons: string[] = [];
+    const before = site.requests.length;
+    const { config } = setup({ sources: [{ type: 'urls', urls: [`${site.url}/pricing`, `${other.url}/pricing`] }] });
+    try {
+      const stats = await ingest({ ...config, onEvent: (e) => { if (e.type === 'page' && e.reason) reasons.push(e.reason); } });
+      expect(stats).toMatchObject({ indexed: 1, skipped: 1, failed: 0 });
+      expect(reasons).toEqual(['blocked by robots.txt']);
+      expect(site.requests.slice(before)).toEqual(['/robots.txt']);
+      expect(other.requests).toEqual(['/robots.txt', '/pricing']);
+    } finally {
+      site.remove('/robots.txt');
+      await other.close();
+    }
+  });
+
   it('indexes every HTML page, skips non-HTML, and keeps the page and section on each chunk', async () => {
     const { embedder, store, config } = setup();
     const events: string[] = [];

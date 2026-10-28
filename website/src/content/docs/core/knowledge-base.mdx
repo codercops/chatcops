@@ -131,6 +131,8 @@ const stats = await ingest({
 
 In production, use a persistent vector store and its key-value store as the `manifest`. Running it again then only embeds pages that changed: unchanged pages answer `304` to a conditional request, or extract to the same text. Hidden elements, scripts, styles and comments are removed before extraction. `prune: true` removes pages that are gone, but never after a sitemap failed to load. An index remembers which embedder built it and refuses a different one.
 
+Network sources respect `robots.txt` by default, using the `ChatCopsBot` group or falling back to `*`. Disallowed pages are skipped with the reason `blocked by robots.txt`. Policies are fetched once per origin per run, and `crawl-delay` sets the minimum interval between requests to that origin. A 4xx response permits crawling; a 5xx response or unreachable robots server blocks it. Up to five redirects are followed. Set `respectRobots: false` in the ingest config to opt out. Directory sources read local files and are never checked.
+
 ### From the command line
 
 `@chatcops/cli` wraps the same thing in a command, reading `chatcops.config.ts`:
