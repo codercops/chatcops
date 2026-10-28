@@ -13,7 +13,8 @@ export default defineConfig({
     baseURL: `http://localhost:${port}`,
     trace: 'retain-on-failure',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  // E2E_CHANNEL=chrome runs the tests in your installed Chrome, without downloading Chromium.
+  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], ...(process.env.E2E_CHANNEL ? { channel: process.env.E2E_CHANNEL } : {}) } }],
   webServer: [
     {
       command: 'node e2e/server.mjs page',

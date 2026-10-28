@@ -222,7 +222,9 @@ pnpm exec playwright install chromium   # once
 pnpm e2e
 ```
 
-They cover starting from the script tag, streaming, Escape and the tab order, the phone layout, accessibility, a reply that fails or is cut off, a slow tool kept alive by pings, session tokens, and a chat API on another origin. CI runs them in the `e2e` job. Add a test there when you change how the widget behaves in a browser.
+With Google Chrome installed you can skip the Chromium download and run `E2E_CHANNEL=chrome pnpm e2e`.
+
+They cover starting from the script tag, streaming, Escape and the tab order, the phone layout, a reply that fails or is cut off, a slow tool kept alive by pings, session tokens, and a chat API on another origin. `e2e/tests/states.spec.ts` puts the widget in each of its states (launcher, unread, welcome bubble, suggestions, pre-chat form, streaming, sources, errors, rate limit, offline, conversation limit, phone) in light, dark and right-to-left, and checks each one with axe against WCAG 2.2 AA. When you add a state, add it there too. CI runs them all in the `e2e` job. Add a test there when you change how the widget behaves in a browser.
 
 ## Adding a new AI provider
 

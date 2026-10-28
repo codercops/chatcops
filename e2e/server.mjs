@@ -60,6 +60,8 @@ const SLOW_TOOL_MS = 4000;
  * - "cut off": some text, then nothing (the bridge below ends the response)
  * - "slow tool": calls `slow_lookup`, then answers once it returns
  * - "long reply": about 4,000 words of markdown in small pieces, for the render cost test
+ * - "still streaming": some text, then nothing for a minute, with the response open
+ * - "with sources": a reply that cites the pricing page, found by the knowledge source below
  * - anything else: a normal streamed reply
  */
 /**
@@ -121,10 +123,16 @@ const provider = {
       return;
     }
 
-    const words = /slow tool/i.test(askedText) ? ['Found', ' it.'] : /fail midway|cut off/i.test(askedText) ? REPLY.slice(0, 3) : REPLY;
+    const words = /slow tool/i.test(askedText)
+      ? ['Found', ' it.']
+      : /with sources/i.test(askedText)
+        ? ['Plans start', ' at $19', ' a month [1].']
+        : /fail midway|cut off|still streaming/i.test(askedText)
+          ? REPLY.slice(0, 3)
+          : REPLY;
     yield* text(words);
     if (/fail midway/i.test(askedText)) throw new Error('The e2e provider failed on purpose.');
-    if (/cut off/i.test(askedText)) await sleep(60_000, signal);
+    if (/cut off|still streaming/i.test(askedText)) await sleep(60_000, signal);
     yield {
       type: 'finish',
       reason: 'stop',
@@ -144,10 +152,28 @@ const slowLookup = {
   },
 };
 
+/** Finds the pricing page for "with sources", and nothing otherwise. */
+const pricingPage = {
+  type: 'e2e',
+  async getContext() {
+    return '';
+  },
+  async retrieve({ text }) {
+    if (!/with sources/i.test(text)) return [];
+    return [{
+      id: 'pricing#0',
+      text: 'Plans start at $19 a month.',
+      score: 1,
+      source: { id: 'pricing', url: 'https://example.com/pricing', title: 'Pricing' },
+    }];
+  },
+};
+
 function chatEndpoint(overrides = {}) {
   const config = {
     provider,
     systemPrompt: 'e2e',
+    knowledge: [pricingPage],
     tools: [slowLookup],
     toolTimeoutMs: 30_000,
     budgets: false,

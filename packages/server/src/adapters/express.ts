@@ -42,6 +42,7 @@ export function chatcopsMiddleware(config: ChatCopsServerConfig) {
     }
 
     if (req.method !== 'POST') {
+      res.setHeader('Allow', 'POST, OPTIONS');
       sendError(405, 'Method not allowed');
       return;
     }

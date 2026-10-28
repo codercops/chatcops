@@ -257,7 +257,7 @@ export async function fetchChatResponse(
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: origins.preflightHeaders(origin) });
   }
-  if (request.method !== 'POST') return json(405, { error: 'Method not allowed' });
+  if (request.method !== 'POST') return json(405, { error: 'Method not allowed' }, { Allow: 'POST, OPTIONS' });
   if (!origins.allows(origin)) return json(403, { error: 'origin_not_allowed' });
 
   if (isSessionPath(new URL(request.url).pathname)) {
