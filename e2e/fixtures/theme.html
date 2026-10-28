@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ChatCops e2e theme page</title>
+</head>
+<body>
+  <main>
+    <h1>Theme page</h1>
+    <p>The query string becomes the script tag's data attributes: <code>?themeMode=dark&amp;accentDark=%23ffcc00</code>.</p>
+  </main>
+  <script>
+    const script = document.createElement('script');
+    script.src = '/chatcops.min.js';
+    script.dataset.apiUrl = '/api/chat';
+    for (const [key, value] of new URLSearchParams(location.search)) script.dataset[key] = value;
+    document.body.appendChild(script);
+  </script>
+</body>
+</html>

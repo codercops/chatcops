@@ -57,12 +57,12 @@ export function chatcopsMiddleware(config: ChatCopsServerConfig) {
         res.status(404).json(errorBody('invalid_request', { message: 'Session tokens are off. Set `sessionSecrets` to turn them on.' }));
         return;
       }
-      const reply = await chat.startSession(req.body, origin, expressClientIp(req));
+      const reply = await chat.startSession(req.body, origin, expressClientIp(req, chat.logger));
       res.status(reply.status).json(reply.body);
       return;
     }
 
-    const clientIp = expressClientIp(req);
+    const clientIp = expressClientIp(req, chat.logger);
 
     // Stop the reply when the visitor goes away before it's done.
     const abort = new AbortController();
@@ -112,7 +112,7 @@ function constantTimeEqual(a: string, b: string): boolean {
  * every instance, for `?from=` and `?to=` (milliseconds) or the last 30 days.
  */
 export function chatcopsAnalyticsHandler(config: ChatCopsServerConfig) {
-  const { analyticsStats } = getOrCreateChatHandler(config);
+  const { analyticsStats, logger } = getOrCreateChatHandler(config);
   let warned = false;
 
   return async (req: Request, res: Response) => {
@@ -127,8 +127,9 @@ export function chatcopsAnalyticsHandler(config: ChatCopsServerConfig) {
       }
     } else if (!warned) {
       warned = true;
-      console.warn(
-        '[chatcops] The analytics endpoint is public and anyone can read your stats. Set `analyticsToken` in your ChatCopsServerConfig to require a bearer token.'
+      logger.warn(
+        'analytics_public',
+        'The analytics endpoint is public and anyone can read your stats. Set `analyticsToken` in your ChatCopsServerConfig to require a bearer token.'
       );
     }
 
@@ -141,7 +142,7 @@ export function chatcopsAnalyticsHandler(config: ChatCopsServerConfig) {
     try {
       res.json(await analyticsStats({ from, to }));
     } catch (err) {
-      console.error('[chatcops] Reading analytics failed:', err instanceof Error ? err.message : String(err));
+      logger.error('analytics_read_failed', `Reading analytics failed: ${err instanceof Error ? err.message : String(err)}`);
       res.status(500).json({ error: 'internal_error' });
     }
   };

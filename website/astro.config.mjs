@@ -140,6 +140,7 @@ export default defineConfig({
             { label: 'AI Providers', slug: 'core/providers' },
             { label: 'Tools', slug: 'core/tools' },
             { label: 'Knowledge Base', slug: 'core/knowledge-base' },
+            { label: 'Testing Your Bot', slug: 'core/testing' },
             { label: 'Analytics', slug: 'core/analytics' },
           ],
         },

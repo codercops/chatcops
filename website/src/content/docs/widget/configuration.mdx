@@ -67,9 +67,9 @@ ChatCops.init({
 
   // Theme
   theme: {
-    accent: '#6366f1',
-    textColor: '#FAFAF9',
-    bgColor: '#0A0A0A',
+    mode: 'auto',               // 'light' | 'dark' | 'auto' (follows the system)
+    accent: '#4f46e5',
+    accentDark: '#a5b4fc',      // optional accent for dark mode
     fontFamily: 'Inter, sans-serif',
     borderRadius: '12',
     position: 'bottom-right',   // 'bottom-right' | 'bottom-left'
@@ -211,9 +211,11 @@ interface WidgetConfig {
   siteId?: string;                 // Names the saved conversation; set one per widget when a page has several
 
   theme?: {
-    accent?: string;          // Hex color, default: '#6366f1'
-    textColor?: string;       // Hex color, default: '#ffffff'
-    bgColor?: string;         // Hex color, default: '#0a0a0a'
+    mode?: 'light' | 'dark' | 'auto';  // Default: 'auto', which follows the system setting
+    accent?: string;          // Hex color, default: '#4f46e5' (light), '#6366f1' (dark)
+    accentDark?: string;      // Hex color, the accent in dark mode. Default: accent
+    textColor?: string;       // Hex color, replaces the text color in every mode
+    bgColor?: string;         // Hex color, replaces the background in every mode
     fontFamily?: string;      // CSS font-family
     borderRadius?: string | number;  // px if a number or numeric string (12, '12'), or any CSS length ('1rem'). Default: 12
     position?: 'bottom-right' | 'bottom-left';
@@ -280,7 +282,9 @@ See the [pre-chat form guide](/widget/pre-chat-form) for field behavior, validat
 | `data-api-url` | `apiUrl` | API endpoint URL (required) |
 | `data-mode` | `mode` | `'popup'` or `'inline'` |
 | `data-container` | `container` | CSS selector for inline container |
+| `data-theme-mode` | `theme.mode` | `'light'`, `'dark'` or `'auto'` |
 | `data-accent` | `theme.accent` | Primary accent color |
+| `data-accent-dark` | `theme.accentDark` | Accent color in dark mode |
 | `data-text-color` | `theme.textColor` | Primary text color |
 | `data-bg-color` | `theme.bgColor` | Background color |
 | `data-font-family` | `theme.fontFamily` | Font family |

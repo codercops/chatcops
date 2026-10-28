@@ -39,7 +39,7 @@
 }
 
 .cc-prechat-label .cc-required {
-  color: #ef4444;
+  color: var(--cc-danger);
   margin-inline-start: 2px;
 }
 
@@ -74,7 +74,7 @@
 
 .cc-prechat-error {
   font-size: 12px;
-  color: #ef4444;
+  color: var(--cc-danger);
   min-height: 0;
 }
 

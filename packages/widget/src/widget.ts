@@ -5,7 +5,7 @@ import { WelcomeBubble } from './dom/bubble.js';
 import { ChatClient } from './api/client.js';
 import { ConversationStorage, type Persistence } from './storage.js';
 import { claimNamespace, type ClaimedNamespace } from './namespace.js';
-import { applyTheme } from './theme.js';
+import { applyTheme, type ThemeConfig } from './theme.js';
 import { getWidgetLocale, type WidgetLocaleStrings } from './i18n.js';
 import type { PreChatForm } from './dom/prechat-form.js';
 import type { WidgetChatRequest } from './api/types.js';
@@ -61,14 +61,7 @@ export interface WidgetConfig {
    */
   siteId?: string;
   container?: string | HTMLElement;
-  theme?: {
-    accent?: string;
-    textColor?: string;
-    bgColor?: string;
-    fontFamily?: string;
-    borderRadius?: string | number;
-    position?: 'bottom-right' | 'bottom-left';
-  };
+  theme?: ThemeConfig;
   branding?: {
     name?: string;
     avatar?: string;

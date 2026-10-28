@@ -132,7 +132,7 @@ describe('the handler on runTurn', () => {
 
     expect(again).toHaveBeenCalledTimes(5);
     expect(out).toEqual([{ error: 'provider_error' }]);
-    expect(error).toHaveBeenCalledWith('[chatcops] Provider error:', expect.objectContaining({ message: 'Exceeded maximum tool rounds (5).' }));
+    expect(error).toHaveBeenCalledWith('[chatcops] Provider error', expect.objectContaining({ message: 'Exceeded maximum tool rounds (5).' }));
     error.mockRestore();
   });
 });
