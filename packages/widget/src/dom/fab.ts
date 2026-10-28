@@ -52,6 +52,17 @@ export class FAB {
     this.el.setAttribute('aria-expanded', String(open));
   }
 
+  setLabels(openLabel: string, closeLabel: string, unreadLabel: string): void {
+    this.openLabel = openLabel;
+    this.closeLabel = closeLabel;
+    this.unreadLabel = unreadLabel;
+    const shown = this.badge.textContent;
+    this.el.setAttribute(
+      'aria-label',
+      this.el.classList.contains('cc-open') ? closeLabel : shown ? `${openLabel}, ${unreadLabel.replace('{count}', shown)}` : openLabel
+    );
+  }
+
   focus(): void {
     this.el.focus();
   }

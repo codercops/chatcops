@@ -145,6 +145,8 @@ export interface PageContext {
   title: string;
   description?: string;
   contentSnippet?: string;
+  /** Details the site adds for the next turns (the widget's `setContext()`), such as the visitor's plan. */
+  data?: Record<string, string>;
 }
 
 export interface LeadData {

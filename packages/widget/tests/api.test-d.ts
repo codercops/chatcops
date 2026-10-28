@@ -1,5 +1,5 @@
 import { describe, expectTypeOf, it } from 'vitest';
-import ChatCops, { type WidgetLocaleStrings } from '../src/index.js';
+import ChatCops, { type WidgetLocaleStrings, type WidgetUpdate } from '../src/index.js';
 import type { ChatCopsLoader } from '../src/loader/loader.js';
 
 describe('the widget API types', () => {
@@ -12,6 +12,26 @@ describe('the widget API types', () => {
     expectTypeOf<ChatCopsLoader['toggle']>().toEqualTypeOf<() => void>();
     expectTypeOf(ChatCops.version).toBeString();
     expectTypeOf<ChatCopsLoader['version']>().toBeString();
+  });
+
+  it('types setUser and setContext the same in both builds', () => {
+    type User = { name?: string; email?: string; token?: string } | null;
+    expectTypeOf(ChatCops.setUser).parameters.toEqualTypeOf<[User]>();
+    expectTypeOf<ChatCopsLoader['setUser']>().parameters.toEqualTypeOf<[User]>();
+    expectTypeOf(ChatCops.setContext).parameters.toEqualTypeOf<[Record<string, string> | null]>();
+    expectTypeOf<ChatCopsLoader['setContext']>().parameters.toEqualTypeOf<[Record<string, string> | null]>();
+    // @ts-expect-error: context values are strings
+    ChatCops.setContext({ seats: 12 });
+  });
+
+  it('types update() the same in both builds, without position', () => {
+    expectTypeOf(ChatCops.update).parameters.toEqualTypeOf<[WidgetUpdate]>();
+    expectTypeOf<ChatCopsLoader['update']>().parameters.toEqualTypeOf<[WidgetUpdate]>();
+    ChatCops.update({ theme: { mode: 'dark', accent: '#000' }, branding: { name: 'Sales' }, strings: { sendButton: 'Go' } });
+    // @ts-expect-error: moving the chat needs init()
+    ChatCops.update({ theme: { position: 'bottom-left' } });
+    // @ts-expect-error: the server can't change on a running chat
+    ChatCops.update({ apiUrl: '/other' });
   });
 
   it('takes partial strings and an optional direction in registerLocale', () => {

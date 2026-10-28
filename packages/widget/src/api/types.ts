@@ -9,6 +9,8 @@ export interface WidgetChatRequest {
     title: string;
     description?: string;
     contentSnippet?: string;
+    /** What the site added with setContext(). */
+    data?: Record<string, string>;
   };
   locale?: string;
   userData?: Record<string, string>;

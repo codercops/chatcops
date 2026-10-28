@@ -3,7 +3,7 @@ import { CHAT_ICON } from '../dom/icons.js';
 import { HOST_ID, nextHostId, resolveDirection, setLanguageDirection } from '../dom/shadow.js';
 import { applyTheme } from '../theme.js';
 import type { WidgetLocaleStrings } from '../i18n.js';
-import type { Widget, WidgetConfig, WidgetEventHandler, WidgetEventType } from '../widget.js';
+import type { Widget, WidgetConfig, WidgetEventHandler, WidgetEventType, WidgetUpdate } from '../widget.js';
 import { VERSION } from '../version.js';
 
 export interface PanelModule {
@@ -30,6 +30,12 @@ export interface ChatCopsLoader {
   clear(): void;
   /** Adds or replaces a language for `locale`: its strings (English for any left out), and `dir`. */
   registerLocale(code: string, strings: Partial<WidgetLocaleStrings>, options?: { dir?: 'ltr' | 'rtl' }): void;
+  /** The signed-in visitor (token, name, email). Another user, or `null`, clears the chat. Kept until the chat loads. */
+  setUser(user: { name?: string; email?: string; token?: string } | null): void;
+  /** Details the bot should know for the next messages. `null` removes them. Kept until the chat loads. */
+  setContext(data: Record<string, string> | null): void;
+  /** Changes the theme, branding or wording of the chat. What you leave out stays as it is. Kept until the chat loads. */
+  update(changes: WidgetUpdate): void;
   /** The widget's version. */
   readonly version: string;
 }
@@ -93,6 +99,12 @@ export function createLoader(
   const locales = new Map<string, Promise<Partial<WidgetLocaleStrings> | undefined>>();
   /** Languages the page registered: no file to fetch, and their direction passed to the panel. */
   const registered = new Map<string, { strings: Partial<WidgetLocaleStrings>; dir?: 'ltr' | 'rtl' }>();
+  // setUser() and setContext() before the chat loads: applied when it does,
+  // so a signed-in page doesn't load the chat early.
+  let user: Parameters<ChatCopsLoader['setUser']>[0] | undefined;
+  let context: Record<string, string> | null | undefined;
+  // update() calls before the chat loads, for this init() only.
+  let updates: WidgetUpdate[] = [];
   const directionOf = (current: WidgetConfig) => current.dir ?? (current.locale ? registered.get(current.locale)?.dir : undefined);
 
   /** The translated strings for a config, loaded once per locale. */
@@ -143,6 +155,10 @@ export function createLoader(
         launcher?.remove();
         launcher = button = undefined;
         next.init();
+        if (user !== undefined) next.setUser(user);
+        if (context !== undefined) next.setContext(context);
+        for (const changes of updates) next.update(changes);
+        updates = [];
         widget = next;
         return next;
       },
@@ -241,6 +257,28 @@ export function createLoader(
       if (options?.dir) setLanguageDirection(code, options.dir);
     },
 
+    setUser(next) {
+      user = next;
+      widget?.setUser(next);
+    },
+
+    setContext(next) {
+      context = next;
+      widget?.setContext(next);
+    },
+
+    update(changes) {
+      if (widget) {
+        widget.update(changes);
+        return;
+      }
+      updates.push(changes);
+      const shadow = launcher?.shadowRoot;
+      // The whole theme so far: a partial one would drop the mode it doesn't name.
+      if (changes.theme && shadow) applyTheme(shadow, Object.assign({}, config?.theme, ...updates.map((u) => u.theme)));
+      if (changes.strings?.openChat) button?.setAttribute('aria-label', changes.strings.openChat);
+    },
+
     version: VERSION,
 
     destroy() {
@@ -251,6 +289,7 @@ export function createLoader(
       widget = undefined;
       loading = undefined;
       config = undefined;
+      updates = [];
     },
 
     on(event, handler) {

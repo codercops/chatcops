@@ -425,6 +425,7 @@ interface ChatRequest {
     title: string,         // Max 500 chars
     description?: string,  // Max 1000 chars
     contentSnippet?: string, // Max 2000 chars
+    data?: { [key: string]: string },  // From the widget's setContext(): max 20 fields, keys 40 chars, values 500
   },
   locale?: string,         // Max 10 chars
   userData?: {              // Optional pre-chat data, max 50 fields

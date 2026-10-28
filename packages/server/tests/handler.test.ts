@@ -977,6 +977,18 @@ describe('createChatHandler', () => {
   });
 });
 
+describe('pageContext.data', () => {
+  const base = { conversationId: 'c1', message: 'Hi', pageContext: { url: 'https://acme.test/', title: 'Home' } };
+  it('takes up to 20 short string fields', () => {
+    const ok = Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`k${i}`, 'v']));
+    expect(chatRequestSchema.safeParse({ ...base, pageContext: { ...base.pageContext, data: ok } }).success).toBe(true);
+    expect(chatRequestSchema.safeParse({ ...base, pageContext: { ...base.pageContext, data: { ...ok, k20: 'v' } } }).success).toBe(false);
+    expect(chatRequestSchema.safeParse({ ...base, pageContext: { ...base.pageContext, data: { ['k'.repeat(41)]: 'v' } } }).success).toBe(false);
+    expect(chatRequestSchema.safeParse({ ...base, pageContext: { ...base.pageContext, data: { plan: 'x'.repeat(501) } } }).success).toBe(false);
+    expect(chatRequestSchema.safeParse({ ...base, pageContext: { ...base.pageContext, data: { plan: 3 } } }).success).toBe(false);
+  });
+});
+
 describe('chatRequestSchema', () => {
   it('validates a minimal valid request', () => {
     const result = chatRequestSchema.safeParse({

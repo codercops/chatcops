@@ -135,6 +135,10 @@ export interface ChatCopsServerConfig {
 
 // Everything in a request can end up in the system prompt, so every field has a ceiling.
 export const MAX_USER_DATA_FIELDS = 50;
+/** `pageContext.data`, what a site adds with the widget's setContext(). */
+export const MAX_PAGE_DATA_FIELDS = 20;
+export const MAX_PAGE_DATA_KEY_LENGTH = 40;
+export const MAX_PAGE_DATA_VALUE_LENGTH = 500;
 export const MAX_USER_DATA_KEY_LENGTH = 100;
 /** Longer page URLs are still accepted, but only this much reaches the prompt. */
 export const MAX_PAGE_URL_LENGTH = 2000;
@@ -153,6 +157,12 @@ export const chatRequestSchema = z.object({
     title: z.string().max(500),
     description: z.string().max(1000).optional(),
     contentSnippet: z.string().max(2000).optional(),
+    data: z
+      .record(z.string().max(MAX_PAGE_DATA_KEY_LENGTH), z.string().max(MAX_PAGE_DATA_VALUE_LENGTH))
+      .refine((data) => Object.keys(data).length <= MAX_PAGE_DATA_FIELDS, {
+        message: `pageContext.data can have at most ${MAX_PAGE_DATA_FIELDS} fields`,
+      })
+      .optional(),
   }).optional(),
   locale: z.string().max(10).optional(),
   userData: z

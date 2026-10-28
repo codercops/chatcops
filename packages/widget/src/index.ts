@@ -1,6 +1,7 @@
 import {
   Widget,
   type WidgetConfig,
+  type WidgetUpdate,
   type WidgetEventType,
   type WidgetEventHandler,
 } from './widget.js';
@@ -12,6 +13,7 @@ import { VERSION } from './version.js';
 export {
   Widget,
   type WidgetConfig,
+  type WidgetUpdate,
   type WidgetEvents,
   type WidgetEventType,
   type WidgetEventHandler,
@@ -72,6 +74,24 @@ const ChatCops = {
   registerLocale(code: string, strings: Partial<WidgetLocaleStrings>, options?: { dir?: 'ltr' | 'rtl' }): void {
     registerWidgetLocale(code, strings);
     if (options?.dir) setLanguageDirection(code, options.dir);
+  },
+
+  /**
+   * The signed-in visitor: `token` for the server, `name` and `email` as
+   * visitor details. Another user, or `null` to sign out, clears the chat.
+   */
+  setUser(user: { name?: string; email?: string; token?: string } | null): void {
+    instance?.setUser(user);
+  },
+
+  /** Details the bot should know for the next messages, such as `{ plan: 'Team' }`. `null` removes them. */
+  setContext(data: Record<string, string> | null): void {
+    instance?.setContext(data);
+  },
+
+  /** Changes the theme, branding or wording of the running chat. What you leave out stays as it is. */
+  update(changes: WidgetUpdate): void {
+    instance?.update(changes);
   },
 
   /** The widget's version. */
