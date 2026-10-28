@@ -1,6 +1,10 @@
+import { DEFAULT_USER_AGENT } from './user-agent.js';
+
 export interface Robots {
   allowed(url: string): boolean;
   sitemaps: string[];
+  /** Why the policy could not be fetched; all pages must remain blocked. */
+  unavailable?: string;
   /** Minimum interval between requests, in seconds. */
   crawlDelay?: number;
 }
@@ -80,28 +84,32 @@ export function parseRobots(text: string): Robots {
 
 /** Fetch a policy; callers cache this promise once per origin for each run. */
 export async function robotsFor(origin: string, send: typeof fetch = fetch): Promise<Robots> {
-  const fallback = (allowed: boolean): Robots => ({ allowed: () => allowed, sitemaps: [] });
+  const fallback = (allowed: boolean, unavailable?: string): Robots => ({
+    allowed: () => allowed,
+    sitemaps: [],
+    ...(unavailable ? { unavailable } : {}),
+  });
   let url = new URL('/robots.txt', origin).href;
   try {
     for (let redirects = 0; redirects <= 5; redirects++) {
       const response = await send(url, {
-        headers: { 'user-agent': 'ChatCopsBot/0.1 (+https://chat.codercops.com/bot)' },
+        headers: { 'user-agent': DEFAULT_USER_AGENT },
         redirect: 'manual',
         signal: AbortSignal.timeout(30_000),
       });
       if (response.status >= 400 && response.status < 500) return fallback(true);
-      if (response.status >= 500) return fallback(false);
+      if (response.status >= 500) return fallback(false, `HTTP ${response.status}`);
       if ([301, 302, 303, 307, 308].includes(response.status)) {
         const location = response.headers.get('location');
         await response.body?.cancel();
-        if (!location || redirects === 5) return fallback(false);
+        if (!location || redirects === 5) return fallback(false, !location ? 'redirect without location' : 'too many redirects');
         url = new URL(location, url).href;
         continue;
       }
-      return response.ok ? parseRobots(await response.text()) : fallback(false);
+      return response.ok ? parseRobots(await response.text()) : fallback(false, `HTTP ${response.status}`);
     }
   } catch {
     // Network failures (including timeouts) mean the policy is unreachable.
   }
-  return fallback(false);
+  return fallback(false, 'unreachable');
 }

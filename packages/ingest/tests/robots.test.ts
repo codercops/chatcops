@@ -65,12 +65,18 @@ describe('robots fetching', () => {
   afterAll(async () => { await site.close(); });
 
   it('allows everything for 404, blocks for 500 and an unreachable host', async () => {
-    expect((await robotsFor(site.url)).allowed(`${site.url}/pricing`)).toBe(true);
+    const missing = await robotsFor(site.url);
+    expect(missing.allowed(`${site.url}/pricing`)).toBe(true);
+    expect(missing.unavailable).toBeUndefined();
     site.set('/robots.txt', 'unavailable', 'text/plain', 500);
-    expect((await robotsFor(site.url)).allowed(`${site.url}/pricing`)).toBe(false);
+    const unavailable = await robotsFor(site.url);
+    expect(unavailable.allowed(`${site.url}/pricing`)).toBe(false);
+    expect(unavailable.unavailable).toBe('HTTP 500');
     const offline = await fixtureSite();
     await offline.close();
-    expect((await robotsFor(offline.url)).allowed(`${offline.url}/pricing`)).toBe(false);
+    const unreachable = await robotsFor(offline.url);
+    expect(unreachable.allowed(`${offline.url}/pricing`)).toBe(false);
+    expect(unreachable.unavailable).toBe('unreachable');
   });
 
   it('follows five redirects, resolves relative locations and applies the final policy', async () => {

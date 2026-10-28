@@ -33,3 +33,5 @@ Network sources respect `robots.txt` by default. Each run fetches it once per or
 A 4xx response allows crawling; a 5xx response or an unreachable robots server blocks it. Up to five redirects are followed. `crawl-delay` (seconds) sets a minimum interval between requests to an origin, including concurrent workers. Directory sources read local files and never check robots. Set `respectRobots: false` in the ingest config to opt out.
 
 `robotsFor(origin, fetch)` also exposes `Sitemap:` entries as `sitemaps`; ingestion still uses the sources you configure.
+
+When robots.txt is unavailable, affected pages are skipped with a reason such as `robots.txt unavailable (HTTP 503)`. The run reports one error per origin and skips pruning, preserving existing indexed pages until the rules can be read again.

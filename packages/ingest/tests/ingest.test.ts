@@ -137,13 +137,49 @@ describe('ingest', () => {
     try {
       const stats = await ingest({ ...config, onEvent: (e) => { if (e.type === 'page' && e.reason) reasons.push(e.reason); } });
       expect(stats).toMatchObject({ indexed: 1, skipped: 1, failed: 0 });
-      expect(reasons).toEqual(['blocked by robots.txt']);
+      expect(reasons).toEqual(['robots.txt unavailable (HTTP 500)']);
+      expect(stats.errors).toEqual([`${site.url}/robots.txt unavailable (HTTP 500)`]);
       expect(site.requests.slice(before)).toEqual(['/robots.txt']);
       expect(other.requests).toEqual(['/robots.txt', '/pricing']);
     } finally {
       site.remove('/robots.txt');
       await other.close();
     }
+  });
+
+  it('reports unavailable robots once per origin and preserves existing pages when pruning', async () => {
+    const { config, store } = setup();
+    await ingest(config);
+    const before = await store.query({ vector: Float32Array.from([1, 1, 0, 1]), topK: 50 });
+    site.set('/robots.txt', '', 'text/plain', 500);
+    const reasons: string[] = [];
+    const start = site.requests.length;
+    try {
+      const stats = await ingest({
+        ...config,
+        sources: [{ type: 'urls', urls: [`${site.url}/pricing`, `${site.url}/ja/pricing`] }],
+        prune: true,
+        onEvent: (event) => { if (event.type === 'page' && event.reason) reasons.push(event.reason); },
+      });
+      expect(stats).toMatchObject({ indexed: 0, skipped: 2, failed: 0, pruned: 0 });
+      expect(reasons).toEqual(['robots.txt unavailable (HTTP 500)', 'robots.txt unavailable (HTTP 500)']);
+      expect(stats.errors).toEqual([`${site.url}/robots.txt unavailable (HTTP 500)`]);
+      expect(stats.pruneSkipped).toContain('1 error');
+      expect(site.requests.slice(start)).toEqual(['/robots.txt']);
+      expect(await store.query({ vector: Float32Array.from([1, 1, 0, 1]), topK: 50 })).toEqual(before);
+      expect(await kv.get(manifestKeys('default').page(`${site.url}/refunds`))).not.toBeNull();
+    } finally { site.remove('/robots.txt'); }
+  });
+
+  it('reports robots outages discovered while loading sitemaps, even with no pages', async () => {
+    site.set('/robots.txt', '', 'text/plain', 503);
+    const { config } = setup({ exclude: ['**'] });
+    try {
+      const stats = await ingest({ ...config, prune: true });
+      expect(stats.discovered).toBe(0);
+      expect(stats.errors).toEqual([`${site.url}/robots.txt unavailable (HTTP 503)`]);
+      expect(stats.pruneSkipped).toBeDefined();
+    } finally { site.remove('/robots.txt'); }
   });
 
   it('indexes every HTML page, skips non-HTML, and keeps the page and section on each chunk', async () => {
@@ -220,7 +256,7 @@ describe('ingest', () => {
     const before = (await store.query({ vector: Float32Array.from([1, 1, 0, 1]), topK: 50 })).length;
     const stats = await ingest({ ...config, sources: [{ type: 'sitemap', url: `${site.url}/missing.xml` }], prune: true });
     expect(stats.pruned).toBe(0);
-    expect(stats.pruneSkipped).toContain('1 discovery error');
+    expect(stats.pruneSkipped).toContain('1 error');
     expect((await store.query({ vector: Float32Array.from([1, 1, 0, 1]), topK: 50 })).length).toBe(before);
   });
 

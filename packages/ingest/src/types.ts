@@ -41,8 +41,7 @@ export interface IngestConfig {
   force?: boolean;
   /**
    * Remove pages that are in the index but no longer discovered. Skipped when
-   * any sitemap failed to load, since a missing sitemap would look like every
-   * page was removed.
+   * discovery or robots.txt errors prevent verifying the site's pages.
    */
   prune?: boolean;
   /** Progress, one event per page and step. */
@@ -90,7 +89,7 @@ export interface IngestStats {
   chunks: number;
   /** Texts sent to the embedder. 0 on a re-run where nothing changed. */
   embedded: number;
-  /** Discovery problems, such as a sitemap that failed to load. */
+  /** Discovery problems and unavailable robots.txt policies, once per origin. */
   errors: string[];
   /** Why pruning didn't run, when it was asked for. */
   pruneSkipped?: string;
