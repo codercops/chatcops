@@ -54,6 +54,11 @@ export async function ingest(config: IngestConfig): Promise<IngestStats> {
   }
 
   const found = await discover(config.sources, { fetch: send, userAgent, timeoutMs, include: config.include, exclude: config.exclude });
+  if (config.maxPages !== undefined && config.maxPages >= 0 && found.pages.length > config.maxPages) {
+    found.pages = found.pages.slice(0, Math.floor(config.maxPages));
+    // Pages left out aren't removed pages, so pruning a partial run isn't safe either.
+    found.errors.push(`stopped at --max-pages ${config.maxPages}`);
+  }
   config.onEvent?.({ type: 'discovered', pages: found.pages.length, errors: found.errors });
 
   const stats: IngestStats = {

@@ -210,6 +210,15 @@ describe('ingest', () => {
     expect(all[0].metadata).toEqual({ locale: 'en', collection: 'docs', titled: true });
   });
 
+  it('stops at maxPages, and then never prunes', async () => {
+    const { config } = setup();
+    await ingest(config);
+    const stats = await ingest({ ...config, maxPages: 1, prune: true });
+    expect(stats.discovered).toBe(1);
+    expect(stats.pruned).toBe(0);
+    expect(stats.pruneSkipped).toBeDefined();
+  });
+
   it('reads directory sources from disk without fetching', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'chatcops-ingest-'));
     writeFileSync(join(dir, 'install.md'), '---\ntitle: Install\n---\n\nRun `npm i chatcops`.');

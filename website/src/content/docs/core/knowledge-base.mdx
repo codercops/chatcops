@@ -131,6 +131,29 @@ const stats = await ingest({
 
 In production, use a persistent vector store and its key-value store as the `manifest`. Running it again then only embeds pages that changed: unchanged pages answer `304` to a conditional request, or extract to the same text. Hidden elements, scripts, styles and comments are removed before extraction. `prune: true` removes pages that are gone, but never after a sitemap failed to load. An index remembers which embedder built it and refuses a different one.
 
+### From the command line
+
+`@chatcops/cli` wraps the same thing in a command, reading `chatcops.config.ts`:
+
+```typescript
+import { memoryStorage, memoryVectors, openaiEmbedder } from '@chatcops/core';
+import { defineConfig } from '@chatcops/cli';
+
+export default defineConfig({
+  embedder: openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! }),
+  storage: { ...memoryStorage(), vectors: memoryVectors({ dimensions: 1024 }) },
+  ingest: { sources: [{ type: 'sitemap', url: 'https://example.com/sitemap.xml' }] },
+});
+```
+
+```bash
+npx chatcops ingest              # build or update the index
+npx chatcops ingest --dry-run    # see what would be indexed
+npx chatcops search "how much is the Team plan?"
+```
+
+Use a persistent store in a real config. Add `--json` in CI for one JSON object per line. The command exits with 1 when some pages failed, and 2 when it couldn't run at all.
+
 ## Citations
 
 When knowledge sources return chunks (through `retrieve`), answers say which pages they came from. Each page the reply cites becomes a `source` part in the stream, once per page, after the text that cites it, and is saved with the reply:

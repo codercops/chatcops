@@ -42,6 +42,25 @@ importers:
         specifier: ^4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@25.3.3)(@vitest/coverage-v8@4.1.11)(happy-dom@20.14.5)(vite@8.3.2(@types/node@25.3.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.46.0))
 
+  packages/cli:
+    dependencies:
+      '@chatcops/ingest':
+        specifier: workspace:^
+        version: link:../ingest
+    devDependencies:
+      '@chatcops/core':
+        specifier: workspace:^
+        version: link:../core
+      '@types/node':
+        specifier: ^22
+        version: 22.20.5
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/coverage-v8@4.1.11)(happy-dom@20.14.5)(vite@8.3.2(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.46.0))
+
   packages/core:
     dependencies:
       '@anthropic-ai/sdk':

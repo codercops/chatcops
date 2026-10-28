@@ -20,6 +20,8 @@ export interface IngestConfig {
   selectors?: Record<string, string>;
   /** Default `ChatCopsBot/<version> (+https://chat.codercops.com/bot)`. */
   userAgent?: string;
+  /** Index at most this many pages (after include/exclude), for a quick look at a big site. */
+  maxPages?: number;
   /** Pages fetched at once. Default 4. */
   concurrency?: number;
   /** Per page. Default 30 seconds. */
