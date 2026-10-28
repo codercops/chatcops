@@ -14,6 +14,8 @@
     "clean": "pnpm -r clean",
     "e2e": "playwright test -c e2e/playwright.config.ts",
     "docs:check": "node scripts/check-doc-samples.mjs",
+    "api": "node scripts/api-snapshot.mjs",
+    "api:check": "node scripts/api-snapshot.mjs --check",
     "publint": "pnpm -r --filter \"./packages/*\" exec publint",
     "size": "size-limit"
   },
