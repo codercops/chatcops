@@ -7,13 +7,19 @@ export interface JsonPost {
 }
 
 /**
- * POSTs JSON for an embedding API and returns the successful response. Rate
+ * POSTs JSON for a provider API and returns the successful response. Rate
  * limits (429) and server errors (5xx) are retried twice, waiting as long as
  * `retry-after` says (at most 30s), or 1s then 2s; the abort signal stops a
  * wait. Anything else fails at once with the start of the response body,
  * which explains the error and never holds the key.
  */
-export async function postWithRetries(provider: string, send: typeof fetch, post: JsonPost, signal?: AbortSignal): Promise<Response> {
+export async function postWithRetries(
+  provider: string,
+  send: typeof fetch,
+  post: JsonPost,
+  signal?: AbortSignal,
+  operation = 'embeddings'
+): Promise<Response> {
   for (let attempt = 1; ; attempt++) {
     const response = await send(post.url, {
       method: 'POST',
@@ -25,7 +31,7 @@ export async function postWithRetries(provider: string, send: typeof fetch, post
     const retryable = response.status === 429 || response.status >= 500;
     if (!retryable || attempt >= MAX_ATTEMPTS) {
       const detail = (await response.text().catch(() => '')).slice(0, 300);
-      throw new Error(`${provider} embeddings failed with HTTP ${response.status}${detail ? `: ${detail}` : ''}`);
+      throw new Error(`${provider} ${operation} failed with HTTP ${response.status}${detail ? `: ${detail}` : ''}`);
     }
     const wait = Number(response.headers.get('retry-after'));
     await sleep(Number.isFinite(wait) && wait > 0 ? Math.min(wait, 30) * 1000 : 1000 * attempt, signal);
