@@ -62,6 +62,12 @@ tests:
 
 Each assertion has one key. `contains` takes a string or a list of strings that must all appear in the reply, `judge` has a model grade the reply ([below](#judged-by-a-model)), and every assertion also works with a `not-` prefix to say the opposite. An assertion name that doesn't exist fails the whole run before anything is sent, so a typo can't make a test pass by checking nothing.
 
+Three assertions catch a prompt change that makes replies longer, slower or more expensive:
+
+- `tokens-under: 800` checks the turn's input plus output tokens. `tokens-under: { input: 600, output: 200 }` checks them separately, and you can give only one of them. A turn without usage fails.
+- `latency-under: 3000` checks the time to the end of the reply, in milliseconds.
+- `cost-under: 0.01` checks what the turn cost in US dollars. It needs the model in `prices` ([Costs](#costs)), and a turn without a price fails with a reason that says so.
+
 A test can also set:
 
 - `pageContext`: the page the visitor is on (`url`, `title`, and optionally `description` and `contentSnippet`)

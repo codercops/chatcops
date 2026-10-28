@@ -1,6 +1,7 @@
 import type { Assertion, AssertionCheck, AssertionContext, AssertionResult, TurnResult } from '../types.js';
 import { judge } from './judge.js';
 import { contains } from './text.js';
+import { costUnder, latencyUnder, tokensUnder } from './usage.js';
 
 /**
  * The checks an eval file can use, by key. Every key also works with a
@@ -11,6 +12,9 @@ import { contains } from './text.js';
 export const ASSERTIONS = new Map<string, AssertionCheck>([
   ['contains', contains],
   ['judge', judge],
+  ['tokens-under', tokensUnder],
+  ['latency-under', latencyUnder],
+  ['cost-under', costUnder],
 ]);
 
 /** The base name of an assertion and whether it's negated: `not-contains` is `contains`, negated. */

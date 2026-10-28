@@ -294,6 +294,40 @@ describe('assertions', () => {
     expect(unknownAssertions([{ contains: 'a' }, { 'not-contains': 'b' }, { 'not-nope': 1 }, { 'not-nope': 2 }])).toEqual(['not-nope']);
   });
 
+  it('tokens-under checks the total, or input and output separately', async () => {
+    const used: TurnResult = { ...turn, usage: { inputTokens: 600, outputTokens: 150 } };
+    expect(await check({ 'tokens-under': 800 }, used, [used])).toMatchObject({ pass: true, reason: 'the turn used 750 tokens (limit 800)' });
+    expect(await check({ 'tokens-under': 700 }, used, [used])).toMatchObject({ pass: false, reason: 'the turn used 750 tokens (limit 700)' });
+    expect(await check({ 'tokens-under': { input: 700, output: 200 } }, used, [used])).toMatchObject({ pass: true });
+    expect(await check({ 'tokens-under': { input: 500, output: 200 } }, used, [used])).toMatchObject({ pass: false, reason: 'the turn used 600 input tokens (limit 500)' });
+    expect(await check({ 'tokens-under': { output: 100 } }, used, [used])).toMatchObject({ pass: false, reason: 'the turn used 150 output tokens (limit 100)' });
+    expect(await check({ 'not-tokens-under': 700 }, used, [used])).toMatchObject({ pass: true });
+    expect(await check({ 'tokens-under': 800 }, turn, [turn])).toMatchObject({ pass: false, reason: 'the turn has no token usage to check' });
+  });
+
+  it('latency-under and cost-under compare the turn with a limit', async () => {
+    const priced: TurnResult = { ...turn, latencyMs: 1200, costUsd: 0.004, model: 'acme-small' };
+    expect(await check({ 'latency-under': 3000 }, priced, [priced])).toMatchObject({ pass: true });
+    expect(await check({ 'latency-under': 1000 }, priced, [priced])).toMatchObject({ pass: false, reason: 'the reply took 1200 ms, over the 1000 ms limit' });
+    expect(await check({ 'cost-under': 0.01 }, priced, [priced])).toMatchObject({ pass: true });
+    expect(await check({ 'cost-under': 0.001 }, priced, [priced])).toMatchObject({ pass: false, reason: 'the turn cost $0.004, over the $0.001 limit' });
+    const unpriced: TurnResult = { ...priced, costUsd: undefined };
+    expect(await check({ 'cost-under': 0.01 }, unpriced, [unpriced])).toMatchObject({
+      pass: false,
+      reason: 'the turn has no cost: add "acme-small" to `prices` in the config',
+    });
+  });
+
+  it('usage assertions reject values that are not limits', async () => {
+    for (const value of ['800', -1, Number.NaN, [800]]) {
+      expect(await check({ 'tokens-under': value }, turn, [turn])).toMatchObject({ pass: false, reason: 'tokens-under takes a number of 0 or more' });
+      expect(await check({ 'latency-under': value }, turn, [turn])).toMatchObject({ pass: false, reason: 'latency-under takes a number of 0 or more' });
+      expect(await check({ 'cost-under': value }, turn, [turn])).toMatchObject({ pass: false, reason: 'cost-under takes a number of 0 or more' });
+    }
+    expect(await check({ 'tokens-under': { total: 800 } }, turn, [turn])).toMatchObject({ pass: false, reason: 'tokens-under takes a number, or { input, output }' });
+    expect(await check({ 'tokens-under': {} }, turn, [turn])).toMatchObject({ pass: false, reason: 'tokens-under takes a number, or { input, output }' });
+  });
+
   it('filters by tag or by name', () => {
     const test = { name: 'Quotes Price', tags: ['pricing'], turns: [{ user: 'x' }] };
     expect(matchesFilter(test, undefined)).toBe(true);
