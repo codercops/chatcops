@@ -1,0 +1,63 @@
+{
+  "name": "@chatcops/ingest",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Turn a website into a searchable ChatCops knowledge index: discover, fetch, extract, chunk and embed",
+  "keywords": [
+    "chatcops",
+    "rag",
+    "ingest",
+    "sitemap",
+    "embeddings"
+  ],
+  "homepage": "https://chat.codercops.com",
+  "bugs": "https://github.com/codercops/chatcops/issues",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc -p tsconfig.test.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "peerDependencies": {
+    "@chatcops/core": "workspace:^"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codercops/chatcops.git",
+    "directory": "packages/ingest"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "linkedom": "^0.18.12",
+    "turndown": "^7.2.0",
+    "turndown-plugin-gfm": "^1.0.2"
+  },
+  "devDependencies": {
+    "@chatcops/core": "workspace:^",
+    "@types/node": "^22",
+    "@types/turndown": "^5.0.5",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.11"
+  }
+}

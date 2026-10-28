@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  // The tests reuse the ingest package's fixture site, which lives outside this folder.
+  "compilerOptions": { "rootDir": ".." },
+  "include": ["src", "tests", "../ingest/tests/site.ts"]
+}
