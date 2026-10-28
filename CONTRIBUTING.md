@@ -97,7 +97,7 @@ Build before you test. The server tests import `@chatcops/core` from its `dist` 
 
 ### Docs bot evals
 
-CI also runs the website's docs bot through `chatcops test` (`website/evals/`), replaying the recorded API calls in `website/evals/__cassettes__`, so it needs no key. Run it with `pnpm --filter @chatcops/website evals`. If you change the docs bot's instructions or FAQ (`website/src/lib/docs-bot.ts`), the replay fails with "A call changed since it was recorded". That's expected. Ask a maintainer to record it again: recording calls the APIs with the project's keys, which aren't in CI.
+CI also runs the website's docs bot through `chatcops test` (`website/evals/`), replaying the recorded API calls in `website/evals/__cassettes__`, so it needs no key. Run it with `pnpm --filter @chatcops/website evals`. A second suite, `evals:citations`, asks 50 questions and checks that at least 85% of the answers cite the docs page that answers them. If you change the docs bot's instructions or FAQ (`website/src/lib/docs-bot.ts`), the replay fails with "A call changed since it was recorded". That's expected. Ask a maintainer to record it again: recording calls the APIs with the project's keys, which aren't in CI.
 
 The docs bot answers from an index of the docs pages, `website/public/docs-index/`. It's built by `npm run docs-index` in `website/`, which also needs a key, so a docs change doesn't rebuild it. CI shows a warning when the pages changed since the index was built, and a maintainer rebuilds it before a release. You don't need to do anything about that warning in a docs PR.
 

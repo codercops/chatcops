@@ -107,6 +107,11 @@ jobs:
       - name: Docs bot evals
         run: pnpm --filter @chatcops/website evals
 
+      # 50 questions, each with the page that answers it. Passes when at
+      # least 85% of the replayed answers cite that page.
+      - name: Docs bot citations
+        run: pnpm --filter @chatcops/website evals:citations
+
       # Warns, without failing, when the docs pages changed since the docs
       # bot's index (website/public/docs-index) was built.
       - name: Docs bot index

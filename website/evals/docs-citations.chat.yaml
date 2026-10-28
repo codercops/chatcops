@@ -1,0 +1,306 @@
+version: 1
+name: Docs bot citations
+# Each question has the page that answers it. scripts/citation-eval.mjs runs
+# this file and passes at 85% correct citations, not 100%: some questions
+# have a second page that answers them just as well.
+tests:
+  - name: "01 What packages make up ChatCops, and what does each one do?"
+    tags: [citations]
+    turns:
+      - user: "What packages make up ChatCops, and what does each one do?"
+        expect:
+          - cites: "https://chat.codercops.com/"
+  - name: "02 How do I turn on analytics?"
+    tags: [citations]
+    turns:
+      - user: "How do I turn on analytics?"
+        expect:
+          - cites: "https://chat.codercops.com/core/analytics/"
+  - name: "03 Which events does the analytics collector track?"
+    tags: [citations]
+    turns:
+      - user: "Which events does the analytics collector track?"
+        expect:
+          - cites: "https://chat.codercops.com/core/analytics/"
+  - name: "04 How does FAQ matching work?"
+    tags: [citations]
+    turns:
+      - user: "How does FAQ matching work?"
+        expect:
+          - cites: "https://chat.codercops.com/core/knowledge-base/"
+  - name: "05 How do I write my own knowledge source?"
+    tags: [citations]
+    turns:
+      - user: "How do I write my own knowledge source?"
+        expect:
+          - cites: "https://chat.codercops.com/core/knowledge-base/"
+  - name: "06 How do I build a knowledge index from my site's sitemap?"
+    tags: [citations]
+    turns:
+      - user: "How do I build a knowledge index from my site's sitemap?"
+        expect:
+          - cites: "https://chat.codercops.com/core/knowledge-base/"
+  - name: "07 How do I point ChatCops at an OpenAI-compatible server like Ollama?"
+    tags: [citations]
+    turns:
+      - user: "How do I point ChatCops at an OpenAI-compatible server like Ollama?"
+        expect:
+          - cites: "https://chat.codercops.com/core/providers/"
+  - name: "08 How do I write a custom AI provider?"
+    tags: [citations]
+    turns:
+      - user: "How do I write a custom AI provider?"
+        expect:
+          - cites: "https://chat.codercops.com/core/providers/"
+  - name: "09 What happens to temperature on the newer models?"
+    tags: [citations]
+    turns:
+      - user: "What happens to temperature on the newer models?"
+        expect:
+          - cites: "https://chat.codercops.com/core/providers/"
+  - name: "10 How do I test my bot's answers before I change its prompt?"
+    tags: [citations]
+    turns:
+      - user: "How do I test my bot's answers before I change its prompt?"
+        expect:
+          - cites: "https://chat.codercops.com/core/testing/"
+  - name: "11 How do recorded replays work in CI?"
+    tags: [citations]
+    turns:
+      - user: "How do recorded replays work in CI?"
+        expect:
+          - cites: "https://chat.codercops.com/core/testing/"
+  - name: "12 How do I have a model grade the replies in my evals?"
+    tags: [citations]
+    turns:
+      - user: "How do I have a model grade the replies in my evals?"
+        expect:
+          - cites: "https://chat.codercops.com/core/testing/"
+  - name: "13 How do I write a custom tool for the bot?"
+    tags: [citations]
+    turns:
+      - user: "How do I write a custom tool for the bot?"
+        expect:
+          - cites: "https://chat.codercops.com/core/tools/"
+  - name: "14 What fields does the lead capture tool collect?"
+    tags: [citations]
+    turns:
+      - user: "What fields does the lead capture tool collect?"
+        expect:
+          - cites: "https://chat.codercops.com/core/tools/"
+  - name: "15 Show me a complete Cloudflare Worker example with its wrangler.toml."
+    tags: [citations]
+    turns:
+      - user: "Show me a complete Cloudflare Worker example with its wrangler.toml."
+        expect:
+          - cites: "https://chat.codercops.com/examples/cloudflare-full/"
+  - name: "16 How do I clean up old conversations on Cloudflare?"
+    tags: [citations]
+    turns:
+      - user: "How do I clean up old conversations on Cloudflare?"
+        expect:
+          - cites: "https://chat.codercops.com/examples/cloudflare-full/"
+  - name: "17 Show me a complete Express server example, with the widget HTML."
+    tags: [citations]
+    turns:
+      - user: "Show me a complete Express server example, with the widget HTML."
+        expect:
+          - cites: "https://chat.codercops.com/examples/express-full/"
+  - name: "18 How do I put the widget in a Next.js layout?"
+    tags: [citations]
+    turns:
+      - user: "How do I put the widget in a Next.js layout?"
+        expect:
+          - cites: "https://chat.codercops.com/examples/vercel-full/"
+  - name: "19 How do I load the widget from a CDN?"
+    tags: [citations]
+    turns:
+      - user: "How do I load the widget from a CDN?"
+        expect:
+          - cites: "https://chat.codercops.com/getting-started/installation/"
+  - name: "20 What do I need to self-host ChatCops?"
+    tags: [citations]
+    turns:
+      - user: "What do I need to self-host ChatCops?"
+        expect:
+          - cites: "https://chat.codercops.com/getting-started/installation/"
+  - name: "21 What's the quickest way to get ChatCops running?"
+    tags: [citations]
+    turns:
+      - user: "What's the quickest way to get ChatCops running?"
+        expect:
+          - cites: "https://chat.codercops.com/getting-started/quick-start/"
+  - name: "22 What do I need to change when I upgrade from 0.5?"
+    tags: [citations]
+    turns:
+      - user: "What do I need to change when I upgrade from 0.5?"
+        expect:
+          - cites: "https://chat.codercops.com/getting-started/upgrading/"
+  - name: "23 Are budgets on by default after upgrading?"
+    tags: [citations]
+    turns:
+      - user: "Are budgets on by default after upgrading?"
+        expect:
+          - cites: "https://chat.codercops.com/getting-started/upgrading/"
+  - name: "24 Can I use ChatCops with the AI SDK's useChat hook?"
+    tags: [citations]
+    turns:
+      - user: "Can I use ChatCops with the AI SDK's useChat hook?"
+        expect:
+          - cites: "https://chat.codercops.com/server/ai-sdk/"
+  - name: "25 How do I set up the ChatCops server on Cloudflare Workers?"
+    tags: [citations]
+    turns:
+      - user: "How do I set up the ChatCops server on Cloudflare Workers?"
+        expect:
+          - cites: "https://chat.codercops.com/server/cloudflare/"
+  - name: "26 How do I run the Express server behind a proxy?"
+    tags: [citations]
+    turns:
+      - user: "How do I run the Express server behind a proxy?"
+        expect:
+          - cites: "https://chat.codercops.com/server/express/"
+  - name: "27 How do I add lead capture to an Express server?"
+    tags: [citations]
+    turns:
+      - user: "How do I add lead capture to an Express server?"
+        expect:
+          - cites: "https://chat.codercops.com/server/express/"
+  - name: "28 How do I run the ChatCops server on Hono?"
+    tags: [citations]
+    turns:
+      - user: "How do I run the ChatCops server on Hono?"
+        expect:
+          - cites: "https://chat.codercops.com/server/fetch-runtimes/"
+  - name: "29 Does the server work with Deno or Bun?"
+    tags: [citations]
+    turns:
+      - user: "Does the server work with Deno or Bun?"
+        expect:
+          - cites: "https://chat.codercops.com/server/fetch-runtimes/"
+  - name: "30 What does the streaming wire protocol look like?"
+    tags: [citations]
+    turns:
+      - user: "What does the streaming wire protocol look like?"
+        expect:
+          - cites: "https://chat.codercops.com/server/protocol/"
+  - name: "31 What fields does an error part have in the stream?"
+    tags: [citations]
+    turns:
+      - user: "What fields does an error part have in the stream?"
+        expect:
+          - cites: "https://chat.codercops.com/server/protocol/"
+  - name: "32 What should I check before I go live?"
+    tags: [citations]
+    turns:
+      - user: "What should I check before I go live?"
+        expect:
+          - cites: "https://chat.codercops.com/server/security/"
+  - name: "33 What does a production security config look like?"
+    tags: [citations]
+    turns:
+      - user: "What does a production security config look like?"
+        expect:
+          - cites: "https://chat.codercops.com/server/security/"
+  - name: "34 How do session tokens work?"
+    tags: [citations]
+    turns:
+      - user: "How do session tokens work?"
+        expect:
+          - cites: "https://chat.codercops.com/server/setup/"
+  - name: "35 How do I limit how much the bot can spend?"
+    tags: [citations]
+    turns:
+      - user: "How do I limit how much the bot can spend?"
+        expect:
+          - cites: "https://chat.codercops.com/server/setup/"
+  - name: "36 How do I get the server's logs as JSON?"
+    tags: [citations]
+    turns:
+      - user: "How do I get the server's logs as JSON?"
+        expect:
+          - cites: "https://chat.codercops.com/server/setup/"
+  - name: "37 How do signed-in visitors work?"
+    tags: [citations]
+    turns:
+      - user: "How do signed-in visitors work?"
+        expect:
+          - cites: "https://chat.codercops.com/server/setup/"
+  - name: "38 How do I store conversations in Postgres?"
+    tags: [citations]
+    turns:
+      - user: "How do I store conversations in Postgres?"
+        expect:
+          - cites: "https://chat.codercops.com/server/storage/"
+  - name: "39 How do I use Upstash for storage?"
+    tags: [citations]
+    turns:
+      - user: "How do I use Upstash for storage?"
+        expect:
+          - cites: "https://chat.codercops.com/server/storage/"
+  - name: "40 How long are conversations kept, and how do I remove old ones?"
+    tags: [citations]
+    turns:
+      - user: "How long are conversations kept, and how do I remove old ones?"
+        expect:
+          - cites: "https://chat.codercops.com/server/storage/"
+  - name: "41 How do I deploy the server on Vercel?"
+    tags: [citations]
+    turns:
+      - user: "How do I deploy the server on Vercel?"
+        expect:
+          - cites: "https://chat.codercops.com/server/vercel/"
+  - name: "42 How do I open the chat from my own button?"
+    tags: [citations]
+    turns:
+      - user: "How do I open the chat from my own button?"
+        expect:
+          - cites: "https://chat.codercops.com/widget/api/"
+  - name: "43 How do I use the widget in a React app?"
+    tags: [citations]
+    turns:
+      - user: "How do I use the widget in a React app?"
+        expect:
+          - cites: "https://chat.codercops.com/widget/api/"
+  - name: "44 Which data attributes does the script tag take?"
+    tags: [citations]
+    turns:
+      - user: "Which data attributes does the script tag take?"
+        expect:
+          - cites: "https://chat.codercops.com/widget/configuration/"
+  - name: "45 How do I embed the chat inline in a page instead of as a popup?"
+    tags: [citations]
+    turns:
+      - user: "How do I embed the chat inline in a page instead of as a popup?"
+        expect:
+          - cites: "https://chat.codercops.com/widget/configuration/"
+  - name: "46 Can I put two widgets on one page?"
+    tags: [citations]
+    turns:
+      - user: "Can I put two widgets on one page?"
+        expect:
+          - cites: "https://chat.codercops.com/widget/configuration/"
+  - name: "47 How do I run my own code when the widget captures a lead?"
+    tags: [citations]
+    turns:
+      - user: "How do I run my own code when the widget captures a lead?"
+        expect:
+          - cites: "https://chat.codercops.com/widget/events/"
+  - name: "48 How do I show the widget in Spanish?"
+    tags: [citations]
+    turns:
+      - user: "How do I show the widget in Spanish?"
+        expect:
+          - cites: "https://chat.codercops.com/widget/i18n/"
+  - name: "49 How do I ask for the visitor's name and email before the chat starts?"
+    tags: [citations]
+    turns:
+      - user: "How do I ask for the visitor's name and email before the chat starts?"
+        expect:
+          - cites: "https://chat.codercops.com/widget/pre-chat-form/"
+  - name: "50 How do I switch the widget to dark mode?"
+    tags: [citations]
+    turns:
+      - user: "How do I switch the widget to dark mode?"
+        expect:
+          - cites: "https://chat.codercops.com/widget/theming/"
