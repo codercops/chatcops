@@ -238,6 +238,11 @@ Hybrid search is the better default when the store supports it. Words catch what
 
 Both take `candidates` (how many records each search fetches, default 20) and an optional `reranker`, which reorders the candidates before the top ones are kept. A short follow-up question ("how long does it take?") is searched together with the visitor's previous question, so it finds the right pages.
 
-`workersAiReranker({ ai })` uses Cloudflare's [`@cf/baai/bge-reranker-base`](https://developers.cloudflare.com/workers-ai/models/bge-reranker-base/) model through the Workers AI binding. It sends the query and candidate text to the model, then maps its ranked context ids back to the original chunks. The binding needs an AI model with access to Workers AI enabled.
+`workersAiReranker({ ai })` uses Cloudflare's [`@cf/baai/bge-reranker-base`](https://developers.cloudflare.com/workers-ai/models/bge-reranker-base/) model through the Workers AI binding. It sends the query and candidate text to the model, then maps its ranked context ids back to the original chunks. It uses the same `env.AI` binding as `workersAiEmbedder`; add this binding to `wrangler.toml` if you have not already:
+
+```toml
+[ai]
+binding = "AI"
+```
 
 The index has to be built and searched with the same embedder; a retriever refuses an embedder whose vectors are a different size from the store's. A command that builds the index from your sitemap is next.

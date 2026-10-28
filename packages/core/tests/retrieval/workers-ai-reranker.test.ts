@@ -50,6 +50,25 @@ describe('workersAiReranker', () => {
     await expect(invalidResult.rerank('query', chunks, 2)).rejects.toThrow('invalid reranking result');
   });
 
+  it('rejects duplicate result ids', async () => {
+    const reranker = workersAiReranker({
+      ai: { run: vi.fn().mockResolvedValue({ response: [{ id: 1, score: 0.9 }, { id: 1, score: 0.8 }] }) },
+    });
+
+    await expect(reranker.rerank('query', chunks, 2)).rejects.toThrow('duplicate reranking result');
+  });
+
+  it('rejects an already-aborted signal before calling the binding', async () => {
+    const ai = { run: vi.fn() };
+    const reranker = workersAiReranker({ ai });
+    const controller = new AbortController();
+    const reason = new Error('request cancelled');
+    controller.abort(reason);
+
+    await expect(reranker.rerank('query', chunks, 2, { signal: controller.signal })).rejects.toBe(reason);
+    expect(ai.run).not.toHaveBeenCalled();
+  });
+
   it('requires an AI binding with run()', () => {
     expect(() => workersAiReranker({} as never)).toThrow('requires an ai binding with a run() method');
   });
