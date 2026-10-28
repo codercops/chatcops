@@ -153,7 +153,7 @@ Access-Control-Expose-Headers: Retry-After, X-ChatCops-Protocol
 
 The authoritative TypeScript type for protocol events is `WirePart` (exported from `@chatcops/core/protocol`).
 
-There are 13 variants defined in `WirePart`. Nine are actively emitted by `@chatcops/server` today, while four are reserved for specialized features or future capabilities:
+There are 13 variants defined in `WirePart`. Ten are actively emitted by `@chatcops/server` today, while three are reserved for specialized features or future capabilities:
 
 | Part Type | Purpose | Fields | Status |
 |---|---|---|---|
@@ -161,7 +161,7 @@ There are 13 variants defined in `WirePart`. Nine are actively emitted by `@chat
 | `text-start` | Marks the beginning of an assistant text block. | `id: string` | **Emitted** |
 | `text-delta` | Streams a chunk of text content for a text block. | `id: string`, `delta: string` | **Emitted** |
 | `text-end` | Marks the end of an assistant text block. | `id: string` | **Emitted** |
-| `source` | Citations or document references used by knowledge base / RAG. | `sourceId: string`, `url: string`, `title?: string`, `snippet?: string` | *Reserved* |
+| `source` | Citations or document references used by knowledge base / RAG. | `sourceId: string`, `url: string`, `title?: string`, `snippet?: string` | **Emitted** |
 | `tool-call` | Signals that a tool invocation has started. | `toolCallId: string`, `toolName: string`, `input: unknown`, `executor: 'server' \| 'client' \| 'mcp'`, `needsApproval?: boolean`, `title?: string` | **Emitted** |
 | `tool-result` | Emits the execution outcome of a tool call. | `toolCallId: string`, `output?: unknown`, `error?: string` | **Emitted** |
 | `lead-captured` | Emitted when the built-in lead capture tool successfully gathers visitor information. | `lead: Record<string, unknown>` | **Emitted** |
@@ -200,8 +200,8 @@ Surrounds and streams chunks of assistant text:
 { "type": "text-end", "id": "t1" }
 ```
 
-#### `source` *(Reserved)*
-Represents a source citation:
+#### `source`
+Sent when a `knowledge` source has `retrieve()` and the reply cites a chunk from it, at most once per page. `sourceId` is the page's `source.id`, and `snippet` is the chunk's text with whitespace collapsed, cut to 200 characters. Citations the model provider returns natively come out as the same part:
 ```json
 {
   "type": "source",
