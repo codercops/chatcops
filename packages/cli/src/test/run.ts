@@ -3,6 +3,7 @@ import { memoryStorage, type ChatTool, type ToolResult, type WirePart } from '@c
 import { createChatHandler, type ChatCopsServerConfig } from '@chatcops/server';
 import { ConfigError } from '../config.js';
 import { check } from './assertions/index.js';
+import type { Cassettes } from './cassette.js';
 import type { Fixture, TestCase, TestResult, TestRunResult, TurnResult } from './types.js';
 
 export interface RunOptions {
@@ -12,6 +13,16 @@ export interface RunOptions {
   repeat?: number;
   /** Called as each test finishes. */
   onResult?: (result: TestResult) => void;
+  /** Records or replays each test's HTTP calls. */
+  cassettes?: Cassettes;
+}
+
+/** An eval file to run: `file` as reported, `path` on disk (for its cassette). */
+export interface FixtureJob {
+  file: string;
+  path?: string;
+  fixture: Fixture;
+  tests: TestCase[];
 }
 
 /**
@@ -21,17 +32,26 @@ export interface RunOptions {
  */
 export async function runFixtures(
   server: ChatCopsServerConfig,
-  fixtures: Array<{ file: string; fixture: Fixture; tests: TestCase[] }>,
+  fixtures: FixtureJob[],
   options: RunOptions = {}
 ): Promise<TestResult[]> {
-  const jobs = fixtures.flatMap(({ file, tests }) => tests.map((test) => ({ file, test })));
+  const jobs = fixtures.flatMap(({ file, path, tests }) => tests.map((test) => ({ file, path: path ?? file, test })));
   const results: TestResult[] = new Array(jobs.length);
   let next = 0;
   const worker = async () => {
     while (next < jobs.length) {
       const index = next++;
-      const { file, test } = jobs[index];
-      results[index] = await runTest(server, file, test, options.repeat);
+      const { file, path, test } = jobs[index];
+      results[index] = await runTest(file, test, options.repeat, (run) => {
+        if (!options.cassettes) return runOnce(server, file, test, run);
+        return options.cassettes.run(path, test.name, () => runOnce(server, file, test, run)).then(({ value, problems }) => {
+          if (problems.length) {
+            value.pass = false;
+            value.error = problems.length > 1 ? `${problems[0]} (and ${problems.length - 1} more)` : problems[0];
+          }
+          return value;
+        });
+      });
       options.onResult?.(results[index]);
     }
   };
@@ -39,10 +59,15 @@ export async function runFixtures(
   return results;
 }
 
-async function runTest(server: ChatCopsServerConfig, fixture: string, test: TestCase, repeatOverride?: number): Promise<TestResult> {
+async function runTest(
+  fixture: string,
+  test: TestCase,
+  repeatOverride: number | undefined,
+  once: (run: number) => Promise<TestRunResult>
+): Promise<TestResult> {
   const repeat = repeatOverride ?? test.repeat ?? 1;
   const runs: TestRunResult[] = [];
-  for (let run = 1; run <= repeat; run++) runs.push(await runOnce(server, fixture, test, run));
+  for (let run = 1; run <= repeat; run++) runs.push(await once(run));
   const passed = runs.filter((result) => result.pass).length;
   const passRate = passed / runs.length;
   return { fixture, test: test.name, runs, passRate, pass: passRate >= (test.passRate ?? 1) };

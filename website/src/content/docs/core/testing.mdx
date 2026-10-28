@@ -115,4 +115,53 @@ A failed test prints the reason for each failed assertion and the reply it check
 1 passed, 1 failed.
 ```
 
-Running tests calls your model for real, which costs tokens and needs the API key. Recorded replays for CI without keys are coming next.
+## Recorded replays
+
+Running tests calls your model for real, which costs tokens and needs the API key. For CI, record the calls once and replay them:
+
+```bash
+npx chatcops test --record   # calls the APIs and saves what they answer
+npx chatcops test --replay   # answers every call from the recordings
+```
+
+`--record` saves each eval file's calls next to it, in `__cassettes__/<file>.jsonl` (so `evals/pricing.chat.yaml` records to `evals/__cassettes__/pricing.chat.jsonl`). It records every HTTP call a test makes: the model, embedding calls for knowledge search, and tools that call APIs without a mock. Commit the folder with your eval files.
+
+When the `CI` environment variable is set, as it is on GitHub Actions and most CI services, `chatcops test` replays by default, so CI needs no API keys and costs nothing. `--live` calls the APIs anyway.
+
+Each call is matched by its method, URL and body within its test. Any change that changes what gets sent fails the test instead of passing on an old answer:
+
+- a new word in the system prompt
+- another model
+- a tool added or removed
+- a new knowledge page in the context
+
+The message says where the request changed:
+
+```text
+✗ evals/pricing.chat.yaml > quotes the Team price
+    A call changed since it was recorded (POST https://api.anthropic.com/v1/messages, at system[0].text). Run chatcops test --record to record it again.
+```
+
+Run `--record` again after a change like that, check that the tests still pass, and commit the new recordings. `--record --filter` updates only the tests it ran, and recordings of tests you deleted are dropped the next time the file is recorded.
+
+A few things to know about recordings:
+
+- Headers aren't saved, and neither are query parameters like `key` or `api_key`. API keys usually travel in one of those, so they stay out of the files. The request and response bodies are saved, which means your system prompt and the replies are in the files, so treat them like the rest of your code.
+- `repeat` records every run, and replay plays them back in the same order.
+- Replays answer at once, so `latency` in a replayed run is not the real latency.
+
+### GitHub Actions
+
+```yaml
+name: Evals
+on: [pull_request]
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+      - run: npx chatcops test
+```
