@@ -3,6 +3,7 @@ import {
   isAIProvider,
   ConversationManager,
   AnalyticsCollector,
+  ANALYTICS_EVENTS,
   BufferedEventSink,
   statsFromSink,
   type AnalyticsStats,
@@ -296,9 +297,9 @@ export function createChatHandler(config: ChatCopsServerConfig) {
 
     // Track analytics
     if (analytics && conversationMessages.length === 0) {
-      analytics.track('conversation:started', { conversationId: req.conversationId });
+      analytics.track(ANALYTICS_EVENTS.conversationStarted, { conversationId: req.conversationId });
     }
-    analytics?.track('message:sent', { conversationId: req.conversationId });
+    analytics?.track(ANALYTICS_EVENTS.messageSent, { conversationId: req.conversationId });
 
     // Add user message unless this is a retry of the same message or a regenerate request that already has a user message
     const hasExistingUserMessage = req.messageId
@@ -379,7 +380,7 @@ export function createChatHandler(config: ChatCopsServerConfig) {
         : {}),
       onPart: (part) => {
         if (part.type !== 'lead-captured') return;
-        analytics?.track('lead:captured', { conversationId: req.conversationId });
+        analytics?.track(ANALYTICS_EVENTS.leadCaptured, { conversationId: req.conversationId });
         if (!webhooks) return;
         const delivery = webhooks
           .dispatch('lead:captured', { lead: part.lead, conversationId: req.conversationId })
@@ -407,7 +408,7 @@ export function createChatHandler(config: ChatCopsServerConfig) {
         }
         if (final && complete) {
           if (assistantToReplace) await conversations.removeMessage(req.conversationId, assistantToReplace.id);
-          if (message.content) analytics?.track('message:received', { conversationId: req.conversationId });
+          if (message.content) analytics?.track(ANALYTICS_EVENTS.messageReceived, { conversationId: req.conversationId });
         }
       },
     });

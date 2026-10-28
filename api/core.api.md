@@ -21,6 +21,13 @@ export type AiSdkChunk = {
 
 export declare function aiSdkEncoder(): (part: WirePart) => AiSdkChunk[];
 
+export declare const ANALYTICS_EVENTS: {
+    readonly conversationStarted: "conversation.started";
+    readonly leadCaptured: "lead.captured";
+    readonly messageReceived: "message.received";
+    readonly messageSent: "message.sent";
+};
+
 export declare class AnalyticsCollector {
     track(type: string, data?: Record<string, unknown>): void;
     getStats(): AnalyticsStats;
@@ -37,6 +44,7 @@ export interface AnalyticsEvent {
 export interface AnalyticsStats {
     totalConversations: number;
     totalMessages: number;
+    leadsCaptured: number;
     leadsCapture: number;
     averageMessagesPerConversation: number;
     eventCounts: Record<string, number>;

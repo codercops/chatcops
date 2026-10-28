@@ -2,6 +2,7 @@ import { consoleLogger, type Logger } from '../logger.js';
 import type { AnalyticsEvent } from '../types.js';
 import type { EventSink } from '../storage/types.js';
 import type { AnalyticsStats } from './collector.js';
+import { ANALYTICS_EVENTS, countsWithAliases, eventName } from './names.js';
 
 const DEFAULT_MAX_BATCH = 50;
 const DEFAULT_FLUSH_MS = 2000;
@@ -32,7 +33,7 @@ export class BufferedEventSink {
 
   track(type: string, data?: Record<string, unknown>): void {
     const wasEmpty = this.events.length === 0;
-    this.events.push({ type, data, timestamp: Date.now() });
+    this.events.push({ type: eventName(type), data, timestamp: Date.now() });
 
     if (wasEmpty) this.scheduleFlush();
     if (this.events.length >= this.maxBatch) this.startAutomaticFlush();
@@ -102,20 +103,19 @@ export async function statsFromSink(
     throw new Error('Event sink does not support querying; implement EventSink.query to calculate analytics statistics.');
   }
 
-  const counts = await sink.query(range);
-  const eventCounts = new Map<string, number>();
-  for (const { type, count } of counts) {
-    eventCounts.set(type, (eventCounts.get(type) ?? 0) + count);
-  }
+  // Events stored under the old names (before 0.8) still count.
+  const eventCounts = countsWithAliases((await sink.query(range)).map(({ type, count }) => [type, count] as [string, number]));
 
-  const totalConversations = eventCounts.get('conversation:started') ?? 0;
+  const totalConversations = eventCounts.get(ANALYTICS_EVENTS.conversationStarted) ?? 0;
   const totalMessages =
-    (eventCounts.get('message:sent') ?? 0) + (eventCounts.get('message:received') ?? 0);
+    (eventCounts.get(ANALYTICS_EVENTS.messageSent) ?? 0) + (eventCounts.get(ANALYTICS_EVENTS.messageReceived) ?? 0);
+  const leadsCaptured = eventCounts.get(ANALYTICS_EVENTS.leadCaptured) ?? 0;
 
   return {
     totalConversations,
     totalMessages,
-    leadsCapture: eventCounts.get('lead:captured') ?? 0,
+    leadsCaptured,
+    leadsCapture: leadsCaptured,
     averageMessagesPerConversation: totalConversations > 0 ? totalMessages / totalConversations : 0,
     eventCounts: Object.fromEntries(eventCounts),
   };
