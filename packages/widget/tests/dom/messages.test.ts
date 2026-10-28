@@ -216,4 +216,48 @@ describe('Messages', () => {
     expect(regenerateButton).toBeTruthy();
     expect(regenerateButton?.textContent).toContain('Try again');
   });
+
+  it('renders sources as a labelled nav with links', () => {
+    messages = new Messages(parent, { sourcesLabel: 'Sources' });
+    messages.addMessage({
+      id: 'src-1',
+      role: 'assistant',
+      content: 'See the docs.',
+      status: 'complete',
+      sources: [
+        { url: 'https://example.com/pricing', title: 'Pricing' },
+        { url: 'https://example.com/docs' },
+      ],
+    });
+
+    const nav = parent.querySelector('.cc-message-sources');
+    expect(nav).toBeTruthy();
+    expect(nav?.getAttribute('aria-label')).toBe('Sources');
+    const links = Array.from(nav?.querySelectorAll('a') ?? []);
+    expect(links).toHaveLength(2);
+    expect(links[0].textContent).toBe('Pricing');
+    expect(links[0].getAttribute('href')).toBe('https://example.com/pricing');
+    expect(links[0].getAttribute('target')).toBe('_blank');
+    expect(links[0].getAttribute('rel')).toBe('noopener noreferrer');
+    expect(links[1].textContent).toBe('example.com');
+  });
+
+  it('does not render a sources section for replies without sources', () => {
+    messages.addMessage({ id: 'no-src', role: 'assistant', content: 'No sources here.', status: 'complete' });
+    expect(parent.querySelector('.cc-message-sources')).toBeNull();
+  });
+
+  it('drops non-http(s) URLs from the sources list', () => {
+    messages.addMessage({
+      id: 'bad-src',
+      role: 'assistant',
+      content: 'Reply.',
+      status: 'complete',
+      sources: [
+        { url: 'javascript:alert(1)', title: 'XSS' },
+        { url: 'data:text/html,hi', title: 'Data' },
+      ],
+    });
+    expect(parent.querySelector('.cc-message-sources')).toBeNull();
+  });
 });

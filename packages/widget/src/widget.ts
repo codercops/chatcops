@@ -258,6 +258,7 @@ export class Widget {
         retryLabel: this.locale.retryButton,
         regenerateLabel: this.locale.regenerateButton,
         typingLabel: this.locale.typingIndicator,
+        sourcesLabel: this.locale.sourcesLabel,
       },
       onSend: (text) => this.handleSend(text),
       onClose: () => this.close(),
@@ -578,6 +579,7 @@ export class Widget {
       role: 'assistant',
       content: '',
       status: 'streaming',
+      sources: [],
     };
 
     let firstChunk = true;
@@ -635,6 +637,11 @@ export class Widget {
         if (chunk.leadCaptured) {
           this.config.onLeadCaptured?.(chunk.leadData);
           this.emit('leadCaptured', chunk.leadData);
+        }
+
+        if (chunk.source) {
+          assistantMsg.sources ??= [];
+          assistantMsg.sources.push(chunk.source);
         }
 
         if (chunk.content) {
@@ -807,6 +814,7 @@ export class Widget {
         status: m.status,
         errorType: m.errorType,
         timestamp: Date.now(),
+        ...(m.sources && m.sources.length > 0 ? { sources: m.sources } : {}),
       })),
       ...(this.userData ? { userData: this.userData } : {}),
       ...(this.preChatDone ? { preChatDone: true } : {}),
