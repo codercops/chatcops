@@ -24,8 +24,16 @@ export class WelcomeBubble {
       this.el.classList.add('cc-left');
     }
 
-    this.el.textContent = options.text;
     this.setHidden(true);
+
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'cc-bubble-trigger';
+    trigger.textContent = options.text;
+    trigger.addEventListener('click', () => {
+      this.hide();
+      options.onClick();
+    });
 
     const closeBtn = document.createElement('button');
     closeBtn.type = 'button';
@@ -36,12 +44,7 @@ export class WelcomeBubble {
       e.stopPropagation();
       this.hide();
     });
-    this.el.appendChild(closeBtn);
-
-    this.el.addEventListener('click', () => {
-      this.hide();
-      options.onClick();
-    });
+    this.el.append(trigger, closeBtn);
 
     root.appendChild(this.el);
 

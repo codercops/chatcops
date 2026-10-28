@@ -52,6 +52,26 @@ test('the closed popup is not in the tab order', async ({ page }) => {
   }
 });
 
+for (const key of ['Enter', 'Space']) {
+  test(`the welcome button opens the chat with ${key}`, async ({ page }) => {
+    await page.goto('/full.html');
+    await page.evaluate(() => {
+      const chat = (window as unknown as { ChatCops: { destroy(): void; init(config: object): void } }).ChatCops;
+      chat.destroy();
+      chat.init({ apiUrl: '/api/chat', welcomeBubble: { text: 'Need help?', delay: 0 } });
+    });
+    const trigger = page.locator('.cc-bubble-trigger');
+    await expect(trigger).toBeVisible();
+    await page.locator('#host-button').focus();
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Tab');
+    await expect(trigger).toBeFocused();
+    await page.keyboard.press(key);
+    await expect(page.locator(panel)).toHaveClass(/cc-visible/);
+    await expect(page.locator('.cc-bubble')).not.toHaveClass(/cc-visible/);
+  });
+}
+
 test.describe('on a phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
