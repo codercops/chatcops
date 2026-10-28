@@ -195,6 +195,34 @@ tests:
     expect(run1.error).toMatch(/^turn 1 failed: /);
   });
 
+  it('fails a test whose knowledge source throws, and keeps running the others', async () => {
+    const failing = CONFIG.replace(
+      "  server: {\n    provider: bot,",
+      "  server: {\n    knowledge: [{ type: 'broken', async getContext(q) { if (/broken/.test(q)) throw new Error('index unreachable'); return ''; } }],\n    provider: bot,"
+    );
+    const dir = project(
+      {
+        'evals/mixed.chat.yaml': `version: 1
+name: Mixed
+tests:
+  - name: broken knowledge
+    turns:
+      - user: broken please
+  - name: still runs
+    turns:
+      - user: price?
+        expect: [{ contains: "$19" }]
+`,
+      },
+      failing
+    );
+    const { code, stdout } = await run(['test', '--json'], dir);
+    const results = JSON.parse(stdout).results;
+    expect(code).toBe(EXIT.problems);
+    expect(results[0].runs[0].error).toBe('turn 1 failed: internal_error: index unreachable');
+    expect(results[1].pass).toBe(true);
+  });
+
   it('repeats tests and passes on the pass rate', async () => {
     const fixture = (passRate: number) => `version: 1
 name: Coin
