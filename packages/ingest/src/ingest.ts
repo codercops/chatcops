@@ -4,9 +4,11 @@ import type { VectorRecord } from '@chatcops/core';
 import { chunkDoc } from './chunk.js';
 import { discover, globToRegExp } from './discover.js';
 import { extractHtml, extractMarkdown } from './extract.js';
+import { robotsFor, type Robots } from './robots.js';
 import type { DiscoveredPage, ExtractedDoc, IngestConfig, IngestStats } from './types.js';
+import { DEFAULT_USER_AGENT } from './user-agent.js';
 
-export const DEFAULT_USER_AGENT = 'ChatCopsBot/0.1 (+https://chat.codercops.com/bot)';
+export { DEFAULT_USER_AGENT } from './user-agent.js';
 
 /** What the manifest remembers about an indexed page. */
 interface PageRecord {
@@ -35,11 +37,50 @@ type Fetched =
  */
 export async function ingest(config: IngestConfig): Promise<IngestStats> {
   const index = config.index ?? 'default';
-  const send = config.fetch ?? fetch;
+  const rawFetch = config.fetch ?? fetch;
   const userAgent = config.userAgent ?? DEFAULT_USER_AGENT;
   const timeoutMs = config.timeoutMs ?? 30_000;
   const keys = manifestKeys(index);
   const { embedder, store, manifest } = config;
+  const policies = new Map<string, Promise<Robots>>();
+  const errors: string[] = [];
+  const lastRequest = new Map<string, number>();
+  const queues = new Map<string, Promise<void>>();
+
+  async function scheduled(url: string, init?: RequestInit, delay = 0): Promise<Response> {
+    const origin = new URL(url).origin;
+    const start = async () => {
+      const due = (lastRequest.get(origin) ?? -Infinity) + delay * 1000;
+      // Timers can fire early; use a monotonic clock and recheck the deadline.
+      while (performance.now() < due) await new Promise((resolve) => setTimeout(resolve, Math.ceil(due - performance.now())));
+      lastRequest.set(origin, performance.now());
+      return { response: rawFetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) }) };
+    };
+    const started = delay > 0 ? (queues.get(origin) ?? Promise.resolve()).then(start) : start();
+    queues.set(origin, started.then(() => {}));
+    return (await started).response;
+  }
+
+  function policy(url: string): Promise<Robots> {
+    const origin = new URL(url).origin;
+    let pending = policies.get(origin);
+    if (!pending) {
+      pending = robotsFor(origin, ((input, init) => scheduled(String(input), {
+        ...init, headers: { 'user-agent': userAgent }, signal: AbortSignal.timeout(timeoutMs),
+      })) as typeof fetch).then((rules) => {
+        if (rules.unavailable) errors.push(`${origin}/robots.txt unavailable (${rules.unavailable})`);
+        return rules;
+      });
+      policies.set(origin, pending);
+    }
+    return pending;
+  }
+
+  const send: typeof fetch = async (input, init) => {
+    const url = String(input);
+    const rules = config.respectRobots === false ? undefined : await policy(url);
+    return scheduled(url, init, rules?.crawlDelay);
+  };
 
   if (embedder.dimensions !== store.dimensions) {
     throw new Error(
@@ -60,6 +101,7 @@ export async function ingest(config: IngestConfig): Promise<IngestStats> {
     found.errors.push(`stopped at --max-pages ${config.maxPages}`);
   }
   config.onEvent?.({ type: 'discovered', pages: found.pages.length, errors: found.errors });
+  errors.push(...found.errors);
 
   const stats: IngestStats = {
     discovered: found.pages.length,
@@ -70,7 +112,7 @@ export async function ingest(config: IngestConfig): Promise<IngestStats> {
     pruned: 0,
     chunks: 0,
     embedded: 0,
-    errors: found.errors,
+    errors,
   };
   if (!config.dryRun) await manifest.set(keys.meta, { embedder: embedder.id, dimensions: embedder.dimensions } satisfies IndexMeta);
 
@@ -82,6 +124,11 @@ export async function ingest(config: IngestConfig): Promise<IngestStats> {
       const source = await readFile(page.file, 'utf8');
       const doc = /\.html?$/i.test(page.file) ? extractHtml(source, page.url, selectorFor(page.url)) : extractMarkdown(source, page.url);
       return { kind: 'page', doc };
+    }
+    if (config.respectRobots !== false) {
+      const rules = await policy(page.url);
+      if (rules.unavailable) return { kind: 'skip', reason: `robots.txt unavailable (${rules.unavailable})` };
+      if (!rules.allowed(page.url)) return { kind: 'skip', reason: 'blocked by robots.txt' };
     }
     const headers: Record<string, string> = { 'user-agent': userAgent, accept: 'text/html,application/xhtml+xml' };
     if (previous && !config.force) {
@@ -179,8 +226,8 @@ export async function ingest(config: IngestConfig): Promise<IngestStats> {
   const known = new Set((await manifest.get<string[]>(keys.pages)) ?? []);
   const discovered = new Set(found.pages.map((page) => page.url));
   if (config.prune) {
-    if (found.errors.length) {
-      stats.pruneSkipped = `${found.errors.length} discovery error(s): a page missing from a broken sitemap isn't a removed page`;
+    if (stats.errors.length) {
+      stats.pruneSkipped = `${stats.errors.length} error(s): unable to verify all sources; pruning could remove valid pages`;
     } else if (!config.dryRun) {
       for (const url of known) {
         if (discovered.has(url)) continue;

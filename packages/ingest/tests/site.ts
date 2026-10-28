@@ -7,7 +7,7 @@ export interface FixtureSite {
   /** Paths requested, in order. */
   requests: string[];
   /** Replaces a route's body (and so its ETag). */
-  set(path: string, body: string, type?: string): void;
+  set(path: string, body: string, type?: string, status?: number, headers?: Record<string, string>): void;
   remove(path: string): void;
   close(): Promise<void>;
 }
@@ -38,7 +38,7 @@ export const PAGES: Record<string, string> = {
 
 /** A small site: pages, a sitemap index pointing at a plain and a gzipped sitemap, ETags. */
 export async function fixtureSite(): Promise<FixtureSite> {
-  const routes = new Map<string, { body: string | Buffer; type: string }>();
+  const routes = new Map<string, { body: string | Buffer; type: string; status?: number; headers?: Record<string, string> }>();
   const requests: string[] = [];
   let base = '';
 
@@ -60,7 +60,7 @@ export async function fixtureSite(): Promise<FixtureSite> {
       response.writeHead(304, { etag }).end();
       return;
     }
-    response.writeHead(200, { 'content-type': route.type, etag }).end(route.body);
+    response.writeHead(route.status ?? 200, { 'content-type': route.type, etag, ...route.headers }).end(route.body);
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -80,7 +80,7 @@ export async function fixtureSite(): Promise<FixtureSite> {
   return {
     url: base,
     requests,
-    set: (path, body, type = 'text/html; charset=utf-8') => routes.set(path, { body, type }),
+    set: (path, body, type = 'text/html; charset=utf-8', status = 200, headers) => routes.set(path, { body, type, status, headers }),
     remove: (path) => routes.delete(path),
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   };
