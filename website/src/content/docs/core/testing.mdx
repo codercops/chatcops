@@ -1,0 +1,118 @@
+---
+title: Testing your bot
+description: Write conversations your bot should handle in YAML, and check them with chatcops test before you ship a prompt or model change.
+---
+
+A change to the system prompt, the model or the knowledge base can quietly break an answer that used to be right. `chatcops test` catches that. You write the conversations your bot has to get right in YAML, say what each reply should contain, and the command runs them against your bot and tells you which ones broke.
+
+```bash
+npx chatcops test
+```
+
+It exits 0 when every test passed, 1 when some failed, and 2 when it couldn't run (a bad eval file, a missing config), so it works as a CI step.
+
+## The config
+
+`chatcops test` reads the `server` section of `chatcops.config.ts`. It's the same config you give the server: the provider, system prompt, tools and knowledge.
+
+```ts
+import { LeadCaptureTool } from '@chatcops/core';
+import { defineConfig } from '@chatcops/cli';
+
+export default defineConfig({
+  server: {
+    provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+    systemPrompt: 'You answer questions about Acme plans and orders.',
+    tools: [new LeadCaptureTool()],
+  },
+});
+```
+
+Tests run in process, through the same request path the server uses, so knowledge, tools, page context and locale all work as they do in production. Each test starts with fresh in-memory storage; your real conversation store is never touched.
+
+## Eval files
+
+By default the command runs every `evals/**/*.chat.yaml` file. Pass globs to pick others:
+
+```bash
+npx chatcops test "evals/pricing/*.chat.yaml"
+```
+
+An eval file has a name and a list of tests. Each test is one conversation, a turn at a time:
+
+```yaml
+version: 1
+name: Pricing
+tests:
+  - name: quotes the Team price
+    tags: [pricing]
+    turns:
+      - user: How much is the Team plan?
+        expect:
+          - contains: "$19"
+          - not-contains: "$29"
+
+  - name: remembers the plan on a follow-up
+    turns:
+      - user: Tell me about the Team plan.
+      - user: How much is it per year?
+        expect:
+          - contains: "$190"
+```
+
+Each assertion has one key. `contains` takes a string or a list of strings that must all appear in the reply, and every assertion also works with a `not-` prefix to say the opposite. An assertion name that doesn't exist fails the whole run before anything is sent, so a typo can't make a test pass by checking nothing.
+
+A test can also set:
+
+- `pageContext`: the page the visitor is on (`url`, `title`, and optionally `description` and `contentSnippet`)
+- `locale` and `userData`, as the widget would send them
+- `mocks.tools`: a fixed result for a server tool, so the test doesn't place a real order or send a real email
+- `repeat` and `passRate`: run the test several times and pass when that share of runs passed (models aren't deterministic)
+
+`defaults` at the top of the file applies to every test in it. A test's own values win, and tool mocks are merged:
+
+```yaml
+version: 1
+name: Orders
+defaults:
+  pageContext: { url: "https://acme.com/account", title: "Your account" }
+  mocks:
+    tools:
+      lookup_order: { success: true, data: { status: "shipped" } }
+tests:
+  - name: says where the order is
+    repeat: 5
+    passRate: 0.8
+    turns:
+      - user: Where is order A-1001?
+        expect:
+          - contains: shipped
+```
+
+A mock for a tool your config doesn't have is an error, so a renamed tool can't leave a mock behind that no longer does anything.
+
+Eval files can also be modules (`.chat.ts`, `.chat.mjs`) that export the same object as their default, when you'd rather build tests in code.
+
+## Options
+
+| Option | What it does |
+| --- | --- |
+| `[files...]` | Globs of eval files. Default `evals/**/*.chat.yaml`. |
+| `--filter <text>` | Only tests whose name contains the text, or `tag:<name>` for a tag |
+| `--repeat <n>` | Run every test n times, instead of each test's own `repeat` |
+| `--concurrency <n>` | Tests run at once. Default 4. |
+| `--reporter <name>` | `pretty` (the default) or `json`, which prints one JSON object with every turn's reply, tool calls, sources and token usage. Repeatable. |
+| `--json` | The same as `--reporter json` |
+| `--config <file>` | A config file other than `chatcops.config.*` in the current folder |
+
+A failed test prints the reason for each failed assertion and the reply it checked:
+
+```text
+✗ evals/pricing.chat.yaml > quotes the Team price
+    turn 1: the reply doesn't contain "$19"
+    reply: The Team plan is $29 a month, billed monthly.
+
+1 passed, 1 failed.
+```
+
+Running tests calls your model for real, which costs tokens and needs the API key. Recorded replays for CI without keys are coming next.

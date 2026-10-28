@@ -3,7 +3,8 @@ import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { hybridRetriever, vectorRetriever, type RetrievedChunk } from '@chatcops/core';
 import { ingest, manifestKeys, type IngestEvent, type IngestSource, type IngestStats } from '@chatcops/ingest';
-import { ConfigError, loadConfig } from './config.js';
+import { ConfigError, indexConfig, loadConfig, serverConfig } from './config.js';
+import { runTests } from './test/command.js';
 
 export interface Io {
   stdout: { write(text: string): unknown };
@@ -27,6 +28,7 @@ const HELP = `chatcops ${VERSION}
 Usage:
   chatcops ingest [options]          Build or update the knowledge index from your site
   chatcops search "<question>" [options]   Show what retrieval finds for a question
+  chatcops test [files...] [options]        Run eval files against your bot
 
 Ingest options:
   --source <url|path>   A sitemap (.xml, .xml.gz), a page URL, or a folder of .md/.mdx/.html
@@ -45,7 +47,15 @@ Search options:
   --top-k <n>           Chunks to show (default 5)
   --json                JSON output
 
-Both:
+Test options:
+  [files...]            Globs of eval files (default "evals/**/*.chat.yaml")
+  --filter <text>       Only tests whose name contains text, or tag:<name>
+  --repeat <n>          Run each test n times
+  --concurrency <n>     Tests run at once (default 4)
+  --reporter <name>     pretty (default) or json. Repeatable.
+  --json                Same as --reporter json
+
+All commands:
   --config <file>       Config file (default: chatcops.config.ts, .mts, .js or .mjs here)
   -h, --help            Show this help
   -v, --version         Show the version
@@ -74,6 +84,14 @@ export async function main(argv: string[], io: Io): Promise<number> {
   try {
     if (command === 'ingest') return await runIngest(values, io);
     if (command === 'search') return await runSearch(rest.join(' '), values, io);
+    if (command === 'test') {
+      const loaded = await loadConfig(io.cwd, values.config);
+      try {
+        return await runTests(serverConfig(loaded), rest, values, io);
+      } finally {
+        await loaded.close();
+      }
+    }
     io.stderr.write(`Unknown command "${command}". Run chatcops --help for usage.\n`);
     return EXIT.unusable;
   } catch (error) {
@@ -98,19 +116,23 @@ function parse(argv: string[]) {
       force: { type: 'boolean' },
       json: { type: 'boolean' },
       'top-k': { type: 'string' },
+      filter: { type: 'string' },
+      repeat: { type: 'string' },
+      reporter: { type: 'string', multiple: true },
       help: { type: 'boolean', short: 'h' },
       version: { type: 'boolean', short: 'v' },
     },
   });
 }
 
-type Values = ReturnType<typeof parse>['values'];
+export type Values = ReturnType<typeof parse>['values'];
 
 async function runIngest(values: Values, io: Io): Promise<number> {
   const maxPages = wholeNumber(values['max-pages'], '--max-pages');
   const concurrency = wholeNumber(values.concurrency, '--concurrency');
   const loaded = await loadConfig(io.cwd, values.config);
   try {
+    const target = indexConfig(loaded);
     const sources = values.source?.length ? values.source.map((source) => toSource(source, values['base-url'], io.cwd)) : loaded.config.ingest?.sources;
     if (!sources?.length) throw new ConfigError('Nothing to ingest: pass --source, or set ingest.sources in the config.');
 
@@ -121,9 +143,9 @@ async function runIngest(values: Values, io: Io): Promise<number> {
       ...(values.index ? { index: values.index } : {}),
       ...(maxPages !== undefined ? { maxPages } : {}),
       ...(concurrency !== undefined ? { concurrency } : {}),
-      embedder: loaded.config.embedder,
-      store: loaded.store,
-      manifest: loaded.manifest,
+      embedder: target.embedder,
+      store: target.store,
+      manifest: target.manifest,
       dryRun: !!values['dry-run'],
       force: !!values.force,
       prune: !!values.prune,
@@ -144,16 +166,16 @@ async function runSearch(question: string, values: Values, io: Io): Promise<numb
   const loaded = await loadConfig(io.cwd, values.config);
   try {
     const index = values.index ?? 'default';
-    const { embedder } = loaded.config;
-    const meta = await loaded.manifest.get<{ embedder: string }>(manifestKeys(index).meta);
+    const { embedder, store, manifest } = indexConfig(loaded);
+    const meta = await manifest.get<{ embedder: string }>(manifestKeys(index).meta);
     if (meta && meta.embedder !== embedder.id) {
       throw new ConfigError(
         `Index "${index}" was built with ${meta.embedder}, but the config's embedder is ${embedder.id}. Search it with the embedder that built it.`
       );
     }
     if (!meta) io.stderr.write(`Index "${index}" hasn't been built yet. Run chatcops ingest first.\n`);
-    const options = { store: loaded.store, embedder };
-    const retriever = loaded.store.keywordQuery ? hybridRetriever(options) : vectorRetriever(options);
+    const options = { store, embedder };
+    const retriever = store.keywordQuery ? hybridRetriever(options) : vectorRetriever(options);
     const chunks = await retriever.retrieve({ text: question, topK });
 
     if (values.json) io.stdout.write(`${JSON.stringify({ question, index, chunks })}\n`);
@@ -198,7 +220,7 @@ function formatChunk(chunk: RetrievedChunk, i: number): string {
   return `${i + 1}. ${title}  (${chunk.score.toFixed(4)})\n   ${chunk.source.url}\n   ${text.length > 240 ? `${text.slice(0, 239)}…` : text}\n`;
 }
 
-function wholeNumber(value: string | undefined, flag: string): number | undefined {
+export function wholeNumber(value: string | undefined, flag: string): number | undefined {
   if (value === undefined) return undefined;
   if (!/^\d+$/.test(value)) throw new ConfigError(`${flag} takes a whole number, not "${value}".`);
   return Number(value);
