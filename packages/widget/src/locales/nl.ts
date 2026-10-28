@@ -1,0 +1,37 @@
+import type { WidgetLocaleStrings } from '../i18n.js';
+
+const nl: Partial<WidgetLocaleStrings> = {
+  welcomeMessage: 'Waarmee kan ik je vandaag helpen?',
+  inputPlaceholder: 'Typ een bericht…',
+  sendButton: 'Verzenden',
+  closeButton: 'Sluiten',
+  openChat: 'Chat openen',
+  defaultName: 'AI-assistent',
+  defaultSubtitle: 'Online',
+  greetingWithName: 'Hoi, {name}!',
+  selectPlaceholder: 'Kies {label}…',
+  dismissBubble: 'Verbergen',
+  errorGeneric: 'Er is iets misgegaan. Probeer het opnieuw.',
+  errorNetwork: 'Verbindingsfout. Controleer je internetverbinding.',
+  errorRateLimit: 'Je hebt te veel berichten verstuurd. Wacht even.',
+  errorRateLimitWait: 'Je hebt te veel berichten verstuurd. Probeer het over {seconds} seconden opnieuw.',
+  errorBudget: 'Deze chat heeft de gebruikslimiet bereikt.',
+  errorBudgetDaily: 'De assistent heeft de dagelijkse limiet bereikt. Probeer het later opnieuw.',
+  errorUnavailable: 'De assistent is momenteel niet beschikbaar. Probeer het later opnieuw.',
+  errorCutOff: 'Het antwoord is afgebroken.',
+  typingIndicator: 'Aan het typen…',
+  poweredBy: 'Mogelijk gemaakt door ChatCops',
+  newConversation: 'Nieuw gesprek',
+  welcomeBubbleDefault: 'Hulp nodig? Chat met ons!',
+  preChatTitle: 'Voordat we beginnen…',
+  preChatSubtitle: 'Vertel iets over jezelf',
+  preChatSubmit: 'Chat starten',
+  preChatRequired: 'Dit veld is verplicht.',
+  preChatInvalidEmail: 'Vul een geldig e-mailadres in.',
+  retryButton: 'Opnieuw proberen',
+  regenerateButton: 'Opnieuw genereren',
+  suggestionsLabel: 'Voorgestelde vragen',
+  unreadCount: 'Ongelezen berichten: {count}',
+};
+
+export default nl;
