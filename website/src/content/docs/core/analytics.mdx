@@ -64,11 +64,14 @@ Without a store that can be queried, the stats come from the memory of the proce
 {
   "totalConversations": 2,
   "totalMessages": 4,
+  "leadsCaptured": 0,
   "leadsCapture": 0,
   "averageMessagesPerConversation": 2,
-  "eventCounts": { "conversation:started": 2, "message:sent": 2, "message:received": 2 }
+  "eventCounts": { "conversation.started": 2, "message.sent": 2, "message.received": 2, "conversation:started": 2, "message:sent": 2, "message:received": 2 }
 }
 ```
+
+`leadsCapture` is the same number as `leadsCaptured`, under the name it had before 0.8, and the `noun:verb` keys in `eventCounts` repeat the new ones. Both go away in 1.0.
 
 ## Tracked Events
 
@@ -76,10 +79,12 @@ When `analytics: true`, the server automatically tracks:
 
 | Event | When |
 |-------|------|
-| `conversation:started` | New conversation ID first seen |
-| `message:sent` | User sends a message |
-| `message:received` | AI responds |
-| `lead:captured` | Lead capture tool fires |
+| `conversation.started` | New conversation ID first seen |
+| `message.sent` | User sends a message |
+| `message.received` | AI responds |
+| `lead.captured` | Lead capture tool fires |
+
+`ANALYTICS_EVENTS` from `@chatcops/core` has these names, so code doesn't have to spell them. Before 0.8 they were `conversation:started`, `message:sent`, `message:received` and `lead:captured`. Until 1.0 those still work: `track()` and `getEvents()` read them as the new names, and stats count events a store saved under either one, so the numbers carry on across the upgrade. Webhook event names, such as `lead:captured` in a webhook's `events`, don't change.
 
 ## AnalyticsCollector API
 
@@ -89,21 +94,21 @@ import { AnalyticsCollector } from '@chatcops/core';
 const analytics = new AnalyticsCollector();
 
 // Track custom events
-analytics.track('custom:event', { key: 'value' });
+analytics.track('pricing.viewed', { plan: 'Team' });
 
 // Get aggregated stats
 const stats = analytics.getStats();
 // {
 //   totalConversations: 150,
 //   totalMessages: 2340,
-//   leadsCapture: 23,
+//   leadsCaptured: 23,
 //   averageMessagesPerConversation: 15.6,
-//   eventCounts: { 'conversation:started': 150, ... }
+//   eventCounts: { 'conversation.started': 150, ... }
 // }
 
 // Get raw events (optionally filter by type)
 const allEvents = analytics.getEvents();
-const leads = analytics.getEvents('lead:captured');
+const leads = analytics.getEvents('lead.captured');
 
 // Clear all events
 analytics.clear();
@@ -115,7 +120,8 @@ analytics.clear();
 interface AnalyticsStats {
   totalConversations: number;
   totalMessages: number;
-  leadsCapture: number;
+  leadsCaptured: number;
+  leadsCapture: number;       // deprecated: the same as leadsCaptured, removed in 1.0
   averageMessagesPerConversation: number;
   eventCounts: Record<string, number>;
 }
@@ -143,7 +149,7 @@ const analytics = new BufferedEventSink(eventSink, {
   flushMs: 2000,
 });
 
-analytics.track('custom:event', { key: 'value' });
+analytics.track('pricing.viewed', { plan: 'Team' });
 await analytics.flush();
 
 const now = Date.now();
@@ -169,5 +175,5 @@ ChatCops.on('message', (...args: unknown[]) => {
 });
 
 // Server-side (automatic with analytics: true)
-// conversation:started, message:sent, message:received, lead:captured
+// conversation.started, message.sent, message.received, lead.captured
 ```

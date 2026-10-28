@@ -213,26 +213,52 @@ describe('statsFromSink', () => {
     const eventsSink = storage.events;
     if (!eventsSink) throw new Error('memoryStorage did not provide an event sink');
     await eventsSink.write([
-      { type: 'conversation:started', data: { conversationId: 'one' }, timestamp: 1 },
-      { type: 'message:sent', timestamp: 2 },
-      { type: 'message:received', timestamp: 3 },
-      { type: 'lead:captured', timestamp: 4 },
+      { type: 'conversation.started', data: { conversationId: 'one' }, timestamp: 1 },
+      { type: 'message.sent', timestamp: 2 },
+      { type: 'message.received', timestamp: 3 },
+      { type: 'lead.captured', timestamp: 4 },
       { type: 'other:event', timestamp: 5 },
     ]);
 
     await expect(statsFromSink(eventsSink, { from: 0, to: 10 })).resolves.toEqual({
       totalConversations: 1,
       totalMessages: 2,
+      leadsCaptured: 1,
       leadsCapture: 1,
       averageMessagesPerConversation: 2,
       eventCounts: {
+        'conversation.started': 1,
+        'message.sent': 1,
+        'message.received': 1,
+        'lead.captured': 1,
+        'other:event': 1,
+        // The old names, with the same totals, until 1.0.
         'conversation:started': 1,
         'message:sent': 1,
         'message:received': 1,
         'lead:captured': 1,
-        'other:event': 1,
       },
     });
+  });
+
+  it('counts events stored under the old noun:verb names with the new ones', async () => {
+    const storage = memoryStorage();
+    const eventsSink = storage.events;
+    if (!eventsSink) throw new Error('memoryStorage did not provide an event sink');
+    // Written by a server before 0.8, then by one after it.
+    await eventsSink.write([
+      { type: 'conversation:started', timestamp: 1 },
+      { type: 'message:sent', timestamp: 2 },
+      { type: 'lead:captured', timestamp: 3 },
+      { type: 'conversation.started', timestamp: 4 },
+      { type: 'message.sent', timestamp: 5 },
+      { type: 'lead.captured', timestamp: 6 },
+    ]);
+
+    const stats = await statsFromSink(eventsSink, { from: 0, to: 10 });
+    expect(stats).toMatchObject({ totalConversations: 2, totalMessages: 2, leadsCaptured: 2, leadsCapture: 2 });
+    expect(stats.eventCounts['message.sent']).toBe(2);
+    expect(stats.eventCounts['message:sent']).toBe(2);
   });
 
   it('counts every conversation:started event as one conversation', async () => {
@@ -240,13 +266,13 @@ describe('statsFromSink', () => {
     const eventsSink = storage.events;
     if (!eventsSink) throw new Error('memoryStorage did not provide an event sink');
     await eventsSink.write([
-      { type: 'conversation:started', data: { conversationId: 'same-id' }, timestamp: 1 },
-      { type: 'conversation:started', data: { conversationId: 'same-id' }, timestamp: 2 },
+      { type: 'conversation.started', data: { conversationId: 'same-id' }, timestamp: 1 },
+      { type: 'conversation.started', data: { conversationId: 'same-id' }, timestamp: 2 },
     ]);
 
     await expect(statsFromSink(eventsSink, { from: 0, to: 10 })).resolves.toMatchObject({
       totalConversations: 2,
-      eventCounts: { 'conversation:started': 2 },
+      eventCounts: { 'conversation.started': 2 },
     });
   });
 
@@ -255,15 +281,15 @@ describe('statsFromSink', () => {
     const eventsSink = storage.events;
     if (!eventsSink) throw new Error('memoryStorage did not provide an event sink');
     await eventsSink.write([
-      { type: 'message:sent', timestamp: 9 },
-      { type: 'message:sent', timestamp: 10 },
-      { type: 'message:sent', timestamp: 19 },
-      { type: 'message:sent', timestamp: 20 },
+      { type: 'message.sent', timestamp: 9 },
+      { type: 'message.sent', timestamp: 10 },
+      { type: 'message.sent', timestamp: 19 },
+      { type: 'message.sent', timestamp: 20 },
     ]);
 
     await expect(statsFromSink(eventsSink, { from: 10, to: 20 })).resolves.toMatchObject({
       totalMessages: 2,
-      eventCounts: { 'message:sent': 2 },
+      eventCounts: { 'message.sent': 2 },
     });
   });
 
@@ -272,11 +298,11 @@ describe('statsFromSink', () => {
     const eventsSink = storage.events;
     if (!eventsSink) throw new Error('memoryStorage did not provide an event sink');
     const events: AnalyticsEvent[] = [
-      { type: 'conversation:started', data: { conversationId: 'one' }, timestamp: 10 },
-      { type: 'conversation:started', data: { conversationId: 'two' }, timestamp: 11 },
-      { type: 'message:sent', data: { messageId: 'sent' }, timestamp: 12 },
-      { type: 'message:received', data: { messageId: 'received' }, timestamp: 13 },
-      { type: 'lead:captured', data: { leadId: 'lead' }, timestamp: 14 },
+      { type: 'conversation.started', data: { conversationId: 'one' }, timestamp: 10 },
+      { type: 'conversation.started', data: { conversationId: 'two' }, timestamp: 11 },
+      { type: 'message.sent', data: { messageId: 'sent' }, timestamp: 12 },
+      { type: 'message.received', data: { messageId: 'received' }, timestamp: 13 },
+      { type: 'lead.captured', data: { leadId: 'lead' }, timestamp: 14 },
       { type: 'other:event', timestamp: 15 },
     ];
     await eventsSink.write(events);
