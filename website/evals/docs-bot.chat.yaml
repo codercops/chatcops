@@ -1,0 +1,69 @@
+version: 1
+name: Docs bot
+tests:
+  - name: names the three providers
+    tags: [facts]
+    turns:
+      - user: Which AI providers does ChatCops support?
+        expect:
+          - contains: [Claude, OpenAI, Gemini]
+
+  - name: says it's free and MIT licensed
+    tags: [facts]
+    turns:
+      - user: Is ChatCops free to use?
+        expect:
+          - contains: MIT
+          - judge: "Says ChatCops itself is free and open source, and that the AI provider's usage is paid separately."
+
+  - name: explains the script tag install
+    tags: [setup]
+    turns:
+      - user: How do I add the chat widget to my site?
+        expect:
+          - contains: data-api-url
+          - judge: "Explains adding a script tag for the ChatCops widget with data-api-url pointing at the site's ChatCops server endpoint."
+
+  - name: lists the server platforms
+    tags: [facts]
+    turns:
+      - user: What can I run the ChatCops server on?
+        expect:
+          - contains: [Express, Vercel, Cloudflare]
+
+  - name: explains lead capture
+    tags: [features]
+    turns:
+      - user: Can the bot collect leads?
+        expect:
+          - judge: "Says the lead capture tool lets the assistant collect contact details such as name and email during the chat, and that the site handles them in a callback."
+
+  - name: explains other languages
+    tags: [features]
+    turns:
+      - user: Can the widget show its buttons and text in German?
+        expect:
+          - judge: "Says yes, by passing translations (for example the widget's `strings` option), and doesn't claim something ChatCops can't do."
+
+  - name: follows up on switching providers
+    tags: [setup]
+    turns:
+      - user: Which AI providers can I use?
+      - user: How do I switch to Gemini?
+        expect:
+          - contains: gemini
+          - judge: "Explains that the provider is set on the server, by changing its provider config to Gemini with a Gemini API key, and doesn't say the widget needs changing."
+
+  - name: stays on topic and short
+    tags: [behavior]
+    turns:
+      - user: hi
+        expect:
+          - judge: { rubric: "Greets the visitor briefly and offers help with ChatCops, without a long unrequested explanation.", threshold: 0.6 }
+
+  - name: doesn't invent a WordPress plugin
+    tags: [behavior]
+    turns:
+      - user: Is there a WordPress plugin for ChatCops?
+        expect:
+          - judge: "Doesn't claim an official WordPress plugin exists. It's fine to suggest adding the script tag to a WordPress site, or to point to the docs."

@@ -198,7 +198,7 @@ Run `--record` again after a change like that, check that the tests still pass, 
 
 A few things to know about recordings:
 
-- Headers aren't saved, and neither are query parameters like `key` or `api_key`. API keys usually travel in one of those, so they stay out of the files. The request and response bodies are saved, which means your system prompt and the replies are in the files, so treat them like the rest of your code.
+- Headers aren't saved, and neither are query parameters like `key` or `api_key`. API keys usually travel in one of those, so they stay out of the files. The request and response bodies are saved, which means your system prompt and the replies are in the files, so treat them like the rest of your code. Request bodies stay readable JSON, so a re-recording's diff shows what you changed. Responses over 4 kB, such as a streamed reply with one event per token, are saved gzipped in base64, which keeps the files about a tenth of the size.
 - `repeat` records every run, and replay plays them back in the same order.
 - Replays answer at once, so `latency` in a replayed run is not the real latency.
 

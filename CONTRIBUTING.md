@@ -95,6 +95,10 @@ Build before you test. The server tests import `@chatcops/core` from its `dist` 
 
 `pnpm -r build` also builds the website. To build only the packages, run `pnpm --filter "./packages/*" build`.
 
+### Docs bot evals
+
+CI also runs the website's docs bot through `chatcops test` (`website/evals/`), replaying the recorded API calls in `website/evals/__cassettes__`, so it needs no key. Run it with `pnpm --filter @chatcops/website evals`. If you change the docs bot's instructions or FAQ (`website/src/lib/docs-bot.ts`), the replay fails with "A call changed since it was recorded". That's expected. Ask a maintainer to record it again: recording calls the APIs with the project's keys, which aren't in CI.
+
 ## Project structure
 
 ```

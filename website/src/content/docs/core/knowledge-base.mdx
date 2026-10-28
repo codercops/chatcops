@@ -240,7 +240,7 @@ Hybrid search is the better default when the store supports it. Words catch what
 
 Both take `candidates` (how many records each search fetches, default 20) and an optional `reranker`, which reorders the candidates before the top ones are kept. A short follow-up question ("how long does it take?") is searched together with the visitor's previous question, so it finds the right pages.
 
-Use Cohere's [Rerank API](https://docs.cohere.com/reference/rerank) to improve the ordering of retrieved candidates. `cohereReranker` uses `rerank-v5.0-pro` by default; pass `model` to choose another Cohere rerank model:
+Use [Cohere](https://docs.cohere.com/reference/rerank) or [Voyage](https://docs.voyageai.com/reference/reranker-api) to improve the ordering of retrieved candidates. `cohereReranker` defaults to `rerank-v5.0-pro`, while `voyageReranker` defaults to `rerank-3`. Both use the same reranker interface, so either can be passed to `hybridRetriever` in the same way:
 
 ```typescript
 import { cohereReranker, hybridRetriever, memoryVectors, openaiEmbedder } from '@chatcops/core';
