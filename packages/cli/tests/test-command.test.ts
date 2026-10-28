@@ -297,30 +297,40 @@ describe('assertions', () => {
   it('tokens-under checks the total, or input and output separately', async () => {
     const used: TurnResult = { ...turn, usage: { inputTokens: 600, outputTokens: 150 } };
     expect(await check({ 'tokens-under': 800 }, used, [used])).toMatchObject({ pass: true, reason: 'the turn used 750 tokens (limit 800)' });
-    expect(await check({ 'tokens-under': 700 }, used, [used])).toMatchObject({ pass: false, reason: 'the turn used 750 tokens (limit 700)' });
+    expect(await check({ 'tokens-under': 700 }, used, [used])).toMatchObject({ pass: false, reason: 'the turn used 750 tokens, over the 700 limit' });
     expect(await check({ 'tokens-under': { input: 700, output: 200 } }, used, [used])).toMatchObject({ pass: true });
-    expect(await check({ 'tokens-under': { input: 500, output: 200 } }, used, [used])).toMatchObject({ pass: false, reason: 'the turn used 600 input tokens (limit 500)' });
-    expect(await check({ 'tokens-under': { output: 100 } }, used, [used])).toMatchObject({ pass: false, reason: 'the turn used 150 output tokens (limit 100)' });
+    expect(await check({ 'tokens-under': { input: 500, output: 200 } }, used, [used])).toMatchObject({ pass: false, reason: 'the turn used 600 input tokens, over the 500 limit' });
+    expect(await check({ 'tokens-under': { input: 700 } }, used, [used])).toMatchObject({ pass: true, reason: 'the turn used 600 input tokens (limit 700)' });
+    expect(await check({ 'tokens-under': { output: 100 } }, used, [used])).toMatchObject({ pass: false, reason: 'the turn used 150 output tokens, over the 100 limit' });
     expect(await check({ 'not-tokens-under': 700 }, used, [used])).toMatchObject({ pass: true });
     expect(await check({ 'tokens-under': 800 }, turn, [turn])).toMatchObject({ pass: false, reason: 'the turn has no token usage to check' });
+    expect(await check({ 'not-tokens-under': 800 }, turn, [turn])).toMatchObject({ pass: false, reason: 'the turn has no token usage to check' });
+    expect(await check({ 'tokens-under': 750 }, used, [used])).toMatchObject({ pass: false, reason: 'the turn used 750 tokens, over the 750 limit' });
   });
 
   it('latency-under and cost-under compare the turn with a limit', async () => {
-    const priced: TurnResult = { ...turn, latencyMs: 1200, costUsd: 0.004, model: 'acme-small' };
-    expect(await check({ 'latency-under': 3000 }, priced, [priced])).toMatchObject({ pass: true });
-    expect(await check({ 'latency-under': 1000 }, priced, [priced])).toMatchObject({ pass: false, reason: 'the reply took 1200 ms, over the 1000 ms limit' });
-    expect(await check({ 'cost-under': 0.01 }, priced, [priced])).toMatchObject({ pass: true });
-    expect(await check({ 'cost-under': 0.001 }, priced, [priced])).toMatchObject({ pass: false, reason: 'the turn cost $0.004, over the $0.001 limit' });
+    const priced: TurnResult = { ...turn, usage: { inputTokens: 10, outputTokens: 5 }, latencyMs: 1234.567891, costUsd: 0.0123456789, model: 'acme-small' };
+    expect(await check({ 'latency-under': 3000 }, priced, [priced])).toMatchObject({ pass: true, reason: 'the reply took 1235 ms (limit 3000 ms)' });
+    expect(await check({ 'latency-under': 1000 }, priced, [priced])).toMatchObject({ pass: false, reason: 'the reply took 1235 ms, over the 1000 ms limit' });
+    expect(await check({ 'cost-under': 0.05 }, priced, [priced])).toMatchObject({ pass: true, reason: 'the turn cost $0.0123 (limit $0.0500)' });
+    expect(await check({ 'cost-under': 0.01 }, priced, [priced])).toMatchObject({ pass: false, reason: 'the turn cost $0.0123, over the $0.0100 limit' });
+    expect(await check({ 'latency-under': 1234.567891 }, priced, [priced])).toMatchObject({ pass: false });
+    expect(await check({ 'cost-under': 0.0123456789 }, priced, [priced])).toMatchObject({ pass: false });
+    const noUsage: TurnResult = { ...priced, usage: undefined, costUsd: undefined };
+    expect(await check({ 'cost-under': 0.01 }, noUsage, [noUsage])).toMatchObject({ pass: false, reason: 'the turn has no token usage to check' });
     const unpriced: TurnResult = { ...priced, costUsd: undefined };
     expect(await check({ 'cost-under': 0.01 }, unpriced, [unpriced])).toMatchObject({
       pass: false,
       reason: 'the turn has no cost: add "acme-small" to `prices` in the config',
     });
+    const nameless: TurnResult = { ...unpriced, model: undefined };
+    expect(await check({ 'cost-under': 0.01 }, nameless, [nameless])).toMatchObject({ reason: 'the turn has no cost: add the model to `prices` in the config' });
+    expect(await check({ 'not-cost-under': 0.01 }, unpriced, [unpriced])).toMatchObject({ pass: false, reason: 'the turn has no cost: add "acme-small" to `prices` in the config' });
   });
 
   it('usage assertions reject values that are not limits', async () => {
     for (const value of ['800', -1, Number.NaN, [800]]) {
-      expect(await check({ 'tokens-under': value }, turn, [turn])).toMatchObject({ pass: false, reason: 'tokens-under takes a number of 0 or more' });
+      expect(await check({ 'tokens-under': value }, turn, [turn])).toMatchObject({ pass: false, reason: expect.stringMatching(/^tokens-under takes a number/) });
       expect(await check({ 'latency-under': value }, turn, [turn])).toMatchObject({ pass: false, reason: 'latency-under takes a number of 0 or more' });
       expect(await check({ 'cost-under': value }, turn, [turn])).toMatchObject({ pass: false, reason: 'cost-under takes a number of 0 or more' });
     }

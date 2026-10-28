@@ -65,7 +65,7 @@ Each assertion has one key. `contains` takes a string or a list of strings that 
 Three assertions catch a prompt change that makes replies longer, slower or more expensive:
 
 - `tokens-under: 800` checks the turn's input plus output tokens. `tokens-under: { input: 600, output: 200 }` checks them separately, and you can give only one of them. A turn without usage fails.
-- `latency-under: 3000` checks the time to the end of the reply, in milliseconds.
+- `latency-under: 3000` checks the time to the end of the reply, in milliseconds. Replays answer at once, so it only means something in live and recorded runs.
 - `cost-under: 0.01` checks what the turn cost in US dollars. It needs the model in `prices` ([Costs](#costs)), and a turn without a price fails with a reason that says so.
 
 A test can also set:
