@@ -23,7 +23,9 @@ export function configFromScript(script: HTMLScriptElement): WidgetConfig | unde
     mode: mode || undefined,
     container: container || undefined,
     theme: {
+      mode: (script.dataset.themeMode as 'light' | 'dark' | 'auto') || undefined,
       accent: script.dataset.accent,
+      accentDark: script.dataset.accentDark,
       textColor: script.dataset.textColor,
       bgColor: script.dataset.bgColor,
       fontFamily: script.dataset.fontFamily,

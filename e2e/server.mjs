@@ -25,6 +25,7 @@ const files = {
   '/slow-tool.html': ['fixtures/slow-tool.html', 'text/html'],
   '/sessions.html': ['fixtures/sessions.html', 'text/html'],
   '/full.html': ['fixtures/full.html', 'text/html'],
+  '/theme.html': ['fixtures/theme.html', 'text/html'],
   '/prechat.html': ['fixtures/prechat.html', 'text/html'],
   '/locale.html': ['fixtures/locale.html', 'text/html'],
   '/locales/zz.js': ['fixtures/locales/zz.js', 'text/javascript'],

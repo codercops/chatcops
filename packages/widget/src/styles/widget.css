@@ -211,7 +211,7 @@
 }
 
 .cc-message code {
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--cc-code-bg);
   padding: 1px 4px;
   border-radius: 4px;
   font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
@@ -219,7 +219,7 @@
 }
 
 .cc-message pre {
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--cc-pre-bg);
   padding: 8px 12px;
   border-radius: 8px;
   overflow-x: auto;
@@ -298,13 +298,13 @@
 
 
 .cc-message-retry {
-  border-color: #ef4444;
-  color: #ef4444;
+  border-color: var(--cc-danger);
+  color: var(--cc-danger);
 }
 
 .cc-message-retry:hover {
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
+  background: color-mix(in srgb, var(--cc-danger) 10%, transparent);
+  color: var(--cc-danger);
 }
 
 /* Typing indicator */

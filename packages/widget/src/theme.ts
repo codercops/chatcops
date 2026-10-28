@@ -1,5 +1,14 @@
+export type ThemeMode = 'light' | 'dark' | 'auto';
+
 export interface ThemeConfig {
+  /**
+   * `auto` (the default) follows the visitor's system setting and switches
+   * when it changes. `dark` is the look the widget had before light mode.
+   */
+  mode?: ThemeMode;
   accent?: string;
+  /** The accent in dark mode. Defaults to `accent`. */
+  accentDark?: string;
   textColor?: string;
   bgColor?: string;
   fontFamily?: string;
@@ -7,20 +16,15 @@ export interface ThemeConfig {
   position?: 'bottom-right' | 'bottom-left';
 }
 
+const MODES: readonly string[] = ['light', 'dark', 'auto'];
+
 export function applyTheme(root: ShadowRoot, theme: ThemeConfig): void {
   const host = root.host as HTMLElement;
-  if (theme.accent) {
-    host.style.setProperty('--cc-accent', theme.accent);
-    host.style.setProperty('--cc-accent-hover', darken(theme.accent, 10));
-    const pair = accentTextColors(theme.accent);
-    if (pair) {
-      host.style.setProperty('--cc-on-accent', pair.onAccent);
-      host.style.setProperty('--cc-accent-contrast', pair.background);
-    } else {
-      // Non-hex colors can't be measured here; keep text on the accent as before.
-      host.style.setProperty('--cc-accent-contrast', theme.accent);
-    }
-  }
+  const mode = themeMode(theme);
+  if (mode) host.dataset.ccMode = mode;
+  else delete host.dataset.ccMode;
+  if (theme.accent) setAccent(host, '', theme.accent);
+  if (theme.accentDark) setAccent(host, '-dark', theme.accentDark);
   if (theme.textColor) {
     host.style.setProperty('--cc-text', theme.textColor);
   }
@@ -35,6 +39,36 @@ export function applyTheme(root: ShadowRoot, theme: ThemeConfig): void {
   if (theme.borderRadius !== undefined) {
     const radius = toCssLength(theme.borderRadius);
     if (radius) host.style.setProperty('--cc-radius', radius);
+  }
+}
+
+/**
+ * The mode to show. A config from before light mode that sets `bgColor` or
+ * `textColor` but no `mode` was made for the dark look, unless its colors are
+ * light, so it keeps the mode its colors fit instead of getting light text
+ * on light panels.
+ */
+export function themeMode(theme: ThemeConfig): ThemeMode | undefined {
+  if (theme.mode && MODES.includes(theme.mode)) return theme.mode;
+  if (theme.bgColor) return isHex(theme.bgColor) && relativeLuminance(theme.bgColor) > 0.4 ? 'light' : 'dark';
+  if (theme.textColor) return isHex(theme.textColor) && relativeLuminance(theme.textColor) < 0.4 ? 'light' : 'dark';
+  return undefined;
+}
+
+/**
+ * Sets the accent and its derived shades for both modes (`suffix` ''), or
+ * for dark mode only (`suffix` '-dark'). launcher.css reads these names.
+ */
+function setAccent(host: HTMLElement, suffix: '' | '-dark', accent: string): void {
+  host.style.setProperty(`--cc-theme-accent${suffix}`, accent);
+  host.style.setProperty(`--cc-theme-accent${suffix}-hover`, darken(accent, 10));
+  const pair = accentTextColors(accent);
+  if (pair) {
+    host.style.setProperty(`--cc-theme-on-accent${suffix}`, pair.onAccent);
+    host.style.setProperty(`--cc-theme-accent${suffix}-contrast`, pair.background);
+  } else {
+    // Non-hex colors can't be measured here; keep text on the accent as before.
+    host.style.setProperty(`--cc-theme-accent${suffix}-contrast`, accent);
   }
 }
 
