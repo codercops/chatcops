@@ -196,6 +196,33 @@ describe('costs and --max-cost', () => {
     expect(runs[1].error).toContain('stopped before turn 1');
   });
 
+  it('checks cost-under and tokens-under against the priced turns', async () => {
+    const usage = `version: 1
+name: Usage
+tests:
+  - name: cheap
+    turns:
+      - user: what's the price?
+        expect:
+          - cost-under: 0.02
+          - tokens-under: 20
+  - name: pricey
+    turns:
+      - user: what's the price?
+        expect:
+          - cost-under: 0.01
+`;
+    const reasons = async (body: string) => {
+      const json = JSON.parse((await run(['test', '--json'], project({ 'evals/usage.chat.yaml': usage }, body))).stdout);
+      return json.results.map((r: { runs: Array<{ turns: Array<{ results: Array<{ pass: boolean; reason: string }> }> }> }) => r.runs[0].turns[0].results);
+    };
+    const [cheap, pricey] = await reasons(config(PRICES));
+    expect(cheap).toMatchObject([{ pass: true, reason: 'the turn cost $0.0150 (limit $0.0200)' }, { pass: true, reason: 'the turn used 15 tokens (limit 20)' }]);
+    expect(pricey).toMatchObject([{ pass: false, reason: 'the turn cost $0.0150, over the $0.0100 limit' }]);
+    const [unpriced] = await reasons(config());
+    expect(unpriced[0]).toMatchObject({ pass: false, reason: 'the turn has no cost: add "fake-1" to `prices` in the config' });
+  });
+
   it('needs prices for --max-cost, and a real amount', async () => {
     const dir = project({ 'evals/judged.chat.yaml': JUDGED });
     const none = await run(['test', '--max-cost', '1'], dir);

@@ -11,3 +11,9 @@ export function asStrings(value: unknown, name: string): string[] {
 export function quoted(texts: string[]): string {
   return texts.map((text) => JSON.stringify(text)).join(', ');
 }
+
+/** A number of 0 or more, such as a token, millisecond or dollar limit. */
+export function asLimit(value: unknown, name: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) throw new Error(`${name} takes a number of 0 or more`);
+  return value;
+}

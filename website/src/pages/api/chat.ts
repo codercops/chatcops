@@ -4,6 +4,7 @@ import { env } from 'cloudflare:workers';
 import { chatcopsCloudflareHandler } from '@chatcops/server/cloudflare';
 import { cloudflareStorage, type D1Database } from '@chatcops/store-cloudflare';
 import { docsBotFaq, docsBotSystemPrompt } from '../../lib/docs-bot';
+import { docsKnowledge } from '../../lib/docs-index';
 
 export const prerender = false;
 
@@ -21,7 +22,8 @@ function getChat() {
       apiKey: getSecret('OPENAI_API_KEY') ?? '',
     },
     systemPrompt: docsBotSystemPrompt,
-    knowledge: [docsBotFaq],
+    // The docs pages, so answers cite the page they come from, then the FAQ.
+    knowledge: [docsKnowledge(readAsset, getSecret('OPENAI_API_KEY') ?? ''), docsBotFaq],
     allowedOrigins: [
       'https://chat.codercops.com',
       ...(import.meta.env.DEV ? ['http://localhost:4321'] : []),
@@ -34,6 +36,14 @@ function getChat() {
     ...storageOptions(),
   });
   return chat;
+}
+
+/** A file of the docs index (public/docs-index/), from the Worker's static assets. */
+async function readAsset(name: string): Promise<ArrayBuffer> {
+  const assets = (env as { ASSETS: { fetch(request: Request): Promise<Response> } }).ASSETS;
+  const response = await assets.fetch(new Request(`https://assets.local/docs-index/${name}`));
+  if (!response.ok) throw new Error(`The docs index file ${name} is missing (HTTP ${response.status}).`);
+  return response.arrayBuffer();
 }
 
 function storageOptions() {

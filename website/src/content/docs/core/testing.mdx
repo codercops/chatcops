@@ -62,6 +62,17 @@ tests:
 
 Each assertion has one key. `contains` takes a string or a list of strings that must all appear in the reply, `judge` has a model grade the reply ([below](#judged-by-a-model)), and every assertion also works with a `not-` prefix to say the opposite. An assertion name that doesn't exist fails the whole run before anything is sent, so a typo can't make a test pass by checking nothing.
 
+Three assertions catch a prompt change that makes replies longer, slower or more expensive:
+
+- `tokens-under: 800` checks the turn's input plus output tokens. `tokens-under: { input: 600, output: 200 }` checks them separately, and you can give only one of them. A turn without usage fails.
+- `latency-under: 3000` checks the time to the end of the reply, in milliseconds. Replays answer at once, so it only means something in live and recorded runs.
+- `cost-under: 0.01` checks what the turn cost in US dollars. It needs the model in `prices` ([Costs](#costs)), and a turn without a price fails with a reason that says so.
+
+Two assertions check what ChatCops adds to a reply:
+
+- `cites` takes a URL glob, or a list of them, and each has to match a page the reply cites (`cites: "https://acme.test/pricing*"`). Globs work the same as in `ingest.include`. `cites: true` means it cites at least one page.
+- `lead-captured: true` means the turn captured a lead. An object, such as `lead-captured: { email: jane@acme.test }`, also has to match those fields of the lead.
+
 A test can also set:
 
 - `pageContext`: the page the visitor is on (`url`, `title`, and optionally `description` and `contentSnippet`)
@@ -118,9 +129,38 @@ export default defineConfig({
 
 A judge's scores can change when its model changes, so keep the same judge for a suite, and re-record when you switch. Judge calls are recorded and replayed like the bot's, so in CI the same verdicts come back without a key.
 
+## JavaScript checks
+
+For checks YAML can't express, point `javascript` at a module. The path is relative to the eval file:
+
+```yaml
+expect:
+  - javascript: ./checks/mentions-plan.mjs
+```
+
+The module's default export is called with `(turn, conversation)` and may be async. It should return a boolean, or an object with `pass`, and optionally `reason` and `score`:
+
+```js
+// evals/checks/mentions-plan.mjs
+export default function (turn) {
+  return turn.text.includes('plan');
+}
+```
+
+```js
+// evals/checks/no-apology.mjs
+export default async function (turn, conversation) {
+  const hasApology = /sorry|apologize/i.test(turn.text);
+  return { pass: !hasApology, reason: hasApology ? 'reply contains an apology' : 'no apology found' };
+}
+```
+
+A missing file, a module without a default function, or a throw inside it are failures with the file name in the reason. Each module is loaded once per run, not once per turn. `.ts` modules work on Node with type stripping, the same as the config file.
+
 ## Costs
 
 With `prices` in the config, every turn and judge call gets a cost, and the run prints what it spent. Prices are in US dollars per million tokens, keyed by the model id. Copy them from your provider's pricing page, since they change.
+
 
 ```ts
 import { defineConfig } from '@chatcops/cli';

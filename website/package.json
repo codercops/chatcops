@@ -9,8 +9,11 @@
     "preview": "astro build && wrangler dev",
     "check": "astro check",
     "deploy": "astro build && wrangler deploy",
-    "evals": "node ../packages/cli/dist/bin.js test --replay",
-    "evals:record": "node --env-file=../.env ../packages/cli/dist/bin.js test --record"
+    "evals": "node ../packages/cli/dist/bin.js test --replay evals/docs-bot.chat.yaml",
+    "evals:record": "node --env-file=../.env ../packages/cli/dist/bin.js test --record",
+    "docs-index": "node --env-file=../.env scripts/docs-index.mjs",
+    "docs-index:check": "node scripts/docs-index-check.mjs",
+    "evals:citations": "node scripts/citation-eval.mjs"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.3.3",
@@ -30,6 +33,7 @@
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
+    "@chatcops/ingest": "workspace:^",
     "@fontsource/inter": "^5.1.0",
     "@fontsource/jetbrains-mono": "^5.1.0",
     "@fontsource/playfair-display": "^5.1.0",

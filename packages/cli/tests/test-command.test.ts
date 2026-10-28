@@ -195,6 +195,34 @@ tests:
     expect(run1.error).toMatch(/^turn 1 failed: /);
   });
 
+  it('fails a test whose knowledge source throws, and keeps running the others', async () => {
+    const failing = CONFIG.replace(
+      "  server: {\n    provider: bot,",
+      "  server: {\n    knowledge: [{ type: 'broken', async getContext(q) { if (/broken/.test(q)) throw new Error('index unreachable'); return ''; } }],\n    provider: bot,"
+    );
+    const dir = project(
+      {
+        'evals/mixed.chat.yaml': `version: 1
+name: Mixed
+tests:
+  - name: broken knowledge
+    turns:
+      - user: broken please
+  - name: still runs
+    turns:
+      - user: price?
+        expect: [{ contains: "$19" }]
+`,
+      },
+      failing
+    );
+    const { code, stdout } = await run(['test', '--json'], dir);
+    const results = JSON.parse(stdout).results;
+    expect(code).toBe(EXIT.problems);
+    expect(results[0].runs[0].error).toBe('turn 1 failed: internal_error: index unreachable');
+    expect(results[1].pass).toBe(true);
+  });
+
   it('repeats tests and passes on the pass rate', async () => {
     const fixture = (passRate: number) => `version: 1
 name: Coin
@@ -250,6 +278,61 @@ tests:
     expect(code).toBe(EXIT.ok);
   });
 
+  it('checks cites and lead-captured against real source and lead parts', async () => {
+    const config = `import { textStep, toolStep } from '@chatcops/core/testing/provider';
+import { LeadCaptureTool } from '@chatcops/core';
+const page = { id: 'https://acme.test/pricing', url: 'https://acme.test/pricing', title: 'Pricing' };
+const knowledge = { type: 'test', async retrieve() { return [{ id: 'p', text: 'Team is $19.', score: 1, source: page }]; }, async getContext() { return ''; } };
+const bot = {
+  name: 'fake',
+  model: 'fake-1',
+  citations: 'native',
+  async *step({ messages }) {
+    const last = messages[messages.length - 1];
+    const user = [...messages].reverse().find((m) => m.role === 'user').content;
+    let events;
+    if (last.role === 'assistant' && last.parts?.some((p) => p.type === 'tool-result')) events = textStep('Thanks, we will be in touch.');
+    else if (/@/.test(user)) events = toolStep([{ name: 'capture_lead', input: { name: 'Jane', email: 'jane@acme.test', projectDetails: 'A help bot' } }]);
+    else events = [{ type: 'text-delta', delta: 'Team is $19.' }, { type: 'source', index: 0 }, { type: 'finish', reason: 'stop', usage: { inputTokens: 1, outputTokens: 1 }, parts: [{ type: 'text', text: 'Team is $19.' }] }];
+    for (const event of events) yield event;
+  },
+};
+export default { server: { provider: bot, systemPrompt: 'You are a test bot.', knowledge: [knowledge], tools: [new LeadCaptureTool()] } };
+`;
+    const evals = `version: 1
+name: Parts
+tests:
+  - name: cites the pricing page
+    turns:
+      - user: what's the price?
+        expect:
+          - cites: "https://acme.test/pricing"
+          - cites: true
+          - not-cites: "https://acme.test/blog/**"
+          - not-lead-captured: true
+  - name: captures the lead
+    turns:
+      - user: I'm Jane, jane@acme.test
+        expect:
+          - lead-captured: true
+          - lead-captured: { email: jane@acme.test }
+          - not-cites: true
+`;
+    const { code, stdout } = await run(['test', '--json'], project({ 'evals/parts.chat.yaml': evals }, config));
+    const results = JSON.parse(stdout).results.flatMap((r: { runs: Array<{ turns: Array<{ results: Array<{ pass: boolean; reason: string }> }> }> }) => r.runs[0].turns[0].results);
+    expect(results.map((r: { reason: string }) => r.reason)).toEqual([
+      'the reply cites "https://acme.test/pricing"',
+      'the reply cites "https://acme.test/pricing"',
+      'the reply doesn\'t cite "https://acme.test/blog/**" (it cites "https://acme.test/pricing")',
+      'the turn captured no lead',
+      'the turn captured a lead',
+      'the turn captured a lead with email "jane@acme.test"',
+      'the reply cites no pages',
+    ]);
+    expect(results.every((r: { pass: boolean }) => r.pass)).toBe(true);
+    expect(code).toBe(EXIT.ok);
+  });
+
   it('exits 2 before running anything when the files or config are wrong', async () => {
     const cases: Array<[Record<string, string>, RegExp, string?]> = [
       [{}, /No eval files match evals\/\*\*\/\*\.chat\.yaml/],
@@ -294,6 +377,85 @@ describe('assertions', () => {
     expect(unknownAssertions([{ contains: 'a' }, { 'not-contains': 'b' }, { 'not-nope': 1 }, { 'not-nope': 2 }])).toEqual(['not-nope']);
   });
 
+  it('tokens-under checks the total, or input and output separately', async () => {
+    const used: TurnResult = { ...turn, usage: { inputTokens: 600, outputTokens: 150 } };
+    expect(await check({ 'tokens-under': 800 }, used, [used])).toMatchObject({ pass: true, reason: 'the turn used 750 tokens (limit 800)' });
+    expect(await check({ 'tokens-under': 700 }, used, [used])).toMatchObject({ pass: false, reason: 'the turn used 750 tokens, over the 700 limit' });
+    expect(await check({ 'tokens-under': { input: 700, output: 200 } }, used, [used])).toMatchObject({ pass: true });
+    expect(await check({ 'tokens-under': { input: 500, output: 200 } }, used, [used])).toMatchObject({ pass: false, reason: 'the turn used 600 input tokens, over the 500 limit' });
+    expect(await check({ 'tokens-under': { input: 700 } }, used, [used])).toMatchObject({ pass: true, reason: 'the turn used 600 input tokens (limit 700)' });
+    expect(await check({ 'tokens-under': { output: 100 } }, used, [used])).toMatchObject({ pass: false, reason: 'the turn used 150 output tokens, over the 100 limit' });
+    expect(await check({ 'not-tokens-under': 700 }, used, [used])).toMatchObject({ pass: true });
+    expect(await check({ 'tokens-under': 800 }, turn, [turn])).toMatchObject({ pass: false, reason: 'the turn has no token usage to check' });
+    expect(await check({ 'not-tokens-under': 800 }, turn, [turn])).toMatchObject({ pass: false, reason: 'the turn has no token usage to check' });
+    expect(await check({ 'tokens-under': 750 }, used, [used])).toMatchObject({ pass: false, reason: 'the turn used 750 tokens, over the 750 limit' });
+  });
+
+  it('latency-under and cost-under compare the turn with a limit', async () => {
+    const priced: TurnResult = { ...turn, usage: { inputTokens: 10, outputTokens: 5 }, latencyMs: 1234.567891, costUsd: 0.0123456789, model: 'acme-small' };
+    expect(await check({ 'latency-under': 3000 }, priced, [priced])).toMatchObject({ pass: true, reason: 'the reply took 1235 ms (limit 3000 ms)' });
+    expect(await check({ 'latency-under': 1000 }, priced, [priced])).toMatchObject({ pass: false, reason: 'the reply took 1235 ms, over the 1000 ms limit' });
+    expect(await check({ 'cost-under': 0.05 }, priced, [priced])).toMatchObject({ pass: true, reason: 'the turn cost $0.0123 (limit $0.0500)' });
+    expect(await check({ 'cost-under': 0.01 }, priced, [priced])).toMatchObject({ pass: false, reason: 'the turn cost $0.0123, over the $0.0100 limit' });
+    expect(await check({ 'latency-under': 1234.567891 }, priced, [priced])).toMatchObject({ pass: false });
+    expect(await check({ 'cost-under': 0.0123456789 }, priced, [priced])).toMatchObject({ pass: false });
+    const noUsage: TurnResult = { ...priced, usage: undefined, costUsd: undefined };
+    expect(await check({ 'cost-under': 0.01 }, noUsage, [noUsage])).toMatchObject({ pass: false, reason: 'the turn has no token usage to check' });
+    const unpriced: TurnResult = { ...priced, costUsd: undefined };
+    expect(await check({ 'cost-under': 0.01 }, unpriced, [unpriced])).toMatchObject({
+      pass: false,
+      reason: 'the turn has no cost: add "acme-small" to `prices` in the config',
+    });
+    const nameless: TurnResult = { ...unpriced, model: undefined };
+    expect(await check({ 'cost-under': 0.01 }, nameless, [nameless])).toMatchObject({ reason: 'the turn has no cost: add the model to `prices` in the config' });
+    expect(await check({ 'not-cost-under': 0.01 }, unpriced, [unpriced])).toMatchObject({ pass: false, reason: 'the turn has no cost: add "acme-small" to `prices` in the config' });
+  });
+
+  it('usage assertions reject values that are not limits', async () => {
+    for (const value of ['800', -1, Number.NaN, [800]]) {
+      expect(await check({ 'tokens-under': value }, turn, [turn])).toMatchObject({ pass: false, reason: expect.stringMatching(/^tokens-under takes a number/) });
+      expect(await check({ 'latency-under': value }, turn, [turn])).toMatchObject({ pass: false, reason: 'latency-under takes a number of 0 or more' });
+      expect(await check({ 'cost-under': value }, turn, [turn])).toMatchObject({ pass: false, reason: 'cost-under takes a number of 0 or more' });
+    }
+    expect(await check({ 'tokens-under': { total: 800 } }, turn, [turn])).toMatchObject({ pass: false, reason: 'tokens-under takes a number, or { input, output }' });
+    expect(await check({ 'tokens-under': {} }, turn, [turn])).toMatchObject({ pass: false, reason: 'tokens-under takes a number, or { input, output }' });
+  });
+
+  it('cites matches each glob against the cited pages, and cites: true needs one', async () => {
+    const cited: TurnResult = { ...turn, sources: [{ url: 'https://acme.test/pricing' }, { url: 'https://acme.test/docs/plans/team' }] };
+    expect(await check({ cites: 'https://acme.test/pricing' }, cited, [cited])).toMatchObject({ pass: true, reason: 'the reply cites "https://acme.test/pricing"' });
+    expect(await check({ cites: ['https://acme.test/pricing', 'https://acme.test/docs/**'] }, cited, [cited])).toMatchObject({ pass: true });
+    expect(await check({ cites: ['https://acme.test/pricing', 'https://acme.test/blog/*'] }, cited, [cited])).toMatchObject({
+      pass: false,
+      reason: `the reply doesn't cite "https://acme.test/blog/*" (it cites "https://acme.test/pricing", "https://acme.test/docs/plans/team")`,
+    });
+    expect(await check({ cites: true }, cited, [cited])).toMatchObject({ pass: true });
+    expect(await check({ cites: true }, turn, [turn])).toMatchObject({ pass: false, reason: 'the reply cites no pages' });
+    expect(await check({ cites: 'https://acme.test/*' }, turn, [turn])).toMatchObject({ pass: false, reason: `the reply doesn't cite "https://acme.test/*" (it cites no pages)` });
+    expect(await check({ 'not-cites': true }, turn, [turn])).toMatchObject({ pass: true });
+    expect(await check({ 'not-cites': 'https://acme.test/blog/*' }, cited, [cited])).toMatchObject({ pass: true });
+    expect(await check({ 'not-cites': 'https://acme.test/pricing' }, cited, [cited])).toMatchObject({ pass: false });
+    for (const value of [false, 3, [], [true]]) {
+      expect(await check({ cites: value }, cited, [cited])).toMatchObject({ pass: false, reason: 'cites takes true, a URL glob or a list of them' });
+    }
+  });
+
+  it('lead-captured checks for a lead, or one with the given fields', async () => {
+    const lead: TurnResult = { ...turn, leads: [{ name: 'Jane', email: 'jane@acme.test' }] };
+    expect(await check({ 'lead-captured': true }, lead, [lead])).toMatchObject({ pass: true, reason: 'the turn captured a lead' });
+    expect(await check({ 'lead-captured': { email: 'jane@acme.test' } }, lead, [lead])).toMatchObject({ pass: true, reason: 'the turn captured a lead with email "jane@acme.test"' });
+    expect(await check({ 'lead-captured': { email: 'jane@acme.test', name: 'Joe' } }, lead, [lead])).toMatchObject({
+      pass: false,
+      reason: 'no lead the turn captured has email "jane@acme.test", name "Joe"',
+    });
+    expect(await check({ 'lead-captured': true }, turn, [turn])).toMatchObject({ pass: false, reason: 'the turn captured no lead' });
+    expect(await check({ 'not-lead-captured': true }, turn, [turn])).toMatchObject({ pass: true });
+    expect(await check({ 'not-lead-captured': { name: 'Joe' } }, lead, [lead])).toMatchObject({ pass: true });
+    for (const value of [false, 'jane@acme.test', {}, [], null]) {
+      expect(await check({ 'lead-captured': value }, lead, [lead])).toMatchObject({ pass: false, reason: 'lead-captured takes true, or the fields the lead should have' });
+    }
+  });
+
   it('filters by tag or by name', () => {
     const test = { name: 'Quotes Price', tags: ['pricing'], turns: [{ user: 'x' }] };
     expect(matchesFilter(test, undefined)).toBe(true);
@@ -306,5 +468,55 @@ describe('assertions', () => {
   it('prints a failed run with no turns', () => {
     const out = pretty({ fixture: 'a.yaml', test: 't', passRate: 0, pass: false, runs: [{ fixture: 'a.yaml', test: 't', run: 1, pass: false, turns: [], error: 'turn 1 failed: x' }] });
     expect(out).toBe('✗ a.yaml > t\n    turn 1 failed: x\n');
+  });
+
+  it('javascript: boolean and object returns, async, relative path', async () => {
+    const fixture = join(TMP, 'js-fixture.chat.yaml');
+    const checksDir = join(TMP, 'checks');
+    mkdirSync(checksDir, { recursive: true });
+
+    writeFileSync(join(checksDir, 'true.mjs'), 'export default () => true;');
+    writeFileSync(join(checksDir, 'false.mjs'), 'export default () => false;');
+    writeFileSync(join(checksDir, 'object.mjs'), 'export default () => ({ pass: true, reason: "looks good", score: 0.9 });');
+    writeFileSync(join(checksDir, 'object-fail.mjs'), 'export default () => ({ pass: false, reason: "nope" });');
+    writeFileSync(join(checksDir, 'async.mjs'), 'export default async () => ({ pass: true, reason: "async ok" });');
+
+    const context = { fixture };
+
+    expect(await check({ javascript: './checks/true.mjs' }, turn, [turn], context)).toMatchObject({ pass: true });
+    expect(await check({ javascript: './checks/false.mjs' }, turn, [turn], context)).toMatchObject({ pass: false });
+    expect(await check({ javascript: './checks/object.mjs' }, turn, [turn], context)).toMatchObject({ pass: true, reason: 'looks good', score: 0.9 });
+    expect(await check({ javascript: './checks/object-fail.mjs' }, turn, [turn], context)).toMatchObject({ pass: false, reason: 'nope' });
+    expect(await check({ javascript: './checks/async.mjs' }, turn, [turn], context)).toMatchObject({ pass: true, reason: 'async ok' });
+  });
+
+  it('javascript: throw, missing file, no default export, not- on a setup error still fails', async () => {
+    const fixture = join(TMP, 'js-errors.chat.yaml');
+    const checksDir = join(TMP, 'checks-errors');
+    mkdirSync(checksDir, { recursive: true });
+
+    writeFileSync(join(checksDir, 'throws.mjs'), 'export default () => { throw new Error("bad input"); };');
+    writeFileSync(join(checksDir, 'no-default.mjs'), 'export const helper = () => true;');
+
+    const context = { fixture };
+
+    const thrown = await check({ javascript: './checks-errors/throws.mjs' }, turn, [turn], context);
+    expect(thrown).toMatchObject({ pass: false });
+    expect(thrown.reason).toContain('throws.mjs');
+    expect(thrown.reason).toContain('bad input');
+
+    const missing = await check({ javascript: './checks-errors/does-not-exist.mjs' }, turn, [turn], context);
+    expect(missing).toMatchObject({ pass: false });
+    expect(missing.reason).toContain('does-not-exist.mjs');
+
+    const noDefault = await check({ javascript: './checks-errors/no-default.mjs' }, turn, [turn], context);
+    expect(noDefault).toMatchObject({ pass: false, reason: expect.stringContaining('no default function') });
+
+    expect(await check({ javascript: 123 }, turn, [turn], context)).toMatchObject({ pass: false, reason: 'javascript takes a path to a module' });
+
+    // not- on a setup error must still fail, not flip to pass.
+    const notMissing = await check({ 'not-javascript': './checks-errors/does-not-exist.mjs' }, turn, [turn], context);
+    expect(notMissing).toMatchObject({ pass: false });
+    expect(notMissing.reason).toContain('does-not-exist.mjs');
   });
 });
