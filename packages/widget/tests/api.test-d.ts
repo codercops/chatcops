@@ -1,5 +1,15 @@
 import { describe, expectTypeOf, it } from 'vitest';
-import ChatCops, { type WidgetLocaleStrings, type WidgetUpdate } from '../src/index.js';
+import ChatCops, {
+  type MessageErrorType,
+  type MessageStatus,
+  type Persistence,
+  type PreChatFormConfig,
+  type ThemeConfig,
+  type ThemeMode,
+  type WidgetConfig,
+  type WidgetLocaleStrings,
+  type WidgetUpdate,
+} from '../src/index.js';
 import type { ChatCopsLoader } from '../src/loader/loader.js';
 
 describe('the widget API types', () => {
@@ -32,6 +42,15 @@ describe('the widget API types', () => {
     ChatCops.update({ theme: { position: 'bottom-left' } });
     // @ts-expect-error: the server can't change on a running chat
     ChatCops.update({ apiUrl: '/other' });
+  });
+
+  it('exports the types a config is made of', () => {
+    expectTypeOf<NonNullable<WidgetConfig['theme']>>().toEqualTypeOf<ThemeConfig>();
+    expectTypeOf<NonNullable<ThemeConfig['mode']>>().toEqualTypeOf<ThemeMode>();
+    expectTypeOf<NonNullable<WidgetConfig['preChatForm']>>().toEqualTypeOf<PreChatFormConfig>();
+    expectTypeOf<NonNullable<WidgetConfig['persistence']>>().toEqualTypeOf<Persistence>();
+    expectTypeOf<MessageStatus>().toEqualTypeOf<'streaming' | 'complete' | 'error'>();
+    expectTypeOf<'cut_off'>().toExtend<MessageErrorType>();
   });
 
   it('takes partial strings and an optional direction in registerLocale', () => {

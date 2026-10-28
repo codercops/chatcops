@@ -199,6 +199,13 @@ export interface StartChatOptions {
     origin?: string | null;
 }
 
+export interface TurnstileConfig {
+    secretKey: string;
+    action?: string;
+    expectedHostnames?: string[];
+    timeoutMs?: number;
+}
+
 export type ValidatedChatRequest = z.infer<typeof chatRequestSchema>;
 
 export declare function verifyWebhook(options: {
@@ -244,17 +251,4 @@ export declare function chatcopsVercelHandler(config: ChatCopsServerConfig): (re
 export declare function chatcopsCloudflareHandler(config: ChatCopsServerConfig): (request: Request, _env?: unknown, ctx?: {
     waitUntil?(promise: Promise<unknown>): void;
 }) => Promise<Response>;
-```
-
-## Types no entry exports
-
-They're part of the API above all the same: a change to one is a change to the API.
-
-```ts
-interface TurnstileConfig {
-    secretKey: string;
-    action?: string;
-    expectedHostnames?: string[];
-    timeoutMs?: number;
-}
 ```

@@ -45,7 +45,43 @@ export interface MessageData {
     }>;
 }
 
+export type MessageErrorType = 'rate_limit' | 'network' | 'provider_error' | 'timeout' | 'budget' | 'budget_daily' | 'unavailable' | 'cut_off';
+
+export type MessageStatus = 'streaming' | 'complete' | 'error';
+
 export declare function parseAutoOpen(value?: string): boolean | number | undefined;
+
+export type Persistence = 'none' | 'session' | 'local';
+
+export interface PreChatField {
+    name: string;
+    type: 'text' | 'email' | 'select' | 'textarea';
+    label: string;
+    placeholder?: string;
+    required?: boolean;
+    options?: string[];
+}
+
+export interface PreChatFormConfig {
+    enabled: boolean;
+    title?: string;
+    subtitle?: string;
+    fields: PreChatField[];
+    submitLabel?: string;
+}
+
+export interface ThemeConfig {
+    mode?: ThemeMode;
+    accent?: string;
+    accentDark?: string;
+    textColor?: string;
+    bgColor?: string;
+    fontFamily?: string;
+    borderRadius?: string | number;
+    position?: 'bottom-right' | 'bottom-left';
+}
+
+export type ThemeMode = 'light' | 'dark' | 'auto';
 
 export declare class Widget {
     get isInline(): boolean;
@@ -187,46 +223,4 @@ The same for each of: `ar`, `de`, `es`, `fr`, `he`, `hi`, `it`, `ja`, `ko`, `nl`
 ```ts
 declare const _default: Partial<WidgetLocaleStrings>;
 export { _default as default };
-```
-
-## Types no entry exports
-
-They're part of the API above all the same: a change to one is a change to the API.
-
-```ts
-type MessageErrorType = 'rate_limit' | 'network' | 'provider_error' | 'timeout' | 'budget' | 'budget_daily' | 'unavailable' | 'cut_off';
-
-type MessageStatus = 'streaming' | 'complete' | 'error';
-
-type Persistence = 'none' | 'session' | 'local';
-
-interface PreChatField {
-    name: string;
-    type: 'text' | 'email' | 'select' | 'textarea';
-    label: string;
-    placeholder?: string;
-    required?: boolean;
-    options?: string[];
-}
-
-interface PreChatFormConfig {
-    enabled: boolean;
-    title?: string;
-    subtitle?: string;
-    fields: PreChatField[];
-    submitLabel?: string;
-}
-
-interface ThemeConfig {
-    mode?: ThemeMode;
-    accent?: string;
-    accentDark?: string;
-    textColor?: string;
-    bgColor?: string;
-    fontFamily?: string;
-    borderRadius?: string | number;
-    position?: 'bottom-right' | 'bottom-left';
-}
-
-type ThemeMode = 'light' | 'dark' | 'auto';
 ```
