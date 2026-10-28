@@ -344,7 +344,7 @@ Access-Control-Expose-Headers: Retry-After, X-ChatCops-Protocol
 | `401` | `conversation_mismatch` | The session token is valid but was issued for a different conversation. | Obtain a token for the current conversation from `<chat url>/session`. |
 | `401` | `turnstile_failed` | `/session` endpoint only: Cloudflare Turnstile verification failed or was missing. | Returned when bot protection challenge fails. |
 | `403` | `origin_not_allowed` | The `Origin` header is not permitted by `allowedOrigins`. | Answered before the request body is parsed. Returns legacy format `{"error":"origin_not_allowed"}`. |
-| `405` | `Method not allowed` | An HTTP method other than `POST` or `OPTIONS` was used on the chat endpoint. | Answered before the request body is parsed. Returns legacy format `{"error":"Method not allowed"}`. |
+| `405` | `Method not allowed` | An HTTP method other than `POST` or `OPTIONS` was used on the chat endpoint. | Answered before the request body is parsed, with `Allow: POST, OPTIONS`. Returns legacy format `{"error":"Method not allowed"}`. |
 | `409` | `conversation_busy` | Another reply is currently being generated for this `conversationId`. | The server locks conversation turns to prevent state races. |
 | `413` | `payload_too_large` | The request body exceeds the maximum permitted size (default 256 KB). | Prevents excessive memory allocation. |
 | `429` | `rate_limited` | The client IP has exceeded the configured request rate limit. | Includes `retryAfterMs` in body and `Retry-After` in HTTP headers. |

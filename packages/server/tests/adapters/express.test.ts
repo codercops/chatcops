@@ -254,6 +254,7 @@ describe('express analytics sharing', () => {
 
     expect(fake.statusCode).toBe(405);
     expect(fake.headers['Access-Control-Allow-Origin']).toBe('*');
+    expect(fake.headers.Allow).toBe('POST, OPTIONS');
     expect(fake.body).toEqual({ error: 'Method not allowed' });
     expect(fake.chunks).toEqual([]);
     expect(fake.ended).toBe(false);

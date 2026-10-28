@@ -25,6 +25,7 @@ describe('chatcopsCloudflareHandler', () => {
     const res = await handler(req);
     expect(res.status).toBe(405);
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*');
+    expect(res.headers.get('Allow')).toBe('POST, OPTIONS');
     const body = await res.json();
     expect(body.error).toBe('Method not allowed');
   });
