@@ -108,6 +108,29 @@ class VectorKnowledgeSource implements KnowledgeSource {
 }
 ```
 
+## Building an index from your site
+
+`@chatcops/ingest` fills a vector store from your site: it reads your sitemap (or a list of URLs, or a folder of Markdown and HTML files), extracts each page's readable content, splits it into chunks along headings, and embeds them.
+
+```typescript
+import { memoryStorage, memoryVectors, openaiEmbedder } from '@chatcops/core';
+import { ingest } from '@chatcops/ingest';
+
+const embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! });
+const storage = memoryStorage();
+const vectors = memoryVectors({ dimensions: embedder.dimensions });
+
+const stats = await ingest({
+  sources: [{ type: 'sitemap', url: 'https://example.com/sitemap.xml' }],
+  exclude: ['**/blog/**'],
+  embedder,
+  store: vectors,
+  manifest: storage.kv!,
+});
+```
+
+In production, use a persistent vector store and its key-value store as the `manifest`. Running it again then only embeds pages that changed: unchanged pages answer `304` to a conditional request, or extract to the same text. Hidden elements, scripts, styles and comments are removed before extraction. `prune: true` removes pages that are gone, but never after a sitemap failed to load. An index remembers which embedder built it and refuses a different one.
+
 ## Citations
 
 When knowledge sources return chunks (through `retrieve`), answers say which pages they came from. Each page the reply cites becomes a `source` part in the stream, once per page, after the text that cites it, and is saved with the reply:

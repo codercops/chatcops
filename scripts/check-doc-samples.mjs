@@ -94,6 +94,7 @@ try {
     '@chatcops/store-sqlite': [packagePath('store-sqlite')],
     '@chatcops/store-cloudflare': [packagePath('store-cloudflare')],
     '@chatcops/store-upstash-vector': [packagePath('store-upstash-vector')],
+    '@chatcops/ingest': [packagePath('ingest')],
     express: [join(root, 'packages', 'server', 'node_modules', '@types', 'express', 'index.d.ts')],
     '@neondatabase/serverless': [join(root, 'packages', 'store-postgres', 'node_modules', '@neondatabase', 'serverless')],
     '@upstash/vector': [join(root, 'packages', 'store-upstash-vector', 'node_modules', '@upstash', 'vector')],
