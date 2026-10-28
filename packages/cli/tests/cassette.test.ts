@@ -20,6 +20,7 @@ beforeAll(async () => {
     req.on('end', () => {
       hits.push({ url: req.url ?? '', auth: req.headers.authorization, body });
       if (req.url?.startsWith('/empty')) return res.writeHead(204).end();
+      if (req.url?.startsWith('/big')) return res.writeHead(200, { 'content-type': 'text/event-stream' }).end(Array.from({ length: 400 }, (_, i) => `data: {"n":${i}}\n\n`).join(''));
       if (req.url?.startsWith('/down')) return res.writeHead(503, { 'content-type': 'application/json' }).end('{"error":"overloaded"}');
       const { messages } = JSON.parse(body) as { messages: Array<{ role: string; content: string }> };
       // The reply in progress comes last, so read the latest user message.
@@ -226,6 +227,35 @@ tests:
       uninstall();
     }
     expect(globalThis.fetch).not.toBe(undefined);
+  });
+
+  it('saves big responses gzipped and replays them exactly', async () => {
+    const recorder = new Cassettes('record');
+    let uninstall = recorder.install();
+    const fixture = join(TMP, 'big', 'a.chat.yaml');
+    let live = '';
+    try {
+      ({ value: live } = await recorder.run(fixture, 't', async () => (await fetch(`${modelUrl}/big`, { method: 'POST' })).text()));
+    } finally {
+      uninstall();
+    }
+    await recorder.save([{ path: fixture, ran: ['t'], all: ['t'] }]);
+    const [entry] = readFileSync(cassettePath(fixture), 'utf8').trim().split('\n').map((line) => JSON.parse(line));
+    expect(live.length).toBeGreaterThan(4096);
+    expect(entry.response.encoding).toBe('gzip');
+    expect(entry.response.body.length).toBeLessThan(live.length / 3);
+
+    hits = [];
+    const replayer = new Cassettes('replay');
+    await replayer.load([fixture]);
+    uninstall = replayer.install();
+    try {
+      const { value } = await replayer.run(fixture, 't', async () => (await fetch(`${modelUrl}/big`, { method: 'POST' })).text());
+      expect(value).toBe(live);
+    } finally {
+      uninstall();
+    }
+    expect(hits).toHaveLength(0);
   });
 
   it('refuses two modes at once and a broken cassette', async () => {

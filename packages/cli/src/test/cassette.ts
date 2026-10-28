@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
+import { gunzipSync, gzipSync } from 'node:zlib';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 
@@ -17,7 +18,11 @@ export interface CassetteEntry {
   key: string;
   /** Kept so a changed request can say what changed. Headers are never saved. */
   request: { method: string; url: string; body?: unknown };
-  response: { status: number; contentType?: string; body: string };
+  /**
+   * `body` is the text, or for bodies over 4 kB (a streamed reply is one
+   * event per token) gzip in base64, with `encoding: 'gzip'`.
+   */
+  response: { status: number; contentType?: string; body: string; encoding?: 'gzip' };
 }
 
 interface Scope {
@@ -34,6 +39,8 @@ interface Tally {
 /** Query parameters that can carry a key; dropped before hashing and saving. */
 const SECRET_PARAMS = /^(key|api[-_]?key|token|access[-_]?token|secret)$/i;
 const NULL_BODY = new Set([101, 103, 204, 205, 304]);
+/** Response bodies longer than this are saved gzipped. Request bodies never are: they're what a diff of a re-recording should show. */
+const GZIP_OVER = 4096;
 
 /** `evals/pricing.chat.yaml` records to `evals/__cassettes__/pricing.chat.jsonl`. */
 export function cassettePath(fixtureFile: string): string {
@@ -128,14 +135,26 @@ export class Cassettes {
         // A 400, not a thrown error: SDKs retry network errors with backoff, but never a 400.
         return Response.json({ error: { type: 'invalid_request_error', message: problem } }, { status: 400 });
       }
-      const { status, contentType, body } = entry.response;
+      const { status, contentType } = entry.response;
+      const body = entry.response.encoding === 'gzip' ? gunzipSync(Buffer.from(entry.response.body, 'base64')).toString('utf8') : entry.response.body;
       return new Response(NULL_BODY.has(status) ? null : body, { status, headers: contentType ? { 'content-type': contentType } : {} });
     }
 
     const response = await original(request);
     const body = await response.text();
     const contentType = response.headers.get('content-type') ?? undefined;
-    const entry: CassetteEntry = { test: scope.test, key, request: described, response: { status: response.status, ...(contentType ? { contentType } : {}), body } };
+    const big = body.length > GZIP_OVER;
+    const entry: CassetteEntry = {
+      test: scope.test,
+      key,
+      request: described,
+      response: {
+        status: response.status,
+        ...(contentType ? { contentType } : {}),
+        body: big ? gzipSync(body).toString('base64') : body,
+        ...(big ? { encoding: 'gzip' as const } : {}),
+      },
+    };
     const list = this.fresh.get(scope.fixture) ?? [];
     list.push(entry);
     this.fresh.set(scope.fixture, list);

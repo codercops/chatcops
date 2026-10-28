@@ -53,10 +53,17 @@ jobs:
 
       # Recorded provider responses are replayed in tests. The recording script
       # refuses to write a key, and this catches one added by hand.
-      - name: No API keys in test fixtures
+      - name: No API keys in test fixtures or eval recordings
         run: |
           if git grep -n -I -E '(^|[^A-Za-z0-9_])(sk-ant-|sk-proj-|sk-[A-Za-z0-9]{20,})|AIza[0-9A-Za-z_-]{35}' -- 'packages/*/tests/fixtures'; then
             echo "::error::A test fixture above looks like it contains an API key. Remove it and rotate the key."
+            exit 1
+          fi
+          # Eval recordings keep request bodies as JSON and long responses as
+          # base64, so the Google key pattern needs a boundary here: random
+          # base64 can contain "AIza" followed by 35 letters.
+          if git grep -n -I -E '(^|[^A-Za-z0-9_])(sk-ant-|sk-proj-|sk-[A-Za-z0-9]{20,})|(^|[^A-Za-z0-9+/_-])AIza[0-9A-Za-z_-]{35}' -- '**/__cassettes__/**'; then
+            echo "::error::An eval recording above looks like it contains an API key. Remove it, rotate the key, and record again."
             exit 1
           fi
 
@@ -92,6 +99,13 @@ jobs:
       # Per-package coverage minimums are in vitest.config.ts.
       - name: Test
         run: pnpm test:coverage
+
+      # The docs bot's evals, replayed from website/evals/__cassettes__, so
+      # nothing calls an API and no key is needed. A change to its prompt or
+      # FAQ fails here until the recordings are made again with
+      # `npm run evals:record` in website/.
+      - name: Docs bot evals
+        run: pnpm --filter @chatcops/website evals
 
   changeset:
     if: github.event_name == 'pull_request' && github.base_ref == 'dev'
