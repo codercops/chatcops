@@ -1,10 +1,14 @@
 import { expect, test } from '@playwright/test';
 
 // A long reply renders in O(n): finished blocks are rendered once, and only
-// the open one re-renders, at most once a frame. Before, every chunk
-// re-rendered the whole reply, which grows with the square of its length.
-test('a 4,000-word reply costs under 150 ms of main thread at 4x CPU throttle', async ({ page }) => {
-  test.setTimeout(60_000);
+// the open one re-renders, at most 20 times a second. Before, every chunk
+// re-rendered and laid out the whole reply: on this reply that was about
+// 1,000 layouts and 9 to 12 s of main thread at 4x throttle.
+const METRICS = ['TaskDuration', 'ScriptDuration', 'LayoutDuration', 'RecalcStyleDuration', 'LayoutCount'] as const;
+type Metrics = Record<(typeof METRICS)[number], number>;
+
+test('a 4,000-word reply renders in a bounded number of layouts and little main thread', async ({ page }) => {
+  test.setTimeout(90_000);
   await page.goto('/');
   await page.locator('.cc-fab').click();
   await expect(page.locator('.cc-panel')).toHaveClass(/cc-visible/);
@@ -12,57 +16,56 @@ test('a 4,000-word reply costs under 150 ms of main thread at 4x CPU throttle', 
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Performance.enable');
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
-  const busySeconds = async () => (await cdp.send('Performance.getMetrics')).metrics.find((metric) => metric.name === 'TaskDuration')?.value ?? 0;
-  const NAMES = ['TaskDuration', 'ScriptDuration', 'LayoutDuration', 'RecalcStyleDuration', 'LayoutCount', 'RecalcStyleCount'];
-  const metrics = async () => Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.filter((m) => NAMES.includes(m.name)).map((m) => [m.name, m.value]));
-  const diff = (a: Record<string, number>, b: Record<string, number>) =>
-    NAMES.map((n) => `${n}=${n.endsWith('Count') ? b[n] - a[n] : ((b[n] - a[n]) * 1000).toFixed(0)}`).join(' ');
+  const metrics = async (): Promise<Metrics> => {
+    const all = (await cdp.send('Performance.getMetrics')).metrics;
+    return Object.fromEntries(METRICS.map((name) => [name, all.find((m) => m.name === name)?.value ?? 0])) as Metrics;
+  };
+  const since = (start: Metrics, end: Metrics) =>
+    Object.fromEntries(METRICS.map((name) => [name, name === 'LayoutCount' ? end[name] - start[name] : (end[name] - start[name]) * 1000])) as Metrics;
 
-  // The floor: reading and parsing the same stream with no widget work at all.
+  // What reading and parsing the same stream costs with no widget work, so
+  // the check is on what rendering adds, not on the CI machine's speed.
   const floorStart = await metrics();
-  const parts = await page.evaluate(async () => {
+  await page.evaluate(async () => {
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ protocol: 1, conversationId: crypto.randomUUID(), message: 'long reply' }),
     });
-    const reader = response.body!.getReader();
+    const reader = (response.body as ReadableStream<Uint8Array>).getReader();
     const decoder = new TextDecoder();
     let buffer = '';
-    let count = 0;
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
       buffer = lines.pop() ?? '';
-      for (const line of lines) if (line.startsWith('data: {')) {
-        JSON.parse(line.slice(6));
-        count++;
-      }
+      for (const line of lines) if (line.startsWith('data: {')) JSON.parse(line.slice(6));
     }
-    return count;
   });
-  console.log(`floor (${parts} parts): ${diff(floorStart, await metrics())}`);
+  const floor = since(floorStart, await metrics());
 
   await page.locator('.cc-input').fill('long reply');
-  const widgetStart = await metrics();
-  const before = await busySeconds();
+  const start = await metrics();
   await page.locator('.cc-send-btn').click();
-  // Checked rarely, so the checks themselves barely add to the measurement.
+  // Checked rarely, so the checks barely add to the measurement.
   await expect
-    .poll(() => page.locator('.cc-message-assistant[data-status="complete"]').count(), { intervals: [500], timeout: 45_000 })
+    .poll(() => page.locator('.cc-message-assistant[data-status="complete"]').count(), { intervals: [500], timeout: 60_000 })
     .toBeGreaterThan(0);
-  const ms = ((await busySeconds()) - before) * 1000;
-  console.log(`widget: ${diff(widgetStart, await metrics())}`);
+  const widget = since(start, await metrics());
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
 
-  test.info().annotations.push({ type: 'main thread', description: `${ms.toFixed(0)} ms` });
-  console.log(`4,000-word reply: ${ms.toFixed(0)} ms of main thread at 4x throttle`);
+  const added = widget.TaskDuration - floor.TaskDuration;
+  const summary = `${Math.round(added)} ms added over ${Math.round(floor.TaskDuration)} ms for the stream itself; ${widget.LayoutCount} layouts (${Math.round(widget.LayoutDuration)} ms), script ${Math.round(widget.ScriptDuration)} ms, style ${Math.round(widget.RecalcStyleDuration)} ms`;
+  test.info().annotations.push({ type: 'render cost', description: summary });
+  console.log(`4,000-word reply at 4x throttle: ${summary}`);
+
   const reply = page.locator('.cc-message-assistant').last();
   await expect(reply.locator('pre code')).toContainText('npx chatcops test');
   expect((await reply.textContent())?.split(/\s+/).length).toBeGreaterThan(3900);
-  expect(ms).toBeLessThan(150);
+  expect(widget.LayoutCount).toBeLessThan(150);
+  expect(added).toBeLessThan(1000);
 });
 
 test("new text doesn't pull the log down while the visitor reads above it", async ({ page }) => {

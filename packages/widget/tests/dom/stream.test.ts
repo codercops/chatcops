@@ -32,7 +32,8 @@ describe('streaming replies', () => {
     document.body.innerHTML = '';
     parent = document.createElement('div');
     document.body.appendChild(parent);
-    messages = new Messages(parent);
+    // No wait between renders here, so each test only has to wait a frame.
+    messages = new Messages(parent, undefined, { streamIntervalMs: 0 });
     messages.addMessage(reply(''));
   });
 
@@ -134,5 +135,18 @@ describe('streaming replies', () => {
 
     messages.addMessage({ id: 'u', role: 'user', content: 'Me' });
     expect(scrollTop).toBe(1000);
+  });
+
+  it('waits the interval between renders', async () => {
+    const slow = new Messages(parent, undefined, { streamIntervalMs: 80 });
+    slow.addMessage({ id: 'x', role: 'assistant', content: '', status: 'streaming' });
+    const text = () => (parent.querySelectorAll('.cc-message-content')[1] as HTMLElement).textContent;
+    slow.updateMessage({ id: 'x', role: 'assistant', content: 'One', status: 'streaming' });
+    slow.updateMessage({ id: 'x', role: 'assistant', content: 'One two', status: 'streaming' });
+    await frame();
+    expect(text()).toBe('One');
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    await frame();
+    expect(text()).toBe('One two');
   });
 });

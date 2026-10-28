@@ -26,6 +26,11 @@ export interface MessageActions {
 
 /** How close to the bottom (px) the log has to be for new text to scroll it. */
 const FOLLOW_SLACK = 48;
+/**
+ * Least time between renders of a streaming reply. Each render repaints the
+ * log, so 20 a second looks live without repainting on every frame.
+ */
+const STREAM_INTERVAL_MS = 50;
 
 /**
  * A reply that's streaming. The text up to the last blank line outside a code
@@ -39,17 +44,21 @@ interface Stream {
   committed: number;
   tail: HTMLElement;
   frame?: number;
+  /** When it last rendered (`performance.now()`). */
+  renderedAt: number;
 }
 
 export class Messages {
   private container: HTMLDivElement;
   private streams = new Map<string, Stream>();
+  private streamIntervalMs: number;
   private typingEl: HTMLDivElement | null = null;
   private suggestionsEl: HTMLDivElement | null = null;
   private actions?: MessageActions;
 
-  constructor(parent: HTMLElement, actions?: MessageActions) {
+  constructor(parent: HTMLElement, actions?: MessageActions, options: { streamIntervalMs?: number } = {}) {
     this.actions = actions;
+    this.streamIntervalMs = options.streamIntervalMs ?? STREAM_INTERVAL_MS;
     this.container = document.createElement('div');
     this.container.className = 'cc-messages';
     this.container.setAttribute('role', 'log');
@@ -93,23 +102,27 @@ export class Messages {
       const tail = document.createElement('div');
       tail.className = 'cc-stream-tail';
       content.appendChild(tail);
-      stream = { text: msg.content, committed: 0, tail };
+      stream = { text: msg.content, committed: 0, tail, renderedAt: 0 };
       this.streams.set(msg.id, stream);
       // The first text shows at once; what follows is batched per frame.
       this.renderStream(stream);
       return;
     }
     stream.text = msg.content;
-    if (stream.frame === undefined) {
-      const current = stream;
-      current.frame = nextFrame(() => {
-        current.frame = undefined;
-        this.renderStream(current);
-      });
-    }
+    if (stream.frame === undefined) this.schedule(stream);
+  }
+
+  /** Renders on the next frame that's at least the interval after the last render. */
+  private schedule(stream: Stream): void {
+    stream.frame = nextFrame(() => {
+      stream.frame = undefined;
+      if (performance.now() - stream.renderedAt < this.streamIntervalMs) this.schedule(stream);
+      else this.renderStream(stream);
+    });
   }
 
   private renderStream(stream: Stream): void {
+    stream.renderedAt = performance.now();
     const follow = this.nearBottom();
     const boundary = lastBlockBoundary(stream.text, stream.committed);
     if (boundary > stream.committed) {
