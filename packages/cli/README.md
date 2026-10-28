@@ -41,7 +41,7 @@ tests:
           - not-contains: "$29"
 ```
 
-Options: `--filter` (a name, or `tag:<name>`), `--repeat`, `--concurrency`, `--reporter pretty|json` (repeatable), `--json`. `--record` saves every API call the tests make to `__cassettes__/` next to the eval files, and `--replay` answers them from there. Replay is the default when `CI` is set, so CI needs no API keys. It exits 0 when all tests passed, 1 when some failed, 2 when it couldn't run. See [Testing your bot](https://chat.codercops.com/core/testing/).
+Options: `--filter` (a name, or `tag:<name>`), `--repeat`, `--concurrency`, `--reporter pretty|json` (repeatable), `--json`. `--record` saves every API call the tests make to `__cassettes__/` next to the eval files, and `--replay` answers them from there. Replay is the default when `CI` is set, so CI needs no API keys. `judge` assertions have a model from another provider grade a reply against a rubric (`--judge-model` to choose it), and with `prices` in the config, `--max-cost` stops a run once it has spent that much. It exits 0 when all tests passed, 1 when some failed, 2 when it couldn't run. See [Testing your bot](https://chat.codercops.com/core/testing/).
 
 Exit codes for ingest and search: 0 when everything worked, 1 when it finished with failed pages or discovery errors, 2 when it couldn't run (bad options, config problems, a different embedder than the index was built with).
 

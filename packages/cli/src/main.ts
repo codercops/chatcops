@@ -60,6 +60,8 @@ Test options:
   --record              Call the APIs and save what they answer to __cassettes__
   --replay              Answer every API call from __cassettes__ (the default when CI is set)
   --live                Call the APIs, even when CI is set
+  --judge-model <p:m>   The judge for judge assertions, as provider:model (gemini, openai, claude)
+  --max-cost <usd>      Stop starting turns once the run has spent this (needs prices in the config)
 
 All commands:
   --config <file>       Config file (default: chatcops.config.ts, .mts, .js or .mjs here)
@@ -97,7 +99,7 @@ export async function main(argv: string[], io: Io): Promise<number> {
       try {
         const loaded = await loadConfig(io.cwd, values.config);
         try {
-          return await runTests(serverConfig(loaded), rest, values, io, cassettes);
+          return await runTests(serverConfig(loaded), rest, values, io, cassettes, loaded.config);
         } finally {
           await loaded.close();
         }
@@ -134,6 +136,8 @@ function parse(argv: string[]) {
       reporter: { type: 'string', multiple: true },
       record: { type: 'boolean' },
       live: { type: 'boolean' },
+      'judge-model': { type: 'string' },
+      'max-cost': { type: 'string' },
       replay: { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
       version: { type: 'boolean', short: 'v' },

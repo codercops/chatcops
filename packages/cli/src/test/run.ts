@@ -4,7 +4,8 @@ import { createChatHandler, type ChatCopsServerConfig } from '@chatcops/server';
 import { ConfigError } from '../config.js';
 import { check } from './assertions/index.js';
 import type { Cassettes } from './cassette.js';
-import type { Fixture, TestCase, TestResult, TestRunResult, TurnResult } from './types.js';
+import { costOf, dollars, type Prices, type Spend } from './cost.js';
+import type { Fixture, Judge, TestCase, TestResult, TestRunResult, TurnResult } from './types.js';
 
 export interface RunOptions {
   /** Tests run at once. Default 4. */
@@ -15,6 +16,13 @@ export interface RunOptions {
   onResult?: (result: TestResult) => void;
   /** Records or replays each test's HTTP calls. */
   cassettes?: Cassettes;
+  /** For `judge` assertions. */
+  judge?: Judge;
+  /** The bot's model id, to price its turns. */
+  model?: string;
+  prices?: Prices;
+  /** Stops starting turns once `--max-cost` is reached. */
+  spend?: Spend;
 }
 
 /** An eval file to run: `file` as reported, `path` on disk (for its cassette). */
@@ -44,8 +52,9 @@ export async function runFixtures(
       const index = next++;
       const { file, path, test } = jobs[index];
       results[index] = await runTest(file, test, options.repeat, (run) => {
-        if (!options.cassettes) return runOnce(server, file, test, run);
-        return options.cassettes.run(path, test.name, () => runOnce(server, file, test, run)).then(({ value, problems }) => {
+        const once = () => runOnce(server, { file, path, test, run }, options);
+        if (!options.cassettes) return once();
+        return options.cassettes.run(path, test.name, once).then(({ value, problems }) => {
           if (problems.length) {
             value.pass = false;
             value.error = problems.length > 1 ? `${problems[0]} (and ${problems.length - 1} more)` : problems[0];
@@ -74,14 +83,25 @@ async function runTest(
   return { fixture, test: test.name, runs, passRate, pass: passRate >= (test.passRate ?? 1) };
 }
 
-async function runOnce(server: ChatCopsServerConfig, fixture: string, test: TestCase, run: number): Promise<TestRunResult> {
-  const result: TestRunResult = { fixture, test: test.name, run, pass: true, turns: [] };
+async function runOnce(
+  server: ChatCopsServerConfig,
+  { file, path, test, run }: { file: string; path: string; test: TestCase; run: number },
+  options: RunOptions
+): Promise<TestRunResult> {
+  const result: TestRunResult = { fixture: file, test: test.name, run, pass: true, turns: [] };
+  const { spend } = options;
+  const context = { fixture: path, ...(options.judge ? { judge: options.judge } : {}) };
   // Usage on `finish` is what usage assertions read.
   const handler = createChatHandler({ ...server, exposeUsage: true, storage: memoryStorage(), tools: withMocks(server.tools ?? [], test.mocks?.tools) });
   const conversationId = `eval-${randomUUID()}`;
   const conversation: TurnResult[] = [];
 
   for (const turnSpec of test.turns) {
+    if (spend?.exceeded) {
+      result.pass = false;
+      result.error = `stopped before turn ${conversation.length + 1}: --max-cost ${dollars(spend.max ?? 0)} reached (${dollars(spend.spent)} spent)`;
+      break;
+    }
     const turn = await sendTurn(handler, {
       conversationId,
       message: turnSpec.user,
@@ -89,9 +109,17 @@ async function runOnce(server: ChatCopsServerConfig, fixture: string, test: Test
       ...(test.pageContext ? { pageContext: test.pageContext } : {}),
       ...(test.userData ? { userData: test.userData } : {}),
     });
+    if (options.model) turn.model = options.model;
+    const costUsd = costOf(options.model, turn.usage, options.prices);
+    if (costUsd !== undefined) turn.costUsd = costUsd;
+    spend?.add(costUsd);
     conversation.push(turn);
     const checks = [];
-    for (const assertion of turnSpec.expect ?? []) checks.push(await check(assertion, turn, conversation));
+    for (const assertion of turnSpec.expect ?? []) {
+      const checked = await check(assertion, turn, conversation, context);
+      spend?.add(checked.costUsd);
+      checks.push(checked);
+    }
     result.turns.push({ turn, results: checks });
     if (checks.some((c) => !c.pass)) result.pass = false;
     if (turn.error) {

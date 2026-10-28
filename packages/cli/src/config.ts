@@ -1,9 +1,10 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { ChatCopsStorage, Embedder, KeyValueStore, VectorStore } from '@chatcops/core';
+import type { AIProvider, ChatCopsStorage, Embedder, KeyValueStore, ProviderConfig, VectorStore } from '@chatcops/core';
 import type { IngestConfig } from '@chatcops/ingest';
 import type { ChatCopsServerConfig } from '@chatcops/server';
+import type { Prices } from './test/cost.js';
 
 /** `chatcops.config.ts`: what the commands index into and search. */
 export interface ChatCopsCliConfig {
@@ -22,6 +23,14 @@ export interface ChatCopsCliConfig {
    * in-memory storage, so `storage` here is ignored.
    */
   server?: ChatCopsServerConfig;
+  /**
+   * The model that grades `judge` assertions. Defaults to the cheap model of
+   * a provider other than the bot's, with its key from the environment.
+   * `--judge-model` overrides it.
+   */
+  judge?: ProviderConfig | AIProvider;
+  /** US dollars per million tokens, by model id, for costs and `--max-cost`. */
+  prices?: Prices;
 }
 
 /** Types a config file: `export default defineConfig({ ... })`. */

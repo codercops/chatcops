@@ -52,6 +52,10 @@ export interface TurnResult {
   latencyMs: number;
   /** An `error` part's code, when the reply failed. */
   error?: string;
+  /** The bot's model id, when the provider says. */
+  model?: string;
+  /** What the turn cost in US dollars, from `prices` in the config. Unset when the model has no price. */
+  costUsd?: number;
 }
 
 export interface AssertionResult {
@@ -59,10 +63,30 @@ export interface AssertionResult {
   pass: boolean;
   score?: number;
   reason?: string;
+  /** What checking cost (a judge's call), in US dollars. */
+  costUsd?: number;
 }
 
+/** What an assertion can use besides the turn. */
+export interface AssertionContext {
+  /** The eval file, on disk. */
+  fixture: string;
+  /** The judge, when the run uses `judge` assertions. */
+  judge?: Judge;
+}
+
+/** Grades a reply against a rubric with a model. */
+export interface Judge {
+  /** `provider:model`, printed with every run that uses it. */
+  id: string;
+  model?: string;
+  grade(rubric: string, conversation: TurnResult[]): Promise<{ score: number; reason: string; costUsd?: number }>;
+}
+
+type CheckResult = AssertionResult | Omit<AssertionResult, 'assertion'>;
+
 /** Checks one turn. Registered by the assertion's key (`contains`). */
-export type AssertionCheck = (value: unknown, turn: TurnResult, conversation: TurnResult[]) => Promise<AssertionResult | Omit<AssertionResult, 'assertion'>> | AssertionResult | Omit<AssertionResult, 'assertion'>;
+export type AssertionCheck = (value: unknown, turn: TurnResult, conversation: TurnResult[], context: AssertionContext) => Promise<CheckResult> | CheckResult;
 
 export interface TestRunResult {
   fixture: string;
