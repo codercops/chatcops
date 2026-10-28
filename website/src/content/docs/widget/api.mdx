@@ -156,6 +156,29 @@ Details the bot should know for the next messages, such as the visitor's plan or
 ChatCops.setContext({ plan: 'Team', seats: '12' });
 ```
 
+### `ChatCops.update(changes)`
+
+Change how the running chat looks or what it says, without loading it again. It takes these options from `init()`:
+
+- `theme`, except `position`: moving the chat needs `init()`
+- `branding`, `placeholder` and `strings`
+- `disclosure`
+- `welcomeMessage` and `suggestions`
+
+What you leave out stays as it is, and that goes for each field inside `theme`, `branding` and `strings` too. A chat with only the welcome message shows the new one right away. Once the visitor has written, the new welcome message and suggestions wait for the next conversation. With the script tag build, a call before the chat has loaded is kept until it does, and the launcher button takes the new theme straight away.
+
+```typescript
+// A single-page app moving to its pricing page:
+ChatCops.update({
+  branding: { name: 'Sales', subtitle: 'Usually replies in a minute' },
+  welcomeMessage: 'Questions about plans? Ask here.',
+  suggestions: ['Compare plans', 'Is there a free trial?'],
+});
+
+// Following the site's own dark mode toggle:
+ChatCops.update({ theme: { mode: 'dark' } });
+```
+
 ### `ChatCops.registerLocale(code, strings, options?)`
 
 Add a language the widget doesn't ship, or replace one of its own. Strings you leave out stay in English. Pass `{ dir: 'rtl' }` for a right-to-left language. Register before `init()`, then use the code as `locale`.

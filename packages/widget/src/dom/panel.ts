@@ -24,9 +24,15 @@ export interface PanelOptions {
   onClose: () => void;
 }
 
+/** The parts of the panel that `update()` can change. */
+export type PanelLabels = Pick<PanelOptions, 'branding' | 'placeholder' | 'footerText' | 'closeLabel' | 'sendLabel'>;
+
 export class Panel {
   private el: HTMLDivElement;
   private inline: boolean;
+  private options: PanelOptions;
+  private header: HTMLDivElement;
+  private footer: HTMLDivElement;
   messages: Messages;
   input: Input;
   messagesContainer: HTMLElement;
@@ -45,7 +51,6 @@ export class Panel {
       this.el.id = PANEL_ID;
       this.el.setAttribute('role', 'dialog');
       this.el.setAttribute('aria-modal', 'true');
-      this.el.setAttribute('aria-label', options.branding.name);
       this.el.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
           options.onClose();
@@ -78,38 +83,11 @@ export class Panel {
       this.setHidden(true);
     }
 
-    // Header
-    const header = document.createElement('div');
-    header.className = 'cc-header';
-
-    if (options.branding.avatar) {
-      const img = document.createElement('img');
-      img.className = 'cc-header-avatar';
-      img.src = options.branding.avatar;
-      img.alt = options.branding.name;
-      header.appendChild(img);
-    } else {
-      const placeholder = document.createElement('div');
-      placeholder.className = 'cc-header-avatar-placeholder';
-      placeholder.innerHTML = BOT_ICON;
-      header.appendChild(placeholder);
-    }
-
-    const info = document.createElement('div');
-    info.className = 'cc-header-info';
-    info.innerHTML = `<div class="cc-header-name">${this.escapeHtml(options.branding.name)}</div><div class="cc-header-subtitle">${this.escapeHtml(options.branding.subtitle)}</div>`;
-    header.appendChild(info);
-
-    if (!options.inline) {
-      const closeBtn = document.createElement('button');
-      closeBtn.className = 'cc-header-close';
-      closeBtn.setAttribute('aria-label', options.closeLabel);
-      closeBtn.innerHTML = CLOSE_ICON;
-      closeBtn.addEventListener('click', options.onClose);
-      header.appendChild(closeBtn);
-    }
-
-    this.el.appendChild(header);
+    this.options = options;
+    this.header = document.createElement('div');
+    this.header.className = 'cc-header';
+    this.renderHeader();
+    this.el.appendChild(this.header);
 
     if (options.preChatEnabled) {
       this.messagesContainer = document.createElement('div');
@@ -128,12 +106,58 @@ export class Panel {
     });
 
     // Footer
-    const footer = document.createElement('div');
-    footer.className = 'cc-footer';
-    footer.innerHTML = options.footerText;
-    this.el.appendChild(footer);
+    this.footer = document.createElement('div');
+    this.footer.className = 'cc-footer';
+    this.footer.innerHTML = options.footerText;
+    this.el.appendChild(this.footer);
 
     root.appendChild(this.el);
+  }
+
+  /** New wording or branding, applied in place. */
+  update(labels: PanelLabels, actionLabels?: Partial<MessageActions>): void {
+    Object.assign(this.options, labels);
+    // Messages reads its labels from this same object as it renders.
+    if (this.options.messageActions) Object.assign(this.options.messageActions, actionLabels);
+    this.renderHeader();
+    this.input.setLabels(labels.placeholder, labels.sendLabel);
+    this.footer.innerHTML = labels.footerText;
+  }
+
+  private renderHeader(): void {
+    const { branding, closeLabel, inline, onClose } = this.options;
+    const hadFocus = this.header.contains((this.el.getRootNode() as ShadowRoot | Document).activeElement);
+    this.header.replaceChildren();
+    if (!inline) this.el.setAttribute('aria-label', branding.name);
+
+    if (branding.avatar) {
+      const img = document.createElement('img');
+      img.className = 'cc-header-avatar';
+      img.src = branding.avatar;
+      img.alt = branding.name;
+      this.header.appendChild(img);
+    } else {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'cc-header-avatar-placeholder';
+      placeholder.innerHTML = BOT_ICON;
+      this.header.appendChild(placeholder);
+    }
+
+    const info = document.createElement('div');
+    info.className = 'cc-header-info';
+    info.innerHTML = `<div class="cc-header-name">${this.escapeHtml(branding.name)}</div><div class="cc-header-subtitle">${this.escapeHtml(branding.subtitle)}</div>`;
+    this.header.appendChild(info);
+
+    if (!inline) {
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'cc-header-close';
+      closeBtn.setAttribute('aria-label', closeLabel);
+      closeBtn.innerHTML = CLOSE_ICON;
+      closeBtn.addEventListener('click', onClose);
+      this.header.appendChild(closeBtn);
+      // Re-rendered under the visitor's focus: keep it on the close button.
+      if (hadFocus) closeBtn.focus();
+    }
   }
 
   show(): void {

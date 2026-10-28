@@ -225,8 +225,10 @@ export class Messages {
    * The note that visitors are talking to an AI, always first in the log.
    * Only http(s) links become a "Learn more" link.
    */
-  setDisclosure(text: string, learnMore?: { url: string; label: string }): void {
+  setDisclosure(text?: string, learnMore?: { url: string; label: string }): void {
     this.disclosureEl?.remove();
+    this.disclosureEl = null;
+    if (!text) return;
     const note = document.createElement('div');
     note.className = 'cc-disclosure';
     note.setAttribute('role', 'note');

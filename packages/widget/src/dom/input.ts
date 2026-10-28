@@ -44,6 +44,12 @@ export class Input {
     parent.appendChild(this.area);
   }
 
+  setLabels(placeholder: string, sendLabel: string): void {
+    this.textarea.placeholder = placeholder;
+    this.textarea.setAttribute('aria-label', placeholder);
+    this.sendBtn.setAttribute('aria-label', sendLabel);
+  }
+
   focus(): void {
     this.textarea.focus();
   }

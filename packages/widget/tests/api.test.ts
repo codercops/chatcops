@@ -198,6 +198,126 @@ describe('setUser and setContext', () => {
   });
 });
 
+describe('update', () => {
+  const root = (widget: Widget) => internals(widget).shadow;
+  const host = (widget: Widget) => root(widget).host as HTMLElement;
+
+  it('changes the theme in place and keeps what it leaves out', () => {
+    const widget = new Widget({ apiUrl: '/chat', theme: { mode: 'dark', accent: '#2563eb', fontFamily: 'Inter' } });
+    widget.init();
+    const panel = root(widget).querySelector('.cc-panel');
+    widget.update({ theme: { accent: '#16a34a' } });
+    expect(host(widget).style.getPropertyValue('--cc-theme-accent')).toBe('#16a34a');
+    expect(host(widget).style.getPropertyValue('--cc-font')).toBe('Inter');
+    expect(host(widget).dataset.ccMode).toBe('dark');
+    widget.update({ theme: { mode: 'light' } });
+    expect(host(widget).dataset.ccMode).toBe('light');
+    expect(host(widget).style.getPropertyValue('--cc-theme-accent')).toBe('#16a34a');
+    // The same panel: nothing was mounted again.
+    expect(root(widget).querySelector('.cc-panel')).toBe(panel);
+    widget.destroy();
+  });
+
+  it('changes the branding, strings and placeholder, and the welcome message of an untouched chat', () => {
+    const widget = new Widget({ apiUrl: '/chat', branding: { name: 'Help', subtitle: 'Online' }, welcomeMessage: 'Hi!', suggestions: ['Pricing'] });
+    widget.init();
+    widget.open();
+    widget.update({
+      branding: { name: 'Sales' },
+      placeholder: 'Ask sales',
+      strings: { sendButton: 'Go', closeButton: 'Shut', openChat: 'Talk to us', poweredBy: 'Made here' },
+      welcomeMessage: 'Want a demo?',
+      suggestions: ['Book a demo'],
+    });
+    const shadow = root(widget);
+    expect(shadow.querySelector('.cc-header-name')?.textContent).toBe('Sales');
+    expect(shadow.querySelector('.cc-header-subtitle')?.textContent).toBe('Online');
+    expect(shadow.querySelector('.cc-panel')?.getAttribute('aria-label')).toBe('Sales');
+    expect(shadow.querySelector('.cc-header-close')?.getAttribute('aria-label')).toBe('Shut');
+    expect(shadow.querySelector<HTMLTextAreaElement>('.cc-input')?.placeholder).toBe('Ask sales');
+    expect(shadow.querySelector('.cc-send-btn')?.getAttribute('aria-label')).toBe('Go');
+    expect(shadow.querySelector('.cc-footer')?.textContent).toBe('Made here');
+    // Open, so the button is the close button.
+    expect(shadow.querySelector('.cc-fab')?.getAttribute('aria-label')).toBe('Shut');
+    expect(texts(widget)).toEqual(['Want a demo?']);
+    expect(shadow.textContent).toContain('Book a demo');
+    expect(shadow.textContent).not.toContain('Pricing');
+    widget.close();
+    expect(shadow.querySelector('.cc-fab')?.getAttribute('aria-label')).toBe('Talk to us');
+    widget.destroy();
+  });
+
+  it('keeps focus on the close button when the header is redrawn', () => {
+    const widget = new Widget({ apiUrl: '/chat' });
+    widget.init();
+    widget.open();
+    root(widget).querySelector<HTMLButtonElement>('.cc-header-close')?.focus();
+    widget.update({ branding: { name: 'Sales' } });
+    expect(root(widget).activeElement).toBe(root(widget).querySelector('.cc-header-close'));
+    widget.destroy();
+  });
+
+  it('leaves a conversation that has started alone, and uses the new welcome for the next one', async () => {
+    const widget = new Widget({ apiUrl: '/chat', welcomeMessage: 'Hi!' });
+    widget.init();
+    const stream = mockChatStream();
+    const sent = widget.sendMessage('Hello');
+    await tick();
+    await reply(stream, 'Hey there.');
+    await sent;
+    widget.update({ welcomeMessage: 'Want a demo?' });
+    expect(texts(widget)[0]).toContain('Hi!');
+    expect(texts(widget).at(-1)).toContain('Hey there.');
+    widget.newConversation();
+    expect(texts(widget)).toEqual(['Want a demo?']);
+    widget.destroy();
+  });
+
+  it('changes, removes and brings back the disclosure', () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const widget = new Widget({ apiUrl: '/chat' });
+    widget.init();
+    const note = () => root(widget).querySelector('.cc-disclosure');
+    widget.update({ disclosure: { text: 'An AI answers here.', learnMoreUrl: 'https://example.com/ai' } });
+    expect(note()?.textContent).toContain('An AI answers here.');
+    expect(note()?.querySelector('a')?.getAttribute('href')).toBe('https://example.com/ai');
+    widget.update({ disclosure: false });
+    expect(note()).toBeNull();
+    widget.update({ disclosure: { text: 'Back again.' } });
+    expect(note()?.textContent).toBe('Back again.');
+    expect(root(widget).querySelectorAll('.cc-disclosure')).toHaveLength(1);
+    expect(info).not.toHaveBeenCalled();
+    widget.destroy();
+  });
+
+  it('uses new labels for the retry and typing parts drawn after it', () => {
+    const widget = new Widget({ apiUrl: '/chat' });
+    widget.init();
+    widget.update({ strings: { typingIndicator: 'Writing' } });
+    const panel = (widget as unknown as { panel: { messages: { showTyping(): void } } }).panel;
+    panel.messages.showTyping();
+    expect(root(widget).querySelector('.cc-typing')?.textContent).toContain('Writing');
+    widget.destroy();
+  });
+
+  it('before init, changes what init draws', () => {
+    const widget = new Widget({ apiUrl: '/chat', branding: { name: 'Help' } });
+    widget.update({ branding: { name: 'Sales' }, theme: { accent: '#16a34a' } });
+    widget.init();
+    expect(root(widget).querySelector('.cc-header-name')?.textContent).toBe('Sales');
+    expect(host(widget).style.getPropertyValue('--cc-theme-accent')).toBe('#16a34a');
+    widget.destroy();
+  });
+
+  it('cannot move the chat: position stays as it was', () => {
+    const widget = new Widget({ apiUrl: '/chat', theme: { position: 'bottom-left' } });
+    widget.init();
+    widget.update({ theme: { position: 'bottom-right' } as never });
+    expect((internals(widget) as unknown as { config: { theme: { position: string } } }).config.theme.position).toBe('bottom-left');
+    widget.destroy();
+  });
+});
+
 describe('the ChatCops API (npm and single-file builds)', () => {
   it('toggles, and has the version', () => {
     ChatCops.init({ apiUrl: '/chat' });
@@ -211,6 +331,13 @@ describe('the ChatCops API (npm and single-file builds)', () => {
     expect(closed).toHaveBeenCalledOnce();
     expect(ChatCops.version).toBe(VERSION);
     expect(VERSION).toMatch(/^\d+\.\d+\.\d+/);
+  });
+
+  it('update changes the running chat', () => {
+    ChatCops.init({ apiUrl: '/chat', branding: { name: 'Help' } });
+    ChatCops.update({ branding: { name: 'Sales' } });
+    const root = document.querySelector('.chatcops-root')?.shadowRoot;
+    expect(root?.querySelector('.cc-header-name')?.textContent).toBe('Sales');
   });
 
   it('registerLocale adds a language, English for what it leaves out, and its direction', () => {
@@ -328,6 +455,41 @@ describe('the script tag loader API', () => {
     const root = document.querySelector('.chatcops-root')?.shadowRoot;
     expect((root?.host as HTMLElement | undefined)?.dir).toBe('rtl');
     expect(root?.querySelector('.cc-send-btn')?.getAttribute('aria-label')).toBe('Go');
+    loader.destroy();
+  });
+
+  it('keeps update() until the chat loads, and themes the launcher meanwhile', async () => {
+    const load = panel();
+    const loader = createLoader(load);
+    loader.init({ apiUrl: '/chat', theme: { mode: 'dark', accent: '#2563eb' }, branding: { name: 'Help' } });
+    loader.update({ theme: { accent: '#16a34a' }, strings: { openChat: 'Talk to us' } });
+    loader.update({ branding: { name: 'Sales' } });
+    expect(load).not.toHaveBeenCalled();
+    const launcher = document.querySelector('.chatcops-root') as HTMLElement;
+    expect(launcher.style.getPropertyValue('--cc-theme-accent')).toBe('#16a34a');
+    expect(launcher.dataset.ccMode).toBe('dark');
+    expect(launcher.shadowRoot?.querySelector('.cc-fab')?.getAttribute('aria-label')).toBe('Talk to us');
+
+    loader.open();
+    await tick();
+    await tick();
+    const root = document.querySelector('.chatcops-root')?.shadowRoot;
+    expect(root?.querySelector('.cc-header-name')?.textContent).toBe('Sales');
+    expect((root?.host as HTMLElement | undefined)?.style.getPropertyValue('--cc-theme-accent')).toBe('#16a34a');
+    loader.update({ branding: { name: 'Support' } });
+    expect(root?.querySelector('.cc-header-name')?.textContent).toBe('Support');
+    loader.destroy();
+  });
+
+  it('drops updates made before init() again', async () => {
+    const loader = createLoader(panel());
+    loader.init({ apiUrl: '/chat', branding: { name: 'Help' } });
+    loader.update({ branding: { name: 'Sales' } });
+    loader.init({ apiUrl: '/chat', branding: { name: 'Docs' } });
+    loader.open();
+    await tick();
+    await tick();
+    expect(document.querySelector('.chatcops-root')?.shadowRoot?.querySelector('.cc-header-name')?.textContent).toBe('Docs');
     loader.destroy();
   });
 });

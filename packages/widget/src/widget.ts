@@ -1,6 +1,6 @@
 import { createShadowRoot, destroyShadowRoot } from './dom/shadow.js';
 import { FAB } from './dom/fab.js';
-import { Panel } from './dom/panel.js';
+import { Panel, type PanelLabels } from './dom/panel.js';
 import { WelcomeBubble } from './dom/bubble.js';
 import { ChatClient } from './api/client.js';
 import { ConversationStorage, type Persistence } from './storage.js';
@@ -106,6 +106,12 @@ export interface WidgetConfig {
   onLeadCaptured?: (leadData?: Record<string, unknown>) => void;
   onPreChatSubmit?: (data: Record<string, string>) => void;
 }
+
+/** What `update()` can change on a running chat. */
+export type WidgetUpdate = Pick<
+  WidgetConfig,
+  'branding' | 'welcomeMessage' | 'disclosure' | 'suggestions' | 'placeholder' | 'strings'
+> & { theme?: Omit<ThemeConfig, 'position'> };
 
 /** What each widget event passes to its handlers. */
 export interface WidgetEvents {
@@ -247,15 +253,7 @@ export class Widget {
       position,
       inline: this.isInline,
       preChatEnabled: this.config.preChatForm?.enabled ?? false,
-      branding: {
-        name: this.config.branding?.name ?? this.locale.defaultName,
-        avatar: this.config.branding?.avatar,
-        subtitle: this.config.branding?.subtitle ?? this.locale.defaultSubtitle,
-      },
-      placeholder: this.config.placeholder ?? this.locale.inputPlaceholder,
-      footerText: this.locale.poweredBy,
-      closeLabel: this.locale.closeButton,
-      sendLabel: this.locale.sendButton,
+      ...this.panelLabels(),
       messageActions: {
         onRetry: (messageId) => {
           void this.handleRetry(messageId);
@@ -263,26 +261,18 @@ export class Widget {
         onRegenerate: (messageId) => {
           void this.handleRegenerate(messageId);
         },
-        retryLabel: this.locale.retryButton,
-        regenerateLabel: this.locale.regenerateButton,
-        typingLabel: this.locale.typingIndicator,
-        sourcesLabel: this.locale.sourcesLabel,
+        ...this.actionLabels(),
       },
       onSend: (text) => this.handleSend(text),
       onClose: () => this.close(),
     });
 
-    const { disclosure } = this.config;
-    if (disclosure === false) {
+    if (this.config.disclosure === false) {
       console.info(
         "[chatcops] The AI disclosure is off (disclosure: false). Under the EU AI Act (Article 50), telling visitors they're talking to an AI is then up to you."
       );
-    } else {
-      this.panel.messages.setDisclosure(
-        disclosure?.text ?? this.locale.disclosure,
-        disclosure?.learnMoreUrl ? { url: disclosure.learnMoreUrl, label: this.locale.disclosureLearnMore } : undefined
-      );
     }
+    this.renderDisclosure();
 
     // An inline chat is on screen from the start; a popup reads its saved
     // conversation when it's first opened, so nothing touches storage before.
@@ -451,6 +441,74 @@ export class Widget {
    */
   setContext(data: Record<string, string> | null): void {
     this.pageData = data && Object.keys(data).length ? { ...data } : undefined;
+  }
+
+  /**
+   * Changes the look or wording of the running chat without loading it
+   * again: the theme (not `position`), branding, strings, placeholder,
+   * disclosure, welcome message and suggestions. What you leave out stays
+   * as it is. A conversation that has only the welcome message shows the
+   * new one; otherwise the welcome message and suggestions are for the
+   * next conversation.
+   */
+  update(changes: WidgetUpdate): void {
+    const current = this.config;
+    const theme = { ...current.theme, ...changes.theme, position: current.theme?.position };
+    this.config = {
+      ...current,
+      ...changes,
+      theme,
+      branding: { ...current.branding, ...changes.branding },
+      strings: { ...current.strings, ...changes.strings },
+    };
+    this.locale = getWidgetLocale(this.config.locale ?? 'en', this.config.strings);
+    if (!this.mounted) return;
+    if (changes.theme) applyTheme(this.shadow, theme);
+    const l = this.locale;
+    this.fab?.setLabels(l.openChat, l.closeButton, l.unreadCount);
+    this.panel.update(this.panelLabels(), this.actionLabels());
+    this.renderDisclosure();
+    if (this.messages.length === 1 && this.messages[0].id === 'welcome') {
+      this.messages = [];
+      this.panel.messages.clear();
+      this.showChatView();
+    }
+  }
+
+  private panelLabels(): PanelLabels {
+    const { branding, placeholder } = this.config;
+    const l = this.locale;
+    return {
+      branding: {
+        name: branding?.name ?? l.defaultName,
+        avatar: branding?.avatar,
+        subtitle: branding?.subtitle ?? l.defaultSubtitle,
+      },
+      placeholder: placeholder ?? l.inputPlaceholder,
+      footerText: l.poweredBy,
+      closeLabel: l.closeButton,
+      sendLabel: l.sendButton,
+    };
+  }
+
+  private actionLabels() {
+    const l = this.locale;
+    return {
+      retryLabel: l.retryButton,
+      regenerateLabel: l.regenerateButton,
+      typingLabel: l.typingIndicator,
+      sourcesLabel: l.sourcesLabel,
+    };
+  }
+
+  private renderDisclosure(): void {
+    const { disclosure } = this.config;
+    if (disclosure === false) this.panel.messages.setDisclosure();
+    else
+      this.panel.messages.setDisclosure(
+        disclosure?.text ?? this.locale.disclosure,
+        disclosure?.learnMoreUrl ? { url: disclosure.learnMoreUrl, label: this.locale.disclosureLearnMore } : undefined
+      );
   }
 
   private isStale(generation: number): boolean {

@@ -150,14 +150,24 @@ test('the chat loads its translation next to the panel, and falls back to Englis
 test('a page can drive the chat through window.ChatCops before it has loaded', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator(fab)).toBeVisible();
-  type Api = { sendMessage(text: string): Promise<void>; toggle(): void; newConversation(): void; version: string };
+  type Api = {
+    sendMessage(text: string): Promise<void>;
+    toggle(): void;
+    newConversation(): void;
+    update(changes: object): void;
+    version: string;
+  };
   const version = await page.evaluate(() => (window as unknown as { ChatCops: Api }).ChatCops.version);
   expect(version).toMatch(/^\d+\.\d+\.\d+/);
+  // Kept until the chat loads, and drawn when it does.
+  await page.evaluate(() => (window as unknown as { ChatCops: Api }).ChatCops.update({ branding: { name: 'Sales desk' } }));
 
   await page.evaluate(() => (window as unknown as { ChatCops: Api }).ChatCops.sendMessage('Hi from the page'));
   await expect(page.locator('.cc-panel')).toHaveClass(/cc-visible/);
   await expect(page.locator('.cc-message-user').last()).toContainText('Hi from the page');
   await expect(page.locator('.cc-message-assistant').last()).toContainText('Hello from the test server.');
+
+  await expect(page.locator('.cc-header-name')).toHaveText('Sales desk');
 
   await page.evaluate(() => (window as unknown as { ChatCops: Api }).ChatCops.newConversation());
   await expect(page.locator('.cc-message-user')).toHaveCount(0);
