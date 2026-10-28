@@ -1,0 +1,37 @@
+import type { WidgetLocaleStrings } from '../i18n.js';
+
+const ko: Partial<WidgetLocaleStrings> = {
+  welcomeMessage: '오늘 무엇을 도와드릴까요?',
+  inputPlaceholder: '메시지를 입력하세요…',
+  sendButton: '보내기',
+  closeButton: '닫기',
+  openChat: '채팅 열기',
+  defaultName: 'AI 어시스턴트',
+  defaultSubtitle: '온라인',
+  greetingWithName: '안녕하세요, {name}님!',
+  selectPlaceholder: '{label} 선택…',
+  dismissBubble: '닫기',
+  errorGeneric: '문제가 발생했습니다. 다시 시도해 주세요.',
+  errorNetwork: '연결 오류입니다. 네트워크를 확인해 주세요.',
+  errorRateLimit: '메시지를 너무 많이 보냈습니다. 잠시 기다려 주세요.',
+  errorRateLimitWait: '메시지를 너무 많이 보냈습니다. {seconds}초 후에 다시 시도해 주세요.',
+  errorBudget: '이 채팅의 사용 한도에 도달했습니다.',
+  errorBudgetDaily: '어시스턴트의 오늘 사용 한도에 도달했습니다. 나중에 다시 시도해 주세요.',
+  errorUnavailable: '현재 어시스턴트를 사용할 수 없습니다. 나중에 다시 시도해 주세요.',
+  errorCutOff: '응답이 중간에 끊겼습니다.',
+  typingIndicator: '입력 중…',
+  poweredBy: 'ChatCops 제공',
+  newConversation: '새 대화',
+  welcomeBubbleDefault: '도움이 필요하신가요? 문의해 주세요!',
+  preChatTitle: '시작하기 전에…',
+  preChatSubtitle: '간단히 자기소개를 해 주세요',
+  preChatSubmit: '채팅 시작',
+  preChatRequired: '필수 입력 항목입니다.',
+  preChatInvalidEmail: '유효한 이메일 주소를 입력해 주세요.',
+  retryButton: '다시 시도',
+  regenerateButton: '다시 생성',
+  suggestionsLabel: '추천 질문',
+  unreadCount: '읽지 않은 메시지 {count}개',
+};
+
+export default ko;
