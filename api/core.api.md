@@ -86,9 +86,9 @@ export type BudgetScope = 'conversation' | 'ip' | 'global';
 
 export declare class BufferedEventSink {
     constructor(sink: EventSink, options?: {
-        maxBatch?: number;
         flushMs?: number;
         logger?: Logger;
+        maxBatch?: number;
     });
     track(type: string, data?: Record<string, unknown>): void;
     flush(): Promise<void>;
@@ -131,14 +131,14 @@ export interface ChatRequestV1 {
         assistantMessageId: string;
     };
     toolResults?: Array<{
-        toolCallId: string;
-        output?: unknown;
         error?: string;
+        output?: unknown;
+        toolCallId: string;
     }>;
     toolApprovals?: Array<{
-        toolCallId: string;
         approved: boolean;
         reason?: string;
+        toolCallId: string;
     }>;
     resumeToken?: string;
     clientTools?: ClientToolManifest[];
@@ -167,12 +167,12 @@ export interface ChatTool {
 export declare class CitationParser {
     constructor(count: number);
     push(delta: string): {
-        text: string;
         cited: number[];
+        text: string;
     };
     flush(): {
-        text: string;
         cited: number[];
+        text: string;
     };
 }
 
@@ -253,8 +253,8 @@ export interface ConversationStore {
     updateMessage?(id: string, message: ChatMessage): Promise<boolean>;
     removeMessage?(id: string, messageId: string): Promise<boolean>;
     list?(query: ListQuery): Promise<{
-        items: ConversationSummary[];
         cursor?: string;
+        items: ConversationSummary[];
     }>;
     purge?(before: number): Promise<number>;
 }
@@ -280,8 +280,8 @@ export interface CounterValue {
 }
 
 export declare function createBudgetGuard(counters: CounterStore, budgets: Budgets, options?: {
-    prefix?: string;
     now?: () => number;
+    prefix?: string;
 }): BudgetGuard;
 
 export declare function createProvider(config: ProviderConfig): Promise<AIProvider>;
@@ -445,25 +445,25 @@ export declare class LeadCaptureTool implements ChatTool {
     name: string;
     description: string;
     parameters: {
-        name: {
-            type: "string";
+        company: {
             description: string;
+            type: "string";
         };
         email: {
-            type: "string";
             description: string;
+            type: "string";
         };
-        company: {
-            type: "string";
+        name: {
             description: string;
+            type: "string";
         };
         phone: {
-            type: "string";
             description: string;
+            type: "string";
         };
         projectDetails: {
-            type: "string";
             description: string;
+            type: "string";
         };
     };
     required: string[];
@@ -599,8 +599,8 @@ export interface PageContext {
 }
 
 export declare function parseCitations(text: string, count: number): {
-    text: string;
     cited: number[];
+    text: string;
 };
 
 export declare function partsOf(message: Pick<ChatMessage, 'content' | 'parts'>): MessagePart[];
@@ -636,24 +636,24 @@ export interface ProviderConfig {
 export type ProviderEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 export type ProviderEvent = {
+    delta: string;
     type: 'text-delta';
-    delta: string;
 } | {
+    delta: string;
     type: 'reasoning-delta';
-    delta: string;
 } | {
-    type: 'tool-call';
     call: ProviderToolCall;
-    providerMetadata?: ProviderMetadata;
     inputError?: string;
+    providerMetadata?: ProviderMetadata;
+    type: 'tool-call';
 } | {
-    type: 'source';
     index: number;
+    type: 'source';
 } | {
-    type: 'finish';
-    reason: FinishReason;
-    usage: TokenUsage;
     parts: MessagePart[];
+    reason: FinishReason;
+    type: 'finish';
+    usage: TokenUsage;
 };
 
 export type ProviderFactory = (config: ProviderConfig) => AIProvider | Promise<AIProvider>;
@@ -765,8 +765,8 @@ export interface RunTurnOptions {
     exposeUsage?: boolean;
     logger?: Logger;
     budget?: {
-        guard: BudgetGuard;
         context: BudgetContext;
+        guard: BudgetGuard;
     };
     onPersist?(message: ChatMessage, info: {
         final: boolean;
@@ -1015,76 +1015,76 @@ export type WireErrorCode = 'invalid_request' | 'session_required' | 'token_expi
 export type WireFinishReason = 'stop' | 'length' | 'client-tool-calls' | 'approval-required' | 'handoff' | 'error' | 'aborted';
 
 export type WirePart = {
-    type: 'start';
-    protocol: typeof PROTOCOL_VERSION;
-    conversationId: string;
-    messageId: string;
-    resumed?: boolean;
     capabilities?: {
         session?: boolean;
     };
+    conversationId: string;
+    messageId: string;
+    protocol: typeof PROTOCOL_VERSION;
+    resumed?: boolean;
+    type: 'start';
 } | {
+    id: string;
     type: 'text-start';
-    id: string;
 } | {
-    type: 'text-delta';
-    id: string;
     delta: string;
-} | {
-    type: 'text-end';
     id: string;
+    type: 'text-delta';
 } | {
-    type: 'source';
-    sourceId: string;
-    url: string;
-    title?: string;
+    id: string;
+    type: 'text-end';
+} | {
     snippet?: string;
+    sourceId: string;
+    title?: string;
+    type: 'source';
+    url: string;
 } | {
-    type: 'tool-call';
-    toolCallId: string;
-    toolName: string;
-    input: unknown;
     executor: ToolExecutor;
+    input: unknown;
     needsApproval?: boolean;
     title?: string;
-} | {
-    type: 'tool-result';
     toolCallId: string;
-    output?: unknown;
+    toolName: string;
+    type: 'tool-call';
+} | {
     error?: string;
+    output?: unknown;
+    toolCallId: string;
+    type: 'tool-result';
 } | {
-    type: 'lead-captured';
     lead: Record<string, unknown>;
+    type: 'lead-captured';
 } | {
-    type: 'handoff';
-    status: 'requested' | 'queued' | 'connected' | 'ended';
     agent?: WireAgent;
     pollAfterMs?: number;
+    status: 'requested' | 'queued' | 'connected' | 'ended';
+    type: 'handoff';
 } | {
-    type: 'agent-message';
+    agent: WireAgent;
     messageId: string;
     text: string;
-    agent: WireAgent;
     timestamp: number;
+    type: 'agent-message';
 } | {
-    type: 'suggestions';
     items: string[];
+    type: 'suggestions';
 } | {
-    type: 'error';
     code: WireErrorCode;
     message?: string;
     retryable: boolean;
     retryAfterMs?: number;
     scope?: 'conversation' | 'session' | 'ip' | 'global';
+    type: 'error';
 } | {
-    type: 'finish';
+    pendingToolCalls?: string[];
     reason: WireFinishReason;
+    resumeToken?: string;
+    type: 'finish';
     usage?: {
         inputTokens: number;
         outputTokens: number;
     };
-    pendingToolCalls?: string[];
-    resumeToken?: string;
 };
 
 export type WirePartType = WirePart['type'];
@@ -1199,14 +1199,14 @@ export interface ChatRequestV1 {
         assistantMessageId: string;
     };
     toolResults?: Array<{
-        toolCallId: string;
-        output?: unknown;
         error?: string;
+        output?: unknown;
+        toolCallId: string;
     }>;
     toolApprovals?: Array<{
-        toolCallId: string;
         approved: boolean;
         reason?: string;
+        toolCallId: string;
     }>;
     resumeToken?: string;
     clientTools?: ClientToolManifest[];
@@ -1274,76 +1274,76 @@ export type WireErrorCode = 'invalid_request' | 'session_required' | 'token_expi
 export type WireFinishReason = 'stop' | 'length' | 'client-tool-calls' | 'approval-required' | 'handoff' | 'error' | 'aborted';
 
 export type WirePart = {
-    type: 'start';
-    protocol: typeof PROTOCOL_VERSION;
-    conversationId: string;
-    messageId: string;
-    resumed?: boolean;
     capabilities?: {
         session?: boolean;
     };
+    conversationId: string;
+    messageId: string;
+    protocol: typeof PROTOCOL_VERSION;
+    resumed?: boolean;
+    type: 'start';
 } | {
+    id: string;
     type: 'text-start';
-    id: string;
 } | {
-    type: 'text-delta';
-    id: string;
     delta: string;
-} | {
-    type: 'text-end';
     id: string;
+    type: 'text-delta';
 } | {
-    type: 'source';
-    sourceId: string;
-    url: string;
-    title?: string;
+    id: string;
+    type: 'text-end';
+} | {
     snippet?: string;
+    sourceId: string;
+    title?: string;
+    type: 'source';
+    url: string;
 } | {
-    type: 'tool-call';
-    toolCallId: string;
-    toolName: string;
-    input: unknown;
     executor: ToolExecutor;
+    input: unknown;
     needsApproval?: boolean;
     title?: string;
-} | {
-    type: 'tool-result';
     toolCallId: string;
-    output?: unknown;
+    toolName: string;
+    type: 'tool-call';
+} | {
     error?: string;
+    output?: unknown;
+    toolCallId: string;
+    type: 'tool-result';
 } | {
-    type: 'lead-captured';
     lead: Record<string, unknown>;
+    type: 'lead-captured';
 } | {
-    type: 'handoff';
-    status: 'requested' | 'queued' | 'connected' | 'ended';
     agent?: WireAgent;
     pollAfterMs?: number;
+    status: 'requested' | 'queued' | 'connected' | 'ended';
+    type: 'handoff';
 } | {
-    type: 'agent-message';
+    agent: WireAgent;
     messageId: string;
     text: string;
-    agent: WireAgent;
     timestamp: number;
+    type: 'agent-message';
 } | {
-    type: 'suggestions';
     items: string[];
+    type: 'suggestions';
 } | {
-    type: 'error';
     code: WireErrorCode;
     message?: string;
     retryable: boolean;
     retryAfterMs?: number;
     scope?: 'conversation' | 'session' | 'ip' | 'global';
+    type: 'error';
 } | {
-    type: 'finish';
+    pendingToolCalls?: string[];
     reason: WireFinishReason;
+    resumeToken?: string;
+    type: 'finish';
     usage?: {
         inputTokens: number;
         outputTokens: number;
     };
-    pendingToolCalls?: string[];
-    resumeToken?: string;
 };
 
 export type WirePartType = WirePart['type'];
@@ -1381,8 +1381,8 @@ export declare function textStep(text: string, options?: {
 
 export declare function toolStep(calls: Array<{
     id?: string;
-    name: string;
     input?: Record<string, unknown>;
+    name: string;
 }>, options?: {
     text?: string;
     usage?: TokenUsage;
@@ -1414,8 +1414,8 @@ export declare function textStep(text: string, options?: {
 
 export declare function toolStep(calls: Array<{
     id?: string;
-    name: string;
     input?: Record<string, unknown>;
+    name: string;
 }>, options?: {
     text?: string;
     usage?: TokenUsage;

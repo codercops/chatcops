@@ -31,8 +31,8 @@ export declare class RedisConversationStore implements ConversationStore {
     removeMessage(id: string, messageId: string): Promise<boolean>;
     delete(id: string): Promise<void>;
     list(query: ListQuery): Promise<{
-        items: ConversationSummary[];
         cursor?: string;
+        items: ConversationSummary[];
     }>;
     purge(before: number): Promise<number>;
 }

@@ -53,13 +53,13 @@ export interface D1Result<T = unknown> {
     results: T[];
     success: boolean;
     meta?: {
+        changes?: number;
         duration?: number;
-        size_after?: number;
+        last_row_id?: number;
         rows_read?: number;
         rows_written?: number;
-        last_row_id?: number;
-        changes?: number;
         served_by?: string;
+        size_after?: number;
         [key: string]: unknown;
     };
     error?: string;
@@ -95,12 +95,12 @@ export interface DurableObjectStorage {
     delete(keys: string[]): Promise<number>;
     deleteAll(): Promise<void>;
     list<T = unknown>(options?: {
-        start?: string;
-        startAfter?: string;
         end?: string;
+        limit?: number;
         prefix?: string;
         reverse?: boolean;
-        limit?: number;
+        start?: string;
+        startAfter?: string;
     }): Promise<Map<string, T>>;
     setAlarm(scheduledTime: number | Date, options?: unknown): Promise<void>;
     getAlarm?(options?: unknown): Promise<number | null>;
@@ -132,18 +132,18 @@ export declare const SCHEMA_VERSION = 2;
 export interface VectorizeIndex {
     upsert(vectors: Array<{
         id: string;
-        values: number[];
         metadata?: Record<string, unknown>;
+        values: number[];
     }>): Promise<unknown>;
     query(vector: number[] | Float32Array, options: {
-        topK: number;
         filter?: Record<string, unknown>;
         returnMetadata?: boolean | 'all' | 'indexed';
+        topK: number;
     }): Promise<{
         matches?: Array<{
             id: string;
-            score?: number;
             metadata?: Record<string, unknown>;
+            score?: number;
         }>;
     }>;
     deleteByIds(ids: string[]): Promise<unknown>;

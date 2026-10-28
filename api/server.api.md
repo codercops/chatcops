@@ -66,8 +66,28 @@ export type ChatHandler = ReturnType<typeof createChatHandler>;
 
 export declare const chatRequestSchema: z.ZodObject<{
     conversationId: z.ZodString;
+    locale: z.ZodOptional<z.ZodString>;
     message: z.ZodString;
     messageId: z.ZodOptional<z.ZodString>;
+    pageContext: z.ZodOptional<z.ZodObject<{
+        contentSnippet: z.ZodOptional<z.ZodString>;
+        data: z.ZodOptional<z.ZodEffects<z.ZodRecord<z.ZodString, z.ZodString>, Record<string, string>, Record<string, string>>>;
+        description: z.ZodOptional<z.ZodString>;
+        title: z.ZodString;
+        url: z.ZodString;
+    }, "strip", z.ZodTypeAny, {
+        contentSnippet?: string | undefined;
+        data?: Record<string, string> | undefined;
+        description?: string | undefined;
+        title: string;
+        url: string;
+    }, {
+        contentSnippet?: string | undefined;
+        data?: Record<string, string> | undefined;
+        description?: string | undefined;
+        title: string;
+        url: string;
+    }>>;
     regenerate: z.ZodOptional<z.ZodUnion<[
         z.ZodBoolean,
         z.ZodObject<{
@@ -78,58 +98,38 @@ export declare const chatRequestSchema: z.ZodObject<{
             assistantMessageId: string;
         }>
     ]>>;
-    pageContext: z.ZodOptional<z.ZodObject<{
-        url: z.ZodString;
-        title: z.ZodString;
-        description: z.ZodOptional<z.ZodString>;
-        contentSnippet: z.ZodOptional<z.ZodString>;
-        data: z.ZodOptional<z.ZodEffects<z.ZodRecord<z.ZodString, z.ZodString>, Record<string, string>, Record<string, string>>>;
-    }, "strip", z.ZodTypeAny, {
-        url: string;
-        title: string;
-        description?: string | undefined;
-        contentSnippet?: string | undefined;
-        data?: Record<string, string> | undefined;
-    }, {
-        url: string;
-        title: string;
-        description?: string | undefined;
-        contentSnippet?: string | undefined;
-        data?: Record<string, string> | undefined;
-    }>>;
-    locale: z.ZodOptional<z.ZodString>;
     userData: z.ZodOptional<z.ZodEffects<z.ZodRecord<z.ZodString, z.ZodString>, Record<string, string>, Record<string, string>>>;
 }, "strip", z.ZodTypeAny, {
-    message: string;
     conversationId: string;
+    locale?: string | undefined;
+    message: string;
     messageId?: string | undefined;
+    pageContext?: {
+        contentSnippet?: string | undefined;
+        data?: Record<string, string> | undefined;
+        description?: string | undefined;
+        title: string;
+        url: string;
+    } | undefined;
     regenerate?: boolean | {
         assistantMessageId: string;
     } | undefined;
-    pageContext?: {
-        url: string;
-        title: string;
-        description?: string | undefined;
-        contentSnippet?: string | undefined;
-        data?: Record<string, string> | undefined;
-    } | undefined;
-    locale?: string | undefined;
     userData?: Record<string, string> | undefined;
 }, {
-    message: string;
     conversationId: string;
+    locale?: string | undefined;
+    message: string;
     messageId?: string | undefined;
+    pageContext?: {
+        contentSnippet?: string | undefined;
+        data?: Record<string, string> | undefined;
+        description?: string | undefined;
+        title: string;
+        url: string;
+    } | undefined;
     regenerate?: boolean | {
         assistantMessageId: string;
     } | undefined;
-    pageContext?: {
-        url: string;
-        title: string;
-        description?: string | undefined;
-        contentSnippet?: string | undefined;
-        data?: Record<string, string> | undefined;
-    } | undefined;
-    locale?: string | undefined;
     userData?: Record<string, string> | undefined;
 }>;
 
@@ -137,35 +137,35 @@ export type ChatStart = {
     ok: true;
     parts: AsyncGenerator<WirePart, void>;
 } | {
-    ok: false;
-    status: number;
     error: WireErrorBody['error'];
     legacy: LegacyChunk & {
         details?: unknown;
     };
+    ok: false;
+    status: number;
 };
 
 export type ClientIpResolver = (request: Request) => string | null | undefined;
 
 export declare function createChatHandler(config: ChatCopsServerConfig): {
-    handleChat: (body: unknown, clientIp?: string, options?: {
-        signal?: AbortSignal;
-    }) => AsyncGenerator<string>;
-    startChat: (body: unknown, clientIp?: string, options?: StartChatOptions) => Promise<ChatStart>;
-    purge: (now?: number) => Promise<number | null>;
-    startSession: ((body: unknown, origin: string | null, clientIp?: string) => Promise<import("./security/sessions.js").SessionReply>) | undefined;
-    protocolStats: () => {
-        v1: number;
-        legacy: number;
-        "ai-sdk": number;
-    };
-    getAnalytics: () => AnalyticsStats | null;
     analyticsStats: (range?: {
         from?: number;
         to?: number;
     }) => Promise<AnalyticsStats | null>;
     cleanup: () => void;
+    getAnalytics: () => AnalyticsStats | null;
+    handleChat: (body: unknown, clientIp?: string, options?: {
+        signal?: AbortSignal;
+    }) => AsyncGenerator<string>;
     logger: import("@chatcops/core").Logger;
+    protocolStats: () => {
+        "ai-sdk": number;
+        legacy: number;
+        v1: number;
+    };
+    purge: (now?: number) => Promise<number | null>;
+    startChat: (body: unknown, clientIp?: string, options?: StartChatOptions) => Promise<ChatStart>;
+    startSession: ((body: unknown, origin: string | null, clientIp?: string) => Promise<import("./security/sessions.js").SessionReply>) | undefined;
 };
 
 export interface RateLimitConfig {
@@ -203,10 +203,10 @@ export type ValidatedChatRequest = z.infer<typeof chatRequestSchema>;
 
 export declare function verifyWebhook(options: {
     body: string;
-    signature: string | null | undefined;
-    secret: string;
-    toleranceSec?: number;
     now?: number;
+    secret: string;
+    signature: string | null | undefined;
+    toleranceSec?: number;
 }): Promise<boolean>;
 
 export declare class WebhookDispatcher {

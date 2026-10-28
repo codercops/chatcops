@@ -6,6 +6,7 @@ Made by `node scripts/api-snapshot.mjs` from the built types. Don't edit it by h
 
 ```ts
 declare const _default: {
+    version: string;
     init(config: WidgetConfig): Widget;
     open(): void;
     close(): void;
@@ -19,13 +20,12 @@ declare const _default: {
         dir?: "ltr" | "rtl";
     }): void;
     setUser(user: {
-        name?: string;
         email?: string;
+        name?: string;
         token?: string;
     } | null): void;
     setContext(data: Record<string, string> | null): void;
     update(changes: WidgetUpdate): void;
-    version: string;
     destroy(): void;
     on<E extends WidgetEventType>(event: E, handler: WidgetEventHandler<E>): () => void;
     off<E extends WidgetEventType>(event: E, handler: WidgetEventHandler<E>): void;
@@ -40,8 +40,8 @@ export interface MessageData {
     errorType?: MessageErrorType;
     errorText?: string;
     sources?: Array<{
-        url: string;
         title?: string;
+        url: string;
     }>;
 }
 
@@ -60,8 +60,8 @@ export declare class Widget {
     newConversation(): void;
     clear(): void;
     setUser(user: {
-        name?: string;
         email?: string;
+        name?: string;
         token?: string;
     } | null): void;
     setContext(data: Record<string, string> | null): void;
@@ -81,20 +81,20 @@ export interface WidgetConfig {
     container?: string | HTMLElement;
     theme?: ThemeConfig;
     branding?: {
-        name?: string;
         avatar?: string;
+        name?: string;
         subtitle?: string;
     };
     welcomeMessage?: string;
     disclosure?: false | {
-        text?: string;
         learnMoreUrl?: string;
+        text?: string;
     };
     suggestions?: string[];
     welcomeBubble?: {
-        text: string;
         delay?: number;
         showOnce?: boolean;
+        text: string;
     };
     placeholder?: string;
     persistence?: Persistence;

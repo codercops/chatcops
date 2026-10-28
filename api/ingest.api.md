@@ -72,8 +72,8 @@ export interface IngestConfig {
     concurrency?: number;
     timeoutMs?: number;
     chunk?: {
-        targetTokens?: number;
         overlapTokens?: number;
+        targetTokens?: number;
     };
     embedder: Embedder;
     store: VectorStore;
@@ -87,15 +87,15 @@ export interface IngestConfig {
 }
 
 export type IngestEvent = {
-    type: 'discovered';
-    pages: number;
     errors: string[];
+    pages: number;
+    type: 'discovered';
 } | {
-    type: 'page';
-    url: string;
-    status: 'indexed' | 'unchanged' | 'skipped' | 'failed';
     chunks?: number;
     reason?: string;
+    status: 'indexed' | 'unchanged' | 'skipped' | 'failed';
+    type: 'page';
+    url: string;
 } | {
     type: 'pruned';
     url: string;
@@ -108,9 +108,9 @@ export type IngestSource = {
     type: 'urls';
     urls: string[];
 } | {
-    type: 'directory';
-    path: string;
     baseUrl: string;
+    path: string;
+    type: 'directory';
 };
 
 export interface IngestStats {
@@ -128,8 +128,8 @@ export interface IngestStats {
 
 export declare function manifestKeys(index: string): {
     meta: string;
-    pages: string;
     page: (url: string) => string;
+    pages: string;
 };
 
 export declare function normalizeUrl(url: string): string | undefined;

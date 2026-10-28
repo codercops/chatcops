@@ -43,8 +43,8 @@ export declare class PostgresConversationStore implements ConversationStore {
     updateMessage(id: string, message: ChatMessage): Promise<boolean>;
     removeMessage(id: string, messageId: string): Promise<boolean>;
     list(query: ListQuery): Promise<{
-        items: ConversationSummary[];
         cursor?: string;
+        items: ConversationSummary[];
     }>;
     purge(before: number): Promise<number>;
 }

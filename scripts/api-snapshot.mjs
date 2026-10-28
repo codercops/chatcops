@@ -56,12 +56,42 @@ function publicPart(declaration) {
   );
 }
 
+const memberName = (member) =>
+  ts.isPropertySignature(member) && member.name && (ts.isIdentifier(member.name) || ts.isStringLiteral(member.name))
+    ? member.name.text
+    : undefined;
+
+/**
+ * Object types the compiler wrote out itself (such as a zod schema's inferred
+ * type) list their properties in an order that changes between a clean and
+ * an incremental build. The order means nothing to the type, so properties
+ * of anonymous object types are sorted. Interfaces keep their source order.
+ */
+function sortTypeLiterals(node) {
+  const result = ts.transform(node, [
+    (context) => (root) => {
+      const visit = (child) => {
+        const next = ts.visitEachChild(child, visit, context);
+        if (!ts.isTypeLiteralNode(next)) return next;
+        const named = next.members.filter((member) => memberName(member) !== undefined);
+        const others = next.members.filter((member) => memberName(member) === undefined);
+        named.sort((a, b) => memberName(a).localeCompare(memberName(b)));
+        return context.factory.updateTypeLiteralNode(next, context.factory.createNodeArray([...named, ...others]));
+      };
+      return ts.visitNode(root, visit);
+    },
+  ]);
+  const [transformed] = result.transformed;
+  result.dispose();
+  return transformed;
+}
+
 /** A declaration as it reads in a .d.ts, without `export`/`default`. */
 function print(original) {
   const sourceFile = original.getSourceFile();
-  const declaration = publicPart(original);
+  const declaration = sortTypeLiterals(publicPart(original));
   if (ts.isVariableDeclaration(declaration)) {
-    const list = declaration.parent;
+    const list = original.parent;
     const keyword = list.flags & ts.NodeFlags.Const ? 'const' : list.flags & ts.NodeFlags.Let ? 'let' : 'var';
     return `declare ${keyword} ${printer.printNode(ts.EmitHint.Unspecified, declaration, sourceFile)};`;
   }

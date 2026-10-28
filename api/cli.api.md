@@ -130,8 +130,8 @@ export interface TestRunResult {
     run: number;
     pass: boolean;
     turns: Array<{
-        turn: TurnResult;
         results: AssertionResult[];
+        turn: TurnResult;
     }>;
     error?: string;
 }
@@ -147,12 +147,12 @@ export interface TurnResult {
     user: string;
     text: string;
     toolCalls: Array<{
-        name: string;
         input: unknown;
+        name: string;
     }>;
     sources: Array<{
-        url: string;
         title?: string;
+        url: string;
     }>;
     leads: Array<Record<string, unknown>>;
     finishReason?: string;
@@ -185,13 +185,13 @@ declare class Cassettes {
     install(): () => void;
     load(fixtures: string[]): Promise<void>;
     run<T>(fixture: string, test: string, fn: () => Promise<T>): Promise<{
-        value: T;
         problems: string[];
+        value: T;
     }>;
     save(fixtures: Array<{
+        all: string[];
         path: string;
         ran: string[];
-        all: string[];
     }>): Promise<string[]>;
 }
 
@@ -208,9 +208,9 @@ interface Judge {
     id: string;
     model?: string;
     grade(rubric: string, conversation: TurnResult[]): Promise<{
-        score: number;
-        reason: string;
         costUsd?: number;
+        reason: string;
+        score: number;
     }>;
 }
 
