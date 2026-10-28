@@ -87,7 +87,7 @@ export function extractHtml(html: string, url: string, selector?: string): Extra
  * removed, keeping the text between tags.
  */
 export function extractMarkdown(source: string, url: string): ExtractedDoc {
-  let body = source.replace(/^﻿/, '');
+  let body = source.replace(/^\uFEFF/, '');
   const frontMatter: Record<string, string> = {};
   const front = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(body);
   if (front) {
