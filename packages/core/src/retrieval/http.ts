@@ -7,7 +7,7 @@ export interface JsonPost {
 }
 
 /**
- * POSTs JSON for a provider API and returns the successful response. Rate
+ * POSTs JSON for an embedding API and returns the successful response. Rate
  * limits (429) and server errors (5xx) are retried twice, waiting as long as
  * `retry-after` says (at most 30s), or 1s then 2s; the abort signal stops a
  * wait. Anything else fails at once with the start of the response body,

@@ -238,14 +238,14 @@ Hybrid search is the better default when the store supports it. Words catch what
 
 Both take `candidates` (how many records each search fetches, default 20) and an optional `reranker`, which reorders the candidates before the top ones are kept. A short follow-up question ("how long does it take?") is searched together with the visitor's previous question, so it finds the right pages.
 
-Use Voyage's [Reranker API](https://docs.voyageai.com/reference/reranker-api) to improve the ordering of retrieved candidates. `voyageReranker` uses `rerank-3` by default; pass `model` to choose `rerank-3-lite` or another supported model:
+Use [Cohere](https://docs.cohere.com/reference/rerank) or [Voyage](https://docs.voyageai.com/reference/reranker-api) to improve the ordering of retrieved candidates. `cohereReranker` defaults to `rerank-v5.0-pro`, while `voyageReranker` defaults to `rerank-3`. Both use the same reranker interface, so either can be passed to `hybridRetriever` in the same way:
 
 ```typescript
-import { hybridRetriever, memoryVectors, openaiEmbedder, voyageReranker } from '@chatcops/core';
+import { cohereReranker, hybridRetriever, memoryVectors, openaiEmbedder } from '@chatcops/core';
 
 const embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! });
 const vectors = memoryVectors({ dimensions: embedder.dimensions });
-const reranker = voyageReranker({ apiKey: process.env.VOYAGE_API_KEY! });
+const reranker = cohereReranker({ apiKey: process.env.COHERE_API_KEY! });
 
 const retriever = hybridRetriever({ store: vectors, embedder, reranker });
 ```
