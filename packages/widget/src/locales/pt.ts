@@ -31,7 +31,7 @@ const pt: Partial<WidgetLocaleStrings> = {
   retryButton: 'Tentar novamente',
   regenerateButton: 'Gerar novamente',
   suggestionsLabel: 'Perguntas sugeridas',
-  unreadCount: '{count} não lidas',
+  unreadCount: 'Não lidas: {count}',
 };
 
 export default pt;
