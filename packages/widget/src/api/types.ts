@@ -27,4 +27,6 @@ export interface WidgetChatChunk {
   leadCaptured?: boolean;
   leadData?: Record<string, unknown>;
   suggestedActions?: string[];
+  /** A page the reply cited (protocol v1 `source` part). */
+  source?: { url: string; title?: string };
 }

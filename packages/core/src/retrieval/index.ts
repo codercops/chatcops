@@ -21,5 +21,6 @@ export { voyageEmbedder, type VoyageEmbedderOptions } from './voyage-embedder.js
 export { voyageReranker, type VoyageRerankerOptions } from './voyage-reranker.js';
 export { cohereReranker, type CohereRerankerOptions } from './cohere-reranker.js';
 export { workersAiEmbedder, type WorkersAiBinding, type WorkersAiEmbedderOptions } from './workers-ai-embedder.js';
+export { workersAiReranker, type WorkersAiRerankerOptions } from './workers-ai-reranker.js';
 export { retrieverKnowledge, type RetrieverKnowledgeOptions } from './knowledge.js';
 export { formatSources, uniqueChunks, SOURCES_INSTRUCTION } from './sources.js';
