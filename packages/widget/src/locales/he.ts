@@ -1,0 +1,37 @@
+import type { WidgetLocaleStrings } from '../i18n.js';
+
+const he: Partial<WidgetLocaleStrings> = {
+  welcomeMessage: 'איך אפשר לעזור לכם היום?',
+  inputPlaceholder: 'כתבו הודעה…',
+  sendButton: 'שליחה',
+  closeButton: 'סגירה',
+  openChat: 'פתיחת צ׳אט',
+  defaultName: 'עוזר AI',
+  defaultSubtitle: 'מחובר',
+  greetingWithName: 'שלום, {name}!',
+  selectPlaceholder: 'בחירת {label}…',
+  dismissBubble: 'הסתרה',
+  errorGeneric: 'משהו השתבש. נסו שוב.',
+  errorNetwork: 'שגיאת חיבור. בדקו את החיבור לאינטרנט.',
+  errorRateLimit: 'שלחתם יותר מדי הודעות. המתינו רגע.',
+  errorRateLimitWait: 'שלחתם יותר מדי הודעות. נסו שוב בעוד {seconds} שניות.',
+  errorBudget: 'השיחה הזו הגיעה למגבלת השימוש שלה.',
+  errorBudgetDaily: 'העוזר הגיע למגבלת השימוש היומית. נסו שוב מאוחר יותר.',
+  errorUnavailable: 'העוזר אינו זמין כרגע. נסו שוב מאוחר יותר.',
+  errorCutOff: 'התשובה נקטעה.',
+  typingIndicator: 'מקליד…',
+  poweredBy: 'מופעל על ידי ChatCops',
+  newConversation: 'שיחה חדשה',
+  welcomeBubbleDefault: 'צריכים עזרה? דברו איתנו!',
+  preChatTitle: 'לפני שנתחיל…',
+  preChatSubtitle: 'ספרו לנו קצת על עצמכם',
+  preChatSubmit: 'התחלת צ׳אט',
+  preChatRequired: 'זהו שדה חובה.',
+  preChatInvalidEmail: 'הזינו כתובת אימייל תקינה.',
+  retryButton: 'ניסיון חוזר',
+  regenerateButton: 'יצירה מחדש',
+  suggestionsLabel: 'שאלות מוצעות',
+  unreadCount: '{count} הודעות שלא נקראו',
+};
+
+export default he;
