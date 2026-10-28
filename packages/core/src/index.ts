@@ -115,6 +115,12 @@ export {
   hybridRetriever,
   reciprocalRankFusion,
   retrievalQueryText,
+  CitationParser,
+  parseCitations,
+  sourcePart,
+  sourcesContext,
+  CITE_INSTRUCTION,
+  NATIVE_SOURCES_INSTRUCTION,
 } from './retrieval/index.js';
 
 // Conversation

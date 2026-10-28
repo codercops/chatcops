@@ -173,6 +173,52 @@ describe('Widget', () => {
     widget.destroy();
   });
 
+  it('opens from the welcome text button, but only dismisses from the close button', () => {
+    vi.useFakeTimers();
+    const onOpen = vi.fn();
+    const widget = new Widget({
+      apiUrl: 'https://api.test/chat',
+      welcomeBubble: { text: 'Need help?', delay: 1000, showOnce: false },
+      onOpen,
+    });
+    widget.init();
+
+    const root = getInternals(widget).shadow;
+    const bubble = root.querySelector('.cc-bubble') as HTMLElement;
+    const trigger = bubble.querySelector('.cc-bubble-trigger') as HTMLButtonElement;
+    const close = bubble.querySelector('.cc-bubble-close') as HTMLButtonElement;
+    expect(trigger.tagName).toBe('BUTTON');
+    expect(trigger.type).toBe('button');
+    expect(trigger.textContent).toBe('Need help?');
+    expect(trigger.parentElement).toBe(bubble);
+    expect(close.parentElement).toBe(bubble);
+    expect(bubble.hasAttribute('inert')).toBe(true);
+
+    vi.advanceTimersByTime(1000);
+    expect(bubble.classList.contains('cc-visible')).toBe(true);
+    expect(bubble.hasAttribute('inert')).toBe(false);
+    bubble.click();
+    expect(onOpen).not.toHaveBeenCalled();
+    close.click();
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(bubble.hasAttribute('inert')).toBe(true);
+    widget.destroy();
+
+    const second = new Widget({
+      apiUrl: 'https://api.test/chat',
+      welcomeBubble: { text: 'Need help?', delay: 1000, showOnce: false },
+      onOpen,
+    });
+    second.init();
+    vi.advanceTimersByTime(1000);
+    const secondBubble = getInternals(second).shadow.querySelector('.cc-bubble') as HTMLElement;
+    (secondBubble.querySelector('.cc-bubble-trigger') as HTMLButtonElement).click();
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(secondBubble.hasAttribute('inert')).toBe(true);
+    expect(getInternals(second).shadow.querySelector('.cc-panel')?.classList.contains('cc-visible')).toBe(true);
+    second.destroy();
+  });
+
   it('shows configured suggestions in a labelled group in a new conversation', () => {
     const widget = new Widget({
       apiUrl: 'https://api.test/chat',

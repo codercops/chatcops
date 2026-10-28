@@ -108,6 +108,23 @@ class VectorKnowledgeSource implements KnowledgeSource {
 }
 ```
 
+## Citations
+
+When knowledge sources return chunks (through `retrieve`), answers say which pages they came from. Each page the reply cites becomes a `source` part in the stream, once per page, after the text that cites it, and is saved with the reply:
+
+```json
+{ "type": "source", "sourceId": "https://example.com/pricing", "url": "https://example.com/pricing", "title": "Pricing", "snippet": "The Team plan costs $20 per user per month…" }
+```
+
+How the model cites depends on the provider:
+
+| Provider | Sources go to the model as | Citations come back as |
+|---|---|---|
+| Claude | `search_result` blocks before the visitor's message | Claude's own citations, mapped to `source` parts |
+| OpenAI, Gemini, others | A numbered `<sources>` block in the system context | `[1]`, `[2]` in the text; numbers that match no source are removed |
+
+Either way, retrieved text is framed as reference material that never contains instructions, and it can't add or unlock tools. Sources with only `getContext` work as before: their text goes in the context, without citations.
+
 ## Retrieval from a vector store
 
 Embedders turn text into vectors. `openaiEmbedder` calls OpenAI's embeddings API (`text-embedding-3-small` at 1024 dimensions by default), while `workersAiEmbedder` runs inside Cloudflare Workers using the native `env.AI` binding (`@cf/baai/bge-m3` at 1024 dimensions by default, batched up to 100 texts). A retriever searches a vector store with them, and `retrieverKnowledge` turns the retriever into a knowledge source:
