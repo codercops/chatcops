@@ -171,6 +171,34 @@ const openai = (name) =>
 const gemini = (name) =>
   new GeminiProvider({ type: 'gemini', apiKey: process.env.GEMINI_API_KEY, fetch: recorder('gemini', name) });
 
+/** Retrieved chunks sent as search results, to record Claude's native citations. */
+const CITATION_SOURCES = [
+  {
+    id: 'pricing-0',
+    text: 'The Team plan costs $20 per user per month, billed annually. The Starter plan is free for up to 3 users.',
+    score: 1,
+    source: { id: 'https://example.test/pricing', url: 'https://example.test/pricing', title: 'Pricing', section: 'Plans' },
+  },
+  {
+    id: 'refunds-0',
+    text: 'Refunds are available within 30 days of purchase. Contact support with your order number.',
+    score: 0.8,
+    source: { id: 'https://example.test/refunds', url: 'https://example.test/refunds', title: 'Refund policy' },
+  },
+];
+
+async function recordCitations(provider) {
+  const sources = [];
+  for await (const event of provider.step({
+    messages: [user('How much is the Team plan, and can I get a refund?')],
+    systemPrompt: SYSTEM,
+    sources: CITATION_SOURCES,
+  })) {
+    if (event.type === 'source') sources.push(event.index);
+  }
+  if (!sources.length) throw new Error('claude/citations: no citations in the reply');
+}
+
 /** Two documents and a query at 8 dimensions, so the fixture stays small. */
 async function recordEmbeddings() {
   const embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY, dimensions: 8, fetch: recorder('openai-embeddings', 'basic') });
@@ -187,6 +215,7 @@ async function recordGeminiEmbeddings() {
 const providers = {
   openai: () => recordCases('openai', openai),
   'openai-embeddings': recordEmbeddings,
+  'claude-citations': () => recordCitations(claude('citations')),
   // Gemini sends no thought text unless asked; its signature rides on the
   // function call part, which the one-tool case covers.
   gemini: () => recordCases('gemini', gemini),

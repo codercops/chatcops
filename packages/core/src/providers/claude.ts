@@ -14,6 +14,7 @@ import { joinSystem } from '../agent/run-turn.js';
 import { DEFAULT_MAX_TOKENS, toClaudeTools, warnOnce } from './base.js';
 import { normalizeTurns, type TurnPart } from './history.js';
 import type { FinishReason, ProviderEvent, ProviderStepParams } from './types.js';
+import type { RetrievedChunk } from '../retrieval/types.js';
 
 const DEFAULT_MODEL = 'claude-haiku-5-5';
 const DEFAULT_EFFORT: ProviderEffort = 'low';
@@ -210,6 +211,8 @@ function toUsage(usage: Anthropic.Messages.Usage | undefined): TokenUsage {
 }
 
 export class ClaudeProvider implements AIProvider {
+  /** Retrieved chunks go to Claude as `search_result` blocks, and it cites them natively. */
+  readonly citations = 'native' as const;
   name = 'claude';
   private client: Anthropic;
   readonly model: string;
@@ -273,7 +276,7 @@ export class ClaudeProvider implements AIProvider {
   async *step(params: ProviderStepParams): AsyncGenerator<ProviderEvent> {
     params.signal?.throwIfAborted();
     const stream = this.client.messages.stream(
-      this.request(params, toClaudeStepMessages(params.messages)),
+      this.request(params, withSearchResults(toClaudeStepMessages(params.messages), params.sources)),
       { signal: params.signal }
     );
 
@@ -281,6 +284,9 @@ export class ClaudeProvider implements AIProvider {
       if (event.type !== 'content_block_delta') continue;
       if (event.delta.type === 'text_delta') yield { type: 'text-delta', delta: event.delta.text };
       else if (event.delta.type === 'thinking_delta') yield { type: 'reasoning-delta', delta: event.delta.thinking };
+      else if (event.delta.type === 'citations_delta' && event.delta.citation.type === 'search_result_location') {
+        yield { type: 'source', index: event.delta.citation.search_result_index };
+      }
     }
 
     const message = await stream.finalMessage();
@@ -317,4 +323,33 @@ export class ClaudeProvider implements AIProvider {
   chatSync(params: ProviderChatParams): Promise<string> {
     return chatSyncViaTurn(this, params);
   }
+}
+
+/**
+ * Puts retrieved chunks before the visitor's latest message as `search_result`
+ * blocks, so Claude can cite them by index. Retrieved text travels as
+ * content, never in the system prompt. Tool results after it are left alone.
+ */
+export function withSearchResults(messages: MessageParam[], sources: RetrievedChunk[] | undefined): MessageParam[] {
+  if (!sources?.length) return messages;
+  const index = findLastIndex(messages, (message) =>
+    message.role === 'user' &&
+    (typeof message.content === 'string' || message.content.some((block) => block.type !== 'tool_result'))
+  );
+  if (index === -1) return messages;
+  const target = messages[index];
+  const blocks: ContentBlockParam[] = sources.map((chunk) => ({
+    type: 'search_result',
+    source: chunk.source.url,
+    title: [chunk.source.title, chunk.source.section].filter(Boolean).join(' > ') || chunk.source.url,
+    content: [{ type: 'text', text: chunk.text }],
+    citations: { enabled: true },
+  }));
+  const content = typeof target.content === 'string' ? [{ type: 'text' as const, text: target.content }] : target.content;
+  return messages.map((message, i) => (i === index ? { role: 'user', content: [...blocks, ...content] } : message));
+}
+
+function findLastIndex<T>(items: T[], test: (item: T) => boolean): number {
+  for (let i = items.length - 1; i >= 0; i--) if (test(items[i])) return i;
+  return -1;
 }

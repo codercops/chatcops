@@ -1,0 +1,37 @@
+import type { WidgetLocaleStrings } from '../i18n.js';
+
+const pt: Partial<WidgetLocaleStrings> = {
+  welcomeMessage: 'Como posso ajudar você hoje?',
+  inputPlaceholder: 'Digite uma mensagem…',
+  sendButton: 'Enviar',
+  closeButton: 'Fechar',
+  openChat: 'Abrir chat',
+  defaultName: 'Assistente de IA',
+  defaultSubtitle: 'Online',
+  greetingWithName: 'Olá, {name}!',
+  selectPlaceholder: 'Selecione {label}…',
+  dismissBubble: 'Dispensar',
+  errorGeneric: 'Algo deu errado. Tente novamente.',
+  errorNetwork: 'Erro de conexão. Verifique sua rede.',
+  errorRateLimit: 'Você enviou muitas mensagens. Aguarde um momento.',
+  errorRateLimitWait: 'Você enviou muitas mensagens. Tente novamente em {seconds} segundos.',
+  errorBudget: 'Esta conversa atingiu seu limite.',
+  errorBudgetDaily: 'O assistente atingiu o limite para hoje. Tente novamente mais tarde.',
+  errorUnavailable: 'O assistente não está disponível no momento. Tente novamente mais tarde.',
+  errorCutOff: 'A resposta foi interrompida.',
+  typingIndicator: 'Digitando…',
+  poweredBy: 'Desenvolvido por ChatCops',
+  newConversation: 'Nova conversa',
+  welcomeBubbleDefault: 'Precisa de ajuda? Converse conosco!',
+  preChatTitle: 'Antes de começar…',
+  preChatSubtitle: 'Conte-nos um pouco sobre você',
+  preChatSubmit: 'Iniciar chat',
+  preChatRequired: 'Este campo é obrigatório.',
+  preChatInvalidEmail: 'Insira um e-mail válido.',
+  retryButton: 'Tentar novamente',
+  regenerateButton: 'Gerar novamente',
+  suggestionsLabel: 'Perguntas sugeridas',
+  unreadCount: 'Não lidas: {count}',
+};
+
+export default pt;

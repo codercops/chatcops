@@ -1,3 +1,4 @@
+import type { RetrievedChunk } from '../retrieval/types.js';
 import type {
   ChatMessage,
   MessagePart,
@@ -29,6 +30,8 @@ export type ProviderEvent =
    * the error goes back to the model as the tool's result.
    */
   | { type: 'tool-call'; call: ProviderToolCall; providerMetadata?: ProviderMetadata; inputError?: string }
+  /** A provider with native citations cited `sources[index]`. */
+  | { type: 'source'; index: number }
   | {
       type: 'finish';
       reason: FinishReason;
@@ -53,6 +56,12 @@ export interface ProviderStepParams {
    */
   systemContext?: string;
   tools?: ToolDefinition[];
+  /**
+   * Retrieved chunks, only for providers with `citations: 'native'`, which
+   * send them as their own content and report citations as `source` events.
+   * Other providers get them as text in `systemContext`.
+   */
+  sources?: RetrievedChunk[];
   maxTokens?: number;
   /** Dropped, with a warning once, for models that don't accept it. */
   temperature?: number;
@@ -63,6 +72,12 @@ export interface AIProvider {
   name: string;
   /** The model this provider sends requests to. */
   model?: string;
+  /**
+   * `native`: the provider takes `sources` on step params and reports what
+   * the model cited. Without it, sources go in the system context and
+   * citations are read from `[n]` markers in the text.
+   */
+  citations?: 'native';
   /**
    * Runs one model request and yields what comes back, without running any
    * tools. Optional, so custom providers written for 0.4 that only have

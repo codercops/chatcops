@@ -7,6 +7,14 @@ export {
   type HybridRetrieverOptions,
 } from './retrievers.js';
 export { retrievalQueryText } from './query.js';
+export {
+  CitationParser,
+  parseCitations,
+  sourcePart,
+  sourcesContext,
+  CITE_INSTRUCTION,
+  NATIVE_SOURCES_INSTRUCTION,
+} from './citations.js';
 export { openaiEmbedder, type OpenAIEmbedderOptions } from './openai-embedder.js';
 export { geminiEmbedder, type GeminiEmbedderOptions } from './gemini-embedder.js';
 export { voyageEmbedder, type VoyageEmbedderOptions } from './voyage-embedder.js';
