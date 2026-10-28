@@ -80,6 +80,10 @@ describe('discover', () => {
     expect(globToRegExp('https://acme.test/docs/*').test('https://acme.test/docs/a/b')).toBe(false);
     expect(globToRegExp('https://acme.test/**').test('https://acme.test/docs/a/b')).toBe(true);
     expect(globToRegExp('https://acme.test/doc?').test('https://acme.test/docs')).toBe(true);
+    // `**/` can also match no folders at all.
+    expect(globToRegExp('evals/**/*.chat.yaml').test('evals/a.chat.yaml')).toBe(true);
+    expect(globToRegExp('evals/**/*.chat.yaml').test('evals/x/y/a.chat.yaml')).toBe(true);
+    expect(globToRegExp('evals/**/*.chat.yaml').test('other/a.chat.yaml')).toBe(false);
   });
 });
 
