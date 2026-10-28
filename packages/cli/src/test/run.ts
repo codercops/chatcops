@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { memoryStorage, type ChatTool, type ToolResult, type WirePart } from '@chatcops/core';
+import { isAIProvider, memoryStorage, type ChatTool, type ToolResult, type WirePart } from '@chatcops/core';
 import { createChatHandler, type ChatCopsServerConfig } from '@chatcops/server';
 import { ConfigError } from '../config.js';
 import { check } from './assertions/index.js';
-import type { Fixture, TestCase, TestResult, TestRunResult, TurnResult } from './types.js';
+import type { Cassettes } from './cassette.js';
+import { costOf, dollars, type Prices, type Spend } from './cost.js';
+import type { Fixture, Judge, TestCase, TestResult, TestRunResult, TurnResult } from './types.js';
 
 export interface RunOptions {
   /** Tests run at once. Default 4. */
@@ -12,6 +14,23 @@ export interface RunOptions {
   repeat?: number;
   /** Called as each test finishes. */
   onResult?: (result: TestResult) => void;
+  /** Records or replays each test's HTTP calls. */
+  cassettes?: Cassettes;
+  /** For `judge` assertions. */
+  judge?: Judge;
+  /** The bot's model id, to price its turns. */
+  model?: string;
+  prices?: Prices;
+  /** Stops starting turns once `--max-cost` is reached. */
+  spend?: Spend;
+}
+
+/** An eval file to run: `file` as reported, `path` on disk (for its cassette). */
+export interface FixtureJob {
+  file: string;
+  path?: string;
+  fixture: Fixture;
+  tests: TestCase[];
 }
 
 /**
@@ -21,17 +40,28 @@ export interface RunOptions {
  */
 export async function runFixtures(
   server: ChatCopsServerConfig,
-  fixtures: Array<{ file: string; fixture: Fixture; tests: TestCase[] }>,
+  fixtures: FixtureJob[],
   options: RunOptions = {}
 ): Promise<TestResult[]> {
-  const jobs = fixtures.flatMap(({ file, tests }) => tests.map((test) => ({ file, test })));
+  if (options.cassettes?.mode === 'replay') server = withoutKeys(server);
+  const jobs = fixtures.flatMap(({ file, path, tests }) => tests.map((test) => ({ file, path: path ?? file, test })));
   const results: TestResult[] = new Array(jobs.length);
   let next = 0;
   const worker = async () => {
     while (next < jobs.length) {
       const index = next++;
-      const { file, test } = jobs[index];
-      results[index] = await runTest(server, file, test, options.repeat);
+      const { file, path, test } = jobs[index];
+      results[index] = await runTest(file, test, options.repeat, (run) => {
+        const once = () => runOnce(server, { file, path, test, run }, options);
+        if (!options.cassettes) return once();
+        return options.cassettes.run(path, test.name, once).then(({ value, problems }) => {
+          if (problems.length) {
+            value.pass = false;
+            value.error = problems.length > 1 ? `${problems[0]} (and ${problems.length - 1} more)` : problems[0];
+          }
+          return value;
+        });
+      });
       options.onResult?.(results[index]);
     }
   };
@@ -39,23 +69,39 @@ export async function runFixtures(
   return results;
 }
 
-async function runTest(server: ChatCopsServerConfig, fixture: string, test: TestCase, repeatOverride?: number): Promise<TestResult> {
+async function runTest(
+  fixture: string,
+  test: TestCase,
+  repeatOverride: number | undefined,
+  once: (run: number) => Promise<TestRunResult>
+): Promise<TestResult> {
   const repeat = repeatOverride ?? test.repeat ?? 1;
   const runs: TestRunResult[] = [];
-  for (let run = 1; run <= repeat; run++) runs.push(await runOnce(server, fixture, test, run));
+  for (let run = 1; run <= repeat; run++) runs.push(await once(run));
   const passed = runs.filter((result) => result.pass).length;
   const passRate = passed / runs.length;
   return { fixture, test: test.name, runs, passRate, pass: passRate >= (test.passRate ?? 1) };
 }
 
-async function runOnce(server: ChatCopsServerConfig, fixture: string, test: TestCase, run: number): Promise<TestRunResult> {
-  const result: TestRunResult = { fixture, test: test.name, run, pass: true, turns: [] };
+async function runOnce(
+  server: ChatCopsServerConfig,
+  { file, path, test, run }: { file: string; path: string; test: TestCase; run: number },
+  options: RunOptions
+): Promise<TestRunResult> {
+  const result: TestRunResult = { fixture: file, test: test.name, run, pass: true, turns: [] };
+  const { spend } = options;
+  const context = { fixture: path, ...(options.judge ? { judge: options.judge } : {}) };
   // Usage on `finish` is what usage assertions read.
   const handler = createChatHandler({ ...server, exposeUsage: true, storage: memoryStorage(), tools: withMocks(server.tools ?? [], test.mocks?.tools) });
   const conversationId = `eval-${randomUUID()}`;
   const conversation: TurnResult[] = [];
 
   for (const turnSpec of test.turns) {
+    if (spend?.exceeded) {
+      result.pass = false;
+      result.error = `stopped before turn ${conversation.length + 1}: --max-cost ${dollars(spend.max ?? 0)} reached (${dollars(spend.spent)} spent)`;
+      break;
+    }
     const turn = await sendTurn(handler, {
       conversationId,
       message: turnSpec.user,
@@ -63,9 +109,17 @@ async function runOnce(server: ChatCopsServerConfig, fixture: string, test: Test
       ...(test.pageContext ? { pageContext: test.pageContext } : {}),
       ...(test.userData ? { userData: test.userData } : {}),
     });
+    if (options.model) turn.model = options.model;
+    const costUsd = costOf(options.model, turn.usage, options.prices);
+    if (costUsd !== undefined) turn.costUsd = costUsd;
+    spend?.add(costUsd);
     conversation.push(turn);
     const checks = [];
-    for (const assertion of turnSpec.expect ?? []) checks.push(await check(assertion, turn, conversation));
+    for (const assertion of turnSpec.expect ?? []) {
+      const checked = await check(assertion, turn, conversation, context);
+      spend?.add(checked.costUsd);
+      checks.push(checked);
+    }
     result.turns.push({ turn, results: checks });
     if (checks.some((c) => !c.pass)) result.pass = false;
     if (turn.error) {
@@ -112,4 +166,15 @@ export function withMocks(tools: ChatTool[], mocks: Record<string, ToolResult> |
   return tools.map((tool) =>
     mocks[tool.name] ? Object.assign(Object.create(tool) as ChatTool, { execute: async () => structuredClone(mocks[tool.name]) }) : tool
   );
+}
+
+/**
+ * In replay nothing reaches the network, so CI needs no keys. The built-in
+ * providers refuse to start without one, so give them a stand-in. Headers
+ * aren't part of what a recording is matched on.
+ */
+export function withoutKeys(server: ChatCopsServerConfig): ChatCopsServerConfig {
+  const { provider } = server;
+  if (isAIProvider(provider) || provider.apiKey?.trim()) return server;
+  return { ...server, provider: { ...provider, apiKey: 'chatcops-replay' } };
 }

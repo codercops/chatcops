@@ -1,3 +1,4 @@
+import type { Logger } from '../logger.js';
 import type { Tool as GeminiTool } from '@google/genai';
 import type { ChatMessage, ProviderConfig, ToolDefinition } from '../types.js';
 import type { AIProvider } from './types.js';
@@ -64,10 +65,10 @@ export {
 const warned = new Set<string>();
 
 /** Logs a configuration warning once per process. */
-export function warnOnce(key: string, message: string): void {
+export function warnOnce(logger: Logger, key: string, message: string): void {
   if (warned.has(key)) return;
   warned.add(key);
-  console.warn(`[chatcops] ${message}`);
+  logger.warn('config_warning', message, { key });
 }
 
 export function toClaudeTools(tools: ToolDefinition[]) {

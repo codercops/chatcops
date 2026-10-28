@@ -1,3 +1,4 @@
+import { dollars } from '../cost.js';
 import type { TestResult } from '../types.js';
 import type { ReporterFactory } from './index.js';
 
@@ -6,9 +7,12 @@ export const prettyReporter: ReporterFactory = (output) => ({
   onResult(result) {
     output.write(pretty(result));
   },
-  onEnd(results) {
+  onEnd(results, summary) {
     const failed = results.filter((result) => !result.pass).length;
-    output.write(`\n${results.length - failed} passed, ${failed} failed.\n`);
+    const cost =
+      summary.mode === 'replay' ? ' Replayed, nothing spent.' : summary.costUsd !== undefined ? ` Spent about ${dollars(summary.costUsd)}.` : '';
+    const judge = summary.judge ? ` Judged by ${summary.judge}.` : '';
+    output.write(`\n${results.length - failed} passed, ${failed} failed.${cost}${judge}\n`);
   },
 });
 

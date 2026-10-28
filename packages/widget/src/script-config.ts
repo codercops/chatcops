@@ -23,7 +23,9 @@ export function configFromScript(script: HTMLScriptElement): WidgetConfig | unde
     mode: mode || undefined,
     container: container || undefined,
     theme: {
+      mode: (script.dataset.themeMode as 'light' | 'dark' | 'auto') || undefined,
       accent: script.dataset.accent,
+      accentDark: script.dataset.accentDark,
       textColor: script.dataset.textColor,
       bgColor: script.dataset.bgColor,
       fontFamily: script.dataset.fontFamily,
@@ -44,6 +46,10 @@ export function configFromScript(script: HTMLScriptElement): WidgetConfig | unde
       : undefined,
     autoOpen: parseAutoOpen(script.dataset.autoOpen),
     placeholder: script.dataset.placeholder,
+    disclosure:
+      script.dataset.disclosure === 'false'
+        ? false
+        : { text: script.dataset.disclosureText, learnMoreUrl: script.dataset.disclosureUrl },
     locale: script.dataset.locale,
     dir: (['ltr', 'rtl', 'auto'] as const).find((dir) => dir === script.dataset.dir),
     persistence: (['local', 'session', 'none'] as const).find((mode) => mode === script.dataset.persistence),

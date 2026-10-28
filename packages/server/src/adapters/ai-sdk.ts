@@ -19,7 +19,7 @@ export function chatcopsAiSdkHandler(config: ChatCopsServerConfig) {
 
   return function handler(req: Request): Promise<Response> {
     return fetchChatResponse(chat, origins, req, {
-      clientIp: (request) => (onWorkers() ? cloudflareClientIp(request, config.clientIp) : fetchClientIp(request, config.clientIp)),
+      clientIp: (request) => (onWorkers() ? cloudflareClientIp(request, config.clientIp, chat.logger) : fetchClientIp(request, config.clientIp, chat.logger)),
       aiSdk: true,
     });
   };

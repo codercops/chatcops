@@ -1,3 +1,4 @@
+import { consoleLogger, type Logger } from '../logger.js';
 import { messageText } from '../parts.js';
 import { PROTOCOL_VERSION, type WireErrorCode, type WireFinishReason, type WirePart } from '../protocol/v1.js';
 import type { AIProvider, ProviderEvent } from '../providers/types.js';
@@ -54,6 +55,8 @@ export interface RunTurnOptions {
   signal?: AbortSignal;
   /** Adds token usage to the `finish` part. */
   exposeUsage?: boolean;
+  /** Where warnings and tool errors go. Default `consoleLogger()`. */
+  logger?: Logger;
   /**
    * Checked before each model request and charged after it. A used-up
    * budget ends the reply with `budget_exceeded`, and the reply length is
@@ -156,6 +159,7 @@ function toWire(part: MessagePart): WirePart | null {
  * Only a failing `onPersist` throws.
  */
 export async function* runTurn(options: RunTurnOptions): AsyncGenerator<WirePart, TurnResult> {
+  const logger = options.logger ?? consoleLogger();
   const { provider, signal } = options;
   const tools = options.tools ?? NO_TOOLS;
   const maxSteps = Math.max(1, options.maxSteps ?? DEFAULT_MAX_STEPS);
@@ -341,7 +345,7 @@ export async function* runTurn(options: RunTurnOptions): AsyncGenerator<WirePart
       });
     }
     if (finish.reason === 'length') {
-      console.warn('[chatcops] The reply was cut off at the token limit. Raise `maxTokens` if this keeps happening.');
+      logger.warn('reply_truncated', 'The reply was cut off at the token limit. Raise `maxTokens` if this keeps happening.');
       return yield* end('incomplete', { reason: 'length' });
     }
     if (finish.reason !== 'tool-calls' || calls.length === 0) {
@@ -368,7 +372,7 @@ export async function* runTurn(options: RunTurnOptions): AsyncGenerator<WirePart
       calls.map(({ call, inputError }) =>
         inputError
           ? Promise.resolve<ToolResult>({ success: false, message: inputError })
-          : tools.run(call, { conversationId: options.conversationId, signal: toolSignal, timeoutMs: options.toolTimeoutMs })
+          : tools.run(call, { conversationId: options.conversationId, signal: toolSignal, timeoutMs: options.toolTimeoutMs, logger })
       )
     );
 
@@ -408,7 +412,7 @@ export async function* runTurn(options: RunTurnOptions): AsyncGenerator<WirePart
       };
       const callWire = add(callPart);
       if (callWire) queued.push(callWire);
-      const result = await tools.run(call, { conversationId: options.conversationId, signal: toolSignal, timeoutMs: options.toolTimeoutMs });
+      const result = await tools.run(call, { conversationId: options.conversationId, signal: toolSignal, timeoutMs: options.toolTimeoutMs, logger });
       callPart.state = result.success ? 'done' : 'error';
       for (const part of [resultPart(call, result), ...(result.success ? tools.emits(call, result) : [])]) {
         const wire = add(part);

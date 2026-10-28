@@ -36,6 +36,30 @@ describe('Widget', () => {
     sessionStorage.clear();
   });
 
+  it('shows the AI disclosure first by default, with its text and link from the config', () => {
+    const note = () => getInternals(widget).shadow.querySelector('.cc-messages')?.firstElementChild;
+    let widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    expect(note()?.getAttribute('role')).toBe('note');
+    expect(note()?.textContent).toBe("You're chatting with an AI assistant. It can make mistakes.");
+    widget.destroy();
+
+    widget = new Widget({ apiUrl: 'https://api.test/chat', disclosure: { text: 'Acme Bot is an AI.', learnMoreUrl: 'https://acme.test/ai' } });
+    widget.init();
+    expect(note()?.textContent).toBe('Acme Bot is an AI. Learn more');
+    widget.destroy();
+  });
+
+  it('leaves the disclosure out with disclosure: false, and says who is responsible then', () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const widget = new Widget({ apiUrl: 'https://api.test/chat', disclosure: false });
+    widget.init();
+    expect(getInternals(widget).shadow.querySelector('.cc-disclosure')).toBeNull();
+    expect(info).toHaveBeenCalledWith(expect.stringContaining('Article 50'));
+    widget.destroy();
+    info.mockRestore();
+  });
+
   it('sets locale-derived direction and language on the host', () => {
     const widget = new Widget({ apiUrl: 'https://api.test/chat', locale: 'ar' });
     widget.init();

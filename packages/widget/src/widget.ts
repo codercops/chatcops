@@ -5,7 +5,7 @@ import { WelcomeBubble } from './dom/bubble.js';
 import { ChatClient } from './api/client.js';
 import { ConversationStorage, type Persistence } from './storage.js';
 import { claimNamespace, type ClaimedNamespace } from './namespace.js';
-import { applyTheme } from './theme.js';
+import { applyTheme, type ThemeConfig } from './theme.js';
 import { getWidgetLocale, type WidgetLocaleStrings } from './i18n.js';
 import type { PreChatForm } from './dom/prechat-form.js';
 import type { WidgetChatRequest } from './api/types.js';
@@ -61,20 +61,20 @@ export interface WidgetConfig {
    */
   siteId?: string;
   container?: string | HTMLElement;
-  theme?: {
-    accent?: string;
-    textColor?: string;
-    bgColor?: string;
-    fontFamily?: string;
-    borderRadius?: string | number;
-    position?: 'bottom-right' | 'bottom-left';
-  };
+  theme?: ThemeConfig;
   branding?: {
     name?: string;
     avatar?: string;
     subtitle?: string;
   };
   welcomeMessage?: string;
+  /**
+   * The note at the top of the chat that visitors are talking to an AI, as
+   * the EU AI Act asks (Article 50). On by default. `text` replaces the
+   * wording, and `learnMoreUrl` adds a link. `false` turns it off, and then
+   * telling visitors is up to you.
+   */
+  disclosure?: false | { text?: string; learnMoreUrl?: string };
   suggestions?: string[];
   welcomeBubble?: {
     text: string;
@@ -263,6 +263,18 @@ export class Widget {
       onSend: (text) => this.handleSend(text),
       onClose: () => this.close(),
     });
+
+    const { disclosure } = this.config;
+    if (disclosure === false) {
+      console.info(
+        "[chatcops] The AI disclosure is off (disclosure: false). Under the EU AI Act (Article 50), telling visitors they're talking to an AI is then up to you."
+      );
+    } else {
+      this.panel.messages.setDisclosure(
+        disclosure?.text ?? this.locale.disclosure,
+        disclosure?.learnMoreUrl ? { url: disclosure.learnMoreUrl, label: this.locale.disclosureLearnMore } : undefined
+      );
+    }
 
     // An inline chat is on screen from the start; a popup reads its saved
     // conversation when it's first opened, so nothing touches storage before.

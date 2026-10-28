@@ -1,3 +1,4 @@
+import { consoleLogger } from '@chatcops/core';
 import type { ChatCopsServerConfig } from '../config.js';
 import { corsHeaders, matchOrigin } from './origin.js';
 
@@ -5,7 +6,7 @@ let warnedCors = false;
 const MAX_REFUSAL_LOGS = 20;
 
 /** `allowedOrigins`, or the older `cors` as a one-item list, or any origin. */
-export function allowedOriginsOf(config: Pick<ChatCopsServerConfig, 'allowedOrigins' | 'cors'>): string[] {
+export function allowedOriginsOf(config: Pick<ChatCopsServerConfig, 'allowedOrigins' | 'cors' | 'logger'>): string[] {
   if (config.allowedOrigins !== undefined && config.cors !== undefined) {
     throw new Error('Set `allowedOrigins` or `cors`, not both. `allowedOrigins` replaces `cors`.');
   }
@@ -18,7 +19,7 @@ export function allowedOriginsOf(config: Pick<ChatCopsServerConfig, 'allowedOrig
   if (config.cors !== undefined) {
     if (!warnedCors) {
       warnedCors = true;
-      console.warn(`[chatcops] \`cors\` is deprecated. Use \`allowedOrigins: ['${config.cors}']\`, which also takes several sites and wildcards like 'https://*.acme.com'.`);
+      (config.logger ?? consoleLogger()).warn('deprecated_option', `\`cors\` is deprecated. Use \`allowedOrigins: ['${config.cors}']\`, which also takes several sites and wildcards like 'https://*.acme.com'.`);
     }
     return [config.cors];
   }
@@ -38,9 +39,10 @@ export interface OriginPolicy {
  * Which sites can use the chat. This stops other sites embedding your bot in
  * their pages; it doesn't stop scripts, which can send any `Origin`.
  */
-export function originPolicy(config: Pick<ChatCopsServerConfig, 'allowedOrigins' | 'cors'>): OriginPolicy {
+export function originPolicy(config: Pick<ChatCopsServerConfig, 'allowedOrigins' | 'cors' | 'logger'>): OriginPolicy {
   const allowed = allowedOriginsOf(config);
   const logged = new Set<string>();
+  const logger = config.logger ?? consoleLogger();
 
   const allows = (origin: string | null) => !origin || matchOrigin(origin, allowed) !== null;
 
@@ -50,7 +52,7 @@ export function originPolicy(config: Pick<ChatCopsServerConfig, 'allowedOrigins'
     // the 403 and say why in the console.
     if (logged.size < MAX_REFUSAL_LOGS && origin && !logged.has(origin)) {
       logged.add(origin);
-      console.warn(`[chatcops] Refused a request from ${origin}, which isn't in allowedOrigins.`);
+      logger.warn('origin_refused', `Refused a request from ${origin}, which isn't in allowedOrigins.`, { origin });
     }
     return { 'Access-Control-Allow-Origin': origin ?? '', Vary: 'Origin' };
   };

@@ -1,31 +1,80 @@
 /* The launcher button and the shared tokens: everything the loader draws before the chat loads. */
 :host {
-  --cc-accent: #6366f1;
-  --cc-accent-hover: #4f46e5;
-  /* Text and icons on accent backgrounds, and the accent shade that text sits on.
-     Both are recomputed from theme.accent so text always reaches WCAG AA 4.5:1. */
-  --cc-on-accent: #ffffff;
-  --cc-accent-contrast: #6164ec;
-  --cc-text: #ffffff;
-  --cc-bg: #0a0a0a;
-  --cc-bg-surface: #1a1a1a;
-  --cc-bg-input: #2a2a2a;
-  --cc-border: #333333;
-  --cc-text-secondary: #a0a0a0;
+  /* Light, the default. theme.mode 'dark' (or 'auto' on a dark system) swaps in
+     the set below. The accent tokens read the --cc-theme-* values applyTheme
+     sets from theme.accent and theme.accentDark.
+     --cc-on-accent is text and icons on accent backgrounds, and
+     --cc-accent-contrast the accent shade text sits on, so text reaches 4.5:1. */
+  --cc-accent: var(--cc-theme-accent, #4f46e5);
+  --cc-accent-hover: var(--cc-theme-accent-hover, #4338ca);
+  --cc-on-accent: var(--cc-theme-on-accent, #ffffff);
+  --cc-accent-contrast: var(--cc-theme-accent-contrast, #4f46e5);
+  --cc-text: #1a1d23;
+  --cc-bg: #ffffff;
+  --cc-bg-surface: #f4f5f7;
+  --cc-bg-input: #ffffff;
+  --cc-border: #d9dce1;
+  --cc-text-secondary: #5b616e;
+  --cc-danger: #c62828;
+  --cc-code-bg: rgb(0 0 0 / 0.07);
+  --cc-pre-bg: rgb(0 0 0 / 0.05);
+  --cc-shadow: 0 12px 40px rgb(16 24 40 / 0.18);
   --cc-font: system-ui, -apple-system, sans-serif;
   --cc-radius: 12px;
-  --cc-shadow: 0 8px 32px rgba(0,0,0,.4);
   --cc-fab-size: 56px;
   --cc-panel-width: 400px;
   --cc-panel-height: 560px;
   --cc-focus-ring: 0 0 0 2px var(--cc-bg), 0 0 0 4px var(--cc-accent);
 
   all: initial;
+  /* After `all`, which would reset it. */
+  color-scheme: light;
   font-family: var(--cc-font);
   font-size: 14px;
   line-height: 1.5;
   color: var(--cc-text);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Dark: the look the widget had before light mode, so theme.mode 'dark' keeps
+   an existing site as it was. */
+:host([data-cc-mode="dark"]) {
+  --cc-accent: var(--cc-theme-accent-dark, var(--cc-theme-accent, #6366f1));
+  --cc-accent-hover: var(--cc-theme-accent-dark-hover, var(--cc-theme-accent-hover, #4f46e5));
+  --cc-on-accent: var(--cc-theme-on-accent-dark, var(--cc-theme-on-accent, #ffffff));
+  --cc-accent-contrast: var(--cc-theme-accent-dark-contrast, var(--cc-theme-accent-contrast, #6164ec));
+  --cc-text: #ffffff;
+  --cc-bg: #0a0a0a;
+  --cc-bg-surface: #1a1a1a;
+  --cc-bg-input: #2a2a2a;
+  --cc-border: #333333;
+  --cc-text-secondary: #a0a0a0;
+  --cc-danger: #ef4444;
+  --cc-code-bg: rgba(0, 0, 0, 0.2);
+  --cc-pre-bg: rgba(0, 0, 0, 0.3);
+  --cc-shadow: 0 8px 32px rgba(0,0,0,.4);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :host(:not([data-cc-mode])),
+  :host([data-cc-mode="auto"]) {
+    --cc-accent: var(--cc-theme-accent-dark, var(--cc-theme-accent, #6366f1));
+    --cc-accent-hover: var(--cc-theme-accent-dark-hover, var(--cc-theme-accent-hover, #4f46e5));
+    --cc-on-accent: var(--cc-theme-on-accent-dark, var(--cc-theme-on-accent, #ffffff));
+    --cc-accent-contrast: var(--cc-theme-accent-dark-contrast, var(--cc-theme-accent-contrast, #6164ec));
+    --cc-text: #ffffff;
+    --cc-bg: #0a0a0a;
+    --cc-bg-surface: #1a1a1a;
+    --cc-bg-input: #2a2a2a;
+    --cc-border: #333333;
+    --cc-text-secondary: #a0a0a0;
+    --cc-danger: #ef4444;
+    --cc-code-bg: rgba(0, 0, 0, 0.2);
+    --cc-pre-bg: rgba(0, 0, 0, 0.3);
+    --cc-shadow: 0 8px 32px rgba(0,0,0,.4);
+    color-scheme: dark;
+  }
 }
 
 *, *::before, *::after {
@@ -107,7 +156,7 @@
 
 @keyframes cc-pulse {
   0%, 100% { box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3); }
-  50% { box-shadow: 0 4px 16px rgba(99, 102, 241, 0.5); }
+  50% { box-shadow: 0 4px 16px color-mix(in srgb, var(--cc-accent) 50%, transparent); }
 }
 
 .cc-fab.cc-pulse {

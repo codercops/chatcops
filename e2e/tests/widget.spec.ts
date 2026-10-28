@@ -87,6 +87,14 @@ test.describe('on a phone', () => {
   });
 });
 
+test('tells the visitor they are chatting with an AI, before anything else', async ({ page }) => {
+  await page.locator(fab).click();
+  const note = page.locator('.cc-messages > :first-child');
+  await expect(note).toHaveAttribute('role', 'note');
+  await expect(note).toBeVisible();
+  await expect(note).toHaveText("You're chatting with an AI assistant. It can make mistakes.");
+});
+
 test('has no serious accessibility violations, closed or open', async ({ page }) => {
   const closed = await new AxeBuilder({ page }).include('#chatcops-root').analyze();
   expect(seriousOrWorse(closed.violations)).toEqual([]);

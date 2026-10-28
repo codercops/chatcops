@@ -4,12 +4,15 @@ import { parseArgs } from 'node:util';
 import { hybridRetriever, vectorRetriever, type RetrievedChunk } from '@chatcops/core';
 import { ingest, manifestKeys, type IngestEvent, type IngestSource, type IngestStats } from '@chatcops/ingest';
 import { ConfigError, indexConfig, loadConfig, serverConfig } from './config.js';
-import { runTests } from './test/command.js';
+import { Cassettes } from './test/cassette.js';
+import { cassetteMode, runTests } from './test/command.js';
 
 export interface Io {
   stdout: { write(text: string): unknown };
   stderr: { write(text: string): unknown };
   cwd: string;
+  /** Defaults to `process.env`. `chatcops test` reads `CI`. */
+  env?: Record<string, string | undefined>;
 }
 
 /** Exit codes: 0 done, 1 finished with problems (failed pages, discovery errors), 2 couldn't run. */
@@ -54,6 +57,11 @@ Test options:
   --concurrency <n>     Tests run at once (default 4)
   --reporter <name>     pretty (default) or json. Repeatable.
   --json                Same as --reporter json
+  --record              Call the APIs and save what they answer to __cassettes__
+  --replay              Answer every API call from __cassettes__ (the default when CI is set)
+  --live                Call the APIs, even when CI is set
+  --judge-model <p:m>   The judge for judge assertions, as provider:model (gemini, openai, claude)
+  --max-cost <usd>      Stop starting turns once the run has spent this (needs prices in the config)
 
 All commands:
   --config <file>       Config file (default: chatcops.config.ts, .mts, .js or .mjs here)
@@ -85,11 +93,18 @@ export async function main(argv: string[], io: Io): Promise<number> {
     if (command === 'ingest') return await runIngest(values, io);
     if (command === 'search') return await runSearch(rest.join(' '), values, io);
     if (command === 'test') {
-      const loaded = await loadConfig(io.cwd, values.config);
+      const cassettes = new Cassettes(cassetteMode(values, io.env ?? process.env));
+      // Before the config loads, so the providers and embedders it creates use it.
+      const uninstall = cassettes.mode === 'live' ? () => {} : cassettes.install();
       try {
-        return await runTests(serverConfig(loaded), rest, values, io);
+        const loaded = await loadConfig(io.cwd, values.config);
+        try {
+          return await runTests(serverConfig(loaded), rest, values, io, cassettes, loaded.config);
+        } finally {
+          await loaded.close();
+        }
       } finally {
-        await loaded.close();
+        uninstall();
       }
     }
     io.stderr.write(`Unknown command "${command}". Run chatcops --help for usage.\n`);
@@ -119,6 +134,11 @@ function parse(argv: string[]) {
       filter: { type: 'string' },
       repeat: { type: 'string' },
       reporter: { type: 'string', multiple: true },
+      record: { type: 'boolean' },
+      live: { type: 'boolean' },
+      'judge-model': { type: 'string' },
+      'max-cost': { type: 'string' },
+      replay: { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
       version: { type: 'boolean', short: 'v' },
     },

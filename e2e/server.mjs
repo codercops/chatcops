@@ -25,6 +25,7 @@ const files = {
   '/slow-tool.html': ['fixtures/slow-tool.html', 'text/html'],
   '/sessions.html': ['fixtures/sessions.html', 'text/html'],
   '/full.html': ['fixtures/full.html', 'text/html'],
+  '/theme.html': ['fixtures/theme.html', 'text/html'],
   '/prechat.html': ['fixtures/prechat.html', 'text/html'],
   '/locale.html': ['fixtures/locale.html', 'text/html'],
   '/locales/zz.js': ['fixtures/locales/zz.js', 'text/javascript'],
@@ -58,8 +59,34 @@ const SLOW_TOOL_MS = 4000;
  * - "fail midway": some text, then the model request fails
  * - "cut off": some text, then nothing (the bridge below ends the response)
  * - "slow tool": calls `slow_lookup`, then answers once it returns
+ * - "long reply": about 4,000 words of markdown in small pieces, for the render cost test
  * - anything else: a normal streamed reply
  */
+/**
+ * About 4,000 words of markdown (paragraphs, lists, bold, a code block),
+ * split into pieces of four words or so, like a model streams them.
+ */
+const LONG_REPLY = (() => {
+  const vocabulary = 'the plan includes support for teams that need a fast answer about pricing refunds and setup'.split(' ');
+  const blocks = [];
+  let words = 0;
+  for (let n = 0; words < 4000; n++) {
+    if (n % 6 === 5) {
+      blocks.push(['- **First** item of the list', '- second item, with `code`', '- third item'].join('\n'));
+      words += 16;
+    } else if (n === 20) {
+      blocks.push('```\nnpm install @chatcops/widget\n\nnpx chatcops test\n```');
+      words += 6;
+    } else {
+      const paragraph = Array.from({ length: 60 }, (_, i) => vocabulary[(n * 7 + i) % vocabulary.length]).join(' ');
+      blocks.push(`${paragraph.charAt(0).toUpperCase()}${paragraph.slice(1)}.`);
+      words += 60;
+    }
+  }
+  const pieces = blocks.join('\n\n').match(/(?:\S+\s*){1,4}|\s+/g);
+  return pieces;
+})();
+
 const provider = {
   name: 'e2e',
   model: 'e2e',
@@ -82,6 +109,15 @@ const provider = {
         usage: { inputTokens: 1, outputTokens: 1 },
         parts: [{ type: 'tool-call', toolCallId: call.id, toolName: call.name, input: {}, executor: 'server', state: 'pending' }],
       };
+      return;
+    }
+
+    if (/long reply/i.test(askedText)) {
+      for (const delta of LONG_REPLY) {
+        await sleep(1, signal);
+        yield { type: 'text-delta', delta };
+      }
+      yield { type: 'finish', reason: 'stop', usage: { inputTokens: 1, outputTokens: 1 }, parts: [{ type: 'text', text: LONG_REPLY.join('') }] };
       return;
     }
 

@@ -5,15 +5,17 @@ description: Customize the ChatCops widget appearance to match your brand.
 
 ChatCops uses a theme engine that applies CSS custom properties to the Shadow DOM host element.
 
-## Theme Configuration
+## Light, dark and auto
+
+The widget has a light and a dark look. By default (`mode: 'auto'`) it follows the visitor's system setting, and switches while the page is open when that setting changes. Pin one with `mode`:
 
 ```typescript
 ChatCops.init({
   apiUrl: '/api/chat',
   theme: {
-    accent: '#6366f1',           // Primary color for buttons, user messages
-    textColor: '#FAFAF9',        // Main text color
-    bgColor: '#0A0A0A',          // Widget background
+    mode: 'light',               // 'light', 'dark' or 'auto' (the default)
+    accent: '#4f46e5',           // buttons, the launcher, visitor messages
+    accentDark: '#a5b4fc',       // the accent in dark mode; defaults to accent
     fontFamily: 'Inter, sans-serif',
     borderRadius: 12,            // px if a number, or any CSS length like '1rem'
     position: 'bottom-right',    // or 'bottom-left'
@@ -21,39 +23,42 @@ ChatCops.init({
 });
 ```
 
-## Color Manipulation
+On the script tag, these are `data-theme-mode`, `data-accent` and `data-accent-dark`.
 
-The theme engine derives hover and surface colors from the colors you pass:
+| Element | Light | Dark |
+|---------|-------|------|
+| Background | `#ffffff` | `#0a0a0a` |
+| Surface (bot messages, header) | `#f4f5f7` | `#1a1a1a` |
+| Input area | `#ffffff` | `#2a2a2a` |
+| Border | `#d9dce1` | `#333333` |
+| Text | `#1a1d23` | `#ffffff` |
+| Secondary text | `#5b616e` | `#a0a0a0` |
+| Accent | `#4f46e5` | `#6366f1` |
+| Errors | `#c62828` | `#ef4444` |
 
-- **Accent hover:** Darkened by 10% from `accent`
-- **Surface:** Lightened by 8% from `bgColor`
-- **Input:** Lightened by 14% from `bgColor`
+The dark look is the one the widget had before light mode existed. Text on the accent is picked for contrast (white or near-black, with the accent darkened a little when neither reaches 4.5:1), in each mode for its own accent.
 
-## Built-in Dark Theme
+### Upgrading from a dark-only version
 
-The default theme is optimized for dark mode:
+Earlier versions of the widget were always dark. Now it's light on light systems, which suits most sites better. To keep the old look everywhere, set `mode: 'dark'` (or `data-theme-mode="dark"`).
 
-| Element | Color |
-|---------|-------|
-| Background | `#0a0a0a` |
-| Surface | `#1a1a1a` |
-| Input area | `#2a2a2a` |
-| Border | `#333333` |
-| Text | `#ffffff` |
-| Secondary text | `#a0a0a0` |
-| Accent | `#6366f1` (indigo) |
-| Accent hover | `#4f46e5` |
+If your config sets `bgColor` or `textColor` and no `mode`, the widget picks the mode those colors were made for: a dark `bgColor` or a light `textColor` means dark, so a custom dark theme keeps working as it was.
 
-## Light Theme Example
+## Custom colors
+
+`bgColor` and `textColor` replace the background and text in every mode, and the theme engine derives the other surfaces from them:
+
+- **Surface:** lightened by 8% from `bgColor`
+- **Input:** lightened by 14% from `bgColor`
+- **Accent hover:** darkened by 10% from `accent` (and from `accentDark`)
 
 ```typescript
 ChatCops.init({
   apiUrl: '/api/chat',
   theme: {
-    accent: '#4f46e5',
-    textColor: '#1a1a1a',
-    bgColor: '#ffffff',
-    borderRadius: 16,
+    accent: '#e11d48',
+    textColor: '#FAFAF9',
+    bgColor: '#18181b',
   },
 });
 ```
@@ -85,7 +90,9 @@ document.getElementById('chatcops-root').shadowRoot.querySelectorAll('[data-ai-g
 
 ```typescript
 interface ThemeConfig {
+  mode?: 'light' | 'dark' | 'auto';  // Default 'auto': follows the system setting
   accent?: string;          // Hex color
+  accentDark?: string;      // Hex color, the accent in dark mode. Defaults to accent
   textColor?: string;       // Hex color
   bgColor?: string;         // Hex color
   fontFamily?: string;      // CSS font-family string

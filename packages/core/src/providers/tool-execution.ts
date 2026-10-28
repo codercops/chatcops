@@ -1,3 +1,4 @@
+import type { Logger } from '../logger.js';
 import type { ProviderChatParams, ProviderToolCall, ToolResult } from '../types.js';
 
 export const MAX_TOOL_ROUNDS = 5;
@@ -35,6 +36,9 @@ export function toToolFailure(error: unknown): ToolResult {
   };
 }
 
+/** A tool stopped by us (a timeout, a cancelled reply): its message is ours, so the model can see it. */
+class ToolStopped extends Error {}
+
 type Timers = typeof globalThis & {
   setTimeout: (callback: () => void, delay?: number) => unknown;
   clearTimeout: (timeoutId: unknown) => void;
@@ -48,7 +52,7 @@ type Timers = typeof globalThis & {
  */
 export async function runToolWithTimeout(
   run: (signal: AbortSignal) => Promise<ToolResult>,
-  options: { timeoutMs?: number; signal?: AbortSignal } = {}
+  options: { timeoutMs?: number; signal?: AbortSignal; name?: string; logger?: Logger } = {}
 ): Promise<ToolResult> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS;
   const timers = globalThis as Timers;
@@ -61,14 +65,14 @@ export async function runToolWithTimeout(
       run(controller.signal),
       new Promise<never>((_, reject) => {
         timeoutId = timers.setTimeout(() => {
-          const error = new Error(`Tool execution timed out after ${timeoutMs}ms.`);
+          const error = new ToolStopped(`Tool execution timed out after ${timeoutMs}ms.`);
           controller.abort(error);
           reject(error);
         }, timeoutMs);
         if (options.signal) {
           onAbort = () => {
             controller.abort(options.signal?.reason);
-            reject(new Error('The reply was cancelled before the tool finished.'));
+            reject(new ToolStopped('The reply was cancelled before the tool finished.'));
           };
           if (options.signal.aborted) onAbort();
           else options.signal.addEventListener('abort', onAbort, { once: true });
@@ -76,7 +80,13 @@ export async function runToolWithTimeout(
       }),
     ]);
   } catch (error) {
-    return toToolFailure(error);
+    if (error instanceof ToolStopped) return toToolFailure(error);
+    // What a tool throws can hold anything (a database error, a key), so it's
+    // logged in full and the model only learns that the tool failed. A tool
+    // that wants to explain returns `{ success: false, message }` instead.
+    const name = options.name ?? 'tool';
+    options.logger?.error('tool_error', `Tool ${name} threw`, { tool: name, error });
+    return { success: false, message: `Tool failed: ${name}` };
   } finally {
     if (timeoutId !== undefined) timers.clearTimeout(timeoutId);
     if (onAbort) options.signal?.removeEventListener('abort', onAbort);

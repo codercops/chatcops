@@ -67,7 +67,7 @@ describe('the script tag loader', () => {
     expect(launcherButton()).not.toBeNull();
     expect(launcherButton()?.getAttribute('aria-label')).toBe('Open chat');
     expect(launcherButton()?.classList.contains('cc-left')).toBe(true);
-    expect(host()?.style.getPropertyValue('--cc-accent')).toBe('#16a34a');
+    expect(host()?.style.getPropertyValue('--cc-theme-accent')).toBe('#16a34a');
     expect(shadow()?.querySelector('.cc-panel')).toBeNull();
     expect(load).not.toHaveBeenCalled();
     expect(getItem).not.toHaveBeenCalled();

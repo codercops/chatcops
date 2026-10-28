@@ -27,3 +27,5 @@ e2e/playwright-report/
 # chatcops CLI test projects
 packages/cli/tests/.tmp
 packages/cli/tests/.tmp-test
+packages/cli/tests/.tmp-cassette
+packages/cli/tests/.tmp-judge

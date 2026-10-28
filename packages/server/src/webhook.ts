@@ -1,4 +1,4 @@
-import type { WebhookConfig } from '@chatcops/core';
+import { consoleLogger, type Logger, type WebhookConfig } from '@chatcops/core';
 
 /**
  * The JSON body of every delivery. `event` and `timestamp` repeat `type` and
@@ -94,7 +94,10 @@ export class WebhookDispatcher {
   private configs: WebhookConfig[];
   private timeoutMs: number;
 
-  constructor(configs: WebhookConfig[], timeoutMs: number = DEFAULT_WEBHOOK_TIMEOUT_MS) {
+  private logger: Logger;
+
+  constructor(configs: WebhookConfig[], timeoutMs: number = DEFAULT_WEBHOOK_TIMEOUT_MS, logger: Logger = consoleLogger()) {
+    this.logger = logger;
     for (const config of configs) {
       assertSafeWebhookUrl(config.url, config.allowPrivateNetwork);
     }
@@ -160,8 +163,10 @@ export class WebhookDispatcher {
     }
 
     // Never log the body or the secret; they can hold lead details.
-    console.error(
-      `[chatcops] Webhook delivery failed: ${envelope.type} (${envelope.id}) to ${new URL(config.url).origin}: ${lastProblem}`
+    this.logger.error(
+      'webhook_failed',
+      `Webhook delivery failed: ${envelope.type} (${envelope.id}) to ${new URL(config.url).origin}: ${lastProblem}`,
+      { webhookEvent: envelope.type, deliveryId: envelope.id }
     );
   }
 }

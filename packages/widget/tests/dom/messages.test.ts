@@ -260,4 +260,36 @@ describe('Messages', () => {
     });
     expect(parent.querySelector('.cc-message-sources')).toBeNull();
   });
+
+  describe('AI disclosure', () => {
+    const note = () => parent.querySelector('.cc-messages')?.firstElementChild as HTMLElement | null;
+
+    it('is a note at the top of the log, with a safe learn-more link', () => {
+      messages.addMessage({ id: '1', role: 'assistant', content: 'Hi' });
+      messages.setDisclosure("You're chatting with an AI assistant.", { url: 'https://acme.test/ai', label: 'Learn more' });
+      expect(note()?.className).toBe('cc-disclosure');
+      expect(note()?.getAttribute('role')).toBe('note');
+      expect(note()?.textContent).toBe("You're chatting with an AI assistant. Learn more");
+      const link = note()?.querySelector('a');
+      expect(link?.getAttribute('href')).toBe('https://acme.test/ai');
+      expect(link?.getAttribute('rel')).toBe('noopener noreferrer');
+    });
+
+    it('stays first after the log is cleared, and is replaced, not added twice', () => {
+      messages.setDisclosure('First');
+      messages.addMessage({ id: '1', role: 'user', content: 'Hello' });
+      messages.clear();
+      expect(note()?.textContent).toBe('First');
+      messages.setDisclosure('Second');
+      expect(parent.querySelectorAll('.cc-disclosure')).toHaveLength(1);
+      expect(note()?.textContent).toBe('Second');
+    });
+
+    it('shows text, never HTML, and drops links that are not http(s)', () => {
+      messages.setDisclosure('<img src=x onerror=alert(1)>', { url: 'javascript:alert(1)', label: 'Learn more' });
+      expect(note()?.querySelector('img')).toBeNull();
+      expect(note()?.querySelector('a')).toBeNull();
+      expect(note()?.textContent).toBe('<img src=x onerror=alert(1)>');
+    });
+  });
 });
