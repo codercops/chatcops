@@ -204,11 +204,6 @@
   color: var(--cc-on-accent);
 }
 
-/* The open block of a streaming reply; it adds no box of its own. */
-.cc-stream-tail {
-  display: contents;
-}
-
 .cc-message-error-note {
   margin-top: 6px;
   font-size: 12px;
