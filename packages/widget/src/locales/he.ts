@@ -32,6 +32,9 @@ const he: Partial<WidgetLocaleStrings> = {
   regenerateButton: 'יצירה מחדש',
   suggestionsLabel: 'שאלות מוצעות',
   unreadCount: 'הודעות שלא נקראו: {count}',
+  sourcesLabel: 'מקורות',
+  disclosure: 'אתם משוחחים עם עוזר מבוסס בינה מלאכותית. ייתכן שהוא יטעה.',
+  disclosureLearnMore: 'למידע נוסף',
 };
 
 export default he;
