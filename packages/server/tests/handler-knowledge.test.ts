@@ -1,4 +1,4 @@
-import { FAQKnowledgeSource, TextKnowledgeSource, type KnowledgeSource, type RetrievalQuery, type RetrievedChunk } from '@chatcops/core';
+import { FAQKnowledgeSource, TextKnowledgeSource, memoryStorage, type KnowledgeSource, type RetrievalQuery, type RetrievedChunk } from '@chatcops/core';
 import { scriptedProvider, textStep } from '@chatcops/core/testing/provider';
 import { describe, expect, it, vi } from 'vitest';
 import { createChatHandler } from '../src/handler.js';
@@ -98,6 +98,29 @@ describe('knowledge in the server', () => {
     expect(expected).not.toBe('');
     expect(provider.calls[0].systemContext?.startsWith(expected)).toBe(true);
     expect(provider.calls[0].systemContext).not.toContain('<sources>');
+  });
+
+  it('lets a provider with native citations cite the chunks, and streams and stores the source parts', async () => {
+    const { source } = retrieving([chunk('a', 'The Team plan is $20.'), chunk('b', 'Refunds within 30 days.')]);
+    const provider = scriptedProvider(
+      [[
+        { type: 'text-delta', delta: 'It is $20.' },
+        { type: 'source', index: 0 },
+        { type: 'finish', reason: 'stop', usage: { inputTokens: 1, outputTokens: 1 }, parts: [{ type: 'text', text: 'It is $20.' }] },
+      ]],
+      { citations: 'native' }
+    );
+    const storage = memoryStorage();
+    const { handleChat, cleanup } = createChatHandler({ provider, systemPrompt: 'Be brief.', knowledge: [source], storage });
+    const out: unknown[] = [];
+    for await (const chunkText of handleChat({ conversationId: 'k6', message: 'How much is Team?' }, { protocol: 'v1' } as never)) out.push(chunkText);
+    cleanup();
+
+    expect(provider.calls[0].sources?.map((c) => c.id)).toEqual(['a', 'b']);
+    expect(provider.calls[0].systemContext ?? '').not.toContain('<sources>');
+    const stored = await storage.conversations.get('k6');
+    const sources = stored?.messages.at(-1)?.parts?.filter((p) => p.type === 'source');
+    expect(sources).toEqual([expect.objectContaining({ type: 'source', sourceId: 'https://example.test/a', url: 'https://example.test/a' })]);
   });
 
   it('adds nothing when retrieval finds nothing', async () => {
