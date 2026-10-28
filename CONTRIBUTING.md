@@ -203,7 +203,7 @@ ANTHROPIC_API_KEY=sk-... npx tsx src/examples/express-server.ts
 
 `npx` downloads `tsx` the first time.
 
-The widget has a size budget: 14.5 kB gzipped for the script tag bundle (`dist/chatcops.min.js`) and 18 kB for the ESM build, checked in CI by `pnpm size` after a build (limits in `.size-limit.json`).
+The widget has a size budget, gzipped: 5 kB for the script tag loader (`dist/chatcops.min.js`), 17 kB for the chat panel it loads when the chat opens (`dist/chatcops.panel.js`), 2 kB for the pre-chat form chunk, 19 kB for the single-file build (`dist/chatcops.full.min.js`) and 30 kB for the unminified ESM build. CI checks them with `pnpm size` after a build (limits in `.size-limit.json`).
 
 ### Browser tests
 
