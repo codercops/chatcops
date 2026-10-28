@@ -310,6 +310,9 @@ importers:
         specifier: ^4.3.3
         version: 4.3.3
     devDependencies:
+      '@chatcops/ingest':
+        specifier: workspace:^
+        version: link:../packages/ingest
       '@fontsource/inter':
         specifier: ^5.1.0
         version: 5.2.8

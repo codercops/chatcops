@@ -107,6 +107,11 @@ jobs:
       - name: Docs bot evals
         run: pnpm --filter @chatcops/website evals
 
+      # Warns, without failing, when the docs pages changed since the docs
+      # bot's index (website/public/docs-index) was built.
+      - name: Docs bot index
+        run: pnpm --filter @chatcops/website docs-index:check
+
   changeset:
     if: github.event_name == 'pull_request' && github.base_ref == 'dev'
     runs-on: ubuntu-latest
