@@ -3,7 +3,8 @@ import { expect, test } from '@playwright/test';
 // A long reply renders in O(n): finished blocks are rendered once, and only
 // the open one re-renders, at most 20 times a second. Before, every chunk
 // re-rendered and laid out the whole reply: on this reply that was about
-// 1,000 layouts and 9 to 12 s of main thread at 4x throttle.
+// 1,000 layouts and 8 to 11 s of main thread at 4x throttle, on top of what
+// reading the stream costs.
 const METRICS = ['TaskDuration', 'ScriptDuration', 'LayoutDuration', 'RecalcStyleDuration', 'LayoutCount'] as const;
 type Metrics = Record<(typeof METRICS)[number], number>;
 
@@ -63,9 +64,13 @@ test('a 4,000-word reply renders in a bounded number of layouts and little main 
 
   const reply = page.locator('.cc-message-assistant').last();
   await expect(reply.locator('pre code')).toContainText('npx chatcops test');
-  expect((await reply.textContent())?.split(/\s+/).length).toBeGreaterThan(3900);
-  expect(widget.LayoutCount).toBeLessThan(150);
-  expect(added).toBeLessThan(1000);
+  // textContent runs words together across line breaks, so fewer than 4,016.
+  expect((await reply.textContent())?.split(/\s+/).length).toBeGreaterThan(3800);
+  // About 35 here; a renderer that redoes the whole reply per chunk lays out ~1,000 times.
+  expect(widget.LayoutCount).toBeLessThan(100);
+  // About 600 ms here against 8 to 11 s before. CI machines vary a lot, so
+  // the layout count above is the sharp check and this one only catches the worst.
+  expect(added).toBeLessThan(2000);
 });
 
 test("new text doesn't pull the log down while the visitor reads above it", async ({ page }) => {
