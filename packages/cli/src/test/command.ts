@@ -1,4 +1,5 @@
 import { relative } from 'node:path';
+import { createProvider, isAIProvider } from '@chatcops/core';
 import type { ChatCopsServerConfig } from '@chatcops/server';
 import { ConfigError } from '../config.js';
 import { EXIT, wholeNumber, type Io, type Values } from '../main.js';
@@ -40,6 +41,15 @@ export async function runTests(server: ChatCopsServerConfig, patterns: string[],
     return reporter(io.stdout);
   });
   if (values.json && values.reporter?.length) throw new ConfigError('Use --reporter json, or --json, not both.');
+
+  // A missing key would otherwise only show as provider_unavailable on every turn.
+  if (cassettes?.mode !== 'replay' && !isAIProvider(server.provider)) {
+    try {
+      await createProvider(server.provider);
+    } catch (error) {
+      throw new ConfigError(`The server config's provider can't start: ${(error as Error).message}`);
+    }
+  }
 
   if (cassettes) {
     await cassettes.load(fixtures.map((job) => job.path ?? job.file));

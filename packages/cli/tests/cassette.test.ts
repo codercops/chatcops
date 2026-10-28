@@ -239,6 +239,18 @@ tests:
     expect(broken.code).toBe(EXIT.unusable);
   });
 
+  it('replays without API keys for the built-in providers', async () => {
+    const keyless = `export default { server: { systemPrompt: 'x', provider: { type: 'claude', apiKey: process.env.NO_SUCH_KEY } } };`;
+    const dir = project({ 'evals/pricing.chat.yaml': PRICING }, keyless);
+    const { stdout } = await run(['test', '--replay', '--json'], dir);
+    const error = JSON.parse(stdout).results[0].runs[0].error;
+    expect(error).toContain("There's no recording for this eval file");
+    expect(error).not.toContain('apiKey');
+    const live = await run(['test', '--live'], dir);
+    expect(live.stderr).toContain("The server config's provider can't start: claude requires apiKey");
+    expect(live.code).toBe(EXIT.unusable);
+  });
+
   it("doesn't find eval files inside __cassettes__", async () => {
     const dir = project({ 'evals/pricing.chat.yaml': PRICING, 'evals/__cassettes__/old.chat.yaml': 'not: an eval' });
     expect((await run(['test', 'evals/**/*.chat.yaml'], dir)).code).toBe(EXIT.ok);

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { memoryStorage, type ChatTool, type ToolResult, type WirePart } from '@chatcops/core';
+import { isAIProvider, memoryStorage, type ChatTool, type ToolResult, type WirePart } from '@chatcops/core';
 import { createChatHandler, type ChatCopsServerConfig } from '@chatcops/server';
 import { ConfigError } from '../config.js';
 import { check } from './assertions/index.js';
@@ -35,6 +35,7 @@ export async function runFixtures(
   fixtures: FixtureJob[],
   options: RunOptions = {}
 ): Promise<TestResult[]> {
+  if (options.cassettes?.mode === 'replay') server = withoutKeys(server);
   const jobs = fixtures.flatMap(({ file, path, tests }) => tests.map((test) => ({ file, path: path ?? file, test })));
   const results: TestResult[] = new Array(jobs.length);
   let next = 0;
@@ -137,4 +138,15 @@ export function withMocks(tools: ChatTool[], mocks: Record<string, ToolResult> |
   return tools.map((tool) =>
     mocks[tool.name] ? Object.assign(Object.create(tool) as ChatTool, { execute: async () => structuredClone(mocks[tool.name]) }) : tool
   );
+}
+
+/**
+ * In replay nothing reaches the network, so CI needs no keys. The built-in
+ * providers refuse to start without one, so give them a stand-in. Headers
+ * aren't part of what a recording is matched on.
+ */
+export function withoutKeys(server: ChatCopsServerConfig): ChatCopsServerConfig {
+  const { provider } = server;
+  if (isAIProvider(provider) || provider.apiKey?.trim()) return server;
+  return { ...server, provider: { ...provider, apiKey: 'chatcops-replay' } };
 }

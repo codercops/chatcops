@@ -126,7 +126,7 @@ npx chatcops test --replay   # answers every call from the recordings
 
 `--record` saves each eval file's calls next to it, in `__cassettes__/<file>.jsonl` (so `evals/pricing.chat.yaml` records to `evals/__cassettes__/pricing.chat.jsonl`). It records every HTTP call a test makes: the model, embedding calls for knowledge search, and tools that call APIs without a mock. Commit the folder with your eval files.
 
-When the `CI` environment variable is set, as it is on GitHub Actions and most CI services, `chatcops test` replays by default, so CI needs no API keys and costs nothing. `--live` calls the APIs anyway.
+When the `CI` environment variable is set, as it is on GitHub Actions and most CI services, `chatcops test` replays by default, so CI needs no API keys and costs nothing. A provider config without an `apiKey` gets a stand-in key during replay, since nothing is sent. Keep the config file loading when a key is missing: read `process.env.ANTHROPIC_API_KEY` as it is, and don't throw at load time. `--live` calls the APIs anyway.
 
 Each call is matched by its method, URL and body within its test. Any change that changes what gets sent fails the test instead of passing on an old answer:
 
