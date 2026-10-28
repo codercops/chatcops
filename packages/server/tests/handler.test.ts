@@ -264,7 +264,7 @@ describe('createChatHandler', () => {
     );
     expect(getAnalytics()).toMatchObject({
       totalConversations: 1,
-      leadsCapture: 1,
+      leadsCaptured: 1,
     });
   });
 

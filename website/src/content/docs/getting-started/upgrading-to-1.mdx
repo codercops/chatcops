@@ -56,6 +56,10 @@ A delivery's body is `{ id, type, created, data }`. A receiver that read `event`
 
 ## `@chatcops/core`
 
+### Analytics: `leadsCaptured`, and only the `noun.verb` event names
+
+Stats have `leadsCaptured`. `leadsCapture`, the same number under its old name, is gone. `eventCounts` has only the `noun.verb` names (`conversation.started`, `message.sent`, `message.received`, `lead.captured`), and `getEvents('lead:captured')` no longer finds `lead.captured` events: use the new names, or `ANALYTICS_EVENTS`. Events a store saved under the old names before 0.8 still count in the totals. Webhook event names didn't change.
+
 ### `chat()` and `chatSync()` on the built-in providers are gone
 
 The Claude, OpenAI and Gemini providers only have `step()` now. To get a reply from one outside the server, run a turn. It gives you the parts as they stream and the finished message, and errors end the turn instead of throwing:

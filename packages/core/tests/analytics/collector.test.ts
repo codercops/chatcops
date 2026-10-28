@@ -56,13 +56,13 @@ describe('AnalyticsCollector', () => {
     expect(collector.getStats().totalMessages).toBe(3);
   });
 
-  it('counts lead:captured events', () => {
+  it('counts lead.captured events', () => {
     const collector = new AnalyticsCollector();
 
     collector.track('lead.captured', { leadId: 'lead-1' });
     collector.track('lead.captured', { leadId: 'lead-2' });
 
-    expect(collector.getStats().leadsCapture).toBe(2);
+    expect(collector.getStats().leadsCaptured).toBe(2);
   });
 
   it('calculates average messages per conversation', () => {
@@ -116,21 +116,11 @@ describe('AnalyticsCollector', () => {
     expect(collector.getEvents('message.received')).toHaveLength(1);
   });
 
-  it('reads the old noun:verb names as the new ones', () => {
+  it('treats the names from before 0.8 as custom events', () => {
     const collector = new AnalyticsCollector();
-    collector.track('conversation:started', { conversationId: 'c1' });
     collector.track('message:sent');
-    collector.track('lead:captured');
-
-    expect(collector.getEvents().map((event) => event.type)).toEqual(['conversation.started', 'message.sent', 'lead.captured']);
-    expect(collector.getEvents('message:sent')).toHaveLength(1);
-    expect(collector.getStats()).toMatchObject({
-      totalConversations: 1,
-      totalMessages: 1,
-      leadsCaptured: 1,
-      leadsCapture: 1,
-      eventCounts: { 'message.sent': 1, 'message:sent': 1, 'lead.captured': 1, 'lead:captured': 1 },
-    });
+    expect(collector.getStats()).toMatchObject({ totalMessages: 0, eventCounts: { 'message:sent': 1 } });
+    expect(collector.getEvents('message.sent')).toEqual([]);
   });
 
   it('clears events and resets statistics', () => {
@@ -147,7 +137,6 @@ describe('AnalyticsCollector', () => {
       totalConversations: 0,
       totalMessages: 0,
       leadsCaptured: 0,
-      leadsCapture: 0,
       averageMessagesPerConversation: 0,
       eventCounts: {},
     });

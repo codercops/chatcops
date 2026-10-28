@@ -2,7 +2,7 @@ import { consoleLogger, type Logger } from '../logger.js';
 import type { AnalyticsEvent } from '../types.js';
 import type { EventSink } from '../storage/types.js';
 import type { AnalyticsStats } from './collector.js';
-import { ANALYTICS_EVENTS, countsWithAliases, eventName } from './names.js';
+import { ANALYTICS_EVENTS, countsByCurrentName } from './names.js';
 
 const DEFAULT_MAX_BATCH = 50;
 const DEFAULT_FLUSH_MS = 2000;
@@ -33,7 +33,7 @@ export class BufferedEventSink {
 
   track(type: string, data?: Record<string, unknown>): void {
     const wasEmpty = this.events.length === 0;
-    this.events.push({ type: eventName(type), data, timestamp: Date.now() });
+    this.events.push({ type, data, timestamp: Date.now() });
 
     if (wasEmpty) this.scheduleFlush();
     if (this.events.length >= this.maxBatch) this.startAutomaticFlush();
@@ -103,8 +103,8 @@ export async function statsFromSink(
     throw new Error('Event sink does not support querying; implement EventSink.query to calculate analytics statistics.');
   }
 
-  // Events stored under the old names (before 0.8) still count.
-  const eventCounts = countsWithAliases((await sink.query(range)).map(({ type, count }) => [type, count] as [string, number]));
+  // Events stored under the names from before 0.8 still count.
+  const eventCounts = countsByCurrentName((await sink.query(range)).map(({ type, count }) => [type, count] as [string, number]));
 
   const totalConversations = eventCounts.get(ANALYTICS_EVENTS.conversationStarted) ?? 0;
   const totalMessages =
@@ -115,7 +115,6 @@ export async function statsFromSink(
     totalConversations,
     totalMessages,
     leadsCaptured,
-    leadsCapture: leadsCaptured,
     averageMessagesPerConversation: totalConversations > 0 ? totalMessages / totalConversations : 0,
     eventCounts: Object.fromEntries(eventCounts),
   };

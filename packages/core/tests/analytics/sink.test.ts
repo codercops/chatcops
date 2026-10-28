@@ -224,7 +224,6 @@ describe('statsFromSink', () => {
       totalConversations: 1,
       totalMessages: 2,
       leadsCaptured: 1,
-      leadsCapture: 1,
       averageMessagesPerConversation: 2,
       eventCounts: {
         'conversation.started': 1,
@@ -232,16 +231,11 @@ describe('statsFromSink', () => {
         'message.received': 1,
         'lead.captured': 1,
         'other:event': 1,
-        // The old names, with the same totals, until 1.0.
-        'conversation:started': 1,
-        'message:sent': 1,
-        'message:received': 1,
-        'lead:captured': 1,
       },
     });
   });
 
-  it('counts events stored under the old noun:verb names with the new ones', async () => {
+  it('counts events a store saved under the names from before 0.8 with the new ones', async () => {
     const storage = memoryStorage();
     const eventsSink = storage.events;
     if (!eventsSink) throw new Error('memoryStorage did not provide an event sink');
@@ -256,9 +250,9 @@ describe('statsFromSink', () => {
     ]);
 
     const stats = await statsFromSink(eventsSink, { from: 0, to: 10 });
-    expect(stats).toMatchObject({ totalConversations: 2, totalMessages: 2, leadsCaptured: 2, leadsCapture: 2 });
+    expect(stats).toMatchObject({ totalConversations: 2, totalMessages: 2, leadsCaptured: 2 });
     expect(stats.eventCounts['message.sent']).toBe(2);
-    expect(stats.eventCounts['message:sent']).toBe(2);
+    expect(stats.eventCounts['message:sent']).toBeUndefined();
   });
 
   it('counts every conversation:started event as one conversation', async () => {

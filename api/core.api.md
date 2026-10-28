@@ -45,7 +45,6 @@ export interface AnalyticsStats {
     totalConversations: number;
     totalMessages: number;
     leadsCaptured: number;
-    leadsCapture: number;
     averageMessagesPerConversation: number;
     eventCounts: Record<string, number>;
 }
