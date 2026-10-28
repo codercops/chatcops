@@ -398,4 +398,38 @@ describe('ChatClient with protocol v1', () => {
     respond([part({ content: 'Old' }), part({ done: true }), '[DONE]']);
     expect((await collect()).slice(0, 2)).toEqual([{ content: 'Old' }, { done: true }]);
   });
+
+  it('maps a source part to a source chunk with url and title', async () => {
+    respond([
+      part({ type: 'start', protocol: 1, conversationId: 'c1', messageId: 'm' }),
+      part({ type: 'source', sourceId: 'https://example.com/pricing', url: 'https://example.com/pricing', title: 'Pricing' }),
+      part({ type: 'finish', reason: 'stop' }),
+      '[DONE]',
+    ]);
+    const chunks = await collect();
+    expect(chunks).toContainEqual({ source: { url: 'https://example.com/pricing', title: 'Pricing' } });
+  });
+
+  it('maps a source part without title to a source chunk with url only', async () => {
+    respond([
+      part({ type: 'start', protocol: 1, conversationId: 'c1', messageId: 'm' }),
+      part({ type: 'source', sourceId: 'https://example.com/docs', url: 'https://example.com/docs' }),
+      part({ type: 'finish', reason: 'stop' }),
+      '[DONE]',
+    ]);
+    const chunks = await collect();
+    expect(chunks).toContainEqual({ source: { url: 'https://example.com/docs', title: undefined } });
+  });
+
+  it('drops source parts with non-http(s) URLs', async () => {
+    respond([
+      part({ type: 'start', protocol: 1, conversationId: 'c1', messageId: 'm' }),
+      part({ type: 'source', sourceId: 'javascript:alert(1)', url: 'javascript:alert(1)', title: 'XSS' }),
+      part({ type: 'source', sourceId: 'data:text/html,hi', url: 'data:text/html,hi', title: 'Data' }),
+      part({ type: 'finish', reason: 'stop' }),
+      '[DONE]',
+    ]);
+    const chunks = await collect();
+    expect(chunks.some((c) => 'source' in c)).toBe(false);
+  });
 });

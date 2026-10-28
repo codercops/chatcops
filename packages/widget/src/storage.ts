@@ -19,6 +19,7 @@ interface StoredConversation {
     status?: 'streaming' | 'complete' | 'error';
     errorType?: MessageErrorType;
     timestamp: number;
+    sources?: Array<{ url: string; title?: string }>;
   }>;
   /** Pre-chat answers, kept with the conversation so a restored chat has them too. */
   userData?: Record<string, string>;
@@ -113,13 +114,33 @@ export class ConversationStorage {
       return null;
     }
 
-    const messages = (record.messages as unknown[]).filter(
-      (msg): msg is StoredConversation['messages'][number] =>
-        typeof msg === 'object' &&
-        msg !== null &&
-        !Array.isArray(msg) &&
-        ((msg as Record<string, unknown>).role === 'user' || (msg as Record<string, unknown>).role === 'assistant') &&
-        typeof (msg as Record<string, unknown>).content === 'string'
+    const messages = (record.messages as unknown[]).flatMap(
+      (msg): StoredConversation['messages'] => {
+        if (
+          typeof msg !== 'object' ||
+          msg === null ||
+          Array.isArray(msg) ||
+          ((msg as Record<string, unknown>).role !== 'user' && (msg as Record<string, unknown>).role !== 'assistant') ||
+          typeof (msg as Record<string, unknown>).content !== 'string'
+        ) {
+          return [];
+        }
+        const m = msg as Record<string, unknown>;
+        let sources: Array<{ url: string; title?: string }> | undefined;
+        if (Array.isArray(m.sources)) {
+          const clean = (m.sources as unknown[]).filter(
+            (s): s is { url: string; title?: string } =>
+              typeof s === 'object' &&
+              s !== null &&
+              !Array.isArray(s) &&
+              typeof (s as Record<string, unknown>).url === 'string' &&
+              (typeof (s as Record<string, unknown>).title === 'undefined' ||
+                typeof (s as Record<string, unknown>).title === 'string'),
+          );
+          if (clean.length > 0) sources = clean;
+        }
+        return [{ ...(m as StoredConversation['messages'][number]), sources }];
+      },
     );
     const userData = record.userData;
     return {
