@@ -1,3 +1,4 @@
+import { consoleLogger, type Logger } from '@chatcops/core';
 import { errorBody, type WireErrorBody, type WireErrorCode } from '@chatcops/core';
 import { base64UrlDecode, importSessionKey, signSession, verifySession, verifySessionSignature, type SessionClaims } from './session-token.js';
 import { verifyTurnstile, type TurnstileConfig } from './turnstile.js';
@@ -17,6 +18,7 @@ const MIN_SECRET_BYTES = 32;
 const MAX_ID_LENGTH = 128;
 
 export interface SessionConfig {
+  logger?: Logger;
   sessionSecrets?: string[];
   sessionTtlSec?: number;
   requireSession?: boolean;
@@ -136,7 +138,7 @@ export function createSessions(
         });
         if (!result.ok) {
           if (result.code === 'unavailable') {
-            console.warn('[chatcops] Turnstile could not be reached, so no session token was issued.');
+            (config.logger ?? consoleLogger()).warn('turnstile_unavailable', 'Turnstile could not be reached, so no session token was issued.');
             return { status: 503, body: errorBody('turnstile_failed', { message: 'Turnstile could not be reached. Try again.' }) };
           }
           return { status: 401, body: errorBody('turnstile_failed', { message: 'The Turnstile check failed.' }) };

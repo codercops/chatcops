@@ -11,6 +11,7 @@ import type { AIProvider } from './base.js';
 import { chatSyncViaTurn, chatViaTurn } from '../agent/chat.js';
 import { joinSystem } from '../agent/run-turn.js';
 import { DEFAULT_MAX_TOKENS, toOpenAITools, warnOnce } from './base.js';
+import { consoleLogger, type Logger } from '../logger.js';
 import { normalizeTurns } from './history.js';
 import type { FinishReason, ProviderEvent, ProviderStepParams } from './types.js';
 import { parseToolInput } from './tool-execution.js';
@@ -126,6 +127,7 @@ function rejectsStreamOptions(error: unknown): boolean {
 export class OpenAIProvider implements AIProvider {
   name: string;
   private client: OpenAI;
+  private readonly logger: Logger;
   readonly model: string;
   private reasoning: boolean;
   private effort: ProviderEffort;
@@ -135,6 +137,7 @@ export class OpenAIProvider implements AIProvider {
   private streamUsage = true;
 
   constructor(config: ProviderConfig, options: { compatible?: boolean } = {}) {
+    this.logger = config.logger ?? consoleLogger();
     this.name = options.compatible ? 'openai-compatible' : 'openai';
     if (options.compatible) {
       if (!config.baseURL?.trim()) throw new Error('openai-compatible requires baseURL');
@@ -162,6 +165,7 @@ export class OpenAIProvider implements AIProvider {
   ) {
     if (!this.supportsTools && params.tools?.length) {
       warnOnce(
+        this.logger,
         `${this.name}-tools-${this.model}`,
         `${this.name} model ${this.model} has supportsTools: false, so configured tools are not sent.`
       );
@@ -169,6 +173,7 @@ export class OpenAIProvider implements AIProvider {
     let temperature = params.temperature;
     if (temperature != null && this.reasoning) {
       warnOnce(
+        this.logger,
         `openai-temperature-${this.model}`,
         `${this.model} doesn't accept \`temperature\`, so it is not sent. Use \`effort\` to trade speed for depth.`
       );
@@ -198,6 +203,7 @@ export class OpenAIProvider implements AIProvider {
         if (!rejectsStreamOptions(error)) throw error;
         this.streamUsage = false;
         warnOnce(
+          this.logger,
           `openai-stream-options-${this.model}`,
           "The server doesn't accept `stream_options`, so token usage isn't reported for this provider."
         );

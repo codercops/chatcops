@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  cohereReranker,
   hybridRetriever,
   memoryVectors,
   reciprocalRankFusion,
@@ -116,6 +117,35 @@ describe('vectorRetriever', () => {
 });
 
 describe('hybridRetriever', () => {
+  it('returns Cohere-reranked chunks with Cohere relevance scores', async () => {
+    const embedder = topicEmbedder();
+    const store = await indexed(embedder);
+    const query = 'shipping delivery to Canada';
+    const initial = await hybridRetriever({ store, embedder, candidates: 3 }).retrieve({ text: query, topK: 3 });
+    const scores = [0.98, 0.84, 0.61];
+    const send = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const { documents } = JSON.parse(String(init?.body)) as { documents: string[] };
+      expect(documents).toEqual(initial.map((chunk) => chunk.text));
+      return new Response(
+        JSON.stringify({ results: [{ index: 2, relevance_score: scores[0] }, { index: 0, relevance_score: scores[1] }, { index: 1, relevance_score: scores[2] }] }),
+        { headers: { 'content-type': 'application/json' } }
+      );
+    });
+    const retriever = hybridRetriever({
+      store,
+      embedder,
+      candidates: 3,
+      reranker: cohereReranker({ apiKey: 'test-key', fetch: send }),
+    });
+
+    const reranked = await retriever.retrieve({ text: query, topK: 3 });
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(initial.map((chunk) => chunk.id)).not.toEqual([initial[2].id, initial[0].id, initial[1].id]);
+    expect(reranked.map((chunk) => chunk.id)).toEqual([initial[2].id, initial[0].id, initial[1].id]);
+    expect(reranked.map((chunk) => chunk.score)).toEqual(scores);
+  });
+
   it('finds a chunk only its exact words match, which vector search alone misses', async () => {
     const embedder = topicEmbedder();
     const store = await indexed(embedder);

@@ -163,10 +163,10 @@ describe('the startup log', () => {
 
   it('sums up the settings in one line', () => {
     expect(describeSecurity({ allowedOrigins: ['*'], turnstile: false })).toBe(
-      '[chatcops] Security: chat allowed from any site (allowedOrigins is "*"; list your sites in production); session tokens off; Turnstile off.'
+      'Security: chat allowed from any site (allowedOrigins is "*"; list your sites in production); session tokens off; Turnstile off.'
     );
     expect(describeSecurity({ allowedOrigins: ['https://acme.com', 'https://*.acme.com'], sessionTtlSec: 900, requireSession: false, turnstile: true })).toBe(
-      '[chatcops] Security: chat allowed from https://acme.com, https://*.acme.com; session tokens on (900s, not required); Turnstile on.'
+      'Security: chat allowed from https://acme.com, https://*.acme.com; session tokens on (900s, not required); Turnstile on.'
     );
   });
 

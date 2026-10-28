@@ -68,6 +68,45 @@ describe('Messages', () => {
     expect(container.getAttribute('aria-live')).toBe('polite');
   });
 
+  it('announces only the completed assistant text outside the muted log', () => {
+    const log = parent.querySelector('.cc-messages') as HTMLElement;
+    const announcement = parent.querySelector('.cc-reply-announcement') as HTMLElement;
+    expect(announcement.parentElement).toBe(parent);
+    expect(announcement.classList.contains('cc-sr-only')).toBe(true);
+    expect(announcement.getAttribute('aria-live')).toBe('polite');
+    expect(announcement.getAttribute('aria-atomic')).toBe('true');
+
+    messages.addMessage({ id: 'visitor', role: 'user', content: 'Hi' });
+    expect(announcement.textContent).toBe('');
+    messages.beginReply();
+    expect(log.getAttribute('aria-live')).toBe('off');
+    messages.addMessage({ id: 'reply', role: 'assistant', content: '**Hel**', status: 'streaming' });
+    messages.updateMessage({ id: 'reply', role: 'assistant', content: '**Hello** world', status: 'streaming' });
+    expect(announcement.textContent).toBe('');
+
+    const completed = { id: 'reply', role: 'assistant' as const, content: '**Hello** world', status: 'complete' as const };
+    messages.updateMessage(completed);
+    messages.finishReply(completed);
+    expect(announcement.textContent).toBe('Hello world');
+    expect(log.getAttribute('aria-live')).toBe('polite');
+  });
+
+  it('clears the old announcement for a new reply and includes a partial reply error once', () => {
+    const announcement = parent.querySelector('.cc-reply-announcement') as HTMLElement;
+    messages.addMessage({ id: 'reply', role: 'assistant', content: 'Partial', status: 'streaming' });
+    messages.beginReply();
+    const failed = { id: 'reply', role: 'assistant' as const, content: 'Partial', status: 'error' as const, errorText: 'Connection lost.' };
+    messages.updateMessage(failed);
+    messages.finishReply(failed);
+    expect(announcement.textContent).toBe('Partial Connection lost.');
+
+    messages.beginReply();
+    expect(announcement.textContent).toBe('');
+    expect(parent.querySelector('.cc-messages')?.getAttribute('aria-live')).toBe('off');
+    messages.finishReply();
+    expect(parent.querySelector('.cc-messages')?.getAttribute('aria-live')).toBe('polite');
+  });
+
   it('gives the typing indicator text and hides the dots', () => {
     messages = new Messages(parent, { typingLabel: 'Escribiendo...' });
     messages.showTyping();
@@ -176,5 +215,49 @@ describe('Messages', () => {
     const regenerateButton = parent.querySelector('[data-id="assistant-b"] .cc-message-regenerate');
     expect(regenerateButton).toBeTruthy();
     expect(regenerateButton?.textContent).toContain('Try again');
+  });
+
+  it('renders sources as a labelled nav with links', () => {
+    messages = new Messages(parent, { sourcesLabel: 'Sources' });
+    messages.addMessage({
+      id: 'src-1',
+      role: 'assistant',
+      content: 'See the docs.',
+      status: 'complete',
+      sources: [
+        { url: 'https://example.com/pricing', title: 'Pricing' },
+        { url: 'https://example.com/docs' },
+      ],
+    });
+
+    const nav = parent.querySelector('.cc-message-sources');
+    expect(nav).toBeTruthy();
+    expect(nav?.getAttribute('aria-label')).toBe('Sources');
+    const links = Array.from(nav?.querySelectorAll('a') ?? []);
+    expect(links).toHaveLength(2);
+    expect(links[0].textContent).toBe('Pricing');
+    expect(links[0].getAttribute('href')).toBe('https://example.com/pricing');
+    expect(links[0].getAttribute('target')).toBe('_blank');
+    expect(links[0].getAttribute('rel')).toBe('noopener noreferrer');
+    expect(links[1].textContent).toBe('example.com');
+  });
+
+  it('does not render a sources section for replies without sources', () => {
+    messages.addMessage({ id: 'no-src', role: 'assistant', content: 'No sources here.', status: 'complete' });
+    expect(parent.querySelector('.cc-message-sources')).toBeNull();
+  });
+
+  it('drops non-http(s) URLs from the sources list', () => {
+    messages.addMessage({
+      id: 'bad-src',
+      role: 'assistant',
+      content: 'Reply.',
+      status: 'complete',
+      sources: [
+        { url: 'javascript:alert(1)', title: 'XSS' },
+        { url: 'data:text/html,hi', title: 'Data' },
+      ],
+    });
+    expect(parent.querySelector('.cc-message-sources')).toBeNull();
   });
 });

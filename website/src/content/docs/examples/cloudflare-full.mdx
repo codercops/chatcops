@@ -94,7 +94,24 @@ export default {
 };
 ```
 
-To query a persistent vector store (such as Cloudflare Vectorize) alongside static knowledge sources, connect `workersAiEmbedder({ ai: env.AI })` to a vector retriever. See [Retrieval from a vector store](/core/knowledge-base/#retrieval-from-a-vector-store) for setup and retriever options.
+To query a persistent vector store (such as Cloudflare Vectorize) alongside static knowledge sources, connect `workersAiEmbedder({ ai: env.AI })` to a vector retriever and add `workersAiReranker({ ai: env.AI })` to rerank its candidates with `@cf/baai/bge-reranker-base`:
+
+```typescript
+import { hybridRetriever, retrieverKnowledge, workersAiEmbedder, workersAiReranker, type VectorStore, type WorkersAiBinding } from '@chatcops/core';
+
+declare const env: { AI: WorkersAiBinding };
+declare const vectors: VectorStore;
+
+const embedder = workersAiEmbedder({ ai: env.AI });
+const retriever = hybridRetriever({
+  store: vectors,
+  embedder,
+  reranker: workersAiReranker({ ai: env.AI }),
+});
+const knowledge = retrieverKnowledge(retriever, { topK: 5 });
+```
+
+See [Retrieval from a vector store](/core/knowledge-base/#retrieval-from-a-vector-store) for setup and retriever options. The [Workers AI reranker model](https://developers.cloudflare.com/workers-ai/models/bge-reranker-base/) accepts the query and candidate contexts and returns their relevance scores.
 
 ## `wrangler.toml`
 

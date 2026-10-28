@@ -34,6 +34,7 @@ export type {
   HandoffPart,
 } from './types.js';
 export { partsOf, messageText } from './parts.js';
+export { consoleLogger, jsonLogger, silentLogger, type Logger, type LogFields, type JsonLoggerOptions } from './logger.js';
 
 // Wire protocol
 export { PROTOCOL_VERSION, encodeSSE, SSE_PING, SSE_DONE, SSE_HEADERS, statusForError, errorBody, describeInvalidRequest, toLegacyChunk, aiSdkEncoder, fromAiSdkRequest, AI_SDK_STREAM_HEADER } from './protocol/index.js';
@@ -96,8 +97,10 @@ export type {
   OpenAIEmbedderOptions,
   GeminiEmbedderOptions,
   VoyageEmbedderOptions,
+  CohereRerankerOptions,
   WorkersAiBinding,
   WorkersAiEmbedderOptions,
+  WorkersAiRerankerOptions,
   RetrieverKnowledgeOptions,
   VectorRetrieverOptions,
   HybridRetrieverOptions,
@@ -106,7 +109,9 @@ export {
   openaiEmbedder,
   geminiEmbedder,
   voyageEmbedder,
+  cohereReranker,
   workersAiEmbedder,
+  workersAiReranker,
   retrieverKnowledge,
   formatSources,
   uniqueChunks,

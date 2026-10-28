@@ -160,3 +160,19 @@ const weatherTool: ChatTool = {
 5. Visitors only see the final message. The tool calls and their results are saved with it, so the next reply knows what the tools returned.
 
 All the calls the model makes in one step run at the same time. A tool that takes longer than `toolTimeoutMs` (default 30 seconds) gets an error result, and its `signal` aborts.
+
+When a tool throws, the model only hears `Tool failed: <name>`. What a tool throws can hold anything, such as a database error with a connection string, and the model could repeat it to the visitor. The full error goes to the server's [logger](/server/setup/#logging) as a `tool_error`. To tell the model something it can pass on, return a failure instead of throwing:
+
+```typescript
+import type { ToolResult } from '@chatcops/core';
+
+declare function findOrder(id: string): Promise<{ status: string } | undefined>;
+
+async function lookupOrder(id: string): Promise<ToolResult> {
+  const order = await findOrder(id);
+  if (!order) return { success: false, message: `There's no order ${id}. Ask the visitor to check the number.` };
+  return { success: true, data: order };
+}
+```
+
+Tools get the server's logger as `context.logger` too, for problems they handle themselves.

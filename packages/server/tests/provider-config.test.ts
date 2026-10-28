@@ -64,7 +64,7 @@ describe('provider configuration through the server', () => {
     const handler = createChatHandler({ provider: { type }, systemPrompt: 'Test', budgets: false });
     try {
       expect(await collect(handler.handleChat({ conversationId: type, message: 'Hi' }))).toEqual([{ error: 'provider_error' }]);
-      expect(error).toHaveBeenCalledExactlyOnceWith('[chatcops] Provider setup failed:', `${type} requires apiKey`);
+      expect(error).toHaveBeenCalledExactlyOnceWith(`[chatcops] Provider setup failed: ${type} requires apiKey`);
     } finally {
       handler.cleanup();
     }

@@ -210,6 +210,22 @@
   color: var(--cc-text-secondary);
 }
 
+.cc-message-sources {
+  margin-block-start: 8px;
+  font-size: 12px;
+  color: var(--cc-text-secondary);
+}
+
+.cc-message-sources ol {
+  margin: 0;
+  padding-inline-start: 1.2em;
+}
+
+.cc-message-sources a {
+  color: var(--cc-text-secondary);
+  text-decoration: underline;
+}
+
 .cc-message code {
   background: var(--cc-code-bg);
   padding: 1px 4px;
