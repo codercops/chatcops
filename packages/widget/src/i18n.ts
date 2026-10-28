@@ -31,6 +31,7 @@ export interface WidgetLocaleStrings {
   regenerateButton: string;
   suggestionsLabel: string;
   unreadCount: string;
+  sourcesLabel: string;
   disclosure: string;
   disclosureLearnMore: string;
 }
@@ -67,6 +68,7 @@ const en: WidgetLocaleStrings = {
   regenerateButton: 'Regenerate',
   suggestionsLabel: 'Suggested questions',
   unreadCount: '{count} unread',
+  sourcesLabel: 'Sources',
   disclosure: "You're chatting with an AI assistant. It can make mistakes.",
   disclosureLearnMore: 'Learn more',
 };

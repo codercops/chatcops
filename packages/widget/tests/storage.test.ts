@@ -198,4 +198,58 @@ describe('ConversationStorage', () => {
     expect(loaded?.messages).toEqual([validUser, validAssistant, validEmptyContent]);
     expect(localStorage.getItem('chatcops_conversation_test')).not.toBeNull();
   });
+
+  it('saves and loads sources with their message', () => {
+    const storage = new ConversationStorage('test');
+    const sources = [{ url: 'https://example.com/pricing', title: 'Pricing' }];
+    storage.save({
+      id: 'conv-src',
+      messages: [
+        { id: 'm1', role: 'assistant', content: 'See the docs.', timestamp: Date.now(), sources },
+      ],
+      updatedAt: Date.now(),
+    });
+    const loaded = storage.load();
+    expect(loaded?.messages[0].sources).toEqual(sources);
+  });
+
+  it('drops sources when the stored value is not an array (e.g. "oops")', () => {
+    const ts = Date.now();
+    localStorage.setItem(
+      'chatcops_conversation_test',
+      JSON.stringify({
+        id: 'conv-bad-src',
+        messages: [{ id: 'm1', role: 'assistant', content: 'Hi', timestamp: ts, sources: 'oops' }],
+        updatedAt: ts,
+      }),
+    );
+    const storage = new ConversationStorage('test');
+    const loaded = storage.load();
+    expect(loaded?.messages).toHaveLength(1);
+    expect(loaded?.messages[0].sources).toBeUndefined();
+  });
+
+  it('drops individual source items whose url is not a string (e.g. { url: 5 })', () => {
+    const ts = Date.now();
+    localStorage.setItem(
+      'chatcops_conversation_test',
+      JSON.stringify({
+        id: 'conv-bad-url',
+        messages: [
+          {
+            id: 'm1',
+            role: 'assistant',
+            content: 'Hi',
+            timestamp: ts,
+            sources: [{ url: 5, title: 'Bad' }, { url: 'https://example.com', title: 'Good' }],
+          },
+        ],
+        updatedAt: ts,
+      }),
+    );
+    const storage = new ConversationStorage('test');
+    const loaded = storage.load();
+    expect(loaded?.messages).toHaveLength(1);
+    expect(loaded?.messages[0].sources).toEqual([{ url: 'https://example.com', title: 'Good' }]);
+  });
 });

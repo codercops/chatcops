@@ -513,6 +513,71 @@ describe('Widget', () => {
     expect(assistant.at(-1)?.dataset.aiGenerated).toBe('true');
   });
 
+  it('announces a streamed reply once after completion, including repeated identical replies', async () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    const shadow = getInternals(widget).shadow;
+    const log = shadow.querySelector('.cc-messages') as HTMLElement;
+    const announcement = shadow.querySelector('.cc-reply-announcement') as HTMLElement;
+    const during: Array<[string | null, string | null]> = [];
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementation(async function* () {
+      yield { content: '**Hello**' };
+      during.push([log.getAttribute('aria-live'), announcement.textContent]);
+      yield { content: ' world' };
+      during.push([log.getAttribute('aria-live'), announcement.textContent]);
+      yield { done: true };
+    });
+
+    await getInternals(widget).handleSend('Hi');
+    expect(during).toEqual([['off', ''], ['off', '']]);
+    expect(announcement.textContent).toBe('Hello world');
+    expect(log.getAttribute('aria-live')).toBe('polite');
+
+    await getInternals(widget).handleSend('Again');
+    expect(during).toEqual([['off', ''], ['off', ''], ['off', ''], ['off', '']]);
+    expect(announcement.textContent).toBe('Hello world');
+    widget.destroy();
+  });
+
+  it.each([
+    ['empty error', [{ error: 'provider_error' }], 'Something went wrong. Please try again.'],
+    ['partial error', [{ content: 'Partial reply' }, { error: 'provider_error' }], 'Partial reply Something went wrong. Please try again.'],
+    ['cut-off reply', [{ content: 'Partial reply' }, { error: 'cut_off' }], 'Partial reply The reply was cut off.'],
+  ])('announces the %s once and restores the message log', async (_case, chunks, expected) => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    const shadow = getInternals(widget).shadow;
+    const log = shadow.querySelector('.cc-messages') as HTMLElement;
+    const announcement = shadow.querySelector('.cc-reply-announcement') as HTMLElement;
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementationOnce(async function* () {
+      for (const chunk of chunks) {
+        yield chunk;
+        expect(log.getAttribute('aria-live')).toBe('off');
+        expect(announcement.textContent).toBe('');
+      }
+    });
+
+    await getInternals(widget).handleSend('Hi');
+    expect(announcement.textContent).toBe(expected);
+    expect(log.getAttribute('aria-live')).toBe('polite');
+    widget.destroy();
+  });
+
+  it('announces a caught stream failure after partial content', async () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementationOnce(async function* () {
+      yield { content: 'Partial reply' };
+      throw new Error('network failed');
+    });
+
+    await getInternals(widget).handleSend('Hi');
+    const shadow = getInternals(widget).shadow;
+    expect(shadow.querySelector('.cc-reply-announcement')?.textContent).toBe('Partial reply Something went wrong. Please try again.');
+    expect(shadow.querySelector('.cc-messages')?.getAttribute('aria-live')).toBe('polite');
+    widget.destroy();
+  });
+
   it('keeps the ai generated mark on failed, retried and regenerated replies', async () => {
     const widget = new Widget({ apiUrl: 'https://api.test/chat' });
     widget.init();
