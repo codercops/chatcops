@@ -1,3 +1,4 @@
+import { consoleLogger, type Logger } from '../logger.js';
 import { warnOnce } from '../providers/base.js';
 import { DEFAULT_MAX_HISTORY_TOKENS, trimHistory } from '../providers/history.js';
 import { type ConversationStoreWithAppend, isLegacyConversationStore, withAppend } from '../storage/adapt.js';
@@ -18,6 +19,8 @@ export interface ConversationManagerOptions {
   maxMessages?: number;
   /** Token budget for the history sent to the model. Default 32,000. */
   maxHistoryTokens?: number;
+  /** Where warnings go. Default `consoleLogger()`. */
+  logger?: Logger;
 }
 
 /** Releases a turn lock. Safe to call more than once. */
@@ -39,6 +42,7 @@ export class ConversationManager {
     const store = options.storage?.conversations ?? options.store ?? memoryStorage().conversations;
     if (isLegacyConversationStore(store)) {
       warnOnce(
+        options.logger ?? consoleLogger(),
         'legacy-conversation-store',
         "The conversation store has no append(), so each write saves the whole conversation. That's fine on one server, but two instances writing the same conversation can lose a message. The store packages (@chatcops/store-*) have append()."
       );

@@ -1,3 +1,4 @@
+import { consoleLogger, type Logger } from '../logger.js';
 import type { AnalyticsEvent } from '../types.js';
 import type { EventSink } from '../storage/types.js';
 import type { AnalyticsStats } from './collector.js';
@@ -11,11 +12,13 @@ export class BufferedEventSink {
   private readonly flushMs: number;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private flushPromise: Promise<void> | undefined;
+  private readonly logger: Logger;
 
   constructor(
     private readonly sink: EventSink,
-    options?: { maxBatch?: number; flushMs?: number }
+    options?: { maxBatch?: number; flushMs?: number; logger?: Logger }
   ) {
+    this.logger = options?.logger ?? consoleLogger();
     this.maxBatch = options?.maxBatch ?? DEFAULT_MAX_BATCH;
     this.flushMs = options?.flushMs ?? DEFAULT_FLUSH_MS;
 
@@ -47,7 +50,7 @@ export class BufferedEventSink {
         try {
           await this.sink.write(batch);
         } catch (error) {
-          console.error(`[chatcops] analytics write failed: ${errorMessage(error)}`);
+          this.logger.error('analytics_write_failed', `analytics write failed: ${errorMessage(error)}`);
         }
       }
     });
@@ -73,7 +76,7 @@ export class BufferedEventSink {
       }
     } catch (error) {
       this.clearTimer();
-      console.error(`[chatcops] analytics timer failed: ${errorMessage(error)}`);
+      this.logger.error('analytics_flush_failed', `analytics timer failed: ${errorMessage(error)}`);
       this.startAutomaticFlush();
     }
   }
@@ -86,7 +89,7 @@ export class BufferedEventSink {
 
   private startAutomaticFlush(): void {
     void this.flush().catch((error: unknown) => {
-      console.error(`[chatcops] analytics flush failed: ${errorMessage(error)}`);
+      this.logger.error('analytics_flush_failed', `analytics flush failed: ${errorMessage(error)}`);
     });
   }
 }

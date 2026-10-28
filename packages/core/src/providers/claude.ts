@@ -12,6 +12,7 @@ import type { AIProvider } from './base.js';
 import { chatSyncViaTurn, chatViaTurn } from '../agent/chat.js';
 import { joinSystem } from '../agent/run-turn.js';
 import { DEFAULT_MAX_TOKENS, toClaudeTools, warnOnce } from './base.js';
+import { consoleLogger, type Logger } from '../logger.js';
 import { normalizeTurns, type TurnPart } from './history.js';
 import type { FinishReason, ProviderEvent, ProviderStepParams } from './types.js';
 import type { RetrievedChunk } from '../retrieval/types.js';
@@ -218,8 +219,10 @@ export class ClaudeProvider implements AIProvider {
   readonly model: string;
   private effort: ProviderEffort | undefined;
   private promptCaching: boolean;
+  private readonly logger: Logger;
 
   constructor(config: ProviderConfig) {
+    this.logger = config.logger ?? consoleLogger();
     if (!config.apiKey?.trim()) throw new Error('claude requires apiKey');
     this.client = new Anthropic({
       apiKey: config.apiKey,
@@ -232,7 +235,7 @@ export class ClaudeProvider implements AIProvider {
     if (claudeSupportsEffort(this.model)) {
       this.effort = config.effort ?? DEFAULT_EFFORT;
     } else if (config.effort) {
-      warnOnce(`claude-effort-${this.model}`, `${this.model} has no effort setting, so \`effort\` is ignored.`);
+      warnOnce(this.logger, `claude-effort-${this.model}`, `${this.model} has no effort setting, so \`effort\` is ignored.`);
     }
   }
 
@@ -257,6 +260,7 @@ export class ClaudeProvider implements AIProvider {
     // sending it is a 400, so it's never sent.
     if (params.temperature != null) {
       warnOnce(
+        this.logger,
         'claude-temperature',
         "Claude's API no longer accepts `temperature`, so it is not sent. Use `effort` to trade speed for depth."
       );

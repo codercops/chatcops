@@ -115,12 +115,19 @@ export function normalizeUrl(url: string): string | undefined {
   }
 }
 
-/** `*` matches within a path segment, `**` across segments, `?` one character. */
+/**
+ * `*` matches within a path segment, `**` across segments, `?` one character.
+ * A double star followed by a slash also matches no segments at all, so
+ * "docs, any folders, *.md" matches docs/a.md as well as docs/x/a.md.
+ */
 export function globToRegExp(glob: string): RegExp {
   let source = '';
   for (let i = 0; i < glob.length; i++) {
     const char = glob[i];
-    if (char === '*' && glob[i + 1] === '*') {
+    if (char === '*' && glob[i + 1] === '*' && glob[i + 2] === '/') {
+      source += '(?:.*/)?';
+      i += 2;
+    } else if (char === '*' && glob[i + 1] === '*') {
       source += '.*';
       i++;
     } else if (char === '*') {

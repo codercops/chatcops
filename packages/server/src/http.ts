@@ -8,6 +8,8 @@ import {
   errorBody,
   fromAiSdkRequest,
   type WirePart,
+  consoleLogger,
+  type Logger,
 } from '@chatcops/core';
 import { toLegacyStream, type ChatFormat, type ChatHandler, type ChatStart } from './handler.js';
 import type { OriginPolicy } from './security/origin-policy.js';
@@ -57,7 +59,7 @@ export type ChatReply =
 
 /** What to send back for a parsed request body. */
 export async function chatReply(
-  handler: Pick<ChatHandler, 'startChat'>,
+  handler: Pick<ChatHandler, 'startChat'> & { logger?: Logger },
   body: unknown,
   clientIp: string | undefined,
   options: ChatReplyOptions
@@ -72,7 +74,7 @@ export async function chatReply(
   try {
     start = await handler.startChat(body, clientIp, { signal, format, authorization: options.authorization, origin: options.origin });
   } catch (err) {
-    if (!signal.aborted) console.error('[chatcops] Unhandled error while handling chat:', err);
+    if (!signal.aborted) (handler.logger ?? consoleLogger()).error('unhandled_error', 'Unhandled error while handling chat', { error: err });
     if (typed) return { kind: 'json', status: 500, headers: EXPOSE_HEADERS, body: errorBody('internal_error') };
     // What 0.5 servers send, with no [DONE] after it.
     return stream(format, only(LEGACY_INTERNAL_ERROR));
@@ -90,7 +92,7 @@ export async function chatReply(
 
   const source =
     format === 'v1' ? encodeParts(start.parts) : format === 'ai-sdk' ? encodeAiSdk(start.parts) : encodeLegacy(start.parts);
-  return stream(format, frames(source, format, signal, pingIntervalMs));
+  return stream(format, frames(source, format, signal, pingIntervalMs, handler.logger ?? consoleLogger()));
 }
 
 const FORMAT_HEADERS: Record<ChatFormat, Record<string, string>> = {
@@ -132,7 +134,8 @@ async function* frames(
   source: AsyncGenerator<string>,
   format: ChatFormat,
   signal: AbortSignal,
-  pingIntervalMs: number
+  pingIntervalMs: number,
+  logger: Logger
 ): AsyncGenerator<string, void> {
   try {
     for await (const frame of withPings(source, pingIntervalMs)) {
@@ -142,7 +145,7 @@ async function* frames(
     if (!signal.aborted) yield SSE_DONE;
   } catch (err) {
     if (signal.aborted) return;
-    console.error('[chatcops] Unhandled error while handling chat:', err);
+    logger.error('unhandled_error', 'Unhandled error while handling chat', { error: err });
     if (format !== 'legacy') {
       const tail: WirePart[] = [
         { type: 'error', code: 'internal_error', retryable: true },

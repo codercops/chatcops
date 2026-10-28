@@ -120,7 +120,7 @@ describe('createChatHandler', () => {
 
     expect(weatherTool.execute).toHaveBeenCalledWith(
       { city: 'Boston' },
-      { conversationId: 'conv-1', signal: expect.any(AbortSignal) }
+      { conversationId: 'conv-1', signal: expect.any(AbortSignal), logger: expect.any(Object) }
     );
     expect(events).toEqual([
       { content: 'Forecast: sunny' },
@@ -481,8 +481,7 @@ describe('createChatHandler', () => {
 
         expect(errorSpy).toHaveBeenCalledTimes(1);
         expect(errorSpy).toHaveBeenCalledWith(
-          '[chatcops] Provider setup failed:',
-          'Unknown provider type: nope'
+          '[chatcops] Provider setup failed: Unknown provider type: nope'
         );
         expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('sk-secret-key');
       } finally {
@@ -502,7 +501,7 @@ describe('createChatHandler', () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
       cleanup();
 
-      expect(errorSpy).toHaveBeenCalledWith('[chatcops] Provider setup failed:', 'Missing API key');
+      expect(errorSpy).toHaveBeenCalledWith('[chatcops] Provider setup failed: Missing API key');
       expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('sk-secret-key');
     });
 
@@ -611,7 +610,7 @@ describe('createChatHandler', () => {
     expect(isStreamFinished).toBe(true);
     expect(events).toEqual([{ error: 'provider_error' }]);
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      '[chatcops] Provider error:',
+      '[chatcops] Provider error',
       expect.any(Error)
     );
   });
@@ -729,7 +728,7 @@ describe('createChatHandler', () => {
       { role: 'user', content: 'Next question' },
     ]);
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      '[chatcops] Provider error:',
+      '[chatcops] Provider error',
       expect.any(Error)
     );
   });

@@ -16,7 +16,7 @@ export function chatcopsCloudflareHandler(config: ChatCopsServerConfig) {
     ctx?: { waitUntil?(promise: Promise<unknown>): void }
   ): Promise<Response> {
     return fetchChatResponse(chat, origins, request, {
-      clientIp: (req) => cloudflareClientIp(req, config.clientIp),
+      clientIp: (req) => cloudflareClientIp(req, config.clientIp, chat.logger),
       ...(ctx?.waitUntil ? { waitUntil: (promise: Promise<unknown>) => ctx.waitUntil?.(promise) } : {}),
     });
   };

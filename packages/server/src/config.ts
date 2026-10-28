@@ -9,6 +9,7 @@ import type {
   ConversationStore,
   KnowledgeSource,
   LocaleStrings,
+  Logger,
   ProviderConfig,
   WebhookConfig,
 } from '@chatcops/core';
@@ -20,6 +21,12 @@ export interface ChatCopsServerConfig {
    */
   provider: ProviderConfig | AIProvider;
   systemPrompt: string;
+  /**
+   * Where the server writes startup notes, refused requests and every error
+   * it handles instead of throwing, each with a stable `event` name. Default
+   * `consoleLogger()`; `jsonLogger()` writes one JSON object per line.
+   */
+  logger?: Logger;
   tools?: ChatTool[];
   toolTimeoutMs?: number;
   /** Most tokens in one reply. Defaults to 4096 (`DEFAULT_MAX_TOKENS` in @chatcops/core). */

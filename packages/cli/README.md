@@ -1,6 +1,6 @@
 # @chatcops/cli
 
-The `chatcops` command: build a knowledge index from your site, and search it to check what your bot will find.
+The `chatcops` command: build a knowledge index from your site, search it to check what your bot will find, and test your bot against conversations it has to get right.
 
 ```bash
 npx chatcops ingest --source https://example.com/sitemap.xml
@@ -27,6 +27,22 @@ export default defineConfig({
 
 `chatcops ingest` options: `--source` (repeatable; a sitemap, a page URL, or a folder with `--base-url`), `--index`, `--dry-run`, `--max-pages`, `--concurrency`, `--prune`, `--force`, `--json`. `chatcops search` options: `--index`, `--top-k`, `--json`. Run `chatcops --help` for details.
 
-Exit codes: 0 when everything worked, 1 when it finished with failed pages or discovery errors, 2 when it couldn't run (bad options, config problems, a different embedder than the index was built with).
+`chatcops test` runs eval files (`evals/**/*.chat.yaml` by default) against the bot in the config's `server` section:
+
+```yaml
+version: 1
+name: Pricing
+tests:
+  - name: quotes the Team price
+    turns:
+      - user: How much is the Team plan?
+        expect:
+          - contains: "$19"
+          - not-contains: "$29"
+```
+
+Options: `--filter` (a name, or `tag:<name>`), `--repeat`, `--concurrency`, `--reporter pretty|json` (repeatable), `--json`. `--record` saves every API call the tests make to `__cassettes__/` next to the eval files, and `--replay` answers them from there. Replay is the default when `CI` is set, so CI needs no API keys. `judge` assertions have a model from another provider grade a reply against a rubric (`--judge-model` to choose it), and with `prices` in the config, `--max-cost` stops a run once it has spent that much. It exits 0 when all tests passed, 1 when some failed, 2 when it couldn't run. See [Testing your bot](https://chat.codercops.com/core/testing/).
+
+Exit codes for ingest and search: 0 when everything worked, 1 when it finished with failed pages or discovery errors, 2 when it couldn't run (bad options, config problems, a different embedder than the index was built with).
 
 TypeScript config files need Node 22.18 or later; on older Node, use `chatcops.config.mjs`.
