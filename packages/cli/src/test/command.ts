@@ -9,12 +9,12 @@ import { Spend } from './cost.js';
 import { resolveJudge } from './judge.js';
 import { DEFAULT_PATTERN, findFixtures, loadFixture, matchesFilter } from './load.js';
 import type { CassetteMode, Cassettes } from './cassette.js';
-import { runFixtures, withMocks, withoutKeys, type FixtureJob } from './run.js';
+import { runFixtures, runRemoteFixtures, withMocks, withoutKeys, type FixtureJob, type RunOptions } from './run.js';
 import { REPORTERS } from './reporters/index.js';
 
 /** `chatcops test`: finds and checks the eval files, runs them, reports. Exit 0 all passed, 1 some failed, 2 couldn't run. */
 export async function runTests(
-  server: ChatCopsServerConfig,
+  server: ChatCopsServerConfig | undefined,
   patterns: string[],
   values: Values,
   io: Io,
@@ -26,6 +26,9 @@ export async function runTests(
   const concurrency = wholeNumber(values.concurrency, '--concurrency');
   const repeat = wholeNumber(values.repeat, '--repeat');
   if (repeat === 0) throw new ConfigError('--repeat takes 1 or more.');
+  if (values.header?.length && values.url === undefined) throw new ConfigError('--header requires --url.');
+  const remote = values.url !== undefined ? parseRemoteOptions(values.url, values.header ?? []) : undefined;
+  if (!remote && !server) throw new ConfigError('A server config is required unless --url is used.');
 
   const files = await findFixtures(io.cwd, patterns.length ? patterns : [DEFAULT_PATTERN]);
   if (!files.length) throw new ConfigError(`No eval files match ${(patterns.length ? patterns : [DEFAULT_PATTERN]).join(', ')}.`);
@@ -36,8 +39,11 @@ export async function runTests(
     const unknown = unknownAssertions(fixture.tests.flatMap((test) => test.turns.flatMap((turn) => turn.expect ?? [])));
     if (unknown.length) throw new ConfigError(`${relative(io.cwd, file)} uses assertions that don't exist: ${unknown.join(', ')}`);
     for (const test of fixture.tests) {
+      if (remote && Object.keys(test.mocks?.tools ?? {}).length) {
+        throw new ConfigError(`${relative(io.cwd, file)} > ${test.name}: mocks cannot be used with --url because they cannot be applied to a remote server.`);
+      }
       try {
-        withMocks(server.tools ?? [], test.mocks?.tools);
+        if (!remote) withMocks(server!.tools ?? [], test.mocks?.tools);
       } catch (error) {
         throw new ConfigError(`${relative(io.cwd, file)} > ${test.name}: ${(error as Error).message}`);
       }
@@ -56,11 +62,13 @@ export async function runTests(
 
   // Started here so a missing key fails now, not as provider_unavailable on
   // every turn, and so turns can be priced by the model id.
-  let bot: AIProvider;
-  try {
-    bot = isAIProvider(server.provider) ? server.provider : await createProvider((mode === 'replay' ? withoutKeys(server) : server).provider as ProviderConfig);
-  } catch (error) {
-    throw new ConfigError(`The server config's provider can't start: ${(error as Error).message}`);
+  let bot: AIProvider | undefined;
+  if (!remote) {
+    try {
+      bot = isAIProvider(server!.provider) ? server!.provider : await createProvider((mode === 'replay' ? withoutKeys(server!) : server!).provider as ProviderConfig);
+    } catch (error) {
+      throw new ConfigError(`The server config's provider can't start: ${(error as Error).message}`);
+    }
   }
 
   const usesJudge = fixtures.some((job) => job.tests.some((test) => test.turns.some((turn) => turn.expect?.some((a) => assertionName(a).name === 'judge'))));
@@ -68,7 +76,7 @@ export async function runTests(
     ? await resolveJudge({
         ...(cli.judge ? { configured: cli.judge } : {}),
         ...(values['judge-model'] ? { flag: values['judge-model'] } : {}),
-        botProvider: isAIProvider(server.provider) ? server.provider.name : server.provider.type,
+        botProvider: server ? (isAIProvider(server.provider) ? server.provider.name : server.provider.type) : 'remote',
         env: io.env ?? process.env,
         mode,
         ...(cli.prices ? { prices: cli.prices } : {}),
@@ -76,8 +84,11 @@ export async function runTests(
     : undefined;
   if (judge) io.stderr.write(`Judge: ${judge.id}\n`);
 
+  if (maxCost !== undefined && remote && mode !== 'replay') {
+    throw new ConfigError('--max-cost needs a known model price, which is not available for a remote server.');
+  }
   if (maxCost !== undefined && mode !== 'replay') {
-    const unpriced = [bot.model, ...(judge ? [judge.model] : [])].filter((model) => !model || !cli.prices?.[model]);
+    const unpriced = [bot?.model, ...(judge ? [judge.model] : [])].filter((model) => !model || !cli.prices?.[model]);
     if (unpriced.length) {
       throw new ConfigError(
         `--max-cost needs a price for every model the run uses, and there's none for ${unpriced.map((m) => m ?? 'a provider with no model id').join(', ')}. Add them to \`prices\` in the config, in US dollars per million tokens.`
@@ -93,10 +104,10 @@ export async function runTests(
   }
 
   const started = performance.now();
-  const results = await runFixtures(server, fixtures, {
+  const options: RunOptions = {
     ...(cassettes ? { cassettes } : {}),
     ...(judge ? { judge } : {}),
-    ...(bot.model ? { model: bot.model } : {}),
+    ...(bot?.model ? { model: bot.model } : {}),
     ...(cli.prices ? { prices: cli.prices } : {}),
     spend,
     ...(concurrency !== undefined ? { concurrency } : {}),
@@ -104,7 +115,10 @@ export async function runTests(
     onResult: (result) => {
       for (const reporter of reporters) reporter.onResult?.(result);
     },
-  });
+  };
+  const results = remote
+    ? await runRemoteFixtures(server, fixtures, remote, options)
+    : await runFixtures(server, fixtures, options);
   const elapsedMs = performance.now() - started;
   const costs = results.flatMap((r) => r.runs.flatMap((run) => run.turns.flatMap(({ turn, results: checks }) => [turn.costUsd, ...checks.map((c) => c.costUsd)])));
   const priced = costs.filter((cost): cost is number => cost !== undefined);
@@ -118,7 +132,7 @@ export async function runTests(
     );
   const summary = {
     mode,
-    ...(bot.model ? { model: bot.model } : {}),
+    ...(bot?.model ? { model: bot.model } : {}),
     elapsedMs,
     costIncomplete,
     ...(judge ? { judge: judge.id } : {}),
@@ -140,6 +154,33 @@ export function cassetteMode(values: Values, env: Record<string, string | undefi
   if (chosen.length > 1) throw new ConfigError(`Pick one of --${chosen.join(', --')}.`);
   if (chosen.length) return chosen[0];
   return env.CI && env.CI !== 'false' && env.CI !== '0' ? 'replay' : 'live';
+}
+
+function parseRemoteOptions(value: string, arguments_: string[]): { url: string; headers: Headers } {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new ConfigError('--url must be an absolute http or https URL.');
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new ConfigError('--url must be an absolute http or https URL.');
+
+  const headers = new Headers();
+  for (const argument of arguments_) {
+    const separator = argument.indexOf(':');
+    const name = separator < 0 ? '' : argument.slice(0, separator).trim();
+    const value = separator < 0 ? '' : argument.slice(separator + 1).trim();
+    if (!name) throw new ConfigError('--header must use the form "Name: value".');
+    try {
+      headers.append(name, value);
+    } catch {
+      // Header values can be credentials. Never include the argument or the
+      // platform's validation error in a diagnostic.
+      throw new ConfigError('--header must contain a valid header name and value.');
+    }
+  }
+  headers.set('content-type', 'application/json');
+  return { url: url.toString(), headers };
 }
 
 function positiveNumber(value: string | undefined, flag: string): number | undefined {

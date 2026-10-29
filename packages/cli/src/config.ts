@@ -77,8 +77,18 @@ export function serverConfig({ file, config }: LoadedConfig): ChatCopsServerConf
 
 /** The config at `path`, or the first `chatcops.config.*` in `cwd`, checked. */
 export async function loadConfig(cwd: string, path?: string): Promise<LoadedConfig> {
+  return loadConfigInner(cwd, path, false);
+}
+
+/** URL-mode evals may use judge/prices from a config, but don't need one. */
+export async function loadConfigForRemoteTest(cwd: string, path?: string): Promise<LoadedConfig> {
+  return loadConfigInner(cwd, path, true);
+}
+
+async function loadConfigInner(cwd: string, path: string | undefined, optional: boolean): Promise<LoadedConfig> {
   const file = path ? resolve(cwd, path) : CONFIG_FILES.map((name) => resolve(cwd, name)).find((candidate) => existsSync(candidate));
   if (!file || !existsSync(file)) {
+    if (optional && !path) return { file: cwd, config: {}, close: async () => {} };
     throw new ConfigError(
       path ? `No config file at ${file}.` : `No config file found. Create chatcops.config.ts (or .mjs) in ${cwd}, or pass --config.`
     );

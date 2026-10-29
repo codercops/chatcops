@@ -13,7 +13,7 @@ It exits 0 when every test passed, 1 when some failed, and 2 when it couldn't ru
 
 ## The config
 
-`chatcops test` reads the `server` section of `chatcops.config.ts`. It's the same config you give the server: the provider, system prompt, tools and knowledge.
+By default, `chatcops test` reads the `server` section of `chatcops.config.ts`. It's the same config you give the server: the provider, system prompt, tools and knowledge.
 
 ```ts
 import { LeadCaptureTool } from '@chatcops/core';
@@ -28,7 +28,25 @@ export default defineConfig({
 });
 ```
 
-Tests run in process, through the same request path the server uses, so knowledge, tools, page context and locale all work as they do in production. Each test starts with fresh in-memory storage; your real conversation store is never touched.
+Without `--url`, tests run in process, through the same request path the server uses, so knowledge, tools, page context and locale all work as they do in production. Each test starts with fresh in-memory storage; your real conversation store is never touched.
+
+## Test a deployed server
+
+Pass `--url` to send each turn to a deployed ChatCops server over protocol v1:
+
+```bash
+npx chatcops test --url https://example.com/chat
+```
+
+URL mode does not require a `server` section or a config file. For an authenticated endpoint, pass one or more request headers. Quote each complete `Name: value` pair so the shell keeps it together:
+
+```bash
+npx chatcops test --url https://example.com/chat \
+  --header "Authorization: Bearer $CHATCOPS_TOKEN" \
+  --header "X-Test-Suite: smoke"
+```
+
+Tool mocks in an eval cannot run against a remote server. URL mode reports an error for a test with `mocks.tools` instead of silently sending a real tool call. The deployed server's rate limits apply to these requests. For a smoke test, use `--concurrency 1` to avoid sending several turns at once.
 
 ## Eval files
 
@@ -210,7 +228,7 @@ npx chatcops test --record   # calls the APIs and saves what they answer
 npx chatcops test --replay   # answers every call from the recordings
 ```
 
-`--record` saves each eval file's calls next to it, in `__cassettes__/<file>.jsonl` (so `evals/pricing.chat.yaml` records to `evals/__cassettes__/pricing.chat.jsonl`). It records every HTTP call a test makes: the model, embedding calls for knowledge search, and tools that call APIs without a mock. Commit the folder with your eval files.
+`--record` saves each eval file's calls next to it, in `__cassettes__/<file>.jsonl` (so `evals/pricing.chat.yaml` records to `evals/__cassettes__/pricing.chat.jsonl`). In process, it records every HTTP call a test makes: the model, embedding calls for knowledge search, and tools that call APIs without a mock. In URL mode, the existing fetch cassette records the POST to the remote server and its streamed response; replay serves that response without contacting the remote server. API calls made inside the deployed server are outside this CLI cassette. Commit the folder with your eval files.
 
 When the `CI` environment variable is set, as it is on GitHub Actions and most CI services, `chatcops test` replays by default, so CI needs no API keys and costs nothing. A provider config without an `apiKey` gets a stand-in key during replay, since nothing is sent. Keep the config file loading when a key is missing: read `process.env.ANTHROPIC_API_KEY` as it is, and don't throw at load time. `--live` calls the APIs anyway.
 
