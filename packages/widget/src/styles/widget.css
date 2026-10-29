@@ -181,7 +181,8 @@
   padding: 0 16px 12px;
 }
 
-.cc-suggestion {
+.cc-suggestion,
+.cc-new-reply {
   border: 1px solid var(--cc-border);
   border-radius: var(--cc-radius);
   padding: 8px 12px;
@@ -193,6 +194,15 @@
 
 .cc-suggestion:hover {
   border-color: var(--cc-accent);
+}
+
+.cc-new-reply {
+  position: absolute;
+  inset-block-end: 12px;
+  inset-inline-end: 16px;
+  border-radius: 999px;
+  box-shadow: var(--cc-shadow);
+  font-size: 12px;
 }
 
 .cc-message a {
@@ -531,8 +541,9 @@
   white-space: nowrap;
 }
 
-/* Messages wrapper (only present when pre-chat form is enabled) */
+/* Messages wrapper and overlay anchor */
 .cc-messages-wrapper {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;

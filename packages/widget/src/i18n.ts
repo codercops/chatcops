@@ -32,6 +32,7 @@ export interface WidgetLocaleStrings {
   suggestionsLabel: string;
   unreadCount: string;
   sourcesLabel: string;
+  newReply: string;
   disclosure: string;
   disclosureLearnMore: string;
 }
@@ -69,6 +70,7 @@ const en: WidgetLocaleStrings = {
   suggestionsLabel: 'Suggested questions',
   unreadCount: '{count} unread',
   sourcesLabel: 'Sources',
+  newReply: 'New reply',
   disclosure: "You're chatting with an AI assistant. It can make mistakes.",
   disclosureLearnMore: 'Learn more',
 };

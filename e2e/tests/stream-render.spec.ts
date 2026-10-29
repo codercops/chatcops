@@ -84,7 +84,50 @@ test("new text doesn't pull the log down while the visitor reads above it", asyn
     el.scrollTop = 0;
   });
   await page.waitForTimeout(500);
+  await expect(page.getByRole('button', { name: 'New reply ↓' })).toBeVisible();
   expect(await log.evaluate((el) => el.scrollTop)).toBe(0);
   await expect(page.locator('.cc-message-assistant[data-status="complete"]')).toHaveCount(1, { timeout: 45_000 });
   expect(await log.evaluate((el) => el.scrollTop)).toBe(0);
+});
+
+test("new reply button scrolls to the latest reply with the keyboard", async ({ page }) => {
+  let finish: (body: string) => void = () => {};
+  const response = new Promise<string>((resolve) => { finish = resolve; });
+  await page.route('**/api/chat', async (route) => {
+    await route.fulfill({ contentType: 'text/event-stream', body: await response });
+  });
+  await page.goto('/');
+  await page.locator('.cc-fab').click();
+  const log = page.locator('.cc-messages');
+  // Seed enough history to exercise real browser scrolling and overlay placement.
+  await log.evaluate((el) => {
+    for (let i = 0; i < 20; i++) {
+      const message = document.createElement('div');
+      message.className = 'cc-message cc-message-assistant';
+      message.textContent = `Earlier reply ${i}: ${'Some history. '.repeat(10)}`;
+      el.appendChild(message);
+    }
+    el.scrollTop = el.scrollHeight;
+  });
+  await page.locator('.cc-input').fill('Hello');
+  await page.locator('.cc-send-btn').click();
+  await expect(page.locator('.cc-typing')).toBeVisible();
+  await log.evaluate((el) => { el.scrollTop = 100; });
+  finish('data: {"content":"A new reply below the history."}\n\ndata: {"done":true}\n\ndata: [DONE]\n\n');
+  await expect(page.locator('.cc-message-assistant').last()).toContainText('A new reply below');
+  expect(await log.evaluate((el) => el.scrollTop)).toBe(100);
+  const pill = page.getByRole('button', { name: 'New reply ↓' });
+  await expect(pill).toBeVisible();
+  const logBox = await log.boundingBox();
+  const pillBox = await pill.boundingBox();
+  expect(pillBox!.y + pillBox!.height).toBeLessThanOrEqual(logBox!.y + logBox!.height);
+  await pill.focus();
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Shift+Tab');
+  await expect(pill).toBeFocused();
+  await expect(pill).not.toHaveCSS('box-shadow', 'none');
+  await page.screenshot({ path: test.info().outputPath('new-reply.png') });
+  await pill.press('Enter');
+  await expect(pill).toBeHidden();
+  await expect.poll(() => log.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight)).toBeLessThanOrEqual(1);
 });

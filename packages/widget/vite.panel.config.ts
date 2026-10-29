@@ -27,7 +27,7 @@ export default defineConfig({
       compress: { passes: 2 },
       mangle: {
         properties: {
-          regex: /^(?:mounted|fab|panel|bubble|preChatFormEl|namespace|hydrated|isStreaming|destroyed|abortController|retryRequests|eventHandlers|containerEl|autoOpenTimer|unreadReplies|savedOverflow|shadow|unreadLabel|openLabel|closeLabel|badge|el|inline|messagesContainer|isVisible|typingEl|suggestionsEl|area|textarea|sendBtn|onSend|timerId)$/,
+          regex: /^(?:createActionButton|createActionsContainer|ensureActionsContainer|cleanupEmptyActionContainers|actionLabels|panelLabels|renderDisclosure|findLatestRegeneratableAssistant|findUserMessageForAssistant|showLatestRegenerateButton|resolveErrorType|markFailed|getErrorMessage|refreshReplyLabel|saveHistory|createRequest|showChatView|newReplyEl|logEl|followReply|streams|streamIntervalMs|renderStream|endStream|nearBottom|scrollToBottom|renderMessageElement|createMessageElement|findMessage|escapeHtml|announcement|mounted|fab|panel|bubble|preChatFormEl|namespace|hydrated|isStreaming|destroyed|abortController|retryRequests|eventHandlers|containerEl|autoOpenTimer|unreadReplies|savedOverflow|shadow|unreadLabel|openLabel|closeLabel|badge|el|inline|messagesContainer|isVisible|typingEl|suggestionsEl|area|textarea|sendBtn|onSend|timerId)$/,
         },
       },
     },
