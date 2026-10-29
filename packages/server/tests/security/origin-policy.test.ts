@@ -4,25 +4,19 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { chatcopsCloudflareHandler } from '../../src/adapters/cloudflare.js';
 import { chatcopsMiddleware } from '../../src/adapters/express.js';
 import { chatcopsVercelHandler } from '../../src/adapters/vercel.js';
-import { allowedOriginsOf, originPolicy, resetCorsWarning } from '../../src/security/origin-policy.js';
+import { allowedOriginsOf, originPolicy } from '../../src/security/origin-policy.js';
 
 afterEach(() => {
   vi.restoreAllMocks();
-  resetCorsWarning();
 });
 
 describe('allowedOriginsOf', () => {
-  it('defaults to any origin, and reads cors as a one-item list with one warning', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  it('defaults to any origin', () => {
     expect(allowedOriginsOf({})).toEqual(['*']);
-    expect(allowedOriginsOf({ cors: 'https://acme.com' })).toEqual(['https://acme.com']);
-    expect(allowedOriginsOf({ cors: 'https://acme.com' })).toEqual(['https://acme.com']);
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(String(warn.mock.calls[0][0])).toContain("allowedOrigins: ['https://acme.com']");
   });
 
-  it('refuses both options together, and an empty list', () => {
-    expect(() => allowedOriginsOf({ allowedOrigins: ['*'], cors: '*' })).toThrow('Set `allowedOrigins` or `cors`, not both.');
+  it('refuses the cors option, which 1.0 removed, and an empty list', () => {
+    expect(() => allowedOriginsOf({ cors: 'https://acme.com' } as never)).toThrow("Use `allowedOrigins: ['https://your.site']`");
     expect(() => allowedOriginsOf({ allowedOrigins: [] })).toThrow('`allowedOrigins` is empty');
   });
 });
@@ -59,6 +53,7 @@ describe('originPolicy', () => {
 
 describe('the adapters', () => {
   const config = () => ({
+    allowAnonymous: true,
     provider: scriptedProvider([textStep('Hi.')]),
     systemPrompt: 'x',
     allowedOrigins: ['https://acme.com'],

@@ -51,9 +51,6 @@ describe('createChatHandler with custom ConversationStore', () => {
       async *chat() {
         yield 'Assistant response';
       },
-      async chatSync() {
-        return 'Assistant response';
-      },
     });
   });
 
@@ -73,15 +70,13 @@ describe('createChatHandler with custom ConversationStore', () => {
         );
         yield providerCalls.length === 1 ? 'Hello! How can I help?' : 'I can help with that.';
       },
-      async chatSync() {
-        return '';
-      },
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'You are a helpful assistant.',
-      conversationStore: store,
+      storage: { conversations: store },
     });
 
     // First turn
@@ -165,15 +160,13 @@ describe('createChatHandler with custom ConversationStore', () => {
         );
         yield providerCalls.length === 1 ? 'Initial reply' : 'Regenerated reply';
       },
-      async chatSync() {
-        return '';
-      },
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'You are a helpful assistant.',
-      conversationStore: store,
+      storage: { conversations: store },
     });
 
     for await (const _chunk of handleChat({
@@ -215,15 +208,13 @@ describe('createChatHandler with custom ConversationStore', () => {
       async *chat() {
         yield 'Response from instance A';
       },
-      async chatSync() {
-        return '';
-      },
     });
 
     const handlerA = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'You are a helpful assistant.',
-      conversationStore: sharedStore,
+      storage: { conversations: sharedStore },
     });
 
     for await (const _chunk of handlerA.handleChat({
@@ -244,15 +235,13 @@ describe('createChatHandler with custom ConversationStore', () => {
         }));
         yield 'Response from instance B';
       },
-      async chatSync() {
-        return '';
-      },
     });
 
     const handlerB = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'You are a helpful assistant.',
-      conversationStore: sharedStore,
+      storage: { conversations: sharedStore },
     });
 
     for await (const _chunk of handlerB.handleChat({
@@ -279,12 +268,10 @@ describe('createChatHandler with custom ConversationStore', () => {
       async *chat() {
         yield 'Default reply';
       },
-      async chatSync() {
-        return '';
-      },
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'You are a helpful assistant.',
     });

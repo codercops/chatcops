@@ -24,6 +24,8 @@ function getHandler(env: Record<string, string>) {
     },
     systemPrompt: 'You are a helpful assistant.',
     allowedOrigins: ['*'],
+    // Signs the session tokens the widget gets from /session (a Worker sees every path).
+    sessionSecrets: [env.CHATCOPS_SESSION_SECRET],
   });
   return handler;
 }
@@ -50,6 +52,7 @@ Set secrets using Wrangler:
 
 ```bash
 npx wrangler secret put ANTHROPIC_API_KEY
+npx wrangler secret put CHATCOPS_SESSION_SECRET   # paste the output of: openssl rand -base64 32
 ```
 
 Or in `wrangler.toml` for non-secret values:
@@ -83,6 +86,7 @@ function getHandler(env: Record<string, string>) {
       model: 'gemini-3.5-flash-lite',
     },
     systemPrompt: env.SYSTEM_PROMPT || 'You are a helpful assistant.',
+    sessionSecrets: [env.CHATCOPS_SESSION_SECRET],
     tools: [
       new LeadCaptureTool(async (lead) => {
         // Use Cloudflare KV, D1, or external webhook

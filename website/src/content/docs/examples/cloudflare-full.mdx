@@ -25,6 +25,7 @@ interface Env {
   COUNTERS: DurableObjectNamespace<ChatCopsCounter>;
   AI: WorkersAiBinding;
   ANTHROPIC_API_KEY: string;
+  CHATCOPS_SESSION_SECRET: string;
   WEBHOOK_URL: string;
   SYSTEM_PROMPT: string;
 }
@@ -72,6 +73,7 @@ function getHandler(env: Env) {
     storage: cloudflareStorage({ d1: env.DB, counters: env.COUNTERS }),
     retention: { conversationsDays: 30 },
     allowedOrigins: ['https://your-site.com'],
+    sessionSecrets: [env.CHATCOPS_SESSION_SECRET],
     rateLimit: { maxRequests: 20, windowMs: 60_000 },
     budgets: { globalPerDay: { tokens: 20_000_000 } },
     analytics: true,
@@ -151,6 +153,7 @@ npx wrangler d1 create chatcops
 
 ```bash
 npx wrangler secret put ANTHROPIC_API_KEY
+npx wrangler secret put CHATCOPS_SESSION_SECRET   # openssl rand -base64 32
 npx wrangler secret put WEBHOOK_URL
 ```
 

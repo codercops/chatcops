@@ -36,26 +36,20 @@ export interface ChatCopsServerConfig {
     analytics?: boolean;
     analyticsToken?: string;
     storage?: ChatCopsStorage;
-    conversationStore?: ConversationStore;
     retention?: {
         conversationsDays?: number;
     };
     allowedOrigins?: string[];
-    cors?: string;
     clientIp?: ClientIpResolver;
     sessionSecrets?: string[];
     sessionTtlSec?: number;
-    requireSession?: boolean;
+    allowAnonymous?: boolean;
     turnstile?: TurnstileConfig;
     identity?: {
         secret: string;
         tiers?: Record<string, Budgets>;
     };
     exposeUsage?: boolean;
-    i18n?: {
-        defaultLocale: string;
-        locales: Record<string, LocaleStrings>;
-    };
 }
 
 export declare function chatcopsVercelHandler(config: ChatCopsServerConfig): (req: Request) => Promise<Response>;
@@ -168,20 +162,6 @@ export declare function createChatHandler(config: ChatCopsServerConfig): {
     startSession: ((body: unknown, origin: string | null, clientIp?: string) => Promise<import("./security/sessions.js").SessionReply>) | undefined;
 };
 
-export interface RateLimitConfig {
-    maxRequests: number;
-    windowMs: number;
-}
-
-export declare class RateLimiter {
-    constructor(config?: Partial<RateLimitConfig>);
-    check(key: string): {
-        allowed: boolean;
-        retryAfter?: number;
-    };
-    cleanup(): void;
-}
-
 export declare class ServerAnalytics {
     constructor();
     track(event: string, data?: Record<string, unknown>): void;
@@ -226,8 +206,6 @@ export interface WebhookEvent<T = unknown> {
     type: string;
     created: number;
     data: T;
-    event: string;
-    timestamp: number;
 }
 ```
 

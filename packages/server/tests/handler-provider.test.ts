@@ -15,7 +15,7 @@ const request = (message: string, id = 'c1') => ({ conversationId: id, message }
 describe('a provider object in the server config', () => {
   it('answers with a provider built in code instead of a config', async () => {
     const provider = scriptedProvider([textStep('Hello from a script.')]);
-    const { handleChat, cleanup } = createChatHandler({ provider, systemPrompt: 'Be brief.' });
+    const { handleChat, cleanup } = createChatHandler({ allowAnonymous: true, provider, systemPrompt: 'Be brief.' });
 
     const out = await chunks(handleChat(request('Hi')));
     cleanup();
@@ -32,6 +32,7 @@ describe('a provider object in the server config', () => {
     ]);
     const onCapture = vi.fn();
     const { handleChat, cleanup } = createChatHandler({
+      allowAnonymous: true,
       provider,
       systemPrompt: 'Be brief.',
       tools: [new LeadCaptureTool(onCapture)],
@@ -52,9 +53,8 @@ describe('a provider object in the server config', () => {
         yield 'custom ';
         yield 'reply';
       },
-      chatSync: async () => 'custom reply',
     };
-    const { handleChat, cleanup } = createChatHandler({ provider, systemPrompt: 'Be brief.' });
+    const { handleChat, cleanup } = createChatHandler({ allowAnonymous: true, provider, systemPrompt: 'Be brief.' });
     const out = await chunks(handleChat(request('Hi')));
     cleanup();
     expect(out).toEqual([{ content: 'custom ' }, { content: 'reply' }, { done: true }]);
@@ -70,9 +70,10 @@ describe('the handler on runTurn', () => {
     ]);
     const conversationStore = memoryStorage().conversations;
     const { handleChat, cleanup } = createChatHandler({
+      allowAnonymous: true,
       provider,
       systemPrompt: 'Be brief.',
-      conversationStore,
+      storage: { conversations: conversationStore },
       tools: [{ name: 'lookup_order', description: 'Look up an order', inputSchema: { type: 'object', properties: {} }, execute: lookup }],
     });
 
@@ -94,7 +95,7 @@ describe('the handler on runTurn', () => {
 
   it('keeps the system prompt the same on every request and sends the rest after it', async () => {
     const provider = scriptedProvider([textStep('Hola.')]);
-    const { handleChat, cleanup } = createChatHandler({ provider, systemPrompt: 'Be brief.' });
+    const { handleChat, cleanup } = createChatHandler({ allowAnonymous: true, provider, systemPrompt: 'Be brief.' });
     await chunks(handleChat({ ...request('Hola'), locale: 'es', pageContext: { url: 'https://acme.test/p', title: 'Pricing' } }));
     cleanup();
 
@@ -105,7 +106,7 @@ describe('the handler on runTurn', () => {
 
   it('answers one reply per conversation at a time', async () => {
     const provider = scriptedProvider(['hang', textStep('Second try works.')]);
-    const { handleChat, cleanup } = createChatHandler({ provider, systemPrompt: 'Be brief.' });
+    const { handleChat, cleanup } = createChatHandler({ allowAnonymous: true, provider, systemPrompt: 'Be brief.' });
     const controller = new AbortController();
 
     const first = chunks(handleChat(request('one'), undefined, { signal: controller.signal }));
@@ -123,6 +124,7 @@ describe('the handler on runTurn', () => {
     const provider = scriptedProvider(Array.from({ length: 6 }, () => toolStep([{ name: 'again' }])));
     const again = vi.fn(async () => ({ success: true }));
     const { handleChat, cleanup } = createChatHandler({
+      allowAnonymous: true,
       provider,
       systemPrompt: 'Be brief.',
       tools: [{ name: 'again', description: 'Again', inputSchema: { type: 'object', properties: {} }, execute: again }],
@@ -141,7 +143,7 @@ describe('regenerate, retry and aborted replies', () => {
   function setup(script: Parameters<typeof scriptedProvider>[0]) {
     const provider = scriptedProvider(script);
     const conversationStore = memoryStorage().conversations;
-    const handler = createChatHandler({ provider, systemPrompt: 'Be brief.', conversationStore });
+    const handler = createChatHandler({ allowAnonymous: true, provider, systemPrompt: 'Be brief.', storage: { conversations: conversationStore } });
     const stored = async () => (await conversationStore.get('c1'))?.messages ?? [];
     return { provider, handler, stored };
   }
@@ -196,7 +198,7 @@ describe('regenerate, retry and aborted replies', () => {
       { id: 'u1', role: 'user', content: 'Question?', timestamp: 1 },
       { id: 'a1', role: 'assistant', content: 'Full ans', status: 'aborted', timestamp: 2 },
     ]);
-    const handler = createChatHandler({ provider, systemPrompt: 'Be brief.', conversationStore });
+    const handler = createChatHandler({ allowAnonymous: true, provider, systemPrompt: 'Be brief.', storage: { conversations: conversationStore } });
     await chunks(handler.handleChat({ ...request('Question?'), messageId: 'u1' }));
     handler.cleanup();
 

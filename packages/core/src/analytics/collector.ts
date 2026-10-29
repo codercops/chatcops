@@ -1,5 +1,5 @@
 import type { AnalyticsEvent } from '../types.js';
-import { ANALYTICS_EVENTS, countsWithAliases, eventName } from './names.js';
+import { ANALYTICS_EVENTS } from './names.js';
 
 const MAX_EVENTS = 1000;
 
@@ -7,8 +7,6 @@ export interface AnalyticsStats {
   totalConversations: number;
   totalMessages: number;
   leadsCaptured: number;
-  /** @deprecated Use `leadsCaptured`, the same number. Removed in 1.0. */
-  leadsCapture: number;
   averageMessagesPerConversation: number;
   eventCounts: Record<string, number>;
 }
@@ -18,7 +16,7 @@ export class AnalyticsCollector {
   private conversationIds = new Set<string>();
 
   track(type: string, data?: Record<string, unknown>): void {
-    const event: AnalyticsEvent = { type: eventName(type), data, timestamp: Date.now() };
+    const event: AnalyticsEvent = { type, data, timestamp: Date.now() };
     this.events.push(event);
 
     if (this.events.length > MAX_EVENTS) {
@@ -31,9 +29,8 @@ export class AnalyticsCollector {
   }
 
   getStats(): AnalyticsStats {
-    const raw = new Map<string, number>();
-    for (const event of this.events) raw.set(event.type, (raw.get(event.type) ?? 0) + 1);
-    const counts = countsWithAliases(raw);
+    const counts = new Map<string, number>();
+    for (const event of this.events) counts.set(event.type, (counts.get(event.type) ?? 0) + 1);
     const eventCounts = Object.fromEntries(counts);
 
     const totalConversations = this.conversationIds.size;
@@ -44,17 +41,13 @@ export class AnalyticsCollector {
       totalConversations,
       totalMessages,
       leadsCaptured,
-      leadsCapture: leadsCaptured,
       averageMessagesPerConversation: totalConversations > 0 ? totalMessages / totalConversations : 0,
       eventCounts,
     };
   }
 
   getEvents(type?: string): AnalyticsEvent[] {
-    if (type) {
-      const name = eventName(type);
-      return this.events.filter((e) => e.type === name);
-    }
+    if (type) return this.events.filter((e) => e.type === type);
     return [...this.events];
   }
 

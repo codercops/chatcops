@@ -24,10 +24,18 @@ const handler = chatcopsVercelHandler({
   },
   systemPrompt: 'You are a helpful assistant.',
   allowedOrigins: ['*'],
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
 });
 
 export const POST = handler;
 export const OPTIONS = handler;
+```
+
+The widget gets its session token from `/api/chat/session`, so add `app/api/chat/session/route.ts` with the same handler:
+
+```typescript
+// docs-check: skip, re-exports the route file above
+export { POST, OPTIONS } from '../route';
 ```
 
 The widget's `data-api-url` is then `/api/chat` on the same site, or the full URL from another origin.
@@ -47,11 +55,14 @@ const chat = chatcopsVercelHandler({
   },
   systemPrompt: 'You are a helpful assistant.',
   allowedOrigins: ['*'],
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
 });
 
 const app = new Hono();
 
 app.on(['POST', 'OPTIONS'], '/api/chat', (c) => chat(c.req.raw));
+// Where the widget gets its session token.
+app.on(['POST', 'OPTIONS'], '/api/chat/session', (c) => chat(c.req.raw));
 
 export default app;
 ```
@@ -70,6 +81,7 @@ const chat = chatcopsVercelHandler({
   },
   systemPrompt: 'You are a helpful assistant.',
   allowedOrigins: ['*'],
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
   // Set below from the socket, so a visitor can't choose it.
   clientIp: (req) => req.headers.get('x-client-ip'),
 });
@@ -80,7 +92,7 @@ Bun.serve({
   idleTimeout: 120,
   fetch(req, server) {
     const { pathname } = new URL(req.url);
-    if (pathname !== '/api/chat') return new Response('Not found', { status: 404 });
+    if (pathname !== '/api/chat' && pathname !== '/api/chat/session') return new Response('Not found', { status: 404 });
 
     // The visitor's IP, for per-IP rate limits and budgets. set() replaces
     // any x-client-ip the visitor sent.
@@ -103,13 +115,14 @@ const chat = chatcopsVercelHandler({
   },
   systemPrompt: 'You are a helpful assistant.',
   allowedOrigins: ['*'],
+  sessionSecrets: [Deno.env.get('CHATCOPS_SESSION_SECRET')!],
   // Set below from the socket, so a visitor can't choose it.
   clientIp: (req) => req.headers.get('x-client-ip'),
 });
 
 Deno.serve({ port: 8000 }, (req, info) => {
   const { pathname } = new URL(req.url);
-  if (pathname !== '/api/chat') return new Response('Not found', { status: 404 });
+  if (pathname !== '/api/chat' && pathname !== '/api/chat/session') return new Response('Not found', { status: 404 });
 
   // The visitor's IP, for per-IP rate limits and budgets. set() replaces
   // any x-client-ip the visitor sent.

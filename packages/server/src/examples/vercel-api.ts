@@ -14,5 +14,7 @@ export default chatcopsVercelHandler({
     apiKey: process.env.ANTHROPIC_API_KEY!,
   },
   systemPrompt: 'You are a helpful assistant.',
-  cors: '*',
+  allowedOrigins: ['*'],
+  // Signs the session tokens the widget fetches before it chats (`openssl rand -base64 32`).
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET ?? ''],
 });

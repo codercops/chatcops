@@ -28,6 +28,7 @@ describe('the server logger', () => {
     const { logger, lines } = recorder();
     const failing = { name: 'lookup', description: 'x', execute: async () => Promise.reject(new Error('db down')) };
     const handler = createChatHandler({
+      allowAnonymous: true,
       provider: scriptedProvider([
         [{ type: 'tool-call', call: { id: 't1', name: 'lookup', input: {} } }, { type: 'finish', reason: 'tool-calls', usage: { inputTokens: 1, outputTokens: 1 }, parts: [{ type: 'tool-call', toolCallId: 't1', toolName: 'lookup', input: {}, executor: 'server', state: 'pending' }] }],
         textStep('Sorry, I could not look that up.'),
@@ -35,7 +36,6 @@ describe('the server logger', () => {
       ]),
       systemPrompt: 'x',
       tools: [failing],
-      i18n: {},
       logger,
     } as Parameters<typeof createChatHandler>[0]);
 
@@ -45,7 +45,6 @@ describe('the server logger', () => {
     if (second.ok) await drain(second.parts);
 
     const events = lines.map((line) => `${line.level}:${line.event}`);
-    expect(events).toContain('warn:deprecated_option');
     expect(events).toContain('info:security');
     expect(events).toContain('error:tool_error');
     expect(events).toContain('error:provider_error');

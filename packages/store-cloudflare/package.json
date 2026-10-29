@@ -1,6 +1,6 @@
 {
   "name": "@chatcops/store-cloudflare",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Cloudflare D1, KV and Durable Objects storage for ChatCops",
   "keywords": [

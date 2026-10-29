@@ -90,7 +90,6 @@ describe('citations with [n] markers (providers without native citations)', () =
         yield 'Twenty dollars [';
         yield '1]. Fake [5].';
       },
-      chatSync: async () => '',
     };
     const { text, sources, stored } = await drain({ provider, sources: SOURCES });
     expect(text).toBe('Twenty dollars [1]. Fake .');

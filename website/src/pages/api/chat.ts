@@ -51,8 +51,10 @@ function storageOptions() {
   const sessionSecret = getSecret('CHATCOPS_SESSION_SECRET');
   return {
     ...(db ? { storage: cloudflareStorage({ d1: db }), retention: { conversationsDays: 30 } } : {}),
-    // Widgets cached from before 0.6 don't send tokens yet.
-    ...(sessionSecret ? { sessionSecrets: [sessionSecret], requireSession: false } : {}),
+    ...(sessionSecret ? { sessionSecrets: [sessionSecret] } : {}),
+    // Widgets cached from before 0.6 don't send tokens, and without the
+    // secret there are none to send.
+    allowAnonymous: true,
   };
 }
 

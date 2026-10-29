@@ -3,6 +3,7 @@ import { OpenAIProvider } from '../../src/providers/openai.js';
 import { ClaudeProvider } from '../../src/providers/claude.js';
 import { GeminiProvider } from '../../src/providers/gemini.js';
 import type { ProviderChatParams } from '../../src/types.js';
+import { chatViaTurn, chatSyncViaTurn } from '../helpers/chat-via-turn.js';
 
 async function collect(stream: AsyncGenerator<string>) {
   const chunks: string[] = [];
@@ -66,7 +67,7 @@ describe('provider tool execution loops', () => {
       message: 'Order found',
     });
 
-    const chunks = await collect(provider.chat(createParams({ toolExecutor })));
+    const chunks = await collect(chatViaTurn(provider, createParams({ toolExecutor })));
 
     expect(chunks).toEqual(['Order 123 is shipped.']);
     expect(toolExecutor).toHaveBeenCalledWith({
@@ -120,7 +121,7 @@ describe('provider tool execution loops', () => {
     (provider as unknown as { client: { chat: { completions: { create: typeof create } } } }).client.chat.completions.create = create;
 
     const toolExecutor = vi.fn();
-    const chunks = await collect(provider.chat(createParams({ toolExecutor })));
+    const chunks = await collect(chatViaTurn(provider, createParams({ toolExecutor })));
 
     expect(chunks).toEqual(['I could not parse the tool input.']);
     expect(toolExecutor).not.toHaveBeenCalled();
@@ -165,7 +166,7 @@ describe('provider tool execution loops', () => {
       data: { status: 'shipped' },
     });
 
-    const response = await provider.chatSync(createParams({ toolExecutor }));
+    const response = await chatSyncViaTurn(provider, createParams({ toolExecutor }));
 
     expect(response).toBe('Order 123 is shipped.');
     expect(toolExecutor).toHaveBeenCalledOnce();
@@ -203,7 +204,7 @@ describe('provider tool execution loops', () => {
       data: { status: 'shipped' },
     });
 
-    const chunks = await collect(provider.chat(createParams({ toolExecutor })));
+    const chunks = await collect(chatViaTurn(provider, createParams({ toolExecutor })));
 
     expect(chunks).toEqual(['Order 123 is shipped.']);
     expect(toolExecutor).toHaveBeenCalledWith({
@@ -244,7 +245,7 @@ describe('provider tool execution loops', () => {
       data: { status: 'shipped' },
     });
 
-    const chunks = await collect(provider.chat(createParams({ toolExecutor })));
+    const chunks = await collect(chatViaTurn(provider, createParams({ toolExecutor })));
 
     expect(chunks).toEqual(['Order 123 is shipped.']);
     expect(toolExecutor).toHaveBeenCalledOnce();
@@ -292,7 +293,7 @@ describe('provider tool execution loops', () => {
       data: { status: 'still-looping' },
     });
 
-    await expect(collect(provider.chat(createParams({ toolExecutor })))).rejects.toThrow(
+    await expect(collect(chatViaTurn(provider, createParams({ toolExecutor })))).rejects.toThrow(
       'Exceeded maximum tool rounds (5).'
     );
     expect(toolExecutor).toHaveBeenCalledTimes(5);

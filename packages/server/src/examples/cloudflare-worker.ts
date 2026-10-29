@@ -1,7 +1,7 @@
 /**
  * Example: Cloudflare Worker
  *
- * Set env vars: ANTHROPIC_API_KEY
+ * Set env vars: ANTHROPIC_API_KEY, and CHATCOPS_SESSION_SECRET (`openssl rand -base64 32`)
  */
 import { chatcopsCloudflareHandler } from '@chatcops/server';
 
@@ -17,6 +17,8 @@ function getHandler(env: Record<string, string>) {
     },
     systemPrompt: 'You are a helpful assistant.',
     allowedOrigins: ['*'],
+    // Signs the session tokens the widget fetches before it chats.
+    sessionSecrets: [env.CHATCOPS_SESSION_SECRET],
   });
   return handler;
 }

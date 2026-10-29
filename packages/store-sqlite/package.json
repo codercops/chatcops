@@ -1,6 +1,6 @@
 {
   "name": "@chatcops/store-sqlite",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "SQLite storage for ChatCops single-server deployments",
   "keywords": [
@@ -35,7 +35,9 @@
     "sqlite-vec": "^0.1.9"
   },
   "peerDependenciesMeta": {
-    "sqlite-vec": { "optional": true }
+    "sqlite-vec": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@chatcops/core": "workspace:*",

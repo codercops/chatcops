@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createProvider } from '../../src/providers/base.js';
 import type { ProviderChatParams, ProviderConfig } from '../../src/types.js';
+import { chatViaTurn, chatSyncViaTurn } from '../helpers/chat-via-turn.js';
 
 const tool = { name: 'lookup', description: 'Look up an order', parameters: {} };
 const params: ProviderChatParams = {
@@ -54,8 +55,8 @@ describe('openai-compatible', () => {
     expect(provider.model).toBe('llama3.2');
     if (!provider.step) throw new Error('Expected a stepping provider');
     expect(await collect(provider.step(params))).toContainEqual({ type: 'text-delta', delta: 'Hello' });
-    expect(await collect(provider.chat(params))).toEqual(['Hello']);
-    expect(await provider.chatSync(params)).toBe('Hello');
+    expect(await collect(chatViaTurn(provider, params))).toEqual(['Hello']);
+    expect(await chatSyncViaTurn(provider, params)).toBe('Hello');
 
     expect(requests).toHaveLength(3);
     for (const request of requests) {
@@ -75,7 +76,7 @@ describe('openai-compatible', () => {
       type: 'openai-compatible', baseURL: 'https://proxy.test/v1', model: 'local',
       apiKey: 'test-key', maxTokensParam, fetch,
     });
-    await provider.chatSync({ ...params, maxTokens: 128, temperature: 0.4 });
+    await chatSyncViaTurn(provider, { ...params, maxTokens: 128, temperature: 0.4 });
     expect(requests[0].body).toMatchObject({ [maxTokensParam]: 128, temperature: 0.4 });
     expect(requests[0].body).not.toHaveProperty(maxTokensParam === 'max_tokens' ? 'max_completion_tokens' : 'max_tokens');
     expect(requests[0].headers.get('Authorization')).toBe('Bearer test-key');
@@ -90,15 +91,15 @@ describe('openai-compatible', () => {
     };
     const provider = await createProvider(config);
     // No configured tools means no tool warning.
-    await provider.chatSync({ ...params, tools: [] });
+    await chatSyncViaTurn(provider, { ...params, tools: [] });
     expect(warn.mock.calls.filter(([message]) => String(message).includes('supportsTools'))).toHaveLength(0);
 
-    await collect(provider.chat(params));
-    await provider.chatSync(params);
+    await collect(chatViaTurn(provider, params));
+    await chatSyncViaTurn(provider, params);
     if (!provider.step) throw new Error('Expected a stepping provider');
     await collect(provider.step(params));
     // warnOnce is process-wide, including another instance with the same model.
-    await (await createProvider(config)).chatSync(params);
+    await chatSyncViaTurn(await createProvider(config), params);
 
     expect(warn.mock.calls.filter(([message]) => String(message).includes('supportsTools'))).toHaveLength(1);
     expect(requests.length).toBeGreaterThan(5);
@@ -119,7 +120,7 @@ describe('openai-compatible', () => {
     });
     const toolExecutor = vi.fn().mockResolvedValue({ success: true, message: 'Found' });
     const request = { ...params, toolExecutor };
-    const text = method === 'chat' ? (await collect(provider.chat(request))).join('') : await provider.chatSync(request);
+    const text = method === 'chat' ? (await collect(chatViaTurn(provider, request))).join('') : await chatSyncViaTurn(provider, request);
     expect(text).toBe('Hello');
     expect(requests).toHaveLength(2);
     expect(requests.every(({ body }) => !('tools' in body))).toBe(true);
@@ -133,7 +134,7 @@ describe('openai-compatible', () => {
       supportsTools, headers: { 'X-Route': 'tools' }, fetch,
     });
     const execute = vi.fn().mockResolvedValue({ success: true, message: 'Found' });
-    expect(await provider.chatSync({ ...params, toolExecutor: execute })).toBe('Hello');
+    expect(await chatSyncViaTurn(provider, { ...params, toolExecutor: execute })).toBe('Hello');
     expect(execute).toHaveBeenCalledOnce();
     expect(requests).toHaveLength(2);
     for (const request of requests) {
@@ -150,7 +151,7 @@ describe('openai-compatible', () => {
     const provider = await createProvider({
       type: 'openai', apiKey: 'test-key', supportsTools: false, headers: { 'X-Route': 'hosted' }, fetch,
     });
-    await provider.chatSync(params);
+    await chatSyncViaTurn(provider, params);
     expect(provider.name).toBe('openai');
     expect(requests[0].body).toMatchObject({ model: 'gpt-5-mini', max_completion_tokens: 4096, reasoning_effort: 'low' });
     expect(requests[0].body).not.toHaveProperty('max_tokens');

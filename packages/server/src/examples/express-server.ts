@@ -20,7 +20,9 @@ app.all('/chat', chatcopsMiddleware({
   systemPrompt: `You are a helpful customer support assistant for Acme Inc.
 Be friendly, concise, and helpful. If a user wants to get in touch,
 ask for their name, email, and project details to capture as a lead.`,
-  cors: '*',
+  allowedOrigins: ['*'],
+  // Signs the session tokens the widget fetches before it chats (`openssl rand -base64 32`).
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET ?? ''],
   rateLimit: { maxRequests: 30, windowMs: 60_000 },
   analytics: true,
 }));

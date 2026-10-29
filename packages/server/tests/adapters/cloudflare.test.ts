@@ -12,9 +12,10 @@ import { createChatHandler } from '../../src/handler.js';
 import { chatcopsCloudflareHandler } from '../../src/adapters/cloudflare.js';
 
 const config = {
+  allowAnonymous: true,
   provider: { type: 'claude' as const, apiKey: 'test-key' },
   systemPrompt: 'Test',
-  cors: '*',
+  allowedOrigins: ['*'],
 };
 
 describe('chatcopsCloudflareHandler', () => {
@@ -32,6 +33,7 @@ describe('chatcopsCloudflareHandler', () => {
 
   it('returns Access-Control-Allow-Origin: * for 405 when cors is not configured', async () => {
     const handlerWithoutCors = chatcopsCloudflareHandler({
+      allowAnonymous: true,
       provider: { type: 'claude' as const, apiKey: 'test-key' },
       systemPrompt: 'Test',
     });
@@ -46,9 +48,10 @@ describe('chatcopsCloudflareHandler', () => {
 
   it('returns custom Access-Control-Allow-Origin for 405 when cors is configured', async () => {
     const handlerWithCustomCors = chatcopsCloudflareHandler({
+      allowAnonymous: true,
       provider: { type: 'claude' as const, apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: 'https://example.com',
+      allowedOrigins: ['https://example.com'],
     });
     const req = new Request('http://localhost/api/chat', { method: 'GET', headers: { Origin: 'https://example.com' } });
     const res = await handlerWithCustomCors(req);
@@ -68,6 +71,7 @@ describe('chatcopsCloudflareHandler', () => {
 
   it('returns Access-Control-Allow-Origin: * for OPTIONS when cors is not configured', async () => {
     const handlerWithoutCors = chatcopsCloudflareHandler({
+      allowAnonymous: true,
       provider: { type: 'claude' as const, apiKey: 'test-key' },
       systemPrompt: 'Test',
     });
@@ -92,6 +96,7 @@ describe('chatcopsCloudflareHandler', () => {
 
   it('returns Access-Control-Allow-Origin: * for 400 when cors is not configured', async () => {
     const handlerWithoutCors = chatcopsCloudflareHandler({
+      allowAnonymous: true,
       provider: { type: 'claude' as const, apiKey: 'test-key' },
       systemPrompt: 'Test',
     });
@@ -110,9 +115,10 @@ describe('chatcopsCloudflareHandler', () => {
 
   it('returns custom Access-Control-Allow-Origin for 400 when cors is configured', async () => {
     const handlerWithCustomCors = chatcopsCloudflareHandler({
+      allowAnonymous: true,
       provider: { type: 'claude' as const, apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: 'https://example.com',
+      allowedOrigins: ['https://example.com'],
     });
     const req = new Request('http://localhost/api/chat', {
       method: 'POST',

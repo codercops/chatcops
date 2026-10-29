@@ -1,0 +1,127 @@
+---
+title: Upgrading to 1.0
+description: What 1.0 removed, and what to change in your config or code, one step at a time.
+---
+
+1.0 removes the options and methods that 0.6 to 0.8 marked as deprecated. Each one now fails at startup with a message that names what to use instead and links here, so an upgrade can't quietly change how your chat behaves. After 1.0, ChatCops follows semver strictly: a breaking change waits for 2.0.
+
+Go through the sections for the packages you use. If you're on 0.5 or earlier, read [Upgrading from 0.5](/getting-started/upgrading/) first.
+
+## `@chatcops/server`
+
+### Session tokens are required by default
+
+A chat request now needs a session token unless you say otherwise, so a leaked or guessed conversation id is useless. The widget fetches tokens by itself (from 0.6), so for most sites the change is a secret and, on some platforms, a route:
+
+```typescript
+import { chatcopsMiddleware } from '@chatcops/server';
+
+chatcopsMiddleware({
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+  systemPrompt: 'You are helpful.',
+  // openssl rand -base64 32, kept on the server
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+});
+```
+
+- A server without `sessionSecrets` refuses to start, with a message saying what to set. Add a secret, or set `allowAnonymous: true` to keep the 0.x behavior.
+- `requireSession` is gone. `requireSession: false` (tokens checked when sent, not required) is now `allowAnonymous: true` next to `sessionSecrets`. `requireSession: true` was already the default with `sessionSecrets`, so delete it.
+- The widget asks `<chat url>/session` for its token, so that path has to reach the handler. With Express, mount it with `app.use('/chat', handler)`, not `app.all('/chat', handler)`. On Vercel and Next.js, add a route file at `/api/chat/session` that re-exports the chat route. Workers, Hono with both paths, Bun and Deno need nothing more. See [Session tokens](/server/setup/#session-tokens).
+- Widgets older than 0.6 and the AI SDK's `useChat` don't send tokens. For those, set `allowAnonymous: true`.
+- `chatcops test` runs your server in process and doesn't need tokens, whatever the config says.
+
+### `cors` is now `allowedOrigins`
+
+```typescript
+import { chatcopsMiddleware } from '@chatcops/server';
+
+chatcopsMiddleware({
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+  systemPrompt: 'You are helpful.',
+  // Before: cors: 'https://acme.com'
+  allowedOrigins: ['https://acme.com'],
+});
+```
+
+`allowedOrigins` takes several sites and subdomain wildcards like `'https://*.acme.com'`. `['*']` (the default) lets any site use the chat, as `cors: '*'` did. See [Allowed origins](/server/setup/#allowed-origins).
+
+### `conversationStore` is now `storage`
+
+```typescript
+import type { ConversationStore } from '@chatcops/core';
+import { chatcopsMiddleware } from '@chatcops/server';
+
+declare const myStore: ConversationStore;
+
+chatcopsMiddleware({
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+  systemPrompt: 'You are helpful.',
+  // Before: conversationStore: myStore
+  storage: { conversations: myStore },
+});
+```
+
+A store package gives you more than conversations: rate limit counters, the one-reply-at-a-time lock and analytics events, shared by every server instance. See [Storage](/server/storage/).
+
+### `i18n` is gone
+
+The server ignored it from 0.6 on. Delete it, and set the chat's text with the widget's [`strings`](/widget/i18n/) option.
+
+### The `RateLimiter` export is gone
+
+The server stopped using it in 0.6: limits are counted in `storage`, set with the `rateLimit` option, so they hold across instances. If your own code used `new RateLimiter({ maxRequests, windowMs })` directly, the replacement is `createRateLimiter(counters, { limit, windowMs })` from `@chatcops/core`. It works on any `CounterStore`, such as `memoryStorage().counters`, and its `check(key)` returns a promise.
+
+### Webhook bodies don't repeat `event` and `timestamp`
+
+A delivery's body is `{ id, type, created, data }`. A receiver that read `event` reads `type` now, and `timestamp` is `created` (still milliseconds since the epoch). The signature header is unchanged. See [Webhooks](/server/setup/#webhooks).
+
+## `@chatcops/core`
+
+### Analytics: `leadsCaptured`, and only the `noun.verb` event names
+
+Stats have `leadsCaptured`. `leadsCapture`, the same number under its old name, is gone. `eventCounts` has only the `noun.verb` names (`conversation.started`, `message.sent`, `message.received`, `lead.captured`), and `getEvents('lead:captured')` no longer finds `lead.captured` events: use the new names, or `ANALYTICS_EVENTS`. Events a store saved under the old names before 0.8 still count in the totals. Webhook event names didn't change.
+
+### `chat()` and `chatSync()` on the built-in providers are gone
+
+The Claude, OpenAI and Gemini providers only have `step()` now. To get a reply from one outside the server, run a turn. It gives you the parts as they stream and the finished message, and errors end the turn instead of throwing:
+
+```typescript
+import { createProvider, runTurn, toolRegistry } from '@chatcops/core';
+
+const provider = await createProvider({ type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! });
+
+// Before: const text = await provider.chatSync({ messages, systemPrompt: 'You are helpful.' });
+const turn = runTurn({
+  provider,
+  messages: [{ id: '1', role: 'user', content: 'Hello', timestamp: Date.now() }],
+  systemPrompt: 'You are helpful.',
+  tools: toolRegistry([]),
+  conversationId: 'one-off',
+});
+
+let next = await turn.next();
+while (!next.done) next = await turn.next();
+const { message, status, error } = next.value;
+if (status !== 'complete') throw error ?? new Error(`The reply ended as ${status}`);
+console.log(message.content);
+```
+
+### `AIProvider` has `chat?()`, and no `chatSync()`
+
+A custom provider needs `step()` or `chat()`. Nothing ever called `chatSync()`, so delete it from yours. Code that typed a variable as `AIProvider` and called `.chat()` on it has to check for it first, since a provider may have only `step()`.
+
+## `@chatcops/widget`
+
+### `persistHistory` is now `persistence`
+
+```typescript
+import ChatCops from '@chatcops/widget';
+
+ChatCops.init({
+  apiUrl: '/api/chat',
+  // Before: persistHistory: false
+  persistence: 'none',
+});
+```
+
+`persistence` also takes `'session'`, for this tab only. A config that still sets `persistHistory` throws instead of being ignored, since ignoring `persistHistory: false` would start saving conversations on a site that asked for none. See [Saved conversations](/widget/configuration/#saved-conversations).

@@ -23,6 +23,7 @@ describe('provider configuration through the server', () => {
       });
     });
     const handler = createChatHandler({
+      allowAnonymous: true,
       provider: {
         type: 'openai-compatible', baseURL: 'http://localhost:11434/v1', model: 'server-local',
         supportsTools: false, headers: { 'X-Route': 'server' }, fetch,
@@ -49,9 +50,8 @@ describe('provider configuration through the server', () => {
     registerProvider('server-custom', () => ({
       name: 'server-custom',
       async *chat() { yield 'Custom reply'; },
-      async chatSync() { return 'Custom reply'; },
     }));
-    const handler = createChatHandler({ provider: { type: 'server-custom' }, systemPrompt: 'Test', budgets: false });
+    const handler = createChatHandler({ allowAnonymous: true, provider: { type: 'server-custom' }, systemPrompt: 'Test', budgets: false });
     try {
       expect(await collect(handler.handleChat({ conversationId: 'custom', message: 'Hi' }))).toContainEqual({ content: 'Custom reply' });
     } finally {
@@ -61,7 +61,7 @@ describe('provider configuration through the server', () => {
 
   it.each(['claude', 'openai', 'gemini'])('reports a missing hosted %s key through existing setup-error handling', async (type) => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const handler = createChatHandler({ provider: { type }, systemPrompt: 'Test', budgets: false });
+    const handler = createChatHandler({ allowAnonymous: true, provider: { type }, systemPrompt: 'Test', budgets: false });
     try {
       expect(await collect(handler.handleChat({ conversationId: type, message: 'Hi' }))).toEqual([{ error: 'provider_error' }]);
       expect(error).toHaveBeenCalledExactlyOnceWith(`[chatcops] Provider setup failed: ${type} requires apiKey`);

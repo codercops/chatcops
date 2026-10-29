@@ -20,9 +20,6 @@ describe('createChatHandler', () => {
     mockedCreateProvider.mockResolvedValue({
       name: 'test-provider',
       async *chat() {},
-      async chatSync() {
-        return '';
-      },
     });
   });
 
@@ -35,9 +32,10 @@ describe('createChatHandler', () => {
     const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
 
     const { cleanup } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: '*',
+      allowedOrigins: ['*'],
     });
 
     expect(setIntervalSpy).not.toHaveBeenCalled();
@@ -46,24 +44,21 @@ describe('createChatHandler', () => {
     expect(() => cleanup()).not.toThrow();
   });
 
-  it('warns once when the deprecated i18n option is set', () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-    const { cleanup } = createChatHandler({
-      provider: { type: 'openai', apiKey: 'test-key' },
-      systemPrompt: 'Test',
-      i18n: { defaultLocale: 'en', locales: {} },
-    });
-    cleanup();
-
-    expect(warnSpy).toHaveBeenCalledOnce();
-    expect(warnSpy.mock.calls[0][0]).toContain('i18n');
+  it.each([
+    ['cors', { cors: '*' }, 'allowedOrigins'],
+    ['conversationStore', { conversationStore: { get: async () => null, save: async () => {}, delete: async () => {} } }, 'storage'],
+    ['i18n', { i18n: { defaultLocale: 'en', locales: {} } }, 'strings'],
+    ['requireSession', { requireSession: false }, 'allowAnonymous'],
+  ])('refuses to start with %s, which 1.0 removed, and says what to use', (_name, removed, instead) => {
+    const config = { allowAnonymous: true, provider: { type: 'openai', apiKey: 'test-key' }, systemPrompt: 'Test', ...removed };
+    expect(() => createChatHandler(config as never)).toThrow(new RegExp(`removed in 1\\.0[\\s\\S]*${instead}[\\s\\S]*upgrading-to-1`));
   });
 
-  it('does not warn when i18n is not set', () => {
+  it('does not warn on a plain config', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const { cleanup } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'openai', apiKey: 'test-key' },
       systemPrompt: 'Test',
     });
@@ -98,15 +93,13 @@ describe('createChatHandler', () => {
 
         yield `Forecast: ${(toolResult?.data as { forecast?: string })?.forecast}`;
       },
-      async chatSync() {
-        return '';
-      },
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'openai', apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: '*',
+      allowedOrigins: ['*'],
       tools: [weatherTool],
     });
 
@@ -138,15 +131,13 @@ describe('createChatHandler', () => {
         lastUserMessages.push(params.messages.at(-1)?.content ?? '');
         yield 'ok';
       },
-      async chatSync() {
-        return '';
-      },
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'openai', apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: '*',
+      allowedOrigins: ['*'],
     });
 
     const url = `https://example.com/page?token=${'a'.repeat(5000)}`;
@@ -174,15 +165,13 @@ describe('createChatHandler', () => {
         receivedTimeouts.push(params.toolTimeoutMs);
         yield 'Configured timeout received.';
       },
-      async chatSync() {
-        return '';
-      },
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'openai', apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: '*',
+      allowedOrigins: ['*'],
       toolTimeoutMs: 2_500,
     });
 
@@ -205,18 +194,17 @@ describe('createChatHandler', () => {
         received.push({ maxTokens: params.maxTokens, temperature: params.temperature });
         yield 'ok';
       },
-      async chatSync() {
-        return '';
-      },
     });
 
     const withOptions = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'openai', apiKey: 'test-key' },
       systemPrompt: 'Test',
       maxTokens: 4096,
       temperature: 0.2,
     });
     const withoutOptions = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'openai', apiKey: 'test-key' },
       systemPrompt: 'Test',
     });
@@ -261,15 +249,13 @@ describe('createChatHandler', () => {
 
         yield 'Thanks, we will reach out shortly.';
       },
-      async chatSync() {
-        return '';
-      },
     });
 
     const { handleChat, getAnalytics } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: '*',
+      allowedOrigins: ['*'],
       analytics: true,
       tools: [leadTool],
     });
@@ -287,7 +273,7 @@ describe('createChatHandler', () => {
     );
     expect(getAnalytics()).toMatchObject({
       totalConversations: 1,
-      leadsCapture: 1,
+      leadsCaptured: 1,
     });
   });
 
@@ -321,15 +307,13 @@ describe('createChatHandler', () => {
 
         yield 'Thanks, we will reach out shortly.';
       },
-      async chatSync() {
-        return '';
-      },
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: '*',
+      allowedOrigins: ['*'],
       tools: [leadTool],
       webhooks: [{ url: 'https://hooks.test/lead', events: ['lead:captured'] }],
     });
@@ -351,7 +335,7 @@ describe('createChatHandler', () => {
     expect(fetchSpy).toHaveBeenCalledOnce();
     const requestBody = JSON.parse(String(fetchSpy.mock.calls[0]?.[1]?.body));
     expect(requestBody).toMatchObject({
-      event: 'lead:captured',
+      type: 'lead:captured',
       data: {
         lead: { email: 'lead@example.com' },
         conversationId: 'conv-42',
@@ -394,15 +378,13 @@ describe('createChatHandler', () => {
 
         yield 'Lead captured successfully.';
       },
-      async chatSync() {
-        return '';
-      },
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: '*',
+      allowedOrigins: ['*'],
       tools: [leadTool],
       webhooks: [{ url: 'https://hooks.test/lead', events: ['lead:captured'] }],
     });
@@ -466,6 +448,7 @@ describe('createChatHandler', () => {
 
       try {
         const { handleChat, cleanup } = createChatHandler({
+          allowAnonymous: true,
           provider: { type: 'claude', apiKey: 'sk-secret-key' },
           systemPrompt: 'Test',
         });
@@ -495,6 +478,7 @@ describe('createChatHandler', () => {
       mockedCreateProvider.mockRejectedValue(failure);
 
       const { cleanup } = createChatHandler({
+        allowAnonymous: true,
         provider: { type: 'claude', apiKey: 'sk-secret-key' },
         systemPrompt: 'Test',
       });
@@ -510,6 +494,7 @@ describe('createChatHandler', () => {
       mockedCreateProvider.mockRejectedValue(new Error('setup failed'));
 
       const { handleChat, cleanup } = createChatHandler({
+        allowAnonymous: true,
         provider: { type: 'claude', apiKey: 'k' },
         systemPrompt: 'Test',
         rateLimit: { maxRequests: 1, windowMs: 60_000 },
@@ -562,15 +547,13 @@ describe('createChatHandler', () => {
 
         throw new Error('Provider failed after tool execution');
       },
-      async chatSync() {
-        return '';
-      },
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: '*',
+      allowedOrigins: ['*'],
       tools: [leadTool],
       webhooks: [{ url: 'https://hooks.test/lead', events: ['lead:captured'] }],
     });
@@ -629,15 +612,13 @@ describe('createChatHandler', () => {
         );
         yield receivedMessages.length === 1 ? 'First reply' : 'Regenerated reply';
       },
-      async chatSync() {
-        return '';
-      },
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: '*',
+      allowedOrigins: ['*'],
     });
 
     for await (const _chunk of handleChat({
@@ -682,15 +663,13 @@ describe('createChatHandler', () => {
         }
         yield receivedMessages.length === 1 ? 'Initial reply' : 'Follow up reply';
       },
-      async chatSync() {
-        return '';
-      },
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: '*',
+      allowedOrigins: ['*'],
     });
 
     for await (const _chunk of handleChat({
@@ -752,15 +731,13 @@ describe('createChatHandler', () => {
         }
         yield `Reply ${receivedMessages.length}`;
       },
-      async chatSync() {
-        return '';
-      },
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: '*',
+      allowedOrigins: ['*'],
     });
 
     // Turn 1
@@ -831,15 +808,13 @@ describe('createChatHandler', () => {
         );
         yield receivedMessages.length === 3 ? 'Regenerated reply 2' : `Reply ${receivedMessages.length}`;
       },
-      async chatSync() {
-        return '';
-      },
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: '*',
+      allowedOrigins: ['*'],
     });
 
     // Turn 1
@@ -901,15 +876,13 @@ describe('createChatHandler', () => {
         );
         yield 'Recovered reply';
       },
-      async chatSync() {
-        return '';
-      },
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: '*',
+      allowedOrigins: ['*'],
     });
 
     for await (const _chunk of handleChat({
@@ -941,15 +914,13 @@ describe('createChatHandler', () => {
         );
         yield receivedMessages.length === 1 ? 'First reply' : 'Retried reply';
       },
-      async chatSync() {
-        return '';
-      },
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: '*',
+      allowedOrigins: ['*'],
     });
 
     for await (const _chunk of handleChat({

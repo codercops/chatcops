@@ -8,6 +8,7 @@ import type { ChatCopsServerConfig } from '../src/config.js';
 
 function config(storage: ChatCopsStorage, overrides: Partial<ChatCopsServerConfig> = {}): ChatCopsServerConfig {
   return {
+    allowAnonymous: true,
     provider: scriptedProvider(Array.from({ length: 5 }, () => textStep('Hello'))),
     systemPrompt: 'Test',
     budgets: false,

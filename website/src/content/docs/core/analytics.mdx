@@ -65,13 +65,10 @@ Without a store that can be queried, the stats come from the memory of the proce
   "totalConversations": 2,
   "totalMessages": 4,
   "leadsCaptured": 0,
-  "leadsCapture": 0,
   "averageMessagesPerConversation": 2,
-  "eventCounts": { "conversation.started": 2, "message.sent": 2, "message.received": 2, "conversation:started": 2, "message:sent": 2, "message:received": 2 }
+  "eventCounts": { "conversation.started": 2, "message.sent": 2, "message.received": 2 }
 }
 ```
-
-`leadsCapture` is the same number as `leadsCaptured`, under the name it had before 0.8, and the `noun:verb` keys in `eventCounts` repeat the new ones. Both go away in 1.0.
 
 ## Tracked Events
 
@@ -84,7 +81,7 @@ When `analytics: true`, the server automatically tracks:
 | `message.received` | AI responds |
 | `lead.captured` | Lead capture tool fires |
 
-`ANALYTICS_EVENTS` from `@chatcops/core` has these names, so code doesn't have to spell them. Before 0.8 they were `conversation:started`, `message:sent`, `message:received` and `lead:captured`. Until 1.0 those still work: `track()` and `getEvents()` read them as the new names, and stats count events a store saved under either one, so the numbers carry on across the upgrade. Webhook event names, such as `lead:captured` in a webhook's `events`, don't change.
+`ANALYTICS_EVENTS` from `@chatcops/core` has these names, so code doesn't have to spell them. Before 0.8 they were `conversation:started`, `message:sent`, `message:received` and `lead:captured`. Stats still count events a store saved under those names, so totals carry on across the upgrade, but `track()` and `getEvents()` treat them as names of your own. Webhook event names, such as `lead:captured` in a webhook's `events`, are separate and didn't change.
 
 ## AnalyticsCollector API
 
@@ -121,7 +118,6 @@ interface AnalyticsStats {
   totalConversations: number;
   totalMessages: number;
   leadsCaptured: number;
-  leadsCapture: number;       // deprecated: the same as leadsCaptured, removed in 1.0
   averageMessagesPerConversation: number;
   eventCounts: Record<string, number>;
 }

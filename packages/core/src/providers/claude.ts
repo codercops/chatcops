@@ -2,14 +2,12 @@ import Anthropic from '@anthropic-ai/sdk';
 import type {
   ChatMessage,
   MessagePart,
-  ProviderChatParams,
   ProviderConfig,
   ProviderEffort,
   TokenUsage,
   ToolCallPart,
 } from '../types.js';
 import type { AIProvider } from './base.js';
-import { chatSyncViaTurn, chatViaTurn } from '../agent/chat.js';
 import { joinSystem } from '../agent/run-turn.js';
 import { DEFAULT_MAX_TOKENS, toClaudeTools, warnOnce } from './base.js';
 import { consoleLogger, type Logger } from '../logger.js';
@@ -315,18 +313,6 @@ export class ClaudeProvider implements AIProvider {
     };
   }
 
-  /**
-   * A turn with tools run through `params.toolExecutor`, as text.
-   * @deprecated Use `runTurn()`, which also returns the reply's parts, status and usage.
-   */
-  chat(params: ProviderChatParams): AsyncGenerator<string> {
-    return chatViaTurn(this, params);
-  }
-
-  /** @deprecated Use `runTurn()`. */
-  chatSync(params: ProviderChatParams): Promise<string> {
-    return chatSyncViaTurn(this, params);
-  }
 }
 
 /**

@@ -177,6 +177,7 @@ function chatEndpoint(overrides = {}) {
     tools: [slowLookup],
     toolTimeoutMs: 30_000,
     budgets: false,
+    allowAnonymous: true,
     ...overrides,
   };
   const handler = createChatHandler(config);
@@ -187,7 +188,7 @@ function chatEndpoint(overrides = {}) {
 const endpoints = {
   '/api/chat': chatEndpoint(),
   // Session tokens on, for the session spec.
-  '/api/secure-chat': chatEndpoint({ sessionSecrets: ['an-e2e-session-secret-of-32-bytes-or-more'] }),
+  '/api/secure-chat': chatEndpoint({ sessionSecrets: ['an-e2e-session-secret-of-32-bytes-or-more'], allowAnonymous: false }),
 };
 
 /** Runs a Fetch API handler for a Node request. */

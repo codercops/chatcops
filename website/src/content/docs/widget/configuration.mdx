@@ -162,7 +162,7 @@ A popup doesn't read or write storage until the visitor opens it. Until then, no
 
 The pre-chat form's answers are saved with the conversation, so they expire with it too.
 
-`persistHistory` is deprecated. `persistHistory: false` still works and means `persistence: 'none'`. It goes away in 1.0.
+`persistHistory` was removed in 1.0. A config that still sets it throws, so a site that asked for nothing to be saved never starts saving conversations. Use `persistence: 'none'` instead.
 
 ### AI disclosure
 
@@ -253,7 +253,6 @@ interface WidgetConfig {
   placeholder?: string;       // Input placeholder text
   persistence?: 'local' | 'session' | 'none'; // Where the chat is saved, default: 'local'
   historyTtlDays?: number;    // Drop saved chats older than this, default: 30
-  persistHistory?: boolean;   // Deprecated. false is the same as persistence: 'none'
   maxMessages?: number;       // Max messages to persist, default: 50
   pageContext?: boolean;       // Send page URL/title, default: true
   autoOpen?: boolean | number; // Popup mode only. true = immediate, number = delay in ms

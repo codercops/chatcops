@@ -186,7 +186,7 @@ Always the first event in a successful stream:
   }
 }
 ```
-- `capabilities.session`: When `true`, indicates that session tokens are enabled on the server. When `requireSession: false` is configured, chat requests without a token can still proceed.
+- `capabilities.session`: When `true`, indicates that session tokens are enabled on the server. When `allowAnonymous: true` is also set, chat requests without a token can still proceed.
 
 #### `text-start`, `text-delta`, `text-end`
 Surrounds and streams chunks of assistant text:

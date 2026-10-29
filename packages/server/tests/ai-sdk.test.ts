@@ -15,6 +15,7 @@ const API = 'http://localhost/api/chat';
 
 function setup(provider: ScriptedProvider, overrides: Partial<ChatCopsServerConfig> = {}) {
   const handler = chatcopsAiSdkHandler({
+    allowAnonymous: true,
     provider,
     systemPrompt: 'Test',
     budgets: false,

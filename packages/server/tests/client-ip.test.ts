@@ -87,6 +87,7 @@ describe('expressClientIp', () => {
 
 describe('the fetch handlers', () => {
   const config = () => ({
+    allowAnonymous: true,
     provider: scriptedProvider(Array.from({ length: 4 }, () => textStep('ok'))),
     systemPrompt: 'x',
     rateLimit: { maxRequests: 1, windowMs: 60_000 },
@@ -104,7 +105,7 @@ describe('the fetch handlers', () => {
   it("doesn't let a visitor pick their own rate limit key off Vercel", async () => {
     vi.stubEnv('VERCEL', '');
     vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const handler = chatcopsVercelHandler({ ...config(), clientIp: (r) => r.headers.get('x-test-socket-ip') });
+    const handler = chatcopsVercelHandler({ allowAnonymous: true, ...config(), clientIp: (r) => r.headers.get('x-test-socket-ip') });
     await (await handler(request({ 'x-test-socket-ip': '203.0.113.7', 'x-forwarded-for': '1.1.1.1' }))).text();
     const second = await (await handler(request({ 'x-test-socket-ip': '203.0.113.7', 'x-forwarded-for': '2.2.2.2' }))).text();
     expect(second).toContain('rate_limit');

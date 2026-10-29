@@ -1,6 +1,5 @@
-import { chatSyncViaTurn, chatViaTurn } from '../agent/chat.js';
 import type { AIProvider, ProviderEvent, ProviderStepParams } from '../providers/types.js';
-import type { MessagePart, ProviderChatParams, TokenUsage } from '../types.js';
+import type { MessagePart, TokenUsage } from '../types.js';
 
 /**
  * One scripted model step: the events to yield, a function that builds them
@@ -98,12 +97,6 @@ export function scriptedProvider(script: ScriptedStep[], options: ScriptedProvid
         params.signal?.throwIfAborted();
         yield event;
       }
-    },
-    chat(params: ProviderChatParams) {
-      return chatViaTurn(provider, params);
-    },
-    chatSync(params: ProviderChatParams) {
-      return chatSyncViaTurn(provider, params);
     },
   };
   return provider;

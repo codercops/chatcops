@@ -20,11 +20,15 @@ const handler = chatcopsAiSdkHandler({
     apiKey: process.env.ANTHROPIC_API_KEY!,
   },
   systemPrompt: 'You are a helpful assistant.',
+  // useChat doesn't fetch session tokens.
+  allowAnonymous: true,
 });
 
 export const POST = handler;
 export const OPTIONS = handler;
 ```
+
+`useChat` doesn't fetch [session tokens](/server/setup/#session-tokens), so this route sets `allowAnonymous: true`. Without it, the server refuses to start with no `sessionSecrets`, and refuses requests without a token when they're set. To use tokens anyway, set `sessionSecrets`, get a token from `/api/chat/session` for the chat id, and send it as `Authorization: Bearer <token>` with the headers of `useChat`'s transport.
 
 Then use `useChat` as usual:
 

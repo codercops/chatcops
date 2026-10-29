@@ -6,9 +6,7 @@ import type {
   Budgets,
   ChatCopsStorage,
   ChatTool,
-  ConversationStore,
   KnowledgeSource,
-  LocaleStrings,
   Logger,
   ProviderConfig,
   WebhookConfig,
@@ -63,11 +61,6 @@ export interface ChatCopsServerConfig {
    */
   storage?: ChatCopsStorage;
   /**
-   * @deprecated Use `storage`. A conversation store on its own, as in 0.4.
-   * Setting both is an error.
-   */
-  conversationStore?: ConversationStore;
-  /**
    * How long to keep conversations. `purge()` on the handler deletes older
    * ones; call it on a schedule (a cron job, a Workers cron trigger).
    */
@@ -80,8 +73,6 @@ export interface ChatCopsServerConfig {
    * stops other sites embedding your bot, not scripts. Defaults to `['*']`.
    */
   allowedOrigins?: string[];
-  /** @deprecated Use `allowedOrigins`. Read as a one-item `allowedOrigins`. */
-  cors?: string;
   /**
    * Reads the visitor's IP for per-IP rate limits and budgets, in the fetch
    * handlers (`chatcopsVercelHandler`, `chatcopsCloudflareHandler`). Needed
@@ -104,11 +95,13 @@ export interface ChatCopsServerConfig {
   /** How long a session token lasts, in seconds. Defaults to 900. */
   sessionTtlSec?: number;
   /**
-   * Refuse chat requests without a session token (401 `session_required`).
-   * Defaults to true when `sessionSecrets` is set. Set false while widgets
-   * older than 0.6, which don't send tokens, are still out there.
+   * Accept chat requests without a session token. Off by default: the
+   * server needs `sessionSecrets`, and each chat request needs a token from
+   * `<chat url>/session`, which the widget gets by itself. Set true for a
+   * server without `sessionSecrets`, or, with them, while widgets older than
+   * 0.6 (which don't send tokens) are still out there.
    */
-  requireSession?: boolean;
+  allowAnonymous?: boolean;
   /**
    * Cloudflare Turnstile when a session token is issued: `/session` needs a
    * Turnstile token and checks it with Cloudflare before signing. Refreshing
@@ -129,8 +122,6 @@ export interface ChatCopsServerConfig {
    * streams. Off by default, since visitors can read the stream.
    */
   exposeUsage?: boolean;
-  /** @deprecated The server ignores this. Set the widget's text with its `strings` option. */
-  i18n?: { defaultLocale: string; locales: Record<string, LocaleStrings> };
 }
 
 // Everything in a request can end up in the system prompt, so every field has a ceiling.

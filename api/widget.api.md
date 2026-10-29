@@ -135,7 +135,6 @@ export interface WidgetConfig {
     placeholder?: string;
     persistence?: Persistence;
     historyTtlDays?: number;
-    persistHistory?: boolean;
     maxMessages?: number;
     pageContext?: boolean;
     autoOpen?: boolean | number;

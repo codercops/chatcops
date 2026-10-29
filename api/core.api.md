@@ -12,8 +12,7 @@ export interface AIProvider {
     model?: string;
     citations?: 'native';
     step?(params: ProviderStepParams): AsyncGenerator<ProviderEvent>;
-    chat(params: ProviderChatParams): AsyncGenerator<string>;
-    chatSync(params: ProviderChatParams): Promise<string>;
+    chat?(params: ProviderChatParams): AsyncGenerator<string>;
 }
 
 export type AiSdkChunk = {
@@ -46,7 +45,6 @@ export interface AnalyticsStats {
     totalConversations: number;
     totalMessages: number;
     leadsCaptured: number;
-    leadsCapture: number;
     averageMessagesPerConversation: number;
     eventCounts: Record<string, number>;
 }
@@ -1136,8 +1134,6 @@ export declare class ClaudeProvider implements AIProvider {
     readonly model: string;
     constructor(config: ProviderConfig);
     step(params: ProviderStepParams): AsyncGenerator<ProviderEvent>;
-    chat(params: ProviderChatParams): AsyncGenerator<string>;
-    chatSync(params: ProviderChatParams): Promise<string>;
 }
 
 export declare function claudeRejectsTemperature(model: string): boolean;
@@ -1163,8 +1159,6 @@ export declare class OpenAIProvider implements AIProvider {
         compatible?: boolean;
     });
     step(params: ProviderStepParams): AsyncGenerator<ProviderEvent>;
-    chat(params: ProviderChatParams): AsyncGenerator<string>;
-    chatSync(params: ProviderChatParams): Promise<string>;
 }
 
 export declare function toOpenAIStepMessages(systemPrompt: string, messages: ChatMessage[]): MessageParam[];
@@ -1178,8 +1172,6 @@ export declare class GeminiProvider implements AIProvider {
     readonly model: string;
     constructor(config: ProviderConfig);
     step(params: ProviderStepParams): AsyncGenerator<ProviderEvent>;
-    chat(params: ProviderChatParams): AsyncGenerator<string>;
-    chatSync(params: ProviderChatParams): Promise<string>;
 }
 
 export declare function geminiSupportsThinkingLevel(model: string): boolean;

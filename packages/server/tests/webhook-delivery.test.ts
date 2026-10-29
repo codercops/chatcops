@@ -27,7 +27,7 @@ afterEach(() => {
 });
 
 describe('webhook envelope and signature', () => {
-  it('sends an id, type and created time, plus the old fields, and signs the raw body', async () => {
+  it('sends an id, type and created time, and signs the raw body', async () => {
     const calls = captureFetch([]);
     const dispatcher = new WebhookDispatcher([{ url: 'https://hooks.test/lead', events: ['lead:captured'], secret: 'shh' }]);
 
@@ -35,9 +35,8 @@ describe('webhook envelope and signature', () => {
 
     const body = calls[0].init.body as string;
     const event = JSON.parse(body) as WebhookEvent;
-    expect(event).toMatchObject({ type: 'lead:captured', event: 'lead:captured', data: { email: 'a@b.test' } });
+    expect(event).toEqual({ id: expect.any(String), type: 'lead:captured', created: expect.any(Number), data: { email: 'a@b.test' } });
     expect(event.id).toMatch(/^evt_[0-9a-f-]{36}$/);
-    expect(event.timestamp).toBe(event.created);
     expect(body).not.toContain('signature');
     expect(header(calls[0], 'X-ChatCops-Event-Id')).toBe(event.id);
     expect(calls[0].init.redirect).toBe('manual');

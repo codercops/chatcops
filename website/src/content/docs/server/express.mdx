@@ -14,7 +14,7 @@ import { chatcopsMiddleware } from '@chatcops/server';
 const app = express();
 app.use(express.json());
 
-app.all('/chat', chatcopsMiddleware({
+app.use('/chat', chatcopsMiddleware({
   provider: {
     type: 'claude',
     apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -24,6 +24,7 @@ app.all('/chat', chatcopsMiddleware({
     Be concise, friendly, and helpful. If the user wants to contact us,
     use the lead capture tool to collect their information.`,
   allowedOrigins: ['*'],
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
   rateLimit: { maxRequests: 30, windowMs: 60_000 },
   analytics: true,
 }));
@@ -35,7 +36,7 @@ app.listen(PORT, () => {
 ```
 
 :::note
-Cross-origin deployments must let `OPTIONS` preflight requests reach the Express adapter by registering the chat handler with `app.all('/chat', handler)`.
+Mount the handler with `app.use('/chat', handler)`. That lets `OPTIONS` preflights from other origins reach it, and `/chat/session`, where the widget gets its session token. `app.all('/chat', ...)` would miss the session path. Generate `CHATCOPS_SESSION_SECRET` with `openssl rand -base64 32`.
 :::
 
 ### Behind a proxy
@@ -61,7 +62,7 @@ import { chatcopsMiddleware } from '@chatcops/server';
 const app = express();
 const db = { leads: { create: async (_lead: unknown) => {} } };
 
-app.all('/chat', chatcopsMiddleware({
+app.use('/chat', chatcopsMiddleware({
   provider: {
     type: 'claude',
     apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -86,7 +87,7 @@ import { chatcopsMiddleware } from '@chatcops/server';
 
 const app = express();
 
-app.all('/chat', chatcopsMiddleware({
+app.use('/chat', chatcopsMiddleware({
   provider: { type: 'openai', apiKey: process.env.OPENAI_API_KEY! },
   systemPrompt: 'Answer questions using the provided context.',
   knowledge: [

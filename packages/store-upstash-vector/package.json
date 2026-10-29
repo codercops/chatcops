@@ -3,20 +3,53 @@
   "version": "0.1.0",
   "private": true,
   "description": "Upstash Vector storage for ChatCops",
-  "keywords": ["chatcops", "storage", "vector", "upstash"],
+  "keywords": [
+    "chatcops",
+    "storage",
+    "vector",
+    "upstash"
+  ],
   "homepage": "https://chat.codercops.com",
   "bugs": "https://github.com/codercops/chatcops/issues",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
-  "files": ["dist"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "sideEffects": false,
-  "scripts": { "build": "tsc", "typecheck": "tsc -p tsconfig.test.json --noEmit", "test": "vitest run", "test:watch": "vitest" },
-  "peerDependencies": { "@chatcops/core": "workspace:^", "@upstash/vector": "^1.2.3" },
-  "devDependencies": { "@chatcops/core": "workspace:*", "@upstash/vector": "^1.2.3", "typescript": "^5.7.0", "vitest": "^4.1.11" },
-  "repository": { "type": "git", "url": "git+https://github.com/codercops/chatcops.git", "directory": "packages/store-upstash-vector" },
-  "publishConfig": { "access": "public" },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc -p tsconfig.test.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "@chatcops/core": "workspace:^",
+    "@upstash/vector": "^1.2.3"
+  },
+  "devDependencies": {
+    "@chatcops/core": "workspace:*",
+    "@upstash/vector": "^1.2.3",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.11"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codercops/chatcops.git",
+    "directory": "packages/store-upstash-vector"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "license": "MIT",
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  }
 }

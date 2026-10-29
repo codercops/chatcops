@@ -134,10 +134,12 @@ describe('widget persistence', () => {
     expect(localStorage.getItem('chatcops_conversation')).toBeNull();
   });
 
-  it.each([
-    ['persistence: none', { persistence: 'none' as const }],
-    ['the deprecated persistHistory: false', { persistHistory: false }],
-  ])('stores nothing with %s', (_name, config) => {
+  it('refuses persistHistory, which 1.0 removed, rather than saving what a site asked not to', () => {
+    expect(() => new Widget({ apiUrl: '/chat', persistHistory: false } as never)).toThrow("Use persistence: 'none'");
+  });
+
+  it('stores nothing with persistence: none', () => {
+    const config = { persistence: 'none' as const };
     const { calls } = countStorage();
     const w = start({ ...config, welcomeBubble: { text: 'Hi', delay: 0, showOnce: true } });
     w.open();

@@ -90,8 +90,6 @@ export interface WidgetConfig {
   persistence?: Persistence;
   /** Saved conversations older than this are dropped. Default 30 days. */
   historyTtlDays?: number;
-  /** @deprecated Use `persistence: 'none'`. `false` is read as that. */
-  persistHistory?: boolean;
   maxMessages?: number;
   pageContext?: boolean;
   autoOpen?: boolean | number;
@@ -196,13 +194,16 @@ export class Widget {
   }
 
   constructor(config: WidgetConfig) {
+    // Checked before anything is claimed. Ignoring `persistHistory: false`
+    // would save conversations on a site that asked for none.
+    if ('persistHistory' in config) throw new Error("ChatCops: persistHistory was removed in 1.0. Use persistence: 'none'.");
     this.config = config;
     this.namespace = claimNamespace(
       config.siteId,
       config.mode ?? 'popup',
       () => !this.destroyed && (!this.mounted || this.shadow.host.isConnected)
     );
-    const persistence = config.persistence ?? (config.persistHistory === false ? 'none' : 'local');
+    const persistence = config.persistence ?? 'local';
     this.storage = new ConversationStorage(this.namespace.siteId, persistence, config.historyTtlDays);
     this.client = new ChatClient({ ...config, store: this.storage.store });
     this.locale = getWidgetLocale(config.locale ?? 'en', config.strings);

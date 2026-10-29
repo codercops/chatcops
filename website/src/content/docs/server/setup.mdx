@@ -36,6 +36,9 @@ const handler = chatcopsMiddleware({
     Be friendly, concise, and helpful.
     If the user provides contact info, use the lead capture tool.`,
 
+  // Required, or allowAnonymous: true: signs the session tokens the widget fetches
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+
   // Optional: Tools
   tools: [
     new LeadCaptureTool((lead) => saveLead(lead)),
@@ -111,15 +114,11 @@ interface ChatCopsServerConfig {
   analytics?: boolean;
   storage?: ChatCopsStorage;            // where conversations, counters and locks live
   retention?: { conversationsDays?: number };   // for purge(); default 30
-  /** @deprecated Use `storage`. */
-  conversationStore?: ConversationStore;
   allowedOrigins?: string[];   // default ['*']
-  /** @deprecated Use `allowedOrigins`. */
-  cors?: string;
   clientIp?: (request: Request) => string | null | undefined;   // fetch handlers, see the fetch runtimes page
   sessionSecrets?: string[];   // turns on session tokens, see Session tokens below
   sessionTtlSec?: number;      // default 900
-  requireSession?: boolean;    // default true when sessionSecrets is set
+  allowAnonymous?: boolean;    // accept chat without a session token; default false
   turnstile?: { secretKey: string; action?: string; expectedHostnames?: string[]; timeoutMs?: number };
   identity?: { secret: string; tiers?: Record<string, Budgets> };   // signed-in visitors, see below
   exposeUsage?: boolean;   // token usage in protocol v1 finish parts; default false
@@ -162,7 +161,7 @@ const handler = chatcopsMiddleware({
 });
 ```
 
-With a storage that has key-value support, the rule that only one reply is written per conversation at a time holds across all your server instances, not just within one. Setting both `storage` and the older `conversationStore` is an error.
+With a storage that has key-value support, the rule that only one reply is written per conversation at a time holds across all your server instances, not just within one.
 
 Nothing is deleted on its own. The handler's `purge()` deletes conversations last updated more than `retention.conversationsDays` (default 30) days ago. Call it on a schedule, from a cron job or a Workers cron trigger:
 
@@ -198,7 +197,7 @@ Requests without an `Origin` header, such as `curl` or a call from your own serv
 
 ## Session tokens
 
-Without session tokens, anyone who knows a conversation id can keep talking in that conversation, and the model answers with its history in view. Ids are random, so this is about leaked ids and guessing. With `sessionSecrets` set, the chat needs a short-lived token that's bound to one conversation and one site:
+Without session tokens, anyone who knows a conversation id can keep talking in that conversation, and the model answers with its history in view. Ids are random, so this is about leaked ids and guessing. So from 1.0 the chat needs a short-lived token that's bound to one conversation and one site, signed with `sessionSecrets`:
 
 ```typescript
 import type { ChatCopsServerConfig } from '@chatcops/server';
@@ -225,7 +224,9 @@ The widget does all of this on its own from 0.6. When a chat request gets a 401,
 
 With Express, mount the middleware with `app.use('/api/chat', ...)` so `/api/chat/session` reaches it. On Vercel or Next.js, export the same handler from a second route file at `app/api/chat/session/route.ts`. A Cloudflare Worker gets every path already.
 
-Chat requests without a token get `401 session_required`, an expired token gets `401 token_expired`, and a token for another conversation gets `401 conversation_mismatch`. Widgets before 0.6 don't send tokens, so set `requireSession: false` while they're still around: requests without a token then go through, and the ones that send a token are still checked.
+Chat requests without a token get `401 session_required`, an expired token gets `401 token_expired`, and a token for another conversation gets `401 conversation_mismatch`.
+
+A server without `sessionSecrets` refuses to start unless it sets `allowAnonymous: true`, which accepts chat without tokens. Set it with `sessionSecrets` too while widgets before 0.6, which don't send tokens, are still around: requests without a token then go through, and the ones that send one are still checked. Set it alone for a server only you reach, such as a local test, or one behind your own login. Clients that don't fetch tokens, such as the AI SDK's `useChat`, need it as well (see [AI SDK](/server/ai-sdk/)). The short examples on other pages leave `sessionSecrets` out to keep to their point. Add it to yours.
 
 To change the secret, put the new one first and keep the old one until its tokens have expired: `sessionSecrets: [newSecret, oldSecret]`. New tokens are signed with the first, and any of them verifies.
 
@@ -328,13 +329,11 @@ Each webhook gets a POST with a JSON body for every event it subscribes to:
   "id": "evt_6f1c…",
   "type": "lead:captured",
   "created": 1792411200000,
-  "data": { "lead": { "name": "Priya", "email": "priya@example.com" }, "conversationId": "c_123" },
-  "event": "lead:captured",
-  "timestamp": 1792411200000
+  "data": { "lead": { "name": "Priya", "email": "priya@example.com" }, "conversationId": "c_123" }
 }
 ```
 
-`id` is the same on every retry, so use it to ignore duplicates; it's also in the `X-ChatCops-Event-Id` header. `event` and `timestamp` repeat `type` and `created` for receivers written for older versions.
+`id` is the same on every retry, so use it to ignore duplicates; it's also in the `X-ChatCops-Event-Id` header.
 
 **Retries.** A delivery is tried up to 3 times. Network errors, 429 and 5xx responses are retried (a 429's `Retry-After` is honored, up to 10 seconds); other 4xx responses are final, and redirects aren't followed. A delivery that fails for good is logged with the event type, id and the receiver's origin, never the body.
 
@@ -406,7 +405,7 @@ Or pass your own: anything with `debug`, `info`, `warn` and `error` methods that
 | `budget_exceeded` | warn | A budget is used up, so a reply was refused |
 | `origin_refused` | warn | A page whose origin isn't in `allowedOrigins` was refused |
 | `insecure_config` | warn, error | A security setting needs attention at startup |
-| `reply_truncated`, `config_warning`, `memory_storage`, `client_ip`, `turnstile_unavailable`, `deprecated_option` | warn | Something to fix in the setup |
+| `reply_truncated`, `config_warning`, `memory_storage`, `client_ip`, `turnstile_unavailable` | warn | Something to fix in the setup |
 | `budgets`, `security`, `legacy_stream_format` | info | Startup notes, and the first request in the 0.5 stream format |
 
 ## Request Schema

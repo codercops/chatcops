@@ -19,13 +19,15 @@ import { chatcopsMiddleware } from '@chatcops/server';
 const app = express();
 app.use(express.json());
 
-app.all('/chat', chatcopsMiddleware({
+// app.use, so /chat/session, where the widget gets its session token, reaches it too.
+app.use('/chat', chatcopsMiddleware({
   provider: {
     type: 'claude',
     apiKey: process.env.ANTHROPIC_API_KEY,
   },
   systemPrompt: 'You are a helpful assistant for our website.',
   allowedOrigins: ['*'],
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET], // openssl rand -base64 32
 }));
 
 app.listen(3001);
@@ -40,12 +42,15 @@ const handler = chatcopsVercelHandler({
   provider: { type: 'openai', apiKey: process.env.OPENAI_API_KEY },
   systemPrompt: 'You are a helpful assistant.',
   allowedOrigins: ['*'],
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET],
 });
 
 export const POST = (req: Request) => handler(req);
 export const OPTIONS = (req: Request) => handler(req);
 export const config = { runtime: 'edge' };
 ```
+
+Export the same handler from the `/session` route next to it (`app/api/chat/session/route.ts` for a chat at `/api/chat`), where the widget gets its session token.
 
 ### Cloudflare Workers
 
@@ -58,6 +63,7 @@ function getHandler(env: Env) {
     provider: { type: 'claude', apiKey: env.ANTHROPIC_API_KEY },
     systemPrompt: 'You are a helpful assistant.',
     allowedOrigins: ['*'],
+    sessionSecrets: [env.CHATCOPS_SESSION_SECRET],
   });
   return handler;
 }
@@ -112,7 +118,10 @@ const handler = createChatHandler({
   analytics: true,
 
   // Conversation storage (optional, default: in-memory)
-  conversationStore: new RedisConversationStore(redisClient),
+  storage: { conversations: new RedisConversationStore(redisClient) },
+
+  // Session tokens: required unless allowAnonymous: true
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET],
 
   // CORS origin (optional, default: '*')
   allowedOrigins: ['*'],
@@ -206,7 +215,8 @@ Pass the store when initializing the handler:
 const handler = createChatHandler({
   provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY },
   systemPrompt: 'You are a helpful assistant.',
-  conversationStore: new RedisConversationStore(redisClient),
+  storage: { conversations: new RedisConversationStore(redisClient) },
+  allowAnonymous: true,
 });
 ```
 
