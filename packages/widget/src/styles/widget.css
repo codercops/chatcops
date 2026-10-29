@@ -181,7 +181,8 @@
   padding: 0 16px 12px;
 }
 
-.cc-suggestion {
+.cc-suggestion,
+.cc-new-reply {
   border: 1px solid var(--cc-border);
   border-radius: var(--cc-radius);
   padding: 8px 12px;

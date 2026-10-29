@@ -75,7 +75,7 @@ export class Messages {
     this.logEl.appendChild(this.container);
     this.newReplyEl = document.createElement('button');
     this.newReplyEl.type = 'button';
-    this.newReplyEl.className = 'cc-suggestion cc-new-reply';
+    this.newReplyEl.className = 'cc-new-reply';
     this.refreshReplyLabel();
     this.newReplyEl.hidden = true;
     this.newReplyEl.addEventListener('click', () => {

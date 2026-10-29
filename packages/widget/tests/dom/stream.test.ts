@@ -179,6 +179,7 @@ describe('reply scrolling', () => {
     expect(pill.hidden).toBe(false);
     expect(pill.type).toBe('button');
     expect(pill.textContent).toBe('New reply ↓');
+    expect(pill.classList.contains('cc-suggestion')).toBe(false);
     expect(pill.closest('[aria-live]')).toBeNull();
     expect(log.scrollTop).toBe(100);
   });
