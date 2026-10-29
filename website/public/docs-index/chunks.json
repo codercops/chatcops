@@ -3,9 +3,9 @@
  "dimensions": 512,
  "pages": {
   "bot.mdx": "8694b700aeffda9c",
-  "core/analytics.mdx": "c8b8a1face21bac1",
+  "core/analytics.mdx": "4f7151c4ab14962d",
   "core/knowledge-base.mdx": "1e953b172594259f",
-  "core/providers.mdx": "eff5629b27dc1e61",
+  "core/providers.mdx": "2ce0e58f2b469a57",
   "core/testing.mdx": "482714af34195f42",
   "core/tools.mdx": "4f7e16807ec2f372",
   "examples/cloudflare-full.mdx": "f177ad4c1be1cd14",
@@ -13,7 +13,8 @@
   "examples/vercel-full.mdx": "7b300e61b6409276",
   "getting-started/installation.mdx": "0aa86a5be34e2e57",
   "getting-started/quick-start.mdx": "187883c9766be780",
-  "getting-started/upgrading.mdx": "b542f43d56c82334",
+  "getting-started/upgrading-to-1.mdx": "8495c31ee00d0fa7",
+  "getting-started/upgrading.mdx": "ff41b89e09b1a9f9",
   "index.mdx": "305829ce790434fb",
   "server/ai-sdk.mdx": "7ea1eec0077c325a",
   "server/cloudflare.mdx": "133f1a6c407a8c89",
@@ -21,11 +22,11 @@
   "server/fetch-runtimes.mdx": "3f8a9a248f7e4788",
   "server/protocol.mdx": "429b7dabaa4df9e8",
   "server/security.mdx": "80db6ba0ec5b0591",
-  "server/setup.mdx": "f829e46159edab92",
+  "server/setup.mdx": "68d2e6be79eaf835",
   "server/storage.mdx": "f8267702cf0b53ab",
   "server/vercel.mdx": "820ad4b412d56874",
   "widget/api.mdx": "17cb09583c9971df",
-  "widget/configuration.mdx": "556e9ac45ba4d58b",
+  "widget/configuration.mdx": "875338da0d1a19a8",
   "widget/events.mdx": "184357696a0d1f0b",
   "widget/i18n.mdx": "3fdc2d1f29895c9f",
   "widget/pre-chat-form.mdx": "88cb4543323e91c5",
@@ -119,6 +120,16 @@
     "url": "https://chat.codercops.com/widget/i18n/",
     "title": "Internationalization",
     "section": "Setting a Locale > Programmatically"
+   }
+  },
+  {
+   "id": "060d20a53c50b7cf02a2be2b782a7c3d84ddf470402398a3de9b351a17bb9aba",
+   "text": "Upgrading to 1.0 > `@chatcops/widget` > `persistHistory` is now `persistence`\n\n```typescript\nimport ChatCops from '@chatcops/widget';\n\nChatCops.init({\n  apiUrl: '/api/chat',\n  // Before: persistHistory: false\n  persistence: 'none',\n});\n```\n\n`persistence` also takes `'session'`, for this tab only. A config that still sets `persistHistory` throws instead of being ignored, since ignoring `persistHistory: false` would start saving conversations on a site that asked for none. See [Saved conversations](/widget/configuration/#saved-conversations).",
+   "source": {
+    "id": "https://chat.codercops.com/getting-started/upgrading-to-1/",
+    "url": "https://chat.codercops.com/getting-started/upgrading-to-1/",
+    "title": "Upgrading to 1.0",
+    "section": "`@chatcops/widget` > `persistHistory` is now `persistence`"
    }
   },
   {
@@ -700,12 +711,12 @@
   },
   {
    "id": "3b78ea885cd8a959af92ffeb5aceec4b754cb6be3361da0c7afa886b7435cdd7",
-   "text": "Analytics > AnalyticsStats Interface\n\n```typescript\ninterface AnalyticsStats {\n  totalConversations: number;\n  totalMessages: number;\n  leadsCaptured: number;\n  leadsCapture: number;       // deprecated: the same as leadsCaptured, removed in 1.0\n  averageMessagesPerConversation: number;\n  eventCounts: Record<string, number>;\n}\n\ninterface AnalyticsEvent {\n  type: string;\n  data?: Record<string, unknown>;\n  timestamp: number;\n}\n```",
+   "text": "Analytics > Storage\n\nThe built-in collector stores events in memory (max 1000 events). With `analytics: true` and a `storage`, the server already writes events to the store's sink, buffered and flushed as each reply ends. To do the same in your own code, use `BufferedEventSink`. It batches up to 50 events by default and flushes every 2 seconds. Call `flush()` when you need to wait for queued writes, such as before a process exits:\n\n```typescript\nimport { BufferedEventSink, memoryStorage, statsFromSink } from '@chatcops/core';\n\nconst storage = memoryStorage();\nconst eventSink = storage.events;\nif (!eventSink) throw new Error('Event storage is not configured');\n\nconst analytics = new BufferedEventSink(eventSink, {\n  maxBatch: 50,\n  flushMs: 2000,\n});\n\nanalytics.track('pricing.viewed', { plan: 'Team' });\nawait analytics.flush();\n\nconst now = Date.now();\nconst stats = await statsFromSink(eventSink, {\n  from: now - 24 * 60 * 60 * 1000,\n  to: now,\n});\n```\n\nUse a persistent `EventSink` implementation when events need to be shared across processes or survive restarts. Writes that fail are logged and dropped so analytics does not interrupt chat requests. `statsFromSink` requires the sink's optional `query` method; the range includes `from` and excludes `to`. It counts each `conversation:started` event as one conversation.",
    "source": {
     "id": "https://chat.codercops.com/core/analytics/",
     "url": "https://chat.codercops.com/core/analytics/",
     "title": "Analytics",
-    "section": "AnalyticsStats Interface"
+    "section": "Storage"
    }
   },
   {
@@ -888,7 +899,7 @@
   },
   {
    "id": "4e4f7c2d302a5b7c0d86dd28d902f281bff5301c7beb492d17c59280bb405dc2",
-   "text": "AI Providers > AIProvider interface\n\n```typescript\nimport type { ChatMessage, ProviderEvent, ProviderStepParams, ToolDefinition } from '@chatcops/core';\n\ninterface AIProvider {\n  name: string;\n  model?: string;\n  // One model request: streams text, then reports tool calls, token usage\n  // and why the model stopped. Runs no tools. Optional, so providers written\n  // for 0.4 with only chat() keep working.\n  step?(params: ProviderStepParams): AsyncGenerator<ProviderEvent>;\n  chat(params: ProviderChatParams): AsyncGenerator<string>;\n  chatSync(params: ProviderChatParams): Promise<string>;\n}\n\ninterface ProviderChatParams {\n  messages: ChatMessage[];\n  systemPrompt: string;\n  tools?: ToolDefinition[];\n  maxTokens?: number;      // Default: 4096\n  temperature?: number;    // Left out for Claude and models that don't accept it\n}\n```",
+   "text": "AI Providers > AIProvider interface\n\n```typescript\nimport type { ChatMessage, ProviderEvent, ProviderStepParams, ToolDefinition } from '@chatcops/core';\n\ninterface AIProvider {\n  name: string;\n  model?: string;\n  // One model request: streams text, then reports tool calls, token usage\n  // and why the model stopped. Runs no tools. Every built-in provider has it.\n  step?(params: ProviderStepParams): AsyncGenerator<ProviderEvent>;\n  // A whole turn as text, running tools itself through params.toolExecutor.\n  // For simple custom providers. A provider needs step() or chat().\n  chat?(params: ProviderChatParams): AsyncGenerator<string>;\n}\n\ninterface ProviderChatParams {\n  messages: ChatMessage[];\n  systemPrompt: string;\n  tools?: ToolDefinition[];\n  maxTokens?: number;      // Default: 4096\n  temperature?: number;    // Left out for Claude and models that don't accept it\n}\n```",
    "source": {
     "id": "https://chat.codercops.com/core/providers/",
     "url": "https://chat.codercops.com/core/providers/",
@@ -1105,7 +1116,7 @@
   },
   {
    "id": "63d04da6a31e4dbbb889a5b770a776259acd40b0fb7d75270de76ce9c64611b3",
-   "text": "Analytics > Reading Stats with Express\n\n`chatcopsAnalyticsHandler` returns the stats for the traffic handled by `chatcopsMiddleware`. Pass the **same config object** to both so they share one handler:\n\n```typescript\nimport express from 'express';\nimport { chatcopsMiddleware, chatcopsAnalyticsHandler } from '@chatcops/server';\n\nconst config = {\n  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n  systemPrompt: 'You are a helpful assistant.',\n  allowedOrigins: ['*'],\n  analytics: true,\n  analyticsToken: process.env.CHATCOPS_ANALYTICS_TOKEN,\n};\n\nconst app = express();\napp.use(express.json());\n\napp.use('/chat', chatcopsMiddleware(config));\napp.get('/analytics', chatcopsAnalyticsHandler(config));\n\napp.listen(3001);\n```\n\nWhen `analyticsToken` is set, requests must include a bearer token:\n\n```bash\ncurl -H \"Authorization: Bearer <token>\" http://localhost:3001/analytics\n```\n\nWhen unset, the endpoint is public and logs a warning the first time it is hit.\n\nWith a `storage` that has an event sink (`memoryStorage()`, Postgres, Redis, SQLite and Cloudflare stores all do), the server writes every event there too, and the endpoint counts from the store. Then the stats cover every server instance, not just the one answering. Pick the range with `from` and `to` in milliseconds. The default is the last 30 days:\n\n```bash\ncurl -H \"Authorization: Bearer <token>\" \"http://localhost:3001/analytics?from=1792368000000\"\n```\n\nWithout a store that can be queried, the stats come from the memory of the process that answers, which on serverless is one instance at a time. A range that isn't a number gets `400 {\"error\":\"invalid_range\"}`.\n\n`GET /analytics` responds with the aggregated stats (or `null` if `analytics` is not enabled):",
+   "text": "Analytics > Reading Stats with Express\n\n`chatcopsAnalyticsHandler` returns the stats for the traffic handled by `chatcopsMiddleware`. Pass the **same config object** to both so they share one handler:\n\n```typescript\nimport express from 'express';\nimport { chatcopsMiddleware, chatcopsAnalyticsHandler } from '@chatcops/server';\n\nconst config = {\n  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n  systemPrompt: 'You are a helpful assistant.',\n  allowedOrigins: ['*'],\n  analytics: true,\n  analyticsToken: process.env.CHATCOPS_ANALYTICS_TOKEN,\n};\n\nconst app = express();\napp.use(express.json());\n\napp.use('/chat', chatcopsMiddleware(config));\napp.get('/analytics', chatcopsAnalyticsHandler(config));\n\napp.listen(3001);\n```\n\nWhen `analyticsToken` is set, requests must include a bearer token:\n\n```bash\ncurl -H \"Authorization: Bearer <token>\" http://localhost:3001/analytics\n```\n\nWhen unset, the endpoint is public and logs a warning the first time it is hit.\n\nWith a `storage` that has an event sink (`memoryStorage()`, Postgres, Redis, SQLite and Cloudflare stores all do), the server writes every event there too, and the endpoint counts from the store. Then the stats cover every server instance, not just the one answering. Pick the range with `from` and `to` in milliseconds. The default is the last 30 days:\n\n```bash\ncurl -H \"Authorization: Bearer <token>\" \"http://localhost:3001/analytics?from=1792368000000\"\n```\n\nWithout a store that can be queried, the stats come from the memory of the process that answers, which on serverless is one instance at a time. A range that isn't a number gets `400 {\"error\":\"invalid_range\"}`.\n\n`GET /analytics` responds with the aggregated stats (or `null` if `analytics` is not enabled):\n\n```json\n{\n  \"totalConversations\": 2,\n  \"totalMessages\": 4,\n  \"leadsCaptured\": 0,\n  \"averageMessagesPerConversation\": 2,\n  \"eventCounts\": { \"conversation.started\": 2, \"message.sent\": 2, \"message.received\": 2 }\n}\n```",
    "source": {
     "id": "https://chat.codercops.com/core/analytics/",
     "url": "https://chat.codercops.com/core/analytics/",
@@ -1134,6 +1145,16 @@
    }
   },
   {
+   "id": "656a2ba57c356a1209fcf58ff76a4e4a669bbfc78fece5c976037d0de949079b",
+   "text": "Upgrading to 1.0 > `@chatcops/server` > Webhook bodies don't repeat `event` and `timestamp`\n\nA delivery's body is `{ id, type, created, data }`. A receiver that read `event` reads `type` now, and `timestamp` is `created` (still milliseconds since the epoch). The signature header is unchanged. See [Webhooks](/server/setup/#webhooks).",
+   "source": {
+    "id": "https://chat.codercops.com/getting-started/upgrading-to-1/",
+    "url": "https://chat.codercops.com/getting-started/upgrading-to-1/",
+    "title": "Upgrading to 1.0",
+    "section": "`@chatcops/server` > Webhook bodies don't repeat `event` and `timestamp`"
+   }
+  },
+  {
    "id": "65926b00c3a52e8df3555df8f48bd7d86a17b0fba379bb7959e5b111e04fec38",
    "text": "Quick Start > 2. Set Up the Server\n\nInstall the server package:\n\n```bash\nnpm install @chatcops/server express\n```\n\nCreate a minimal Express server:\n\n```typescript\nimport express from 'express';\nimport { chatcopsMiddleware } from '@chatcops/server';\n\nconst app = express();\napp.use(express.json());\n\napp.all('/chat', chatcopsMiddleware({\n  provider: {\n    type: 'claude',\n    apiKey: process.env.ANTHROPIC_API_KEY!,\n    model: 'claude-haiku-5-5',\n  },\n  systemPrompt: `You are a helpful customer support assistant for our website.\n    Be friendly, concise, and helpful.`,\n  allowedOrigins: ['*'],\n  rateLimit: { maxRequests: 30, windowMs: 60_000 },\n}));\n\napp.listen(3001, () => {\n  console.log('ChatCops server running on http://localhost:3001');\n});\n```",
    "source": {
@@ -1141,16 +1162,6 @@
     "url": "https://chat.codercops.com/getting-started/quick-start/",
     "title": "Quick Start",
     "section": "2. Set Up the Server"
-   }
-  },
-  {
-   "id": "66147661895216d1a262bd9f4ab1c81d25b8165621f47fcaf7153e6e50c7b394",
-   "text": "Analytics > Client-Side Events\n\nCombine with widget events for full-stack analytics:\n\n```typescript\n// Client-side\ndeclare const gtag: (command: 'event', eventName: string) => void;\nChatCops.on('open', () => gtag('event', 'chat_opened'));\nChatCops.on('message', (...args: unknown[]) => {\n  const m = args[0] as { role: 'user' | 'assistant' };\n  if (m.role === 'user') gtag('event', 'chat_message_sent');\n});\n\n// Server-side (automatic with analytics: true)\n// conversation.started, message.sent, message.received, lead.captured\n```",
-   "source": {
-    "id": "https://chat.codercops.com/core/analytics/",
-    "url": "https://chat.codercops.com/core/analytics/",
-    "title": "Analytics",
-    "section": "Client-Side Events"
    }
   },
   {
@@ -1165,7 +1176,7 @@
   },
   {
    "id": "66c5db094e371994b2c557254c57e93d590ce30a44613bbd42d586e47c75d926",
-   "text": "AI Providers > Custom providers\n\nRegister a factory under a name of your own, then use that name as the provider `type`. The factory gets the whole provider config:\n\n```typescript\nimport { registerProvider } from '@chatcops/core';\nimport type { AIProvider, ProviderChatParams, ProviderConfig } from '@chatcops/core';\nimport { chatcopsMiddleware } from '@chatcops/server';\n\nclass MyProvider implements AIProvider {\n  name = 'my-llm';\n  constructor(_config: ProviderConfig) {}\n  async *chat(_params: ProviderChatParams): AsyncGenerator<string> { yield 'Hello'; }\n  async chatSync(_params: ProviderChatParams): Promise<string> { return 'Hello'; }\n}\n\nregisterProvider('my-llm', async (config) => new MyProvider(config));\n\nchatcopsMiddleware({\n  provider: { type: 'my-llm', model: 'my-model' },\n  systemPrompt: '...',\n});\n```\n\nRegistering a built-in name (`claude`, `openai`, `gemini`, `openai-compatible`) throws. Registering the same name again replaces the factory.\n\nYou can also skip the registry and pass a provider object you built yourself as the server's `provider`. Anything with `step()` or `chat()` works:\n\n```typescript\nimport { chatcopsMiddleware } from '@chatcops/server';\nimport type { AIProvider } from '@chatcops/core';\n\nconst provider: AIProvider = {\n  name: 'my-llm',\n  async *chat() { yield 'Hello'; },\n  async chatSync() { return 'Hello'; },\n};\n\nchatcopsMiddleware({\n  provider,\n  systemPrompt: '...',\n});\n```",
+   "text": "AI Providers > Custom providers\n\nRegister a factory under a name of your own, then use that name as the provider `type`. The factory gets the whole provider config:\n\n```typescript\nimport { registerProvider } from '@chatcops/core';\nimport type { AIProvider, ProviderChatParams, ProviderConfig } from '@chatcops/core';\nimport { chatcopsMiddleware } from '@chatcops/server';\n\nclass MyProvider implements AIProvider {\n  name = 'my-llm';\n  constructor(_config: ProviderConfig) {}\n  async *chat(_params: ProviderChatParams): AsyncGenerator<string> { yield 'Hello'; }\n}\n\nregisterProvider('my-llm', async (config) => new MyProvider(config));\n\nchatcopsMiddleware({\n  provider: { type: 'my-llm', model: 'my-model' },\n  systemPrompt: '...',\n});\n```\n\nRegistering a built-in name (`claude`, `openai`, `gemini`, `openai-compatible`) throws. Registering the same name again replaces the factory.\n\nYou can also skip the registry and pass a provider object you built yourself as the server's `provider`. Anything with `step()` or `chat()` works:\n\n```typescript\nimport { chatcopsMiddleware } from '@chatcops/server';\nimport type { AIProvider } from '@chatcops/core';\n\nconst provider: AIProvider = {\n  name: 'my-llm',\n  async *chat() { yield 'Hello'; },\n};\n\nchatcopsMiddleware({\n  provider,\n  systemPrompt: '...',\n});\n```",
    "source": {
     "id": "https://chat.codercops.com/core/providers/",
     "url": "https://chat.codercops.com/core/providers/",
@@ -1345,7 +1356,7 @@
   },
   {
    "id": "76d4a011e0b359fd731e71f1d7237cd024e64b91ff9945ba7eb1f19b8fea10e6",
-   "text": "Upgrading from 0.5 > Things to check > Deprecated options\n\nThese still work. `cors` logs a warning once.\n\n| Instead of | Use |\n|---|---|\n| `cors: 'https://acme.com'` | `allowedOrigins: ['https://acme.com']` |\n| `conversationStore` | `storage`, from a store package |\n| `RateLimiter` export | Nothing. Limits are counted in `storage` now, and `cleanup()` does nothing. |\n| `chat()` and `chatSync()` on the built-in providers | `runTurn()` from `@chatcops/core` |\n| `regenerate: true` in custom clients | `regenerate: { assistantMessageId }` |\n\nSetting both `cors` and `allowedOrigins`, or both `conversationStore` and `storage`, is an error. One detail for `cors` users: a request without an `Origin` header no longer gets `Access-Control-Allow-Origin` back. Only browsers read that header, and browsers always send `Origin` on cross-origin requests.",
+   "text": "Upgrading from 0.5 > Things to check > Deprecated options\n\nThese worked through 0.8, and [1.0 removed them](/getting-started/upgrading-to-1/).\n\n| Instead of | Use |\n|---|---|\n| `cors: 'https://acme.com'` | `allowedOrigins: ['https://acme.com']` |\n| `conversationStore` | `storage`, from a store package |\n| `RateLimiter` export | Nothing. Limits are counted in `storage` now, and `cleanup()` does nothing. |\n| `chat()` and `chatSync()` on the built-in providers | `runTurn()` from `@chatcops/core` |\n| `regenerate: true` in custom clients | `regenerate: { assistantMessageId }` |\n\nSetting both `cors` and `allowedOrigins`, or both `conversationStore` and `storage`, is an error. One detail for `cors` users: a request without an `Origin` header no longer gets `Access-Control-Allow-Origin` back. Only browsers read that header, and browsers always send `Origin` on cross-origin requests.",
    "source": {
     "id": "https://chat.codercops.com/getting-started/upgrading/",
     "url": "https://chat.codercops.com/getting-started/upgrading/",
@@ -1355,12 +1366,12 @@
   },
   {
    "id": "7763c462599fd01ce7ba4d064614664e503afbf971df9e7dd5746ff65c1f0323",
-   "text": "Analytics > Tracked Events\n\nWhen `analytics: true`, the server automatically tracks:\n\n| Event | When |\n|-------|------|\n| `conversation.started` | New conversation ID first seen |\n| `message.sent` | User sends a message |\n| `message.received` | AI responds |\n| `lead.captured` | Lead capture tool fires |\n\n`ANALYTICS_EVENTS` from `@chatcops/core` has these names, so code doesn't have to spell them. Before 0.8 they were `conversation:started`, `message:sent`, `message:received` and `lead:captured`. Until 1.0 those still work: `track()` and `getEvents()` read them as the new names, and stats count events a store saved under either one, so the numbers carry on across the upgrade. Webhook event names, such as `lead:captured` in a webhook's `events`, don't change.",
+   "text": "Analytics > AnalyticsCollector API\n\n```typescript\nimport { AnalyticsCollector } from '@chatcops/core';\n\nconst analytics = new AnalyticsCollector();\n\n// Track custom events\nanalytics.track('pricing.viewed', { plan: 'Team' });\n\n// Get aggregated stats\nconst stats = analytics.getStats();\n// {\n//   totalConversations: 150,\n//   totalMessages: 2340,\n//   leadsCaptured: 23,\n//   averageMessagesPerConversation: 15.6,\n//   eventCounts: { 'conversation.started': 150, ... }\n// }\n\n// Get raw events (optionally filter by type)\nconst allEvents = analytics.getEvents();\nconst leads = analytics.getEvents('lead.captured');\n\n// Clear all events\nanalytics.clear();\n```",
    "source": {
     "id": "https://chat.codercops.com/core/analytics/",
     "url": "https://chat.codercops.com/core/analytics/",
     "title": "Analytics",
-    "section": "Tracked Events"
+    "section": "AnalyticsCollector API"
    }
   },
   {
@@ -1414,7 +1425,7 @@
   },
   {
    "id": "7c1eef1536a38d8e0e13e559e5ecd79ab0401cf3608ba1d5a6542fc16cc590ae",
-   "text": "Server Setup > Logging\n\nOr pass your own: anything with `debug`, `info`, `warn` and `error` methods that take `(event, message, fields)`, so pino, winston or a platform logger is a few lines of glue.\n\n| Event | Level | When |\n|---|---|---|\n| `provider_error` | error | A reply failed at the model provider |\n| `provider_setup_failed` | error | The provider couldn't start (a missing key, an unknown type) |\n| `tool_error` | error | A tool threw. The full error is in `error`; see [Tools](/core/tools/#how-tools-work) for what the model sees |\n| `lead_capture_failed` | error | The lead capture callback threw |\n| `webhook_failed` | error | A webhook delivery failed after its retries |\n| `unhandled_error` | error | Anything else that went wrong while answering a request |\n| `analytics_write_failed`, `analytics_flush_failed` | error | Events couldn't be written to the store |\n| `budget_exceeded` | warn | A budget is used up, so a reply was refused |\n| `origin_refused` | warn | A page whose origin isn't in `allowedOrigins` was refused |\n| `insecure_config` | warn, error | A security setting needs attention at startup |\n| `reply_truncated`, `config_warning`, `memory_storage`, `client_ip`, `turnstile_unavailable`, `deprecated_option` | warn | Something to fix in the setup |\n| `budgets`, `security`, `legacy_stream_format` | info | Startup notes, and the first request in the 0.5 stream format |",
+   "text": "Server Setup > Logging\n\nOr pass your own: anything with `debug`, `info`, `warn` and `error` methods that take `(event, message, fields)`, so pino, winston or a platform logger is a few lines of glue.\n\n| Event | Level | When |\n|---|---|---|\n| `provider_error` | error | A reply failed at the model provider |\n| `provider_setup_failed` | error | The provider couldn't start (a missing key, an unknown type) |\n| `tool_error` | error | A tool threw. The full error is in `error`; see [Tools](/core/tools/#how-tools-work) for what the model sees |\n| `lead_capture_failed` | error | The lead capture callback threw |\n| `webhook_failed` | error | A webhook delivery failed after its retries |\n| `unhandled_error` | error | Anything else that went wrong while answering a request |\n| `analytics_write_failed`, `analytics_flush_failed` | error | Events couldn't be written to the store |\n| `budget_exceeded` | warn | A budget is used up, so a reply was refused |\n| `origin_refused` | warn | A page whose origin isn't in `allowedOrigins` was refused |\n| `insecure_config` | warn, error | A security setting needs attention at startup |\n| `reply_truncated`, `config_warning`, `memory_storage`, `client_ip`, `turnstile_unavailable` | warn | Something to fix in the setup |\n| `budgets`, `security`, `legacy_stream_format` | info | Startup notes, and the first request in the 0.5 stream format |",
    "source": {
     "id": "https://chat.codercops.com/server/setup/",
     "url": "https://chat.codercops.com/server/setup/",
@@ -1502,6 +1513,16 @@
    }
   },
   {
+   "id": "804d32d88ee05f8d4bf197bfe32a366f3a5f932018a5cb19057b61ef714ce7ab",
+   "text": "Upgrading to 1.0 > `@chatcops/core` > `AIProvider` has `chat?()`, and no `chatSync()`\n\nA custom provider needs `step()` or `chat()`. Nothing ever called `chatSync()`, so delete it from yours. Code that typed a variable as `AIProvider` and called `.chat()` on it has to check for it first, since a provider may have only `step()`.",
+   "source": {
+    "id": "https://chat.codercops.com/getting-started/upgrading-to-1/",
+    "url": "https://chat.codercops.com/getting-started/upgrading-to-1/",
+    "title": "Upgrading to 1.0",
+    "section": "`@chatcops/core` > `AIProvider` has `chat?()`, and no `chatSync()`"
+   }
+  },
+  {
    "id": "80d467724e22ea498b891d3816b17f64f0dad0e67f2140d180465daae9a2336a",
    "text": "AI SDK (useChat) > The visitor's IP\n\nPer-IP rate limits and budgets need the visitor's IP. On Vercel and Cloudflare Workers the handler reads it from the platform's own headers. Anywhere else, set `clientIp` as on the [fetch runtimes page](/server/fetch-runtimes/#the-visitors-ip).",
    "source": {
@@ -1509,6 +1530,16 @@
     "url": "https://chat.codercops.com/server/ai-sdk/",
     "title": "AI SDK (useChat)",
     "section": "The visitor's IP"
+   }
+  },
+  {
+   "id": "81807da555d498fb12766bb984dc342ea7b713c2b59049e953fb4cca83ac7cb0",
+   "text": "Upgrading to 1.0 > `@chatcops/core` > Analytics: `leadsCaptured`, and only the `noun.verb` event names\n\nStats have `leadsCaptured`. `leadsCapture`, the same number under its old name, is gone. `eventCounts` has only the `noun.verb` names (`conversation.started`, `message.sent`, `message.received`, `lead.captured`), and `getEvents('lead:captured')` no longer finds `lead.captured` events: use the new names, or `ANALYTICS_EVENTS`. Events a store saved under the old names before 0.8 still count in the totals. Webhook event names didn't change.",
+   "source": {
+    "id": "https://chat.codercops.com/getting-started/upgrading-to-1/",
+    "url": "https://chat.codercops.com/getting-started/upgrading-to-1/",
+    "title": "Upgrading to 1.0",
+    "section": "`@chatcops/core` > Analytics: `leadsCaptured`, and only the `noun.verb` event names"
    }
   },
   {
@@ -1798,6 +1829,16 @@
    }
   },
   {
+   "id": "a2c8422b40622a6c635b65cfbc1286336dd2de4906abaa9fd9caea0af6166af6",
+   "text": "Upgrading to 1.0 > `@chatcops/server` > The `RateLimiter` export is gone\n\nThe server stopped using it in 0.6: limits are counted in `storage`, set with the `rateLimit` option, so they hold across instances. If your own code used `new RateLimiter({ maxRequests, windowMs })` directly, the replacement is `createRateLimiter(counters, { limit, windowMs })` from `@chatcops/core`. It works on any `CounterStore`, such as `memoryStorage().counters`, and its `check(key)` returns a promise.",
+   "source": {
+    "id": "https://chat.codercops.com/getting-started/upgrading-to-1/",
+    "url": "https://chat.codercops.com/getting-started/upgrading-to-1/",
+    "title": "Upgrading to 1.0",
+    "section": "`@chatcops/server` > The `RateLimiter` export is gone"
+   }
+  },
+  {
    "id": "a45e00ebeefeec4cdfa04b1b35f34342e0249cce0c94f3f78b59ef2e680c4335",
    "text": "Security > A production config > Vercel and Next.js\n\n```typescript\n// app/api/chat/route.ts, and the same two lines in app/api/chat/session/route.ts\nimport { chatcopsVercelHandler } from '@chatcops/server';\nimport { redisStorage } from '@chatcops/store-redis';\nimport { Redis } from '@upstash/redis';\n\nconst handler = chatcopsVercelHandler({\n  provider: { type: 'openai', apiKey: process.env.OPENAI_API_KEY! },\n  systemPrompt: 'You are the Acme support assistant.',\n  storage: redisStorage({ redis: Redis.fromEnv() }),\n  allowedOrigins: ['https://acme.com'],\n  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],\n  turnstile: { secretKey: process.env.TURNSTILE_SECRET_KEY! },\n  budgets: { globalPerDay: { tokens: 20_000_000 } },\n});\n\nexport const POST = handler;\nexport const OPTIONS = handler;\n```\n\nOn Vercel the handler reads the visitor's IP from Vercel's own headers. On another host, add `clientIp`.",
    "source": {
@@ -1957,7 +1998,7 @@
   },
   {
    "id": "b3e7d195f73d4993a81ba134dae86c9b7b78165b15bcf41526c7d007b73ddee1",
-   "text": "Server Setup > Storage\n\nBy default everything lives in memory, per process. That's fine on one long-running server, but on Vercel, Lambda or Workers each instance has its own memory, so the server logs a warning there. Pass a store package as `storage`:\n\n```typescript\nimport { chatcopsMiddleware } from '@chatcops/server';\nimport pg from 'pg';\nimport { postgresStorage } from '@chatcops/store-postgres';\n\nconst handler = chatcopsMiddleware({\n  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n  systemPrompt: 'You are a helpful assistant.',\n  storage: postgresStorage({ db: new pg.Pool({ connectionString: process.env.DATABASE_URL }) }),\n});\n```\n\nWith a storage that has key-value support, the rule that only one reply is written per conversation at a time holds across all your server instances, not just within one. Setting both `storage` and the older `conversationStore` is an error.\n\nNothing is deleted on its own. The handler's `purge()` deletes conversations last updated more than `retention.conversationsDays` (default 30) days ago. Call it on a schedule, from a cron job or a Workers cron trigger:\n\n```typescript\nimport { createChatHandler } from '@chatcops/server';\n\nconst { purge } = createChatHandler({\n  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n  systemPrompt: 'Be helpful.',\n});\nawait purge(); // resolves how many were deleted\n```",
+   "text": "Server Setup > Storage\n\nBy default everything lives in memory, per process. That's fine on one long-running server, but on Vercel, Lambda or Workers each instance has its own memory, so the server logs a warning there. Pass a store package as `storage`:\n\n```typescript\nimport { chatcopsMiddleware } from '@chatcops/server';\nimport pg from 'pg';\nimport { postgresStorage } from '@chatcops/store-postgres';\n\nconst handler = chatcopsMiddleware({\n  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n  systemPrompt: 'You are a helpful assistant.',\n  storage: postgresStorage({ db: new pg.Pool({ connectionString: process.env.DATABASE_URL }) }),\n});\n```\n\nWith a storage that has key-value support, the rule that only one reply is written per conversation at a time holds across all your server instances, not just within one.\n\nNothing is deleted on its own. The handler's `purge()` deletes conversations last updated more than `retention.conversationsDays` (default 30) days ago. Call it on a schedule, from a cron job or a Workers cron trigger:\n\n```typescript\nimport { createChatHandler } from '@chatcops/server';\n\nconst { purge } = createChatHandler({\n  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n  systemPrompt: 'Be helpful.',\n});\nawait purge(); // resolves how many were deleted\n```",
    "source": {
     "id": "https://chat.codercops.com/server/setup/",
     "url": "https://chat.codercops.com/server/setup/",
@@ -2105,6 +2146,16 @@
    }
   },
   {
+   "id": "bd9a2760fc9745985de33d7daa3cdb0d3848d6fdab4b824489bd426bc18450cd",
+   "text": "Upgrading to 1.0 > `@chatcops/server` > `conversationStore` is now `storage`\n\n```typescript\nimport type { ConversationStore } from '@chatcops/core';\nimport { chatcopsMiddleware } from '@chatcops/server';\n\ndeclare const myStore: ConversationStore;\n\nchatcopsMiddleware({\n  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n  systemPrompt: 'You are helpful.',\n  // Before: conversationStore: myStore\n  storage: { conversations: myStore },\n});\n```\n\nA store package gives you more than conversations: rate limit counters, the one-reply-at-a-time lock and analytics events, shared by every server instance. See [Storage](/server/storage/).",
+   "source": {
+    "id": "https://chat.codercops.com/getting-started/upgrading-to-1/",
+    "url": "https://chat.codercops.com/getting-started/upgrading-to-1/",
+    "title": "Upgrading to 1.0",
+    "section": "`@chatcops/server` > `conversationStore` is now `storage`"
+   }
+  },
+  {
    "id": "bdeebe1360123e0831b90a3ac7de296eb2c41817d99f4bd51caffe96d513cbad",
    "text": "AI SDK (useChat) > Next.js\n\nCreate `app/api/chat/route.ts`, the path `useChat` calls by default:\n\n```typescript\nimport { chatcopsAiSdkHandler } from '@chatcops/server';\n\nconst handler = chatcopsAiSdkHandler({\n  provider: {\n    type: 'claude',\n    apiKey: process.env.ANTHROPIC_API_KEY!,\n  },\n  systemPrompt: 'You are a helpful assistant.',\n});\n\nexport const POST = handler;\nexport const OPTIONS = handler;\n```\n\nThen use `useChat` as usual:\n\n```tsx\n'use client';\nimport { useChat } from '@ai-sdk/react';\nimport { useState } from 'react';\n\nexport function Chat({ chatId }: { chatId: string }) {\n  const { messages, sendMessage, status, error } = useChat({ id: chatId });\n  const [input, setInput] = useState('');\n\n  return (\n    <form\n      onSubmit={(event) => {\n        event.preventDefault();\n        sendMessage({ text: input });\n        setInput('');\n      }}\n    >\n      {messages.map((message) => (\n        <p key={message.id}>\n          {message.role}:{' '}\n          {message.parts.map((part, i) => (part.type === 'text' ? <span key={i}>{part.text}</span> : null))}\n        </p>\n      ))}\n      {error && <p>Something went wrong. Try again.</p>}\n      <input value={input} onChange={(event) => setInput(event.target.value)} disabled={status !== 'ready'} />\n    </form>\n  );\n}\n```\n\nThe chat `id` is the ChatCops conversation id. `useChat` makes up a new one each time the component mounts, so pass a stable `id` (one per conversation, saved however your app saves things) to keep talking in the same conversation after a reload.",
    "source": {
@@ -2136,7 +2187,7 @@
   },
   {
    "id": "c088de2186ff1ce4ba24723152526fbaef9e33c69a39a74dbb37ae255707e6ea",
-   "text": "Widget Configuration > WidgetConfig Interface\n\n```typescript\n// docs-check: skip, a reference listing rather than code to run\ninterface WidgetConfig {\n  apiUrl: string;\n  timeout?: number;              // Inactivity timeout in ms, default: 30000\n  turnstileSiteKey?: string;     // Cloudflare Turnstile site key, when the server has `turnstile` set\n  userToken?: string;            // Your server's signed token for a signed-in visitor (server `identity`)\n\n  // Display mode\n  mode?: 'popup' | 'inline';       // Default: 'popup'\n  container?: string | HTMLElement; // Required when mode is 'inline'\n  siteId?: string;                 // Names the saved conversation; set one per widget when a page has several\n\n  theme?: {\n    mode?: 'light' | 'dark' | 'auto';  // Default: 'auto', which follows the system setting\n    accent?: string;          // Hex color, default: '#4f46e5' (light), '#6366f1' (dark)\n    accentDark?: string;      // Hex color, the accent in dark mode. Default: accent\n    textColor?: string;       // Hex color, replaces the text color in every mode\n    bgColor?: string;         // Hex color, replaces the background in every mode\n    fontFamily?: string;      // CSS font-family\n    borderRadius?: string | number;  // px if a number or numeric string (12, '12'), or any CSS length ('1rem'). Default: 12\n    position?: 'bottom-right' | 'bottom-left';\n  };\n\n  branding?: {\n    name?: string;            // Header title\n    avatar?: string;          // URL or data URI\n    subtitle?: string;        // Below title in header\n  };\n\n  welcomeMessage?: string;    // First assistant message\n  disclosure?: false | {      // The \"you're chatting with an AI\" note, on by default\n    text?: string;            // Replaces the wording\n    learnMoreUrl?: string;    // Adds a \"Learn more\" link (http or https)\n  };\n  suggestions?: string[];     // Suggested question buttons shown in a new conversation\n  welcomeBubble?: {           // Popup mode only\n    text: string;             // Text shown on hover bubble\n    delay?: number;           // ms before bubble appears\n    showOnce?: boolean;       // Only show once per session\n  };\n  placeholder?: string;       // Input placeholder text\n  persistence?: 'local' | 'session' | 'none'; // Where the chat is saved, default: 'local'\n  historyTtlDays?: number;    // Drop saved chats older than this, default: 30\n  persistHistory?: boolean;   // Deprecated. false is the same as persistence: 'none'\n  maxMessages?: number;       // Max messages to persist, default: 50\n  pageContext?: boolean;       // Send page URL/title, default: true\n  autoOpen?: boolean | number; // Popup mode only. true = immediate, number = delay in ms\n  locale?: string;            // Sent to the server with each message. Only English strings are built in\n  dir?: 'ltr' | 'rtl' | 'auto'; // Text direction; defaults from locale, then document direction\n  strings?: Partial<WidgetLocaleStrings>; // Custom i18n overrides\n  preChatForm?: {\n    enabled: boolean;\n    title?: string;\n    subtitle?: string;\n    submitLabel?: string;\n    fields: Array<{\n      name: string;\n      type: 'text' | 'email' | 'select' | 'textarea';\n      label: string;\n      placeholder?: string;\n      required?: boolean;\n      options?: string[];\n    }>;\n  };\n\n  // Callbacks\n  onOpen?: () => void;\n  onClose?: () => void;\n  onMessage?: (message: MessageData) => void;\n  onError?: (error: Error) => void;\n  onLeadCaptured?: (leadData?: Record<string, unknown>) => void;\n  onPreChatSubmit?: (data: Record<string, string>) => void;\n}\n```",
+   "text": "Widget Configuration > WidgetConfig Interface\n\n```typescript\n// docs-check: skip, a reference listing rather than code to run\ninterface WidgetConfig {\n  apiUrl: string;\n  timeout?: number;              // Inactivity timeout in ms, default: 30000\n  turnstileSiteKey?: string;     // Cloudflare Turnstile site key, when the server has `turnstile` set\n  userToken?: string;            // Your server's signed token for a signed-in visitor (server `identity`)\n\n  // Display mode\n  mode?: 'popup' | 'inline';       // Default: 'popup'\n  container?: string | HTMLElement; // Required when mode is 'inline'\n  siteId?: string;                 // Names the saved conversation; set one per widget when a page has several\n\n  theme?: {\n    mode?: 'light' | 'dark' | 'auto';  // Default: 'auto', which follows the system setting\n    accent?: string;          // Hex color, default: '#4f46e5' (light), '#6366f1' (dark)\n    accentDark?: string;      // Hex color, the accent in dark mode. Default: accent\n    textColor?: string;       // Hex color, replaces the text color in every mode\n    bgColor?: string;         // Hex color, replaces the background in every mode\n    fontFamily?: string;      // CSS font-family\n    borderRadius?: string | number;  // px if a number or numeric string (12, '12'), or any CSS length ('1rem'). Default: 12\n    position?: 'bottom-right' | 'bottom-left';\n  };\n\n  branding?: {\n    name?: string;            // Header title\n    avatar?: string;          // URL or data URI\n    subtitle?: string;        // Below title in header\n  };\n\n  welcomeMessage?: string;    // First assistant message\n  disclosure?: false | {      // The \"you're chatting with an AI\" note, on by default\n    text?: string;            // Replaces the wording\n    learnMoreUrl?: string;    // Adds a \"Learn more\" link (http or https)\n  };\n  suggestions?: string[];     // Suggested question buttons shown in a new conversation\n  welcomeBubble?: {           // Popup mode only\n    text: string;             // Text shown on hover bubble\n    delay?: number;           // ms before bubble appears\n    showOnce?: boolean;       // Only show once per session\n  };\n  placeholder?: string;       // Input placeholder text\n  persistence?: 'local' | 'session' | 'none'; // Where the chat is saved, default: 'local'\n  historyTtlDays?: number;    // Drop saved chats older than this, default: 30\n  maxMessages?: number;       // Max messages to persist, default: 50\n  pageContext?: boolean;       // Send page URL/title, default: true\n  autoOpen?: boolean | number; // Popup mode only. true = immediate, number = delay in ms\n  locale?: string;            // Sent to the server with each message. Only English strings are built in\n  dir?: 'ltr' | 'rtl' | 'auto'; // Text direction; defaults from locale, then document direction\n  strings?: Partial<WidgetLocaleStrings>; // Custom i18n overrides\n  preChatForm?: {\n    enabled: boolean;\n    title?: string;\n    subtitle?: string;\n    submitLabel?: string;\n    fields: Array<{\n      name: string;\n      type: 'text' | 'email' | 'select' | 'textarea';\n      label: string;\n      placeholder?: string;\n      required?: boolean;\n      options?: string[];\n    }>;\n  };\n\n  // Callbacks\n  onOpen?: () => void;\n  onClose?: () => void;\n  onMessage?: (message: MessageData) => void;\n  onError?: (error: Error) => void;\n  onLeadCaptured?: (leadData?: Record<string, unknown>) => void;\n  onPreChatSubmit?: (data: Record<string, string>) => void;\n}\n```",
    "source": {
     "id": "https://chat.codercops.com/widget/configuration/",
     "url": "https://chat.codercops.com/widget/configuration/",
@@ -2201,6 +2252,16 @@
     "url": "https://chat.codercops.com/widget/events/",
     "title": "Events",
     "section": "Event Types > `preChatSubmit`"
+   }
+  },
+  {
+   "id": "c36278aebdfe691dd45fbccc08848b0d8348eaa9052b5e6be72d2aa45f9f3b23",
+   "text": "Upgrading to 1.0 > `@chatcops/server` > `i18n` is gone\n\nThe server ignored it from 0.6 on. Delete it, and set the chat's text with the widget's [`strings`](/widget/i18n/) option.",
+   "source": {
+    "id": "https://chat.codercops.com/getting-started/upgrading-to-1/",
+    "url": "https://chat.codercops.com/getting-started/upgrading-to-1/",
+    "title": "Upgrading to 1.0",
+    "section": "`@chatcops/server` > `i18n` is gone"
    }
   },
   {
@@ -2325,7 +2386,7 @@
   },
   {
    "id": "ce4b1ac892e6ec00c00deaf1c2586d7b555c51e87c4e0b3616943a0b1d6c9f37",
-   "text": "Server Setup > ChatCopsServerConfig\n\n```typescript\nimport type { AIProvider, Budgets, ChatCopsStorage, ChatTool, ConversationStore, KnowledgeSource, LocaleStrings, Logger, WebhookConfig } from '@chatcops/core';\n\ninterface ChatCopsServerConfig {\n  // A config (see Providers for every option), or a provider object.\n  provider:\n    | { type: 'claude' | 'openai' | 'gemini'; apiKey: string; model?: string }\n    | AIProvider;\n  systemPrompt: string;\n  tools?: ChatTool[];\n  toolTimeoutMs?: number;\n  maxTokens?: number;\n  temperature?: number;\n  knowledge?: KnowledgeSource[];\n  budgets?: Budgets | false;   // on by default, see Budgets below\n  preChatFields?: string[];   // pre-chat form fields to keep; kept from the first message on\n  rateLimit?: {\n    maxRequests: number;\n    windowMs: number;\n  };\n  webhooks?: WebhookConfig[];\n  analytics?: boolean;\n  storage?: ChatCopsStorage;            // where conversations, counters and locks live\n  retention?: { conversationsDays?: number };   // for purge(); default 30\n  /** @deprecated Use `storage`. */\n  conversationStore?: ConversationStore;\n  allowedOrigins?: string[];   // default ['*']\n  /** @deprecated Use `allowedOrigins`. */\n  cors?: string;\n  clientIp?: (request: Request) => string | null | undefined;   // fetch handlers, see the fetch runtimes page\n  sessionSecrets?: string[];   // turns on session tokens, see Session tokens below\n  sessionTtlSec?: number;      // default 900\n  requireSession?: boolean;    // default true when sessionSecrets is set\n  turnstile?: { secretKey: string; action?: string; expectedHostnames?: string[]; timeoutMs?: number };\n  identity?: { secret: string; tiers?: Record<string, Budgets> };   // signed-in visitors, see below\n  exposeUsage?: boolean;   // token usage in protocol v1 finish parts; default false\n  logger?: Logger;         // where notes and errors go, see Logging below; default consoleLogger()\n  /** @deprecated Ignored by the server. Use the widget's `strings` option. */\n  i18n?: {\n    defaultLocale: string;\n    locales: Record<string, LocaleStrings>;\n  };\n}\n```",
+   "text": "Server Setup > ChatCopsServerConfig\n\n```typescript\nimport type { AIProvider, Budgets, ChatCopsStorage, ChatTool, ConversationStore, KnowledgeSource, LocaleStrings, Logger, WebhookConfig } from '@chatcops/core';\n\ninterface ChatCopsServerConfig {\n  // A config (see Providers for every option), or a provider object.\n  provider:\n    | { type: 'claude' | 'openai' | 'gemini'; apiKey: string; model?: string }\n    | AIProvider;\n  systemPrompt: string;\n  tools?: ChatTool[];\n  toolTimeoutMs?: number;\n  maxTokens?: number;\n  temperature?: number;\n  knowledge?: KnowledgeSource[];\n  budgets?: Budgets | false;   // on by default, see Budgets below\n  preChatFields?: string[];   // pre-chat form fields to keep; kept from the first message on\n  rateLimit?: {\n    maxRequests: number;\n    windowMs: number;\n  };\n  webhooks?: WebhookConfig[];\n  analytics?: boolean;\n  storage?: ChatCopsStorage;            // where conversations, counters and locks live\n  retention?: { conversationsDays?: number };   // for purge(); default 30\n  allowedOrigins?: string[];   // default ['*']\n  clientIp?: (request: Request) => string | null | undefined;   // fetch handlers, see the fetch runtimes page\n  sessionSecrets?: string[];   // turns on session tokens, see Session tokens below\n  sessionTtlSec?: number;      // default 900\n  requireSession?: boolean;    // default true when sessionSecrets is set\n  turnstile?: { secretKey: string; action?: string; expectedHostnames?: string[]; timeoutMs?: number };\n  identity?: { secret: string; tiers?: Record<string, Budgets> };   // signed-in visitors, see below\n  exposeUsage?: boolean;   // token usage in protocol v1 finish parts; default false\n  logger?: Logger;         // where notes and errors go, see Logging below; default consoleLogger()\n  /** @deprecated Ignored by the server. Use the widget's `strings` option. */\n  i18n?: {\n    defaultLocale: string;\n    locales: Record<string, LocaleStrings>;\n  };\n}\n```",
    "source": {
     "id": "https://chat.codercops.com/server/setup/",
     "url": "https://chat.codercops.com/server/setup/",
@@ -2365,7 +2426,7 @@
   },
   {
    "id": "d0c87b3d303ff8aee47467c49c0cefc99984e7228a7a9d7b3470072bab0f1fd3",
-   "text": "AI Providers > Running a turn\n\n`runTurn()` is what sits between a provider and the server: it calls `step()`, runs the tools the model asks for, and repeats until the model answers, up to 5 tool rounds. It yields the parts the widget receives (`text-delta`, `tool-call`, `lead-captured`, `finish` and so on) and returns the reply as a `ChatMessage`.\n\n```typescript\nimport { createProvider, runTurn, toolRegistry } from '@chatcops/core';\nimport type { ChatTool } from '@chatcops/core';\n\nconst lookupOrderTool: ChatTool = {\n  name: 'lookup_order',\n  description: 'Look up an order by id.',\n  async execute(input) { return { success: true, data: { orderId: input.orderId } }; },\n};\n\nconst provider = await createProvider({ type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! });\nconst turn = runTurn({\n  provider,\n  messages: [{ id: '1', role: 'user', content: 'Where is order A-1001?', timestamp: Date.now() }],\n  systemPrompt: 'You are helpful.',\n  tools: toolRegistry([lookupOrderTool]),\n  conversationId: 'c1',\n});\n\nfor await (const part of turn) {\n  if (part.type === 'text-delta') process.stdout.write(part.delta);\n}\n```\n\nProvider errors don't throw. They end the turn with an `error` part and a `finish` part with reason `error`. `chat()` and `chatSync()` on the built-in providers are thin wrappers over `runTurn()` that still throw as they did in 0.5. They're deprecated: use `runTurn()`, which also gives you the reply's parts, status and token usage.\n\nFor tests, `@chatcops/core/testing/provider` has `scriptedProvider()`, which plays back a script of steps instead of calling a model.",
+   "text": "AI Providers > Running a turn\n\n`runTurn()` is what sits between a provider and the server: it calls `step()`, runs the tools the model asks for, and repeats until the model answers, up to 5 tool rounds. It yields the parts the widget receives (`text-delta`, `tool-call`, `lead-captured`, `finish` and so on) and returns the reply as a `ChatMessage`.\n\n```typescript\nimport { createProvider, runTurn, toolRegistry } from '@chatcops/core';\nimport type { ChatTool } from '@chatcops/core';\n\nconst lookupOrderTool: ChatTool = {\n  name: 'lookup_order',\n  description: 'Look up an order by id.',\n  async execute(input) { return { success: true, data: { orderId: input.orderId } }; },\n};\n\nconst provider = await createProvider({ type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! });\nconst turn = runTurn({\n  provider,\n  messages: [{ id: '1', role: 'user', content: 'Where is order A-1001?', timestamp: Date.now() }],\n  systemPrompt: 'You are helpful.',\n  tools: toolRegistry([lookupOrderTool]),\n  conversationId: 'c1',\n});\n\nfor await (const part of turn) {\n  if (part.type === 'text-delta') process.stdout.write(part.delta);\n}\n```\n\nProvider errors don't throw. They end the turn with an `error` part and a `finish` part with reason `error`. The built-in providers have only `step()`, so to get a reply from one outside the server, use `runTurn()`. It also gives you the reply's parts, status and token usage. (`chat()` and `chatSync()` on the built-in providers were removed in 1.0.)\n\nFor tests, `@chatcops/core/testing/provider` has `scriptedProvider()`, which plays back a script of steps instead of calling a model.",
    "source": {
     "id": "https://chat.codercops.com/core/providers/",
     "url": "https://chat.codercops.com/core/providers/",
@@ -2503,7 +2564,7 @@
   },
   {
    "id": "dc49516766c8fcbfc91b06e70d92fd3abed474f2ac0dd9f2fdc9b737baa16af8",
-   "text": "Server Setup > Webhooks\n\n`verifyWebhook` also rejects signatures older than 5 minutes (`toleranceSec` changes that).\n\n**Allowed URLs.** Webhook URLs must use https, and hosts on loopback, private or link-local networks (`localhost`, `10.x`, `192.168.x`, `169.254.169.254` and so on) are refused when the server starts. For a receiver on your own machine during development, set `allowPrivateNetwork: true` on that webhook:\n\n```typescript\nimport type { ChatCopsServerConfig } from '@chatcops/server';\n\nconst config: Partial<ChatCopsServerConfig> = {\n  webhooks: [{ url: 'http://localhost:4000/hooks', events: ['lead:captured'], allowPrivateNetwork: true }],\n};\n```",
+   "text": "Server Setup > Webhooks\n\n```typescript\nimport type { ChatCopsServerConfig } from '@chatcops/server';\n\nconst config: Partial<ChatCopsServerConfig> = {\n  webhooks: [{ url: 'http://localhost:4000/hooks', events: ['lead:captured'], allowPrivateNetwork: true }],\n};\n```",
    "source": {
     "id": "https://chat.codercops.com/server/setup/",
     "url": "https://chat.codercops.com/server/setup/",
@@ -2532,7 +2593,7 @@
   },
   {
    "id": "ddf782bd9109a22cd3612676ba5ac9324c94e95c7b5b13b76e386c075fec2a06",
-   "text": "Server Setup > Webhooks\n\n`lead:captured` is the only webhook event today. It's sent when the `capture_lead` tool saves a lead.\n\nEach webhook gets a POST with a JSON body for every event it subscribes to:\n\n```json\n{\n  \"id\": \"evt_6f1c…\",\n  \"type\": \"lead:captured\",\n  \"created\": 1792411200000,\n  \"data\": { \"lead\": { \"name\": \"Priya\", \"email\": \"priya@example.com\" }, \"conversationId\": \"c_123\" },\n  \"event\": \"lead:captured\",\n  \"timestamp\": 1792411200000\n}\n```\n\n`id` is the same on every retry, so use it to ignore duplicates; it's also in the `X-ChatCops-Event-Id` header. `event` and `timestamp` repeat `type` and `created` for receivers written for older versions.\n\n**Retries.** A delivery is tried up to 3 times. Network errors, 429 and 5xx responses are retried (a 429's `Retry-After` is honored, up to 10 seconds); other 4xx responses are final, and redirects aren't followed. A delivery that fails for good is logged with the event type, id and the receiver's origin, never the body.\n\n**Verifying the signature.** With a `secret`, each request has an `X-ChatCops-Signature: t=<unix seconds>,v1=<hex>` header, an HMAC-SHA256 of `<t>.<raw body>`. Verify it against the raw body, before parsing it:\n\n```typescript\nimport express from 'express';\nimport { verifyWebhook } from '@chatcops/server';\n\nconst app = express();\napp.post('/hooks/chatcops', express.text({ type: 'application/json' }), async (req, res) => {\n  const valid = await verifyWebhook({\n    body: req.body, // the raw string, not parsed JSON\n    signature: req.get('X-ChatCops-Signature'),\n    secret: process.env.WEBHOOK_SECRET!,\n  });\n  if (!valid) return res.status(400).end();\n\n  const event = JSON.parse(req.body);\n  // ...\n  res.status(200).end();\n});\n```\n\n`verifyWebhook` also rejects signatures older than 5 minutes (`toleranceSec` changes that).",
+   "text": "Server Setup > Webhooks\n\n`lead:captured` is the only webhook event today. It's sent when the `capture_lead` tool saves a lead.\n\nEach webhook gets a POST with a JSON body for every event it subscribes to:\n\n```json\n{\n  \"id\": \"evt_6f1c…\",\n  \"type\": \"lead:captured\",\n  \"created\": 1792411200000,\n  \"data\": { \"lead\": { \"name\": \"Priya\", \"email\": \"priya@example.com\" }, \"conversationId\": \"c_123\" }\n}\n```\n\n`id` is the same on every retry, so use it to ignore duplicates; it's also in the `X-ChatCops-Event-Id` header.\n\n**Retries.** A delivery is tried up to 3 times. Network errors, 429 and 5xx responses are retried (a 429's `Retry-After` is honored, up to 10 seconds); other 4xx responses are final, and redirects aren't followed. A delivery that fails for good is logged with the event type, id and the receiver's origin, never the body.\n\n**Verifying the signature.** With a `secret`, each request has an `X-ChatCops-Signature: t=<unix seconds>,v1=<hex>` header, an HMAC-SHA256 of `<t>.<raw body>`. Verify it against the raw body, before parsing it:\n\n```typescript\nimport express from 'express';\nimport { verifyWebhook } from '@chatcops/server';\n\nconst app = express();\napp.post('/hooks/chatcops', express.text({ type: 'application/json' }), async (req, res) => {\n  const valid = await verifyWebhook({\n    body: req.body, // the raw string, not parsed JSON\n    signature: req.get('X-ChatCops-Signature'),\n    secret: process.env.WEBHOOK_SECRET!,\n  });\n  if (!valid) return res.status(400).end();\n\n  const event = JSON.parse(req.body);\n  // ...\n  res.status(200).end();\n});\n```\n\n`verifyWebhook` also rejects signatures older than 5 minutes (`toleranceSec` changes that).\n\n**Allowed URLs.** Webhook URLs must use https, and hosts on loopback, private or link-local networks (`localhost`, `10.x`, `192.168.x`, `169.254.169.254` and so on) are refused when the server starts. For a receiver on your own machine during development, set `allowPrivateNetwork: true` on that webhook:",
    "source": {
     "id": "https://chat.codercops.com/server/setup/",
     "url": "https://chat.codercops.com/server/setup/",
@@ -2591,13 +2652,33 @@
    }
   },
   {
+   "id": "e2f7fdca6da1486aebff47c6fc647cc2bdb439d9dcd585d1b3949114c1ebb9fd",
+   "text": "Upgrading to 1.0 > `@chatcops/core` > `chat()` and `chatSync()` on the built-in providers are gone\n\nThe Claude, OpenAI and Gemini providers only have `step()` now. To get a reply from one outside the server, run a turn. It gives you the parts as they stream and the finished message, and errors end the turn instead of throwing:\n\n```typescript\nimport { createProvider, runTurn, toolRegistry } from '@chatcops/core';\n\nconst provider = await createProvider({ type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! });\n\n// Before: const text = await provider.chatSync({ messages, systemPrompt: 'You are helpful.' });\nconst turn = runTurn({\n  provider,\n  messages: [{ id: '1', role: 'user', content: 'Hello', timestamp: Date.now() }],\n  systemPrompt: 'You are helpful.',\n  tools: toolRegistry([]),\n  conversationId: 'one-off',\n});\n\nlet next = await turn.next();\nwhile (!next.done) next = await turn.next();\nconst { message, status, error } = next.value;\nif (status !== 'complete') throw error ?? new Error(`The reply ended as ${status}`);\nconsole.log(message.content);\n```",
+   "source": {
+    "id": "https://chat.codercops.com/getting-started/upgrading-to-1/",
+    "url": "https://chat.codercops.com/getting-started/upgrading-to-1/",
+    "title": "Upgrading to 1.0",
+    "section": "`@chatcops/core` > `chat()` and `chatSync()` on the built-in providers are gone"
+   }
+  },
+  {
    "id": "e37bc4f6cdfa4543d48003c60ce0cc143b984fd593acabc67a2e800757b1be53",
-   "text": "Widget Configuration > Programmatic Configuration > Saved conversations\n\nThe widget keeps the conversation so a visitor who reloads the page or comes back later picks up where they left off. `persistence` picks where:\n\n| Value | Kept in | Lasts |\n|-------|---------|-------|\n| `'local'` (default) | `localStorage` | Until `historyTtlDays` passes, 30 days by default |\n| `'session'` | `sessionStorage` | Until the tab is closed |\n| `'none'` | Memory | Until the page reloads |\n\n```typescript\nChatCops.init({\n  apiUrl: '/api/chat',\n  persistence: 'session',\n});\n\n// Or keep it in the browser, for a week\nChatCops.init({\n  apiUrl: '/api/chat',\n  historyTtlDays: 7,\n});\n```\n\nA popup doesn't read or write storage until the visitor opens it. Until then, nothing is stored on the visitor's device. An inline chat is on screen from the start, so it reads its saved conversation when it mounts. The one exception is a welcome bubble with `showOnce`. It checks and sets its own flag when it's due to appear, and stores nothing before that. With `persistence: 'none'` nothing at all is written to storage, the bubble flag included.\n\nThe pre-chat form's answers are saved with the conversation, so they expire with it too.\n\n`persistHistory` is deprecated. `persistHistory: false` still works and means `persistence: 'none'`. It goes away in 1.0.",
+   "text": "Widget Configuration > Programmatic Configuration > Saved conversations\n\nThe widget keeps the conversation so a visitor who reloads the page or comes back later picks up where they left off. `persistence` picks where:\n\n| Value | Kept in | Lasts |\n|-------|---------|-------|\n| `'local'` (default) | `localStorage` | Until `historyTtlDays` passes, 30 days by default |\n| `'session'` | `sessionStorage` | Until the tab is closed |\n| `'none'` | Memory | Until the page reloads |\n\n```typescript\nChatCops.init({\n  apiUrl: '/api/chat',\n  persistence: 'session',\n});\n\n// Or keep it in the browser, for a week\nChatCops.init({\n  apiUrl: '/api/chat',\n  historyTtlDays: 7,\n});\n```\n\nA popup doesn't read or write storage until the visitor opens it. Until then, nothing is stored on the visitor's device. An inline chat is on screen from the start, so it reads its saved conversation when it mounts. The one exception is a welcome bubble with `showOnce`. It checks and sets its own flag when it's due to appear, and stores nothing before that. With `persistence: 'none'` nothing at all is written to storage, the bubble flag included.\n\nThe pre-chat form's answers are saved with the conversation, so they expire with it too.\n\n`persistHistory` was removed in 1.0. A config that still sets it throws, so a site that asked for nothing to be saved never starts saving conversations. Use `persistence: 'none'` instead.",
    "source": {
     "id": "https://chat.codercops.com/widget/configuration/",
     "url": "https://chat.codercops.com/widget/configuration/",
     "title": "Widget Configuration",
     "section": "Programmatic Configuration > Saved conversations"
+   }
+  },
+  {
+   "id": "e5a96dde311370f19c5e8df3c86fb0a99c0a172b4c2d31bcb695b391332b8f45",
+   "text": "Upgrading to 1.0 > `@chatcops/server` > `cors` is now `allowedOrigins`\n\n```typescript\nimport { chatcopsMiddleware } from '@chatcops/server';\n\nchatcopsMiddleware({\n  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n  systemPrompt: 'You are helpful.',\n  // Before: cors: 'https://acme.com'\n  allowedOrigins: ['https://acme.com'],\n});\n```\n\n`allowedOrigins` takes several sites and subdomain wildcards like `'https://*.acme.com'`. `['*']` (the default) lets any site use the chat, as `cors: '*'` did. See [Allowed origins](/server/setup/#allowed-origins).",
+   "source": {
+    "id": "https://chat.codercops.com/getting-started/upgrading-to-1/",
+    "url": "https://chat.codercops.com/getting-started/upgrading-to-1/",
+    "title": "Upgrading to 1.0",
+    "section": "`@chatcops/server` > `cors` is now `allowedOrigins`"
    }
   },
   {
@@ -2632,12 +2713,12 @@
   },
   {
    "id": "e90dcb0b6ea8463a353b9598623e09647baf252d84b50f401dee9feb98a0031a",
-   "text": "Analytics > Storage\n\nThe built-in collector stores events in memory (max 1000 events). With `analytics: true` and a `storage`, the server already writes events to the store's sink, buffered and flushed as each reply ends. To do the same in your own code, use `BufferedEventSink`. It batches up to 50 events by default and flushes every 2 seconds. Call `flush()` when you need to wait for queued writes, such as before a process exits:\n\n```typescript\nimport { BufferedEventSink, memoryStorage, statsFromSink } from '@chatcops/core';\n\nconst storage = memoryStorage();\nconst eventSink = storage.events;\nif (!eventSink) throw new Error('Event storage is not configured');\n\nconst analytics = new BufferedEventSink(eventSink, {\n  maxBatch: 50,\n  flushMs: 2000,\n});\n\nanalytics.track('pricing.viewed', { plan: 'Team' });\nawait analytics.flush();\n\nconst now = Date.now();\nconst stats = await statsFromSink(eventSink, {\n  from: now - 24 * 60 * 60 * 1000,\n  to: now,\n});\n```\n\nUse a persistent `EventSink` implementation when events need to be shared across processes or survive restarts. Writes that fail are logged and dropped so analytics does not interrupt chat requests. `statsFromSink` requires the sink's optional `query` method; the range includes `from` and excludes `to`. It counts each `conversation:started` event as one conversation.",
+   "text": "Analytics > Client-Side Events\n\nCombine with widget events for full-stack analytics:\n\n```typescript\n// Client-side\ndeclare const gtag: (command: 'event', eventName: string) => void;\nChatCops.on('open', () => gtag('event', 'chat_opened'));\nChatCops.on('message', (...args: unknown[]) => {\n  const m = args[0] as { role: 'user' | 'assistant' };\n  if (m.role === 'user') gtag('event', 'chat_message_sent');\n});\n\n// Server-side (automatic with analytics: true)\n// conversation.started, message.sent, message.received, lead.captured\n```",
    "source": {
     "id": "https://chat.codercops.com/core/analytics/",
     "url": "https://chat.codercops.com/core/analytics/",
     "title": "Analytics",
-    "section": "Storage"
+    "section": "Client-Side Events"
    }
   },
   {
@@ -2648,6 +2729,15 @@
     "url": "https://chat.codercops.com/server/security/",
     "title": "Security",
     "section": "A production config > The widget"
+   }
+  },
+  {
+   "id": "ea2290b65ed99dda2c1da7928d51058ae12dfdb788f22b851c322a6f7e4dda89",
+   "text": "Upgrading to 1.0\n\n1.0 removes the options and methods that 0.6 to 0.8 marked as deprecated. Each one now fails at startup with a message that names what to use instead and links here, so an upgrade can't quietly change how your chat behaves. After 1.0, ChatCops follows semver strictly: a breaking change waits for 2.0.\n\nGo through the sections for the packages you use. If you're on 0.5 or earlier, read [Upgrading from 0.5](/getting-started/upgrading/) first.",
+   "source": {
+    "id": "https://chat.codercops.com/getting-started/upgrading-to-1/",
+    "url": "https://chat.codercops.com/getting-started/upgrading-to-1/",
+    "title": "Upgrading to 1.0"
    }
   },
   {
@@ -2699,12 +2789,12 @@
   },
   {
    "id": "f32a6affe4e4760c6f9bd82da76148bb42f8cb9ba374dfb7f53ff92018c78df7",
-   "text": "Analytics > AnalyticsCollector API\n\n```typescript\nimport { AnalyticsCollector } from '@chatcops/core';\n\nconst analytics = new AnalyticsCollector();\n\n// Track custom events\nanalytics.track('pricing.viewed', { plan: 'Team' });\n\n// Get aggregated stats\nconst stats = analytics.getStats();\n// {\n//   totalConversations: 150,\n//   totalMessages: 2340,\n//   leadsCaptured: 23,\n//   averageMessagesPerConversation: 15.6,\n//   eventCounts: { 'conversation.started': 150, ... }\n// }\n\n// Get raw events (optionally filter by type)\nconst allEvents = analytics.getEvents();\nconst leads = analytics.getEvents('lead.captured');\n\n// Clear all events\nanalytics.clear();\n```",
+   "text": "Analytics > AnalyticsStats Interface\n\n```typescript\ninterface AnalyticsStats {\n  totalConversations: number;\n  totalMessages: number;\n  leadsCaptured: number;\n  averageMessagesPerConversation: number;\n  eventCounts: Record<string, number>;\n}\n\ninterface AnalyticsEvent {\n  type: string;\n  data?: Record<string, unknown>;\n  timestamp: number;\n}\n```",
    "source": {
     "id": "https://chat.codercops.com/core/analytics/",
     "url": "https://chat.codercops.com/core/analytics/",
     "title": "Analytics",
-    "section": "AnalyticsCollector API"
+    "section": "AnalyticsStats Interface"
    }
   },
   {
@@ -2747,12 +2837,12 @@
   },
   {
    "id": "f6347b1b0955920e4065bad185b674d14aae5bbd39c0bf5b20b20fae72f7225f",
-   "text": "Analytics > Reading Stats with Express\n\n`GET /analytics` responds with the aggregated stats (or `null` if `analytics` is not enabled):\n\n```json\n{\n  \"totalConversations\": 2,\n  \"totalMessages\": 4,\n  \"leadsCaptured\": 0,\n  \"leadsCapture\": 0,\n  \"averageMessagesPerConversation\": 2,\n  \"eventCounts\": { \"conversation.started\": 2, \"message.sent\": 2, \"message.received\": 2, \"conversation:started\": 2, \"message:sent\": 2, \"message:received\": 2 }\n}\n```\n\n`leadsCapture` is the same number as `leadsCaptured`, under the name it had before 0.8, and the `noun:verb` keys in `eventCounts` repeat the new ones. Both go away in 1.0.",
+   "text": "Analytics > Tracked Events\n\nWhen `analytics: true`, the server automatically tracks:\n\n| Event | When |\n|-------|------|\n| `conversation.started` | New conversation ID first seen |\n| `message.sent` | User sends a message |\n| `message.received` | AI responds |\n| `lead.captured` | Lead capture tool fires |\n\n`ANALYTICS_EVENTS` from `@chatcops/core` has these names, so code doesn't have to spell them. Before 0.8 they were `conversation:started`, `message:sent`, `message:received` and `lead:captured`. Stats still count events a store saved under those names, so totals carry on across the upgrade, but `track()` and `getEvents()` treat them as names of your own. Webhook event names, such as `lead:captured` in a webhook's `events`, are separate and didn't change.",
    "source": {
     "id": "https://chat.codercops.com/core/analytics/",
     "url": "https://chat.codercops.com/core/analytics/",
     "title": "Analytics",
-    "section": "Reading Stats with Express"
+    "section": "Tracked Events"
    }
   },
   {
