@@ -77,6 +77,10 @@ export function createChatHandler(config: ChatCopsServerConfig) {
   }
   const rateLimit = { maxRequests: 30, windowMs: 60_000, ...config.rateLimit };
   if (rateLimit.maxRequests <= 0) throw new Error('maxRequests must be greater than 0');
+  const retentionDays = config.retention?.conversationsDays;
+  if (retentionDays !== undefined && (!Number.isFinite(retentionDays) || retentionDays <= 0)) {
+    throw new Error('retention.conversationsDays must be a number greater than 0');
+  }
   const rateLimiter = createRateLimiter(counters, {
     limit: rateLimit.maxRequests,
     windowMs: rateLimit.windowMs,

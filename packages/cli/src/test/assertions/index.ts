@@ -2,7 +2,7 @@ import type { Assertion, AssertionCheck, AssertionContext, AssertionResult, Turn
 import { judge } from './judge.js';
 import { javascript } from './javascript.js';
 import { cites, leadCaptured } from './parts.js';
-import { contains } from './text.js';
+import { contains, equals, icontains, regex } from './text.js';
 import { callsTool, noToolCall } from './tools.js';
 import { costUnder, latencyUnder, tokensUnder } from './usage.js';
 
@@ -14,6 +14,9 @@ import { costUnder, latencyUnder, tokensUnder } from './usage.js';
  */
 export const ASSERTIONS = new Map<string, AssertionCheck>([
   ['contains', contains],
+  ['icontains', icontains],
+  ['equals', equals],
+  ['regex', regex],
   ['javascript', javascript],
   ['judge', judge],
   ['tokens-under', tokensUnder],

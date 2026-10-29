@@ -99,6 +99,32 @@ describe('chatcops test', () => {
     expect(stdout).toContain('2 passed, 0 failed.');
   });
 
+  it('runs an eval file exercising icontains, regex, and equals assertions', async () => {
+    const files = {
+      'evals/text-assertions.chat.yaml': `version: 1
+name: Text Assertions
+tests:
+  - name: checks icontains, regex, and equals
+    turns:
+      - user: What's the price of Team?
+        expect:
+          - icontains: team
+          - icontains: ["$19", MONTH]
+          - not-icontains: pro
+          - regex: '\\$\\d+'
+          - regex: { pattern: "team plan", flags: "i" }
+          - not-regex: "^Pro"
+          - equals: "The Team plan is $19 a month."
+          - not-equals: "The Pro plan is $29 a month."
+`,
+    };
+    const { code, stdout, stderr } = await run(['test'], project(files));
+    expect(stderr).toBe('');
+    expect(code).toBe(EXIT.ok);
+    expect(stdout).toContain(`${join('evals', 'text-assertions.chat.yaml')}\n  ✓ checks icontains, regex, and equals`);
+    expect(stdout).toContain('1 passed, 0 failed.');
+  });
+
   it('exits 1 on a failed assertion and says why, with the reply', async () => {
     const dir = project({
       'evals/pricing.chat.yaml': `version: 1
@@ -410,6 +436,84 @@ describe('assertions', () => {
     expect(await check({ contains: ['Team', 'Pro'] }, turn, [turn])).toMatchObject({ pass: false, reason: `the reply doesn't contain "Pro"` });
     expect(await check({ 'not-contains': 'Pro' }, turn, [turn])).toMatchObject({ pass: true });
     expect(await check({ 'not-contains': 'Team' }, turn, [turn])).toMatchObject({ pass: false, reason: 'expected not: the reply contains "Team"' });
+  });
+
+  it('icontains matches case-insensitively, and not- inverts it', async () => {
+    expect(await check({ icontains: ['team', '$19'] }, turn, [turn])).toMatchObject({ pass: true });
+    expect(await check({ icontains: 'TEAM' }, turn, [turn])).toMatchObject({ pass: true });
+    expect(await check({ icontains: ['team', 'pro'] }, turn, [turn])).toMatchObject({ pass: false, reason: 'the reply doesn\'t contain "pro"' });
+    expect(await check({ 'not-icontains': 'pro' }, turn, [turn])).toMatchObject({ pass: true });
+    expect(await check({ 'not-icontains': 'team' }, turn, [turn])).toMatchObject({ pass: false, reason: 'expected not: the reply contains "team"' });
+    expect(await check({ icontains: 19 }, turn, [turn])).toMatchObject({ pass: false, reason: 'icontains takes a string or a list of strings' });
+    expect(await check({ icontains: [] }, turn, [turn])).toMatchObject({ pass: false, reason: 'icontains takes a string or a list of strings' });
+    expect(await check({ 'not-icontains': 19 }, turn, [turn])).toMatchObject({ pass: false, reason: 'icontains takes a string or a list of strings' });
+  });
+
+  it('regex matches the reply with a pattern or { pattern, flags }, and not- inverts it', async () => {
+    expect(await check({ regex: '\\$\\d+' }, turn, [turn])).toMatchObject({ pass: true, reason: 'the reply matches /\\$\\d+/' });
+    expect(await check({ regex: { pattern: 'team', flags: 'i' } }, turn, [turn])).toMatchObject({ pass: true, reason: 'the reply matches /team/i' });
+    expect(await check({ regex: { pattern: '\\$\\d+' } }, turn, [turn])).toMatchObject({ pass: true, reason: 'the reply matches /\\$\\d+/' });
+    expect(await check({ regex: 'pro' }, turn, [turn])).toMatchObject({ pass: false, reason: "the reply doesn't match /pro/" });
+    expect(await check({ regex: { pattern: '^team' } }, turn, [turn])).toMatchObject({ pass: false, reason: "the reply doesn't match /^team/" });
+    expect(await check({ 'not-regex': 'pro' }, turn, [turn])).toMatchObject({ pass: true });
+    expect(await check({ 'not-regex': '\\$\\d+' }, turn, [turn])).toMatchObject({ pass: false, reason: 'expected not: the reply matches /\\$\\d+/' });
+    expect(await check({ 'not-regex': { pattern: 'team', flags: 'i' } }, turn, [turn])).toMatchObject({ pass: false, reason: 'expected not: the reply matches /team/i' });
+
+    expect(await check({ regex: '(' }, turn, [turn])).toMatchObject({
+      pass: false,
+      reason: 'regex: "(" isn\'t a valid regular expression (Unterminated group)',
+    });
+    expect(await check({ 'not-regex': '(' }, turn, [turn])).toMatchObject({
+      pass: false,
+      reason: 'regex: "(" isn\'t a valid regular expression (Unterminated group)',
+    });
+    expect(await check({ regex: { pattern: '(' } }, turn, [turn])).toMatchObject({
+      pass: false,
+      reason: 'regex: "(" isn\'t a valid regular expression (Unterminated group)',
+    });
+    expect(await check({ regex: { pattern: 'a', flags: 'zz' } }, turn, [turn])).toMatchObject({
+      pass: false,
+      reason: 'regex: flags "zz" aren\'t valid regular expression flags',
+    });
+    expect(await check({ 'not-regex': { pattern: 'a', flags: 'zz' } }, turn, [turn])).toMatchObject({
+      pass: false,
+      reason: 'regex: flags "zz" aren\'t valid regular expression flags',
+    });
+    expect(await check({ regex: '[' }, turn, [turn])).toMatchObject({
+      pass: false,
+      reason: 'regex: "[" isn\'t a valid regular expression (Unterminated character class)',
+    });
+    expect(await check({ regex: { pattern: '[' } }, turn, [turn])).toMatchObject({
+      pass: false,
+      reason: 'regex: "[" isn\'t a valid regular expression (Unterminated character class)',
+    });
+    expect(await check({ regex: { pattern: 'team', flags: 'invalid' } }, turn, [turn])).toMatchObject({
+      pass: false,
+      reason: 'regex: flags "invalid" aren\'t valid regular expression flags',
+    });
+    expect(await check({ regex: { pattern: 'team', flags: 123 } }, turn, [turn])).toMatchObject({ pass: false, reason: 'regex flags must be a string' });
+    for (const bad of [19, null, [], {}, { pattern: 19 }, { pattern: 'team', extra: 1 }]) {
+      expect(await check({ regex: bad }, turn, [turn])).toMatchObject({ pass: false, reason: 'regex takes a pattern string or { pattern, flags }' });
+      expect(await check({ 'not-regex': bad }, turn, [turn])).toMatchObject({ pass: false, reason: 'regex takes a pattern string or { pattern, flags }' });
+    }
+  });
+
+  it('equals compares the trimmed reply with the expected string, and not- inverts it', async () => {
+    expect(await check({ equals: 'The Team plan is $19.' }, turn, [turn])).toMatchObject({ pass: true, reason: 'the reply equals "The Team plan is $19."' });
+    const padded: TurnResult = { ...turn, text: '  The Team plan is $19. \n' };
+    expect(await check({ equals: 'The Team plan is $19.' }, padded, [padded])).toMatchObject({ pass: true });
+    expect(await check({ equals: 'The Team plan is $19.\n' }, turn, [turn])).toMatchObject({ pass: true, reason: 'the reply equals "The Team plan is $19.\\n"' });
+    expect(await check({ equals: 'The Team plan is $19.\n' }, padded, [padded])).toMatchObject({ pass: true });
+    expect(await check({ equals: 'The Pro plan is $29.' }, turn, [turn])).toMatchObject({ pass: false, reason: 'the reply doesn\'t equal "The Pro plan is $29."' });
+    expect(await check({ equals: 'The Pro plan is $29.\n' }, turn, [turn])).toMatchObject({ pass: false, reason: 'the reply doesn\'t equal "The Pro plan is $29.\\n"' });
+    expect(await check({ 'not-equals': 'The Pro plan is $29.' }, turn, [turn])).toMatchObject({ pass: true });
+    expect(await check({ 'not-equals': 'The Pro plan is $29.\n' }, turn, [turn])).toMatchObject({ pass: true });
+    expect(await check({ 'not-equals': 'The Team plan is $19.' }, turn, [turn])).toMatchObject({ pass: false, reason: 'expected not: the reply equals "The Team plan is $19."' });
+    expect(await check({ 'not-equals': 'The Team plan is $19.\n' }, turn, [turn])).toMatchObject({ pass: false, reason: 'expected not: the reply equals "The Team plan is $19.\\n"' });
+    for (const bad of [19, null, [], {}, true]) {
+      expect(await check({ equals: bad }, turn, [turn])).toMatchObject({ pass: false, reason: 'equals takes a string' });
+      expect(await check({ 'not-equals': bad }, turn, [turn])).toMatchObject({ pass: false, reason: 'equals takes a string' });
+    }
   });
 
   it('reports bad values and unknown names as failures', async () => {
