@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { hybridRetriever, vectorRetriever, type RetrievedChunk } from '@chatcops/core';
 import { ingest, manifestKeys, type IngestEvent, type IngestSource, type IngestStats } from '@chatcops/ingest';
-import { ConfigError, indexConfig, loadConfig, serverConfig } from './config.js';
+import { ConfigError, indexConfig, loadConfig, loadConfigForRemoteTest, serverConfig } from './config.js';
 import { Cassettes } from './test/cassette.js';
 import { cassetteMode, runTests } from './test/command.js';
 
@@ -52,6 +52,8 @@ Search options:
 
 Test options:
   [files...]            Globs of eval files (default "evals/**/*.chat.yaml")
+  --url <url>           Send eval turns to a deployed ChatCops server
+  --header <header>     Add a request header (repeatable, e.g. "Authorization: Bearer …")
   --filter <text>       Only tests whose name contains text, or tag:<name>
   --repeat <n>          Run each test n times
   --concurrency <n>     Tests run at once (default 4)
@@ -98,9 +100,11 @@ export async function main(argv: string[], io: Io): Promise<number> {
       // Before the config loads, so the providers and embedders it creates use it.
       const uninstall = cassettes.mode === 'live' ? () => {} : cassettes.install();
       try {
-        const loaded = await loadConfig(io.cwd, values.config);
+        const loaded = values.url !== undefined
+          ? await loadConfigForRemoteTest(io.cwd, values.config)
+          : await loadConfig(io.cwd, values.config);
         try {
-          return await runTests(serverConfig(loaded), rest, values, io, cassettes, loaded.config);
+          return await runTests(values.url !== undefined ? loaded.config.server : serverConfig(loaded), rest, values, io, cassettes, loaded.config);
         } finally {
           await loaded.close();
         }
@@ -133,6 +137,8 @@ function parse(argv: string[]) {
       json: { type: 'boolean' },
       'top-k': { type: 'string' },
       filter: { type: 'string' },
+      url: { type: 'string' },
+      header: { type: 'string', multiple: true },
       repeat: { type: 'string' },
       verbose: { type: 'boolean' },
       reporter: { type: 'string', multiple: true },

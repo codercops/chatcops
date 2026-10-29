@@ -22,7 +22,7 @@ export interface CassetteEntry {
    * `body` is the text, or for bodies over 4 kB (a streamed reply is one
    * event per token) gzip in base64, with `encoding: 'gzip'`.
    */
-  response: { status: number; contentType?: string; body: string; encoding?: 'gzip' };
+  response: { status: number; contentType?: string; protocol?: string; body: string; encoding?: 'gzip' };
 }
 
 interface Scope {
@@ -135,9 +135,12 @@ export class Cassettes {
         // A 400, not a thrown error: SDKs retry network errors with backoff, but never a 400.
         return Response.json({ error: { type: 'invalid_request_error', message: problem } }, { status: 400 });
       }
-      const { status, contentType } = entry.response;
+      const { status, contentType, protocol } = entry.response;
       const body = entry.response.encoding === 'gzip' ? gunzipSync(Buffer.from(entry.response.body, 'base64')).toString('utf8') : entry.response.body;
-      return new Response(NULL_BODY.has(status) ? null : body, { status, headers: contentType ? { 'content-type': contentType } : {} });
+      return new Response(NULL_BODY.has(status) ? null : body, {
+        status,
+        headers: { ...(contentType ? { 'content-type': contentType } : {}), ...(protocol ? { 'x-chatcops-protocol': protocol } : {}) },
+      });
     }
 
     const response = await original(request);
@@ -151,6 +154,7 @@ export class Cassettes {
       response: {
         status: response.status,
         ...(contentType ? { contentType } : {}),
+      ...(response.headers.get('x-chatcops-protocol') ? { protocol: response.headers.get('x-chatcops-protocol')! } : {}),
         body: big ? gzipSync(body).toString('base64') : body,
         ...(big ? { encoding: 'gzip' as const } : {}),
       },
@@ -222,6 +226,13 @@ export async function describeRequest(request: Request): Promise<CassetteEntry['
   if (text) {
     try {
       body = JSON.parse(text);
+      if (body && typeof body === 'object' && !Array.isArray(body)) {
+        const requestBody = body as Record<string, unknown>;
+        // Eval-generated conversation IDs are deliberately fresh against a
+        // deployed server. They don't change a turn's answer, so exclude them
+        // from cassette matching to keep remote --record/--replay usable.
+        if (requestBody.protocol === 1 && typeof requestBody.conversationId === 'string') delete requestBody.conversationId;
+      }
     } catch {
       body = text;
     }

@@ -92,7 +92,7 @@ export interface ReporterOutput {
 
 export declare const REPORTERS: Map<string, ReporterFactory>;
 
-export declare function runFixtures(server: ChatCopsServerConfig, fixtures: FixtureJob[], options?: RunOptions): Promise<TestResult[]>;
+export declare function runFixtures(server: ChatCopsServerConfig | undefined, fixtures: FixtureJob[], options?: RunOptions): Promise<TestResult[]>;
 
 export interface RunOptions {
     concurrency?: number;

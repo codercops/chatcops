@@ -25,6 +25,11 @@ export interface RunOptions {
   spend?: Spend;
 }
 
+interface RemoteOptions {
+  url: string;
+  headers: Headers;
+}
+
 /** An eval file to run: `file` as reported, `path` on disk (for its cassette). */
 export interface FixtureJob {
   file: string;
@@ -39,11 +44,33 @@ export interface FixtureJob {
  * in-memory storage for every run and the fixture's tool mocks.
  */
 export async function runFixtures(
-  server: ChatCopsServerConfig,
+  server: ChatCopsServerConfig | undefined,
   fixtures: FixtureJob[],
   options: RunOptions = {}
 ): Promise<TestResult[]> {
-  if (options.cassettes?.mode === 'replay') server = withoutKeys(server);
+  return runFixturesWithTransport(server, fixtures, options);
+}
+
+/** CLI-only URL transport; kept outside the package's public entry point. */
+export async function runRemoteFixtures(
+  server: ChatCopsServerConfig | undefined,
+  fixtures: FixtureJob[],
+  remote: RemoteOptions,
+  options: RunOptions = {}
+): Promise<TestResult[]> {
+  return runFixturesWithTransport(server, fixtures, { ...options, remote });
+}
+
+interface InternalRunOptions extends RunOptions {
+  remote?: RemoteOptions;
+}
+
+async function runFixturesWithTransport(
+  server: ChatCopsServerConfig | undefined,
+  fixtures: FixtureJob[],
+  options: InternalRunOptions
+): Promise<TestResult[]> {
+  if (!options.remote && options.cassettes?.mode === 'replay' && server) server = withoutKeys(server);
   const jobs = fixtures.flatMap(({ file, path, tests }) => tests.map((test) => ({ file, path: path ?? file, test })));
   const results: TestResult[] = new Array(jobs.length);
   let next = 0;
@@ -86,16 +113,18 @@ async function runTest(
 }
 
 async function runOnce(
-  server: ChatCopsServerConfig,
+  server: ChatCopsServerConfig | undefined,
   { file, path, test, run }: { file: string; path: string; test: TestCase; run: number },
-  options: RunOptions
+  options: InternalRunOptions
 ): Promise<TestRunResult> {
   const result: TestRunResult = { fixture: file, test: test.name, run, pass: true, turns: [] };
   const { spend } = options;
   const context = { fixture: path, ...(options.judge ? { judge: options.judge } : {}) };
   // Usage on `finish` is what usage assertions read.
-  const handler = createChatHandler({ ...server, exposeUsage: true, storage: memoryStorage(), tools: withMocks(server.tools ?? [], test.mocks?.tools) });
-  const conversationId = `eval-${randomUUID()}`;
+  const handler = server && !options.remote
+    ? createChatHandler({ ...server, exposeUsage: true, storage: memoryStorage(), tools: withMocks(server.tools ?? [], test.mocks?.tools) })
+    : undefined;
+  let conversationId = `eval-${randomUUID()}`;
   const conversation: TurnResult[] = [];
 
   for (const turnSpec of test.turns) {
@@ -104,13 +133,18 @@ async function runOnce(
       result.error = `stopped before turn ${conversation.length + 1}: --max-cost ${dollars(spend.max ?? 0)} reached (${dollars(spend.spent)} spent)`;
       break;
     }
-    const turn = await sendTurn(handler, {
+    const body = {
       conversationId,
       message: turnSpec.user,
       ...(test.locale ? { locale: test.locale } : {}),
       ...(test.pageContext ? { pageContext: test.pageContext } : {}),
       ...(test.userData ? { userData: test.userData } : {}),
-    });
+    };
+    const sent = options.remote
+      ? await sendRemoteTurn(options.remote, conversationId, body)
+      : { turn: await sendTurn(handler!, body), conversationId };
+    const turn = sent.turn;
+    conversationId = sent.conversationId;
     if (options.model) turn.model = options.model;
     const costUsd = costOf(options.model, turn.usage, options.prices);
     if (costUsd !== undefined) turn.costUsd = costUsd;
@@ -164,6 +198,134 @@ export async function sendTurn(handler: ReturnType<typeof createChatHandler>, bo
   }
   if (!turn.latencyMs) turn.latencyMs = performance.now() - started;
   return turn;
+}
+
+/** Sends a protocol v1 request and parses the response into the eval turn shape. */
+export async function sendRemoteTurn(
+  remote: RemoteOptions,
+  conversationId: string,
+  body: Record<string, unknown>
+): Promise<{ turn: TurnResult; conversationId: string }> {
+  const started = performance.now();
+  const turn: TurnResult = { user: String(body.message), text: '', toolCalls: [], sources: [], leads: [], latencyMs: 0 };
+  let currentConversationId = conversationId;
+  try {
+    const headers = new Headers(remote.headers);
+    headers.set('content-type', 'application/json');
+    const response = await fetch(remote.url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ ...body, protocol: 1 }),
+    });
+    if (!response.ok) {
+      turn.error = `http_${response.status}: Remote server refused the request.`;
+      return { turn: finishLatency(turn, started), conversationId: currentConversationId };
+    }
+    if (!response.headers.get('content-type')?.toLowerCase().startsWith('text/event-stream')) {
+      throw new RemoteProtocolError('expected a text/event-stream response');
+    }
+    if (response.headers.get('x-chatcops-protocol') !== '1') {
+      throw new RemoteProtocolError('response did not identify ChatCops protocol v1');
+    }
+    if (!response.body) throw new RemoteProtocolError('response had no stream body');
+
+    let startedStream = false;
+    let finished = false;
+    let done = false;
+    for await (const data of eventData(response.body)) {
+      if (done) throw new RemoteProtocolError('data followed the terminal marker');
+      if (data === '[DONE]') {
+        if (!finished) throw new RemoteProtocolError('stream ended before the finish part');
+        done = true;
+        continue;
+      }
+      let part: unknown;
+      try {
+        part = JSON.parse(data);
+      } catch {
+        throw new RemoteProtocolError('an event was not valid JSON');
+      }
+      if (!part || typeof part !== 'object' || typeof (part as { type?: unknown }).type !== 'string') {
+        throw new RemoteProtocolError('an event was not a protocol part');
+      }
+      const wire = part as Record<string, unknown>;
+      if (!startedStream && wire.type !== 'start') throw new RemoteProtocolError('the first part was not start');
+      if (wire.type === 'start') {
+        if (startedStream || wire.protocol !== 1 || typeof wire.conversationId !== 'string' || !wire.conversationId) {
+          throw new RemoteProtocolError('the start part was invalid');
+        }
+        startedStream = true;
+        currentConversationId = wire.conversationId;
+      } else if (wire.type === 'text-delta') {
+        if (typeof wire.delta !== 'string') throw new RemoteProtocolError('a text-delta part had no text');
+        turn.text += wire.delta;
+      } else if (wire.type === 'tool-call') {
+        if (typeof wire.toolName !== 'string' || !('input' in wire)) throw new RemoteProtocolError('a tool-call part was invalid');
+        turn.toolCalls.push({ name: wire.toolName, input: wire.input });
+      } else if (wire.type === 'source') {
+        if (typeof wire.url !== 'string') throw new RemoteProtocolError('a source part was invalid');
+        turn.sources.push({ url: wire.url, ...(typeof wire.title === 'string' ? { title: wire.title } : {}) });
+      } else if (wire.type === 'lead-captured') {
+        if (!wire.lead || typeof wire.lead !== 'object' || Array.isArray(wire.lead)) throw new RemoteProtocolError('a lead-captured part was invalid');
+        turn.leads.push(wire.lead as Record<string, unknown>);
+      } else if (wire.type === 'error') {
+        if (typeof wire.code !== 'string') throw new RemoteProtocolError('an error part had no code');
+        turn.error = wire.code;
+      } else if (wire.type === 'finish') {
+        if (typeof wire.reason !== 'string' || finished) throw new RemoteProtocolError('the finish part was invalid');
+        finished = true;
+        turn.finishReason = wire.reason;
+        if (wire.usage && typeof wire.usage === 'object') {
+          const usage = wire.usage as { inputTokens?: unknown; outputTokens?: unknown };
+          if (typeof usage.inputTokens === 'number' && typeof usage.outputTokens === 'number') {
+            turn.usage = { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens };
+          }
+        }
+        turn.latencyMs = performance.now() - started;
+      } else if (finished) {
+        throw new RemoteProtocolError('a part followed the finish part');
+      }
+    }
+    if (!startedStream || !finished || !done) throw new RemoteProtocolError('stream ended unexpectedly');
+  } catch (error) {
+    turn.error = error instanceof RemoteProtocolError
+      ? `protocol_error: ${error.message}`
+      : 'network_error: The request to the remote server failed.';
+  }
+  return { turn: finishLatency(turn, started), conversationId: currentConversationId };
+}
+
+class RemoteProtocolError extends Error {}
+
+function finishLatency(turn: TurnResult, started: number): TurnResult {
+  if (!turn.latencyMs) turn.latencyMs = performance.now() - started;
+  return turn;
+}
+
+async function* eventData(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      while (true) {
+        const boundary = /\r?\n\r?\n/.exec(buffer);
+        if (!boundary) break;
+        const frame = buffer.slice(0, boundary.index);
+        buffer = buffer.slice(boundary.index + boundary[0].length);
+        const data = frame.split(/\r?\n/)
+          .filter((line) => line.startsWith('data:'))
+          .map((line) => line.slice(5).replace(/^ /, ''));
+        if (data.length) yield data.join('\n');
+      }
+      if (done) break;
+    }
+    if (buffer.trim()) throw new RemoteProtocolError('the final event was not terminated');
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 /** The config's tools, with mocked ones answering their fixed result instead of running. */

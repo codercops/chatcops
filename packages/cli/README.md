@@ -27,7 +27,7 @@ export default defineConfig({
 
 `chatcops ingest` options: `--source` (repeatable; a sitemap, a page URL, or a folder with `--base-url`), `--index`, `--dry-run`, `--max-pages`, `--concurrency`, `--prune`, `--force`, `--json`. `chatcops search` options: `--index`, `--top-k`, `--json`. Run `chatcops --help` for details.
 
-`chatcops test` runs eval files (`evals/**/*.chat.yaml` by default) against the bot in the config's `server` section:
+`chatcops test` runs eval files (`evals/**/*.chat.yaml` by default) against the bot in the config's `server` section. Use `--url https://example.com/chat` to run the same eval files against a deployed server instead; URL mode does not require a `server` config or config file. Add repeatable `--header "Name: value"` arguments for authenticated endpoints. Tool mocks are unsupported in URL mode because the CLI cannot apply them to a remote server.
 
 ```yaml
 version: 1
@@ -41,7 +41,7 @@ tests:
           - not-contains: "$29"
 ```
 
-Options: `--filter` (a name, or `tag:<name>`), `--repeat`, `--concurrency`, `--verbose`, `--reporter pretty|json` (repeatable), `--json`. The pretty report groups tests by file and includes run duration, assertion counts, available bot-token usage and total elapsed time. By default, assertion details are shown for failed tests; `--verbose` shows them for every test. `--record` saves every API call the tests make to `__cassettes__/` next to the eval files, and `--replay` answers them from there. Replay is the default when `CI` is set, so CI needs no API keys. `judge` assertions have a model from another provider grade a reply against a rubric (`--judge-model` to choose it), and with `prices` in the config, `--max-cost` stops a run once it has spent that much. It exits 0 when all tests passed, 1 when some failed, 2 when it couldn't run. See [Testing your bot](https://chat.codercops.com/core/testing/).
+Options: `--filter` (a name, or `tag:<name>`), `--repeat`, `--concurrency`, `--verbose`, `--reporter pretty|json` (repeatable), `--json`. The pretty report groups tests by file and includes run duration, assertion counts, available bot-token usage and total elapsed time. By default, assertion details are shown for failed tests; `--verbose` shows them for every test. `--record` saves the HTTP requests and responses the CLI makes to `__cassettes__/` next to the eval files, and `--replay` answers them from there. In URL mode, the remote chat request and stream are recorded; replay doesn't contact the server, and API calls made inside the deployed server aren't part of the cassette. The remote server's rate limits apply; use `--concurrency 1` for a smoke test. Replay is the default when `CI` is set, so CI needs no API keys. `judge` assertions have a model from another provider grade a reply against a rubric (`--judge-model` to choose it), and with `prices` in the config, `--max-cost` stops a run once it has spent that much. It exits 0 when all tests passed, 1 when some failed, 2 when it couldn't run. See [Testing your bot](https://chat.codercops.com/core/testing/).
 
 To inspect failure formatting without calling a live AI provider, build the CLI and run its deterministic fake-provider demo from the repository root:
 
