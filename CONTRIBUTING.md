@@ -224,7 +224,9 @@ pnpm e2e
 
 With Google Chrome installed you can skip the Chromium download and run `E2E_CHANNEL=chrome pnpm e2e`.
 
-They cover starting from the script tag, streaming, Escape and the tab order, the phone layout, a reply that fails or is cut off, a slow tool kept alive by pings, session tokens, and a chat API on another origin. `e2e/tests/states.spec.ts` puts the widget in each of its states (launcher, unread, welcome bubble, suggestions, pre-chat form, streaming, sources, errors, rate limit, offline, conversation limit, phone) in light, dark and right-to-left, and checks each one with axe against WCAG 2.2 AA. When you add a state, add it there too. CI runs them all in the `e2e` job. Add a test there when you change how the widget behaves in a browser.
+They cover starting from the script tag, streaming, Escape and the tab order, the phone layout, a reply that fails or is cut off, a slow tool kept alive by pings, session tokens, and a chat API on another origin. `e2e/tests/states.spec.ts` puts the widget in each of its states (launcher, unread, welcome bubble, suggestions, pre-chat form, streaming, sources, errors, rate limit, offline, conversation limit, phone) in light, dark and right-to-left, and checks each one with axe against WCAG 2.2 AA. When you add a state, add it there too. CI runs them all in the `e2e` job.
+
+`e2e/tests/visual.spec.ts` compares screenshots of the main states, in light, dark and right-to-left, with the baselines in `e2e/screenshots/`. Fonts render differently on every OS, so the baselines are made on CI's Linux Chromium and the spec skips anywhere else, your machine included. When you change how the widget looks, a maintainer runs the "Update screenshots" workflow (Actions tab, Run workflow) on your branch. It commits the new images there and starts CI again. Look at them in the PR's Files tab: the diff is the review. For a PR from a fork, which the workflow can't push to, the maintainer updates them after merging, and the workflow opens a PR against `dev` for that. Add a test there when you change how the widget behaves in a browser.
 
 ## Adding a new AI provider
 
