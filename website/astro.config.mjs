@@ -60,7 +60,7 @@ export default defineConfig({
         {
           tag: 'script',
           attrs: {
-            src: 'https://cdn.jsdelivr.net/npm/@chatcops/widget@0.4/dist/chatcops.min.js',
+            src: 'https://cdn.jsdelivr.net/npm/@chatcops/widget@0.7/dist/chatcops.min.js',
             'data-api-url': '/api/chat',
             'data-accent': '#6366f1',
             'data-brand-name': 'ChatCops AI',
