@@ -32,6 +32,9 @@ const it: Partial<WidgetLocaleStrings> = {
   regenerateButton: 'Rigenera',
   suggestionsLabel: 'Domande suggerite',
   unreadCount: 'Messaggi non letti: {count}',
+  sourcesLabel: 'Fonti',
+  disclosure: 'Stai chattando con un assistente IA. Può commettere errori.',
+  disclosureLearnMore: 'Scopri di più',
 };
 
 export default it;

@@ -31,6 +31,9 @@ const de: Partial<WidgetLocaleStrings> = {
   retryButton: 'Erneut versuchen',
   regenerateButton: 'Erneut generieren',
   unreadCount: 'Ungelesene Nachrichten: {count}',
+  sourcesLabel: 'Quellen',
+  disclosure: 'Sie chatten mit einem KI-Assistenten. Er kann Fehler machen.',
+  disclosureLearnMore: 'Mehr erfahren',
 };
 
 export default de;

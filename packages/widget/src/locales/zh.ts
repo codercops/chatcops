@@ -32,6 +32,9 @@ const zh: Partial<WidgetLocaleStrings> = {
   regenerateButton: '重新生成',
   suggestionsLabel: '推荐问题',
   unreadCount: '{count}条未读消息',
+  sourcesLabel: '来源',
+  disclosure: '您正在与 AI 助手聊天。它可能会出错。',
+  disclosureLearnMore: '了解更多',
 };
 
 export default zh;

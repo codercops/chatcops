@@ -32,6 +32,9 @@ const nl: Partial<WidgetLocaleStrings> = {
   regenerateButton: 'Opnieuw genereren',
   suggestionsLabel: 'Voorgestelde vragen',
   unreadCount: 'Ongelezen berichten: {count}',
+  sourcesLabel: 'Bronnen',
+  disclosure: 'Je chat met een AI-assistent. Deze kan fouten maken.',
+  disclosureLearnMore: 'Meer informatie',
 };
 
 export default nl;

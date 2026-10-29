@@ -32,6 +32,9 @@ const pt: Partial<WidgetLocaleStrings> = {
   regenerateButton: 'Gerar novamente',
   suggestionsLabel: 'Perguntas sugeridas',
   unreadCount: 'Não lidas: {count}',
+  sourcesLabel: 'Fontes',
+  disclosure: 'Você está conversando com um assistente de IA. Ele pode cometer erros.',
+  disclosureLearnMore: 'Saiba mais',
 };
 
 export default pt;

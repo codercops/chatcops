@@ -32,6 +32,9 @@ const ja: Partial<WidgetLocaleStrings> = {
   regenerateButton: '再生成',
   suggestionsLabel: 'おすすめの質問',
   unreadCount: '未読メッセージ {count} 件',
+  sourcesLabel: '情報源',
+  disclosure: 'AIアシスタントと会話しています。誤ることがあります。',
+  disclosureLearnMore: '詳しく見る',
 };
 
 export default ja;

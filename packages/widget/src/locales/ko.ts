@@ -32,6 +32,9 @@ const ko: Partial<WidgetLocaleStrings> = {
   regenerateButton: '다시 생성',
   suggestionsLabel: '추천 질문',
   unreadCount: '읽지 않은 메시지 {count}개',
+  sourcesLabel: '출처',
+  disclosure: 'AI 어시스턴트와 대화하고 있습니다. 잘못된 답변을 할 수 있습니다.',
+  disclosureLearnMore: '자세히 알아보기',
 };
 
 export default ko;

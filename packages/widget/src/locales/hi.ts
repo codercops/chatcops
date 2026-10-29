@@ -30,6 +30,9 @@ const hi: Partial<WidgetLocaleStrings> = {
   preChatInvalidEmail: 'कृपया मान्य ईमेल पता दर्ज करें।',
   retryButton: 'फिर कोशिश करें',
   regenerateButton: 'जवाब फिर से तैयार करें',
+  sourcesLabel: 'स्रोत',
+  disclosure: 'आप एक एआई सहायक से बातचीत कर रहे हैं। यह गलतियाँ कर सकता है।',
+  disclosureLearnMore: 'और जानें',
 };
 
 export default hi;

@@ -31,6 +31,9 @@ const es: Partial<WidgetLocaleStrings> = {
   retryButton: 'Reintentar',
   regenerateButton: 'Volver a generar',
   unreadCount: '{count} sin leer',
+  sourcesLabel: 'Fuentes',
+  disclosure: 'Estás chateando con un asistente de IA. Puede cometer errores.',
+  disclosureLearnMore: 'Más información',
 };
 
 export default es;
