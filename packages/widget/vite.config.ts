@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
+import { MANGLED_PROPERTIES } from './mangle';
 
 const { version } = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf8')) as { version: string };
 
@@ -21,7 +22,7 @@ export default defineConfig({
       compress: { passes: 2 },
       mangle: {
         properties: {
-          regex: /^(?:mounted|fab|panel|bubble|preChatFormEl|namespace|hydrated|isStreaming|destroyed|abortController|retryRequests|eventHandlers|containerEl|autoOpenTimer|unreadReplies|savedOverflow|shadow|unreadLabel|openLabel|closeLabel|badge|el|inline|messagesContainer|isVisible|typingEl|suggestionsEl|area|textarea|sendBtn|onSend|timerId)$/,
+          regex: MANGLED_PROPERTIES,
         },
       },
     },
