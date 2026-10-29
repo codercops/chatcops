@@ -98,6 +98,8 @@ for (const look of looks) {
       await openChat(page);
       await ask(page, 'What does it cost, with sources?');
       await expect(page.locator('.cc-message-sources a')).toHaveText(['Pricing']);
+      // Sources arrive just before the reply ends: wait for the end, or the shot races it.
+      await expect(page.locator('.cc-message-regenerate')).toBeVisible();
       await snap(page, page.locator('.cc-panel'), `s7-sources-${look.name}`);
     });
 
@@ -117,6 +119,7 @@ for (const look of looks) {
         await openChat(page);
         await ask(page, 'Hi there');
         await expect(page.locator('.cc-message-assistant').last()).toContainText('Hello from the test server.');
+        await expect(page.locator('.cc-message-regenerate')).toBeVisible();
         await snap(page, page, `s14-phone-${look.name}`);
       });
     });
