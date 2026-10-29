@@ -77,6 +77,12 @@ describe('purge', () => {
     cleanup();
   });
 
+  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])('throws when conversationsDays is %s', (days) => {
+    expect(() => createChatHandler({ provider: scriptedProvider([]), systemPrompt: 'x', retention: { conversationsDays: days } })).toThrow(
+      'retention.conversationsDays must be a number greater than 0'
+    );
+  });
+
   it('resolves null when the store has no purge', async () => {
     const conversationStore = { get: async () => null, save: async () => {}, delete: async () => {} };
     const { purge, cleanup } = createChatHandler({ provider: scriptedProvider([]), systemPrompt: 'x', conversationStore });
