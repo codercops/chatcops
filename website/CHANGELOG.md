@@ -1,5 +1,71 @@
 # @chatcops/website
 
+## 0.0.6
+
+### Patch Changes
+
+- Updated dependencies [5e34537]
+- Updated dependencies [897f8e3]
+- Updated dependencies [5ef0242]
+- Updated dependencies [bd6f3c8]
+- Updated dependencies [b8c5ed6]
+- Updated dependencies [d6c857f]
+- Updated dependencies [b93e221]
+- Updated dependencies [304f1df]
+- Updated dependencies [3ee5fdc]
+- Updated dependencies [15d5b10]
+- Updated dependencies [b0bd38d]
+- Updated dependencies [4e86624]
+- Updated dependencies [d651eea]
+- Updated dependencies [095829b]
+- Updated dependencies [75903b4]
+- Updated dependencies [a714a12]
+- Updated dependencies [cb360ad]
+- Updated dependencies [83e0d3f]
+- Updated dependencies [9632988]
+- Updated dependencies [8d6223d]
+- Updated dependencies [458fb3c]
+- Updated dependencies [316f625]
+- Updated dependencies [fa8df0d]
+- Updated dependencies [31d67fb]
+- Updated dependencies [26a4086]
+- Updated dependencies [2c1f49a]
+- Updated dependencies [f535508]
+- Updated dependencies [3896eb0]
+- Updated dependencies [e22060d]
+- Updated dependencies [95f58dd]
+- Updated dependencies [983d7d6]
+- Updated dependencies [82822a6]
+- Updated dependencies [f73ecf8]
+- Updated dependencies [9d36629]
+- Updated dependencies [d890cbe]
+- Updated dependencies [d9c8ea6]
+- Updated dependencies [535e23a]
+- Updated dependencies [6cf2674]
+- Updated dependencies [e51822f]
+- Updated dependencies [100475b]
+- Updated dependencies [7ecd228]
+- Updated dependencies [b66fd9f]
+- Updated dependencies [7665dcb]
+- Updated dependencies [f5416e2]
+- Updated dependencies [3ff10e0]
+- Updated dependencies [da756fe]
+- Updated dependencies [0d35733]
+- Updated dependencies [cc19259]
+- Updated dependencies [f1ff788]
+- Updated dependencies [d09b5a7]
+- Updated dependencies [f4ce2c8]
+- Updated dependencies [59e8486]
+- Updated dependencies [cf184c7]
+- Updated dependencies [5dc1fc6]
+- Updated dependencies [08b4647]
+- Updated dependencies [86085c0]
+- Updated dependencies [a029c43]
+  - @chatcops/server@0.7.0
+  - @chatcops/core@0.6.0
+  - @chatcops/widget@0.7.0
+  - @chatcops/store-cloudflare@1.0.0
+
 ## 0.0.5
 
 ### Patch Changes

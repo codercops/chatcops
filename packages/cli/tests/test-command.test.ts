@@ -177,6 +177,38 @@ tests:
     expect(turn.finishReason).toBe('stop');
   });
 
+  it('verifies tool calls with calls-tool and no-tool-call', async () => {
+    const files = {
+      'evals/tools.chat.yaml': `version: 1
+name: Tool Calls
+defaults:
+  mocks:
+    tools:
+      lookup_order: { success: true, data: { status: "shipped" } }
+tests:
+  - name: asserts tool call and arguments
+    turns:
+      - user: where is my order?
+        expect:
+          - calls-tool: lookup_order
+          - calls-tool: { name: lookup_order, args: { id: "A-1" } }
+          - no-tool-call: other_tool
+          - contains: shipped
+  - name: asserts no tool was called
+    turns:
+      - user: hi
+        expect:
+          - no-tool-call: true
+          - not-calls-tool: lookup_order
+          - contains: Hello
+`,
+    };
+    const { code, stdout } = await run(['test', '--json'], project(files));
+    expect(code).toBe(EXIT.ok);
+    const report = JSON.parse(stdout);
+    expect(report).toMatchObject({ passed: 2, failed: 0 });
+  });
+
   it('fails a test whose turn errors, and stops that run', async () => {
     const dir = project({
       'evals/down.chat.yaml': `version: 1
@@ -463,6 +495,242 @@ describe('assertions', () => {
     expect(await check({ 'not-lead-captured': { name: 'Joe' } }, lead, [lead])).toMatchObject({ pass: true });
     for (const value of [false, 'jane@acme.test', {}, [], null]) {
       expect(await check({ 'lead-captured': value }, lead, [lead])).toMatchObject({ pass: false, reason: 'lead-captured takes true, or the fields the lead should have' });
+    }
+  });
+
+  it('calls-tool matches by name, partial args, nested args, and arrays exactly', async () => {
+    const withCall: TurnResult = {
+      ...turn,
+      toolCalls: [
+        {
+          name: 'lookup_order',
+          input: {
+            id: 'A-1',
+            status: 'open',
+            details: { priority: 'high', tags: ['urgent', 'billing'] },
+            meta: { extra: true },
+          },
+        },
+      ],
+    };
+
+    // Name-only matching (string or object)
+    expect(await check({ 'calls-tool': 'lookup_order' }, withCall, [withCall])).toMatchObject({
+      pass: true,
+      reason: 'the turn called "lookup_order"',
+    });
+    expect(await check({ 'calls-tool': { name: 'lookup_order' } }, withCall, [withCall])).toMatchObject({
+      pass: true,
+      reason: 'the turn called "lookup_order"',
+    });
+    expect(await check({ 'calls-tool': 'cancel_order' }, withCall, [withCall])).toMatchObject({
+      pass: false,
+    });
+
+    // Partial arguments
+    expect(await check({ 'calls-tool': { name: 'lookup_order', args: { id: 'A-1' } } }, withCall, [withCall])).toMatchObject({
+      pass: true,
+      reason: 'the turn called "lookup_order" with {"id":"A-1"}',
+    });
+    expect(await check({ 'calls-tool': { name: 'lookup_order', args: { id: 'A-1', status: 'open' } } }, withCall, [withCall])).toMatchObject({
+      pass: true,
+    });
+    expect(await check({ 'calls-tool': { name: 'lookup_order', args: { id: 'A-2' } } }, withCall, [withCall])).toMatchObject({
+      pass: false,
+    });
+
+    // Nested arguments
+    expect(
+      await check(
+        { 'calls-tool': { name: 'lookup_order', args: { details: { priority: 'high' } } } },
+        withCall,
+        [withCall],
+      ),
+    ).toMatchObject({ pass: true });
+    expect(
+      await check(
+        { 'calls-tool': { name: 'lookup_order', args: { details: { priority: 'low' } } } },
+        withCall,
+        [withCall],
+      ),
+    ).toMatchObject({ pass: false });
+
+    // Array arguments must match exactly
+    expect(
+      await check(
+        { 'calls-tool': { name: 'lookup_order', args: { details: { tags: ['urgent', 'billing'] } } } },
+        withCall,
+        [withCall],
+      ),
+    ).toMatchObject({ pass: true });
+    expect(
+      await check(
+        { 'calls-tool': { name: 'lookup_order', args: { details: { tags: ['urgent'] } } } },
+        withCall,
+        [withCall],
+      ),
+    ).toMatchObject({ pass: false });
+    expect(
+      await check(
+        { 'calls-tool': { name: 'lookup_order', args: { details: { tags: ['billing', 'urgent'] } } } },
+        withCall,
+        [withCall],
+      ),
+    ).toMatchObject({ pass: false });
+
+    // Arrays containing objects must match elements exactly, not partially
+    const orderWithItems: TurnResult = {
+      ...turn,
+      toolCalls: [{ name: 'checkout', input: { items: [{ sku: 1, qty: 2 }] } }],
+    };
+    expect(
+      await check(
+        { 'calls-tool': { name: 'checkout', args: { items: [{ sku: 1 }] } } },
+        orderWithItems,
+        [orderWithItems],
+      ),
+    ).toMatchObject({ pass: false });
+    expect(
+      await check(
+        { 'calls-tool': { name: 'checkout', args: { items: [{ sku: 1, qty: 2 }] } } },
+        orderWithItems,
+        [orderWithItems],
+      ),
+    ).toMatchObject({ pass: true });
+  });
+
+  it('calls-tool and no-tool-call report mismatches with actionable actual calls', async () => {
+    const withCall: TurnResult = {
+      ...turn,
+      toolCalls: [{ name: 'lookup_order', input: { id: 'A-1' } }],
+    };
+    const multiCall: TurnResult = {
+      ...turn,
+      toolCalls: [
+        { name: 'lookup_order', input: { id: 'A-1' } },
+        { name: 'send_email', input: { to: 'jane@acme.test' } },
+      ],
+    };
+
+    // No calls made
+    expect(await check({ 'calls-tool': 'lookup_order' }, turn, [turn])).toMatchObject({
+      pass: false,
+      reason: 'the turn didn\'t call "lookup_order" (it called no tools)',
+    });
+    expect(await check({ 'calls-tool': { name: 'lookup_order', args: { id: 'A-1' } } }, turn, [turn])).toMatchObject({
+      pass: false,
+      reason: 'the turn didn\'t call "lookup_order" with {"id":"A-1"} (it called no tools)',
+    });
+
+    // Mismatched name or args shows actual calls
+    expect(await check({ 'calls-tool': 'cancel_order' }, withCall, [withCall])).toMatchObject({
+      pass: false,
+      reason: 'the turn didn\'t call "cancel_order" (it called lookup_order({"id":"A-1"}))',
+    });
+    expect(await check({ 'calls-tool': { name: 'lookup_order', args: { id: 'A-2' } } }, withCall, [withCall])).toMatchObject({
+      pass: false,
+      reason: 'the turn didn\'t call "lookup_order" with {"id":"A-2"} (it called lookup_order({"id":"A-1"}))',
+    });
+    expect(await check({ 'calls-tool': 'cancel_order' }, multiCall, [multiCall])).toMatchObject({
+      pass: false,
+      reason: 'the turn didn\'t call "cancel_order" (it called lookup_order({"id":"A-1"}), send_email({"to":"jane@acme.test"}))',
+    });
+  });
+
+  it('no-tool-call handles boolean true and tool name string', async () => {
+    const withCall: TurnResult = {
+      ...turn,
+      toolCalls: [{ name: 'lookup_order', input: { id: 'A-1' } }],
+    };
+
+    // no-tool-call: true passes only when no tools called
+    expect(await check({ 'no-tool-call': true }, turn, [turn])).toMatchObject({
+      pass: true,
+      reason: 'the turn called no tools',
+    });
+    expect(await check({ 'no-tool-call': true }, withCall, [withCall])).toMatchObject({
+      pass: false,
+      reason: 'the turn called lookup_order({"id":"A-1"})',
+    });
+
+    // no-tool-call: string passes when specific tool not called
+    expect(await check({ 'no-tool-call': 'cancel_order' }, withCall, [withCall])).toMatchObject({
+      pass: true,
+      reason: 'the turn didn\'t call "cancel_order"',
+    });
+    expect(await check({ 'no-tool-call': 'lookup_order' }, withCall, [withCall])).toMatchObject({
+      pass: false,
+      reason: 'the turn called "lookup_order" (it called lookup_order({"id":"A-1"}))',
+    });
+    expect(await check({ 'no-tool-call': 'lookup_order' }, turn, [turn])).toMatchObject({
+      pass: true,
+      reason: 'the turn didn\'t call "lookup_order"',
+    });
+  });
+
+  it('tool assertions work with negation (not- prefix)', async () => {
+    const withCall: TurnResult = {
+      ...turn,
+      toolCalls: [{ name: 'lookup_order', input: { id: 'A-1' } }],
+    };
+
+    // not-calls-tool
+    expect(await check({ 'not-calls-tool': 'lookup_order' }, turn, [turn])).toMatchObject({
+      pass: true,
+    });
+    expect(await check({ 'not-calls-tool': 'lookup_order' }, withCall, [withCall])).toMatchObject({
+      pass: false,
+      reason: 'expected not: the turn called "lookup_order"',
+    });
+    expect(await check({ 'not-calls-tool': { name: 'lookup_order', args: { id: 'A-1' } } }, withCall, [withCall])).toMatchObject({
+      pass: false,
+      reason: 'expected not: the turn called "lookup_order" with {"id":"A-1"}',
+    });
+    expect(await check({ 'not-calls-tool': { name: 'lookup_order', args: { id: 'A-2' } } }, withCall, [withCall])).toMatchObject({
+      pass: true,
+    });
+
+    // not-no-tool-call
+    expect(await check({ 'not-no-tool-call': true }, withCall, [withCall])).toMatchObject({
+      pass: true,
+      reason: 'the turn called lookup_order({"id":"A-1"})',
+    });
+    expect(await check({ 'not-no-tool-call': true }, turn, [turn])).toMatchObject({
+      pass: false,
+      reason: 'expected not: the turn called no tools',
+    });
+    expect(await check({ 'not-no-tool-call': 'lookup_order' }, withCall, [withCall])).toMatchObject({
+      pass: true,
+    });
+    expect(await check({ 'not-no-tool-call': 'cancel_order' }, withCall, [withCall])).toMatchObject({
+      pass: false,
+      reason: 'expected not: the turn didn\'t call "cancel_order"',
+    });
+  });
+
+  it('tool assertions reject invalid values with clear errors', async () => {
+    for (const value of [123, false, true, null, [], {}, { name: 123 }, { name: '' }, { args: {} }, { name: 't', args: 123 }, { name: 't', args: [] }, { name: 't', extra: 1 }]) {
+      expect(await check({ 'calls-tool': value }, turn, [turn])).toMatchObject({
+        pass: false,
+        reason: 'calls-tool takes a tool name, or { name, args }',
+      });
+      // not- on invalid value still fails with the same error
+      expect(await check({ 'not-calls-tool': value }, turn, [turn])).toMatchObject({
+        pass: false,
+        reason: 'calls-tool takes a tool name, or { name, args }',
+      });
+    }
+
+    for (const value of [false, 123, null, [], {}, '']) {
+      expect(await check({ 'no-tool-call': value }, turn, [turn])).toMatchObject({
+        pass: false,
+        reason: 'no-tool-call takes true, or a tool name',
+      });
+      // not- on invalid value still fails with the same error
+      expect(await check({ 'not-no-tool-call': value }, turn, [turn])).toMatchObject({
+        pass: false,
+        reason: 'no-tool-call takes true, or a tool name',
+      });
     }
   });
 

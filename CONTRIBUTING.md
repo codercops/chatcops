@@ -210,7 +210,7 @@ ANTHROPIC_API_KEY=sk-... npx tsx src/examples/express-server.ts
 
 `npx` downloads `tsx` the first time.
 
-The widget has a size budget, gzipped: 5 kB for the script tag loader (`dist/chatcops.min.js`), 17 kB for the chat panel it loads when the chat opens (`dist/chatcops.panel.js`), 2 kB for the pre-chat form chunk, 19 kB for the single-file build (`dist/chatcops.full.min.js`) and 30 kB for the unminified ESM build. CI checks them with `pnpm size` after a build (limits in `.size-limit.json`).
+The widget has a size budget, gzipped: 5 kB for the script tag loader (`dist/chatcops.min.js`), 17 kB for the chat panel it loads when the chat opens (`dist/chatcops.panel.js`), 2 kB for the pre-chat form chunk, 19 kB for the single-file build (`dist/chatcops.full.min.js`) and 30 kB for the unminified ESM build. CI checks them with `pnpm size` after a build (limits in `.size-limit.json`). To save bytes, the minifier renames the private class members listed in `packages/widget/mangle.ts`. A name can go on that list only if the code touches it through `this` and nowhere else, which `tests/mangle.test.ts` checks. A config field, a request body key or a DOM property renamed there would break only the CDN build.
 
 ### Browser tests
 

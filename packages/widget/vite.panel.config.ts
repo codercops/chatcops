@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 import { resolve } from 'node:path';
+import { MANGLED_PROPERTIES } from './mangle';
 
 // One translation per file in src/locales (de.ts, pt.ts, ...), each built to
 // dist/locales/<code>.js for the loader to fetch next to the panel.
@@ -27,7 +28,7 @@ export default defineConfig({
       compress: { passes: 2 },
       mangle: {
         properties: {
-          regex: /^(?:mounted|fab|panel|bubble|preChatFormEl|namespace|hydrated|isStreaming|destroyed|abortController|retryRequests|eventHandlers|containerEl|autoOpenTimer|unreadReplies|savedOverflow|shadow|unreadLabel|openLabel|closeLabel|badge|el|inline|messagesContainer|isVisible|typingEl|suggestionsEl|area|textarea|sendBtn|onSend|timerId)$/,
+          regex: MANGLED_PROPERTIES,
         },
       },
     },

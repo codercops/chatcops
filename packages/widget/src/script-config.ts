@@ -41,7 +41,7 @@ export function configFromScript(script: HTMLScriptElement): WidgetConfig | unde
     welcomeBubble: script.dataset.welcomeBubble
       ? {
           text: script.dataset.welcomeBubble,
-          delay: script.dataset.welcomeBubbleDelay ? parseInt(script.dataset.welcomeBubbleDelay, 10) : undefined,
+          delay: /^\d+$/.test(script.dataset.welcomeBubbleDelay ?? '') ? Number(script.dataset.welcomeBubbleDelay) : undefined,
         }
       : undefined,
     autoOpen: parseAutoOpen(script.dataset.autoOpen),

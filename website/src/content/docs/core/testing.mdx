@@ -73,6 +73,11 @@ Two assertions check what ChatCops adds to a reply:
 - `cites` takes a URL glob, or a list of them, and each has to match a page the reply cites (`cites: "https://acme.test/pricing*"`). Globs work the same as in `ingest.include`. `cites: true` means it cites at least one page.
 - `lead-captured: true` means the turn captured a lead. An object, such as `lead-captured: { email: jane@acme.test }`, also has to match those fields of the lead.
 
+Two assertions check tool calls made during a turn:
+
+- `calls-tool` asserts that the bot called a tool. It takes either a tool name (`calls-tool: lookup_order`) or `{ name, args }` to also check inputs (`calls-tool: { name: lookup_order, args: { id: "A-1001" } }`). Arguments match partially: every specified key must match, nested objects follow the same rule, extra input keys are allowed, and arrays must match exactly.
+- `no-tool-call: true` asserts that no tool was called during the turn. It also takes a tool name (`no-tool-call: cancel_order`) to assert that the specific tool was not called, even if other tools were called.
+
 A test can also set:
 
 - `pageContext`: the page the visitor is on (`url`, `title`, and optionally `description` and `contentSnippet`)
@@ -97,6 +102,9 @@ tests:
     turns:
       - user: Where is order A-1001?
         expect:
+          - calls-tool: lookup_order
+          - calls-tool: { name: lookup_order, args: { id: "A-1001" } }
+          - no-tool-call: cancel_order
           - contains: shipped
 ```
 

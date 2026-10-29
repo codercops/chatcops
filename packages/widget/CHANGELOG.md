@@ -1,5 +1,67 @@
 # @chatcops/widget
 
+## 0.7.0
+
+### Minor Changes
+
+- b93e221: Add configurable suggested question buttons to new widget conversations.
+- cb360ad: The types that make up a config are now exported, so a site can name them: `ThemeConfig`, `ThemeMode`, `PreChatField`, `PreChatFormConfig`, `Persistence`, `MessageStatus` and `MessageErrorType` from `@chatcops/widget`, and `TurnstileConfig` from `@chatcops/server`.
+- 31d67fb: Signed-in visitors. With `identity: { secret }` on the server, your site signs a `userToken` (an HS256 JWT with `sub`, `exp` and an optional `tier`) and the widget sends it with `/session` (`userToken` or `data-user-token`). The user id goes into the session token and is stored on the conversation, so the same user can resume it with a fresh token and nobody else can. `identity.tiers` gives a tier its own budgets.
+- d9c8ea6: Add locale-aware text direction and language attributes for RTL widget support.
+- 3ff10e0: The chat now starts with a note that the visitor is talking to an AI ("You're chatting with an AI assistant. It can make mistakes."), as the EU AI Act asks (Article 50). It's on by default, stays first in the log (also after a new conversation), and has `role="note"`. `disclosure: { text, learnMoreUrl }` (or `data-disclosure-text`, `data-disclosure-url`) changes the wording and adds a link; `disclosure: false` (`data-disclosure="false"`) removes it and logs a console notice that telling visitors is then up to you. New locale strings: `disclosure`, `disclosureLearnMore`.
+- da756fe: More of the widget API, on `window.ChatCops` (script tag builds) and the npm default export: `toggle()`, `sendMessage(text, { open? })` to send as the visitor from your own buttons, `newConversation()` to start fresh, `clear()` to also remove the saved transcript and pre-chat answers, `registerLocale(code, strings, { dir? })` for a language the widget doesn't ship, and `version`. With the script tag loader they work before the chat has loaded: the first call loads it. A reply still coming when the conversation is reset is stopped and never lands in the new one. `WidgetLocaleStrings` is exported for typing your strings.
+- cc19259: Light, dark and auto themes. `theme.mode` (`data-theme-mode`) is `auto` by default and follows the visitor's system setting, switching live; `light` and `dark` pin one. `theme.accentDark` (`data-accent-dark`) sets a separate accent for dark mode.
+
+  **This changes how existing sites look:** the widget used to be dark everywhere, and is now light on light systems. Set `theme.mode: 'dark'` to keep the old look, which is exactly the dark preset. A config that sets `bgColor` or `textColor` without `mode` keeps the mode its colors were made for, so custom dark themes don't turn into light text on light panels. Errors and code blocks now use the `--cc-danger`, `--cc-code-bg` and `--cc-pre-bg` tokens.
+
+- f1ff788: The script tag build is now a small loader. `chatcops.min.js` (about 3 kB gzipped) draws the chat button and loads the chat panel (`chatcops.panel.js`, next to it) when the visitor hovers or clicks it, or when the page opens the chat, shows a welcome bubble or uses inline mode. Until then it reads no storage and makes no requests. The CDN snippet doesn't change. To self-host, copy both files, or use `chatcops.full.min.js`, which is the whole chat in one file as before. In the loader, `ChatCops.init()` returns nothing, and the other `ChatCops` methods work before and after the chat loads.
+- d09b5a7: Translations can now ship as one file per language in `dist/locales/<code>.js`. The script tag loader fetches the file for `locale` (or `data-locale`) next to the panel, at the same time as the panel, and falls back to English with a warning when there's none. Bundler users import `@chatcops/widget/locales/<code>` and pass it as `strings`. A site's own `strings` still win over the translation. No languages ship yet; they're added one per pull request.
+- 59e8486: The widget no longer touches `localStorage` or `sessionStorage` before the visitor opens it. A popup reads its saved conversation on first open, and an inline chat reads it when it mounts. A welcome bubble with `showOnce` checks its flag only when it's due to show.
+
+  New `persistence` option: `'local'` (the default, same as before), `'session'` (this tab only) or `'none'` (memory only, nothing is ever written). New `historyTtlDays` option drops saved conversations older than that many days, 30 by default. Both can be set from the script tag with `data-persistence` and `data-history-ttl-days`.
+
+  The pre-chat form's answers are now saved with the conversation instead of per tab in `sessionStorage`, so they last and expire with it. A visitor who already has a saved conversation never gets the form on top of it, as before.
+
+  `persistHistory` is deprecated. `persistHistory: false` still works and means `persistence: 'none'`.
+
+- cf184c7: Show source pages under assistant replies. A reply that cites pages now shows a labelled "Sources" list of links beneath it. Sources survive a page reload. Non-http(s) URLs are never rendered as links.
+- 08b4647: `ChatCops.update(changes)` changes the running chat without loading it again: the theme (all but `position`), `branding`, `placeholder`, `strings`, `disclosure`, `welcomeMessage` and `suggestions`. Fields left out keep their current values. A chat that has only its welcome message shows the new one; once the visitor has written, the new welcome message and suggestions are used from the next conversation. In the script tag build, calls made before the chat loads are kept until it does, and the launcher takes the new theme right away.
+- 86085c0: `ChatCops.setUser({ name, email, token })` and `ChatCops.setContext(data)`. `setUser` sets the signed-in visitor's identity token for the server, and sends `name` and `email` as visitor details with the first message of each conversation; switching users or `setUser(null)` clears the chat. `setContext` adds details for the next messages, such as `{ plan: 'Team' }`, sent as the new `pageContext.data` (at most 20 string fields), which the server shows the model as page details that aren't verified. With the script tag loader both are kept until the chat loads, without loading it early or touching storage.
+
+  Visitor details are now sent again with the first message of a new conversation on a v1 server, which keeps them from that message.
+
+### Patch Changes
+
+- 5ef0242: Announce completed assistant replies once for screen readers.
+- b8c5ed6: Add Arabic widget translations, loaded only for visitors using Arabic.
+- d6c857f: Show unread reply count in the launcher badge and accessible name.
+- 15d5b10: Add Simplified Chinese widget translations, loaded only for visitors using Chinese.
+- 095829b: Add Dutch widget translations, loaded only for visitors using Dutch.
+- 75903b4: Add source labels and AI disclosure translations to 11 widget locales.
+- 83e0d3f: Add --cc-focus-ring on :host for visible keyboard focus indicators across widget controls.
+- 9632988: Add French widget translations, loaded only for visitors using French.
+- 458fb3c: Add German widget translations, loaded only for visitors using German.
+- 316f625: Add Hebrew widget translations, loaded only for visitors using Hebrew.
+- fa8df0d: Add Hindi widget translations, loaded only for visitors using Hindi.
+- 26a4086: Add Italian widget translations, loaded only for visitors using Italian.
+- 2c1f49a: Add Japanese widget translations, loaded only for visitors using Japanese.
+- 3896eb0: Add Korean widget translations, loaded only for visitors using Korean.
+- 95f58dd: Use logical CSS properties for widget styles so layout and message bubbles adapt to right-to-left languages.
+- 983d7d6: Lock document scrolling on mobile screens (640px and below) when the chat panel is open in full-screen mode, and restore original overflow on close or destroy. Update mobile breakpoint to 640px, add safe-area insets, and set mobile input font size to 16px to prevent auto-zooming on mobile devices.
+- 82822a6: Keep keyboard focus inside the open popup chat.
+- f73ecf8: Add Portuguese widget translations, loaded only for visitors using Portuguese.
+- 535e23a: Add Spanish widget translations, loaded only for visitors using Spanish.
+- 6cf2674: `ChatCops.on()` and `widget.on()` type each handler by its event, so `on('message', (message) => ...)` gets a `MessageData` and `on('error', (error) => ...)` an `Error`. A handler typed `(...args: unknown[]) => void` still works. `WidgetEvents` and `MessageData` are exported.
+- e51822f: Add Urdu widget translations, loaded only for visitors using Urdu.
+- 7665dcb: Make the welcome bubble text keyboard-accessible.
+- f5416e2: A `data-welcome-bubble-delay` that isn't whole milliseconds, such as `3s`, now falls back to the default delay instead of being read as 3 ms.
+- 0d35733: The pre-chat form and the Turnstile helper are now separate files in `dist/chunks/`, loaded by the chat panel only on sites that use them. The panel is about 0.6 kB smaller for everyone else. Self-hosted sites need to copy `dist/chunks/` next to `chatcops.panel.js`. The single-file and ESM builds still include everything.
+
+  If the pre-chat form's file fails to load, the chat opens without the form and logs the error, instead of leaving an empty panel.
+
+- f4ce2c8: The panel is about 240 B smaller gzipped (16.6 kB) and the single-file build about 300 B (18.62 kB): the minifier now also renames 55 more private class members, each checked to be used only inside its class.
+- 5dc1fc6: Long replies stream without slowing the page down: finished paragraphs render once, and only the one being written re-renders, at most once a frame, instead of the whole reply on every chunk. The log follows new text only while it's scrolled to the bottom, so a visitor reading an earlier message isn't pulled away. The finished reply renders exactly as before.
+
 ## 0.6.0
 
 ### Minor Changes

@@ -31,6 +31,9 @@ const fr: Partial<WidgetLocaleStrings> = {
   retryButton: 'Réessayer',
   regenerateButton: 'Générer à nouveau',
   unreadCount: 'Messages non lus : {count}',
+  sourcesLabel: 'Sources',
+  disclosure: 'Vous échangez avec un assistant IA. Il peut faire des erreurs.',
+  disclosureLearnMore: 'En savoir plus',
 };
 
 export default fr;

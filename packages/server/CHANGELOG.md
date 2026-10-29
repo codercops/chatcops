@@ -1,5 +1,49 @@
 # @chatcops/server
 
+## 0.7.0
+
+### Minor Changes
+
+- 897f8e3: Analytics events are named `noun.verb` now: `conversation.started`, `message.sent`, `message.received` and `lead.captured`, also exported as `ANALYTICS_EVENTS`. The old `noun:verb` names keep working until 1.0. `track()` and `getEvents()` read them as the new ones, stats count events a store saved under either, and `eventCounts` has both keys, so the numbers carry on across the upgrade. Stats gain `leadsCaptured`. `leadsCapture`, the same number, is deprecated. A custom `EventSink` now receives the new names. Webhook event names don't change.
+- b0bd38d: Answers now cite the pages they came from. Chunks from knowledge sources with `retrieve` are passed to the turn as `sources`, and each page the reply cites becomes a `source` part (once per page), streamed after the text and saved with the reply. Claude gets the chunks as `search_result` blocks and cites them natively; other providers get a numbered `<sources>` block and cite with `[n]`, and numbers that match no source are removed from the text. New in core: `sources` on `runTurn` and provider step params, `citations: 'native'` on providers, a `source` provider event, and `CitationParser`/`parseCitations`/`sourcePart`.
+- cb360ad: The types that make up a config are now exported, so a site can name them: `ThemeConfig`, `ThemeMode`, `PreChatField`, `PreChatFormConfig`, `Persistence`, `MessageStatus` and `MessageErrorType` from `@chatcops/widget`, and `TurnstileConfig` from `@chatcops/server`.
+- 31d67fb: Signed-in visitors. With `identity: { secret }` on the server, your site signs a `userToken` (an HS256 JWT with `sub`, `exp` and an optional `tier`) and the widget sends it with `/session` (`userToken` or `data-user-token`). The user id goes into the session token and is stored on the conversation, so the same user can resume it with a fresh token and nobody else can. `identity.tiers` gives a tier its own budgets.
+- e22060d: A `Logger` for everything ChatCops writes: `logger` in the server config gets startup notes, refused requests and every error the server handles instead of throwing, each with a stable `event` name (`provider_error`, `tool_error`, `webhook_failed`, `origin_refused`, …). The default `consoleLogger()` prints the same `[chatcops] …` lines as before; `jsonLogger()` writes one JSON object per line, and any object with `debug`/`info`/`warn`/`error` works. Tools get the logger as `context.logger`, and `runTurn`, providers (`ProviderConfig.logger`), `ConversationManager` and `BufferedEventSink` take one too.
+
+  **Tool errors:** when a tool throws, the model now sees only `Tool failed: <name>`, and the full error is logged as `tool_error`. Before, the thrown message went to the model, which could repeat a database error or a connection string to the visitor. Return `{ success: false, message }` to tell the model something it can pass on. Timeouts and cancelled replies keep their messages.
+
+  Console lines for errors that come with an error object no longer end in a colon (`[chatcops] Provider error` and the error), and `describeBudgets` and `describeSecurity` no longer start with `[chatcops] `, since the logger adds it.
+
+- 9d36629: Retrieval building blocks. `KnowledgeSource` has an optional `retrieve(query)` that returns chunks with their source page. When a source has it, the server calls it with the conversation so far, for follow-up questions, and gives the model every source's chunks as one numbered block, fenced as reference material that never contains instructions. Sources with only `getContext` work as before.
+
+  New in core: the `Embedder`, `Retriever`, `RetrievedChunk` and `RetrievalQuery` types, `openaiEmbedder` (fetch only, `text-embedding-3-small` at 1024 dimensions by default, with retries on rate limits), `retrieverKnowledge` and `formatSources`.
+
+- 86085c0: `ChatCops.setUser({ name, email, token })` and `ChatCops.setContext(data)`. `setUser` sets the signed-in visitor's identity token for the server, and sends `name` and `email` as visitor details with the first message of each conversation; switching users or `setUser(null)` clears the chat. `setContext` adds details for the next messages, such as `{ plan: 'Team' }`, sent as the new `pageContext.data` (at most 20 string fields), which the server shows the model as page details that aren't verified. With the script tag loader both are kept until the chat loads, without loading it early or touching storage.
+
+  Visitor details are now sent again with the first message of a new conversation on a v1 server, which keeps them from that message.
+
+### Patch Changes
+
+- 5e34537: 405 responses now include `Allow: POST, OPTIONS`.
+- Updated dependencies [897f8e3]
+- Updated dependencies [bd6f3c8]
+- Updated dependencies [304f1df]
+- Updated dependencies [3ee5fdc]
+- Updated dependencies [b0bd38d]
+- Updated dependencies [4e86624]
+- Updated dependencies [a714a12]
+- Updated dependencies [8d6223d]
+- Updated dependencies [f535508]
+- Updated dependencies [e22060d]
+- Updated dependencies [9d36629]
+- Updated dependencies [d890cbe]
+- Updated dependencies [100475b]
+- Updated dependencies [7ecd228]
+- Updated dependencies [b66fd9f]
+- Updated dependencies [86085c0]
+- Updated dependencies [a029c43]
+  - @chatcops/core@0.6.0
+
 ## 0.6.0
 
 ### Minor Changes

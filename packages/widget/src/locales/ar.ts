@@ -32,6 +32,9 @@ const ar: Partial<WidgetLocaleStrings> = {
   regenerateButton: 'إنشاء رد جديد',
   suggestionsLabel: 'أسئلة مقترحة',
   unreadCount: 'عدد الرسائل غير المقروءة: {count}',
+  sourcesLabel: 'المصادر',
+  disclosure: 'أنت تتحدث مع مساعد ذكاء اصطناعي. قد يرتكب أخطاء.',
+  disclosureLearnMore: 'معرفة المزيد',
 };
 
 export default ar;

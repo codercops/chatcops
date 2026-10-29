@@ -6,7 +6,7 @@
   "core/analytics.mdx": "c8b8a1face21bac1",
   "core/knowledge-base.mdx": "1e953b172594259f",
   "core/providers.mdx": "eff5629b27dc1e61",
-  "core/testing.mdx": "6d36d95a8793c92d",
+  "core/testing.mdx": "482714af34195f42",
   "core/tools.mdx": "4f7e16807ec2f372",
   "examples/cloudflare-full.mdx": "f177ad4c1be1cd14",
   "examples/express-full.mdx": "7b72bd066dd3451e",
@@ -331,17 +331,17 @@
   },
   {
    "id": "1b45570cc21a20b2e66fb5ace6c8a7328df1124d51c2da19bea224d0413f28db",
-   "text": "Testing your bot > Judged by a model\n\nSome things a reply should do don't fit in a `contains`: \"confirms the demo without inventing a meeting time\", \"apologizes once and doesn't argue\". A `judge` assertion has a second model grade the reply against a rubric:\n\n```yaml\nexpect:\n  - judge: \"Confirms the demo request without inventing a meeting time.\"\n  - judge: { rubric: \"Apologizes once and doesn't argue.\", threshold: 0.8 }\n```\n\nThe judge sees the rubric and the conversation so far, scores the last reply from 0 to 1, and gives a reason. The assertion passes at `threshold` or above (0.7 when you don't set one), and a failure prints the score and the reason.\n\nBy default the judge is the cheap model of a different provider than your bot's: Gemini's default model, or OpenAI's when the bot runs on Gemini. A model grading its own answers tends to score them too kindly. Its key comes from `GEMINI_API_KEY` (or `GOOGLE_API_KEY`), `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`, and without one the run stops before it starts instead of skipping the judged tests. Every run prints which judge it used. To choose it yourself, pass `--judge-model openai:gpt-5-mini`, or set `judge` in the config:\n\n```ts\nimport { defineConfig } from '@chatcops/cli';\n\nexport default defineConfig({\n  server: { provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! }, systemPrompt: 'You answer questions about Acme.' },\n  judge: { type: 'openai', apiKey: process.env.OPENAI_API_KEY!, model: 'gpt-5-mini' },\n});\n```\n\nA judge's scores can change when its model changes, so keep the same judge for a suite, and re-record when you switch. Judge calls are recorded and replayed like the bot's, so in CI the same verdicts come back without a key.",
+   "text": "Testing your bot > Eval files\n\n`defaults` at the top of the file applies to every test in it. A test's own values win, and tool mocks are merged:\n\n```yaml\nversion: 1\nname: Orders\ndefaults:\n  pageContext: { url: \"https://acme.com/account\", title: \"Your account\" }\n  mocks:\n    tools:\n      lookup_order: { success: true, data: { status: \"shipped\" } }\ntests:\n  - name: says where the order is\n    repeat: 5\n    passRate: 0.8\n    turns:\n      - user: Where is order A-1001?\n        expect:\n          - calls-tool: lookup_order\n          - calls-tool: { name: lookup_order, args: { id: \"A-1001\" } }\n          - no-tool-call: cancel_order\n          - contains: shipped\n```\n\nA mock for a tool your config doesn't have is an error, so a renamed tool can't leave a mock behind that no longer does anything.\n\nEval files can also be modules (`.chat.ts`, `.chat.mjs`) that export the same object as their default, when you'd rather build tests in code.",
    "source": {
     "id": "https://chat.codercops.com/core/testing/",
     "url": "https://chat.codercops.com/core/testing/",
     "title": "Testing your bot",
-    "section": "Judged by a model"
+    "section": "Eval files"
    }
   },
   {
    "id": "1bab0cea78c6913f4802380f0b7f96f405971570f0431b55083ab05eb4c50587",
-   "text": "Testing your bot > Recorded replays\n\nA few things to know about recordings:\n\n- Headers aren't saved, and neither are query parameters like `key` or `api_key`. API keys usually travel in one of those, so they stay out of the files. The request and response bodies are saved, which means your system prompt and the replies are in the files, so treat them like the rest of your code. Request bodies stay readable JSON, so a re-recording's diff shows what you changed. Responses over 4 kB, such as a streamed reply with one event per token, are saved gzipped in base64, which keeps the files about a tenth of the size.\n- `repeat` records every run, and replay plays them back in the same order.\n- Replays answer at once, so `latency` in a replayed run is not the real latency.",
+   "text": "Testing your bot > Recorded replays\n\nRunning tests calls your model for real, which costs tokens and needs the API key. For CI, record the calls once and replay them:\n\n```bash\nnpx chatcops test --record   # calls the APIs and saves what they answer\nnpx chatcops test --replay   # answers every call from the recordings\n```\n\n`--record` saves each eval file's calls next to it, in `__cassettes__/<file>.jsonl` (so `evals/pricing.chat.yaml` records to `evals/__cassettes__/pricing.chat.jsonl`). It records every HTTP call a test makes: the model, embedding calls for knowledge search, and tools that call APIs without a mock. Commit the folder with your eval files.\n\nWhen the `CI` environment variable is set, as it is on GitHub Actions and most CI services, `chatcops test` replays by default, so CI needs no API keys and costs nothing. A provider config without an `apiKey` gets a stand-in key during replay, since nothing is sent. Keep the config file loading when a key is missing: read `process.env.ANTHROPIC_API_KEY` as it is, and don't throw at load time. `--live` calls the APIs anyway.\n\nEach call is matched by its method, URL and body within its test. Any change that changes what gets sent fails the test instead of passing on an old answer:\n\n- a new word in the system prompt\n- another model\n- a tool added or removed\n- a new knowledge page in the context\n\nThe message says where the request changed:\n\n```text\n✗ evals/pricing.chat.yaml > quotes the Team price\n    A call changed since it was recorded (POST https://api.anthropic.com/v1/messages, at system[0].text). Run chatcops test --record to record it again.\n```\n\nRun `--record` again after a change like that, check that the tests still pass, and commit the new recordings. `--record --filter` updates only the tests it ran, and recordings of tests you deleted are dropped the next time the file is recorded.\n\nA few things to know about recordings:",
    "source": {
     "id": "https://chat.codercops.com/core/testing/",
     "url": "https://chat.codercops.com/core/testing/",
@@ -481,12 +481,12 @@
   },
   {
    "id": "24c119e54522b94c9590322a002a41a201ebca369e782b48075f5b116abcd9af",
-   "text": "Testing your bot > JavaScript checks\n\nFor checks YAML can't express, point `javascript` at a module. The path is relative to the eval file:\n\n```yaml\nexpect:\n  - javascript: ./checks/mentions-plan.mjs\n```\n\nThe module's default export is called with `(turn, conversation)` and may be async. It should return a boolean, or an object with `pass`, and optionally `reason` and `score`:\n\n```js\n// evals/checks/mentions-plan.mjs\nexport default function (turn) {\n  return turn.text.includes('plan');\n}\n```\n\n```js\n// evals/checks/no-apology.mjs\nexport default async function (turn, conversation) {\n  const hasApology = /sorry|apologize/i.test(turn.text);\n  return { pass: !hasApology, reason: hasApology ? 'reply contains an apology' : 'no apology found' };\n}\n```\n\nA missing file, a module without a default function, or a throw inside it are failures with the file name in the reason. Each module is loaded once per run, not once per turn. `.ts` modules work on Node with type stripping, the same as the config file.",
+   "text": "Testing your bot > Judged by a model\n\nSome things a reply should do don't fit in a `contains`: \"confirms the demo without inventing a meeting time\", \"apologizes once and doesn't argue\". A `judge` assertion has a second model grade the reply against a rubric:\n\n```yaml\nexpect:\n  - judge: \"Confirms the demo request without inventing a meeting time.\"\n  - judge: { rubric: \"Apologizes once and doesn't argue.\", threshold: 0.8 }\n```\n\nThe judge sees the rubric and the conversation so far, scores the last reply from 0 to 1, and gives a reason. The assertion passes at `threshold` or above (0.7 when you don't set one), and a failure prints the score and the reason.\n\nBy default the judge is the cheap model of a different provider than your bot's: Gemini's default model, or OpenAI's when the bot runs on Gemini. A model grading its own answers tends to score them too kindly. Its key comes from `GEMINI_API_KEY` (or `GOOGLE_API_KEY`), `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`, and without one the run stops before it starts instead of skipping the judged tests. Every run prints which judge it used. To choose it yourself, pass `--judge-model openai:gpt-5-mini`, or set `judge` in the config:\n\n```ts\nimport { defineConfig } from '@chatcops/cli';\n\nexport default defineConfig({\n  server: { provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! }, systemPrompt: 'You answer questions about Acme.' },\n  judge: { type: 'openai', apiKey: process.env.OPENAI_API_KEY!, model: 'gpt-5-mini' },\n});\n```\n\nA judge's scores can change when its model changes, so keep the same judge for a suite, and re-record when you switch. Judge calls are recorded and replayed like the bot's, so in CI the same verdicts come back without a key.",
    "source": {
     "id": "https://chat.codercops.com/core/testing/",
     "url": "https://chat.codercops.com/core/testing/",
     "title": "Testing your bot",
-    "section": "JavaScript checks"
+    "section": "Judged by a model"
    }
   },
   {
@@ -557,6 +557,16 @@
     "url": "https://chat.codercops.com/server/cloudflare/",
     "title": "Cloudflare Workers Adapter",
     "section": "Setup"
+   }
+  },
+  {
+   "id": "328cbb21d7b673d195cef3b4f4b914cfee2752dd0b77c5588c092c1e686db41b",
+   "text": "Testing your bot > Unit tests with a scripted model > Testing a store\n\nIf you write your own storage, `runStorageConformance` runs the checks every built-in store passes. It covers saving and appending, version conflicts, counters, expiry, events and, when the store has `vectors`, vector search:\n\n```typescript\nimport { runStorageConformance } from '@chatcops/core/testing';\nimport { memoryStorage } from '@chatcops/core';\n\nrunStorageConformance('my store', () => memoryStorage(), { ttlMs: 1500 });\n```\n\nCall it at the top level of a Vitest file. `ttlMs` (150 by default) is the expiry the checks use, and they wait about twice that, so raise it for a backend that rounds expiry to seconds. `skip` leaves out checks a backend can't meet in a test run: `'kv-ttl'`, `'counter-ttl'`, `'conversation-concurrency'`, `'counter-concurrency'` or `'vector-keyword-cjk'`. For example, Workers KV's shortest TTL is 60 seconds, so skip `'kv-ttl'` there.",
+   "source": {
+    "id": "https://chat.codercops.com/core/testing/",
+    "url": "https://chat.codercops.com/core/testing/",
+    "title": "Testing your bot",
+    "section": "Unit tests with a scripted model > Testing a store"
    }
   },
   {
@@ -769,12 +779,12 @@
   },
   {
    "id": "40baf510a304de36d16dbb9c74238cfed43745889b9a3c5f7147496a3dfa3501",
-   "text": "Testing your bot > Options\n\n| Option | What it does |\n| --- | --- |\n| `[files...]` | Globs of eval files. Default `evals/**/*.chat.yaml`. |\n| `--filter <text>` | Only tests whose name contains the text, or `tag:<name>` for a tag |\n| `--repeat <n>` | Run every test n times, instead of each test's own `repeat` |\n| `--concurrency <n>` | Tests run at once. Default 4. |\n| `--reporter <name>` | `pretty` (the default) or `json`, which prints one JSON object with every turn's reply, tool calls, sources and token usage. Repeatable. |\n| `--json` | The same as `--reporter json` |\n| `--judge-model <provider:model>` | The judge for `judge` assertions: `gemini`, `openai` or `claude`, with a model id or without one for the default |\n| `--max-cost <usd>` | Stop starting turns once the run has spent this much. Needs `prices`. |\n| `--config <file>` | A config file other than `chatcops.config.*` in the current folder |\n\nA failed test prints the reason for each failed assertion and the reply it checked:\n\n```text\n✗ evals/pricing.chat.yaml > quotes the Team price\n    turn 1: the reply doesn't contain \"$19\"\n    reply: The Team plan is $29 a month, billed monthly.\n\n1 passed, 1 failed.\n```",
+   "text": "Testing your bot > Costs\n\nWith `prices` in the config, every turn and judge call gets a cost, and the run prints what it spent. Prices are in US dollars per million tokens, keyed by the model id. Copy them from your provider's pricing page, since they change.\n\n```ts\nimport { defineConfig } from '@chatcops/cli';\n\nexport default defineConfig({\n  server: { provider: { type: 'openai', apiKey: process.env.OPENAI_API_KEY!, model: 'gpt-5-mini' }, systemPrompt: 'You answer questions about Acme.' },\n  prices: {\n    // Example numbers only: use your provider's current prices.\n    'gpt-5-mini': { input: 0.25, output: 2 },\n    'gemini-3.5-flash-lite': { input: 0.1, output: 0.4 },\n  },\n});\n```\n\n`--max-cost 0.50` stops starting new turns once the run has spent 50 cents. Turns already running finish, so a run can go a little over. It needs a price for the bot's model and for the judge's, and refuses to run without them. Replays spend nothing, so `--max-cost` doesn't count them.",
    "source": {
     "id": "https://chat.codercops.com/core/testing/",
     "url": "https://chat.codercops.com/core/testing/",
     "title": "Testing your bot",
-    "section": "Options"
+    "section": "Costs"
    }
   },
   {
@@ -1085,12 +1095,12 @@
   },
   {
    "id": "639a0763a9690f63442bcc981aa764223ccfe8fd2608af68ee5018ce0fce2ed3",
-   "text": "Testing your bot > Unit tests with a scripted model > Testing a store\n\nIf you write your own storage, `runStorageConformance` runs the checks every built-in store passes. It covers saving and appending, version conflicts, counters, expiry, events and, when the store has `vectors`, vector search:\n\n```typescript\nimport { runStorageConformance } from '@chatcops/core/testing';\nimport { memoryStorage } from '@chatcops/core';\n\nrunStorageConformance('my store', () => memoryStorage(), { ttlMs: 1500 });\n```\n\nCall it at the top level of a Vitest file. `ttlMs` (150 by default) is the expiry the checks use, and they wait about twice that, so raise it for a backend that rounds expiry to seconds. `skip` leaves out checks a backend can't meet in a test run: `'kv-ttl'`, `'counter-ttl'`, `'conversation-concurrency'`, `'counter-concurrency'` or `'vector-keyword-cjk'`. For example, Workers KV's shortest TTL is 60 seconds, so skip `'kv-ttl'` there.",
+   "text": "Testing your bot > Unit tests with a scripted model\n\nEach model step takes the next entry of the script:\n\n- `textStep(text, { chunkSize, usage })` streams `text` in pieces of `chunkSize` characters (8 by default).\n- `toolStep(calls, { text })` calls tools, optionally after some text.\n- A list of provider events, or a function that builds them from the step's params, for anything else.\n- An `Error` makes that step fail, and `'hang'` waits until the request is aborted, for testing disconnects.\n\n`scriptedProvider(script, { delayMs })` waits `delayMs` before each event, to test timeouts and streaming. `citations: 'native'` makes it act like Claude, getting `sources` on each step. `provider.calls` keeps the params of every step, with the messages as they were then.",
    "source": {
     "id": "https://chat.codercops.com/core/testing/",
     "url": "https://chat.codercops.com/core/testing/",
     "title": "Testing your bot",
-    "section": "Unit tests with a scripted model > Testing a store"
+    "section": "Unit tests with a scripted model"
    }
   },
   {
@@ -1710,7 +1720,7 @@
   },
   {
    "id": "9c199487f55ca9ca03c6ad2c253f4f9bd1df0c2c9cab97ce6e401e93cd48d8a3",
-   "text": "Testing your bot > Unit tests with a scripted model\n\nEach model step takes the next entry of the script:\n\n- `textStep(text, { chunkSize, usage })` streams `text` in pieces of `chunkSize` characters (8 by default).\n- `toolStep(calls, { text })` calls tools, optionally after some text.\n- A list of provider events, or a function that builds them from the step's params, for anything else.\n- An `Error` makes that step fail, and `'hang'` waits until the request is aborted, for testing disconnects.\n\n`scriptedProvider(script, { delayMs })` waits `delayMs` before each event, to test timeouts and streaming. `citations: 'native'` makes it act like Claude, getting `sources` on each step. `provider.calls` keeps the params of every step, with the messages as they were then.",
+   "text": "Testing your bot > Unit tests with a scripted model\n\n`chatcops test` checks what a real model says. For code around the bot, such as your tools, a custom store or a page that reads the stream, a model is slow and never answers the same way twice. `@chatcops/core/testing` has a provider that plays back a script instead:\n\n```typescript\nimport { expect, it } from 'vitest';\nimport { scriptedProvider, textStep, toolStep } from '@chatcops/core/testing';\nimport { chatcopsVercelHandler } from '@chatcops/server/vercel';\n\nit('looks the order up before answering', async () => {\n  const lookups: unknown[] = [];\n  const provider = scriptedProvider([\n    toolStep([{ name: 'lookup_order', input: { id: 'A-1' } }]),\n    textStep('Your order shipped on Monday.'),\n  ]);\n  const handler = chatcopsVercelHandler({\n    provider,\n    systemPrompt: 'You answer questions about orders.',\n    tools: [{\n      name: 'lookup_order',\n      description: 'Finds an order by id.',\n      inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },\n      async execute(input) {\n        lookups.push(input);\n        return { success: true, data: { shipped: 'Monday' } };\n      },\n    }],\n  });\n\n  const response = await handler(new Request('http://localhost/api/chat', {\n    method: 'POST',\n    headers: { 'content-type': 'application/json' },\n    body: JSON.stringify({ protocol: 1, conversationId: 'test-1', message: 'Where is order A-1?' }),\n  }));\n\n  // The reply is a stream of `data:` lines, one part each.\n  const parts = (await response.text())\n    .split('\\n')\n    .filter((line) => line.startsWith('data: {'))\n    .map((line) => JSON.parse(line.slice(6)));\n  const reply = parts.filter((part) => part.type === 'text-delta').map((part) => part.delta).join('');\n\n  expect(reply).toBe('Your order shipped on Monday.');\n  expect(lookups).toEqual([{ id: 'A-1' }]);\n  expect(provider.calls).toHaveLength(2); // the second step saw the tool's result\n});\n```\n\nEach model step takes the next entry of the script:",
    "source": {
     "id": "https://chat.codercops.com/core/testing/",
     "url": "https://chat.codercops.com/core/testing/",
@@ -1750,12 +1760,12 @@
   },
   {
    "id": "9ee68e2f18c43625cdec2defdcde2352243866703de2ded235df641563cd7bd8",
-   "text": "Testing your bot > Recorded replays\n\nRunning tests calls your model for real, which costs tokens and needs the API key. For CI, record the calls once and replay them:\n\n```bash\nnpx chatcops test --record   # calls the APIs and saves what they answer\nnpx chatcops test --replay   # answers every call from the recordings\n```\n\n`--record` saves each eval file's calls next to it, in `__cassettes__/<file>.jsonl` (so `evals/pricing.chat.yaml` records to `evals/__cassettes__/pricing.chat.jsonl`). It records every HTTP call a test makes: the model, embedding calls for knowledge search, and tools that call APIs without a mock. Commit the folder with your eval files.\n\nWhen the `CI` environment variable is set, as it is on GitHub Actions and most CI services, `chatcops test` replays by default, so CI needs no API keys and costs nothing. A provider config without an `apiKey` gets a stand-in key during replay, since nothing is sent. Keep the config file loading when a key is missing: read `process.env.ANTHROPIC_API_KEY` as it is, and don't throw at load time. `--live` calls the APIs anyway.\n\nEach call is matched by its method, URL and body within its test. Any change that changes what gets sent fails the test instead of passing on an old answer:\n\n- a new word in the system prompt\n- another model\n- a tool added or removed\n- a new knowledge page in the context\n\nThe message says where the request changed:\n\n```text\n✗ evals/pricing.chat.yaml > quotes the Team price\n    A call changed since it was recorded (POST https://api.anthropic.com/v1/messages, at system[0].text). Run chatcops test --record to record it again.\n```\n\nRun `--record` again after a change like that, check that the tests still pass, and commit the new recordings. `--record --filter` updates only the tests it ran, and recordings of tests you deleted are dropped the next time the file is recorded.\n\nA few things to know about recordings:",
+   "text": "Testing your bot > Options\n\n| Option | What it does |\n| --- | --- |\n| `[files...]` | Globs of eval files. Default `evals/**/*.chat.yaml`. |\n| `--filter <text>` | Only tests whose name contains the text, or `tag:<name>` for a tag |\n| `--repeat <n>` | Run every test n times, instead of each test's own `repeat` |\n| `--concurrency <n>` | Tests run at once. Default 4. |\n| `--reporter <name>` | `pretty` (the default) or `json`, which prints one JSON object with every turn's reply, tool calls, sources and token usage. Repeatable. |\n| `--json` | The same as `--reporter json` |\n| `--judge-model <provider:model>` | The judge for `judge` assertions: `gemini`, `openai` or `claude`, with a model id or without one for the default |\n| `--max-cost <usd>` | Stop starting turns once the run has spent this much. Needs `prices`. |\n| `--config <file>` | A config file other than `chatcops.config.*` in the current folder |\n\nA failed test prints the reason for each failed assertion and the reply it checked:\n\n```text\n✗ evals/pricing.chat.yaml > quotes the Team price\n    turn 1: the reply doesn't contain \"$19\"\n    reply: The Team plan is $29 a month, billed monthly.\n\n1 passed, 1 failed.\n```",
    "source": {
     "id": "https://chat.codercops.com/core/testing/",
     "url": "https://chat.codercops.com/core/testing/",
     "title": "Testing your bot",
-    "section": "Recorded replays"
+    "section": "Options"
    }
   },
   {
@@ -2006,12 +2016,12 @@
   },
   {
    "id": "b72c5148c9b72f2cd97d941706dbdf6418e2f466aa144154b89e79c500b57ec0",
-   "text": "Testing your bot > Unit tests with a scripted model\n\n`chatcops test` checks what a real model says. For code around the bot, such as your tools, a custom store or a page that reads the stream, a model is slow and never answers the same way twice. `@chatcops/core/testing` has a provider that plays back a script instead:\n\n```typescript\nimport { expect, it } from 'vitest';\nimport { scriptedProvider, textStep, toolStep } from '@chatcops/core/testing';\nimport { chatcopsVercelHandler } from '@chatcops/server/vercel';\n\nit('looks the order up before answering', async () => {\n  const lookups: unknown[] = [];\n  const provider = scriptedProvider([\n    toolStep([{ name: 'lookup_order', input: { id: 'A-1' } }]),\n    textStep('Your order shipped on Monday.'),\n  ]);\n  const handler = chatcopsVercelHandler({\n    provider,\n    systemPrompt: 'You answer questions about orders.',\n    tools: [{\n      name: 'lookup_order',\n      description: 'Finds an order by id.',\n      inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },\n      async execute(input) {\n        lookups.push(input);\n        return { success: true, data: { shipped: 'Monday' } };\n      },\n    }],\n  });\n\n  const response = await handler(new Request('http://localhost/api/chat', {\n    method: 'POST',\n    headers: { 'content-type': 'application/json' },\n    body: JSON.stringify({ protocol: 1, conversationId: 'test-1', message: 'Where is order A-1?' }),\n  }));\n\n  // The reply is a stream of `data:` lines, one part each.\n  const parts = (await response.text())\n    .split('\\n')\n    .filter((line) => line.startsWith('data: {'))\n    .map((line) => JSON.parse(line.slice(6)));\n  const reply = parts.filter((part) => part.type === 'text-delta').map((part) => part.delta).join('');\n\n  expect(reply).toBe('Your order shipped on Monday.');\n  expect(lookups).toEqual([{ id: 'A-1' }]);\n  expect(provider.calls).toHaveLength(2); // the second step saw the tool's result\n});\n```\n\nEach model step takes the next entry of the script:",
+   "text": "Testing your bot > Recorded replays > GitHub Actions\n\n```yaml\nname: Evals\non: [pull_request]\njobs:\n  evals:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with: { node-version: 22 }\n      - run: npm ci\n      - run: npx chatcops test\n```",
    "source": {
     "id": "https://chat.codercops.com/core/testing/",
     "url": "https://chat.codercops.com/core/testing/",
     "title": "Testing your bot",
-    "section": "Unit tests with a scripted model"
+    "section": "Recorded replays > GitHub Actions"
    }
   },
   {
@@ -2165,12 +2175,12 @@
   },
   {
    "id": "c24eed29f1d0f54184cd69d27eb3fb1aa9a9427fcd83c71d12ed4778a13ddf61",
-   "text": "Testing your bot > Recorded replays > GitHub Actions\n\n```yaml\nname: Evals\non: [pull_request]\njobs:\n  evals:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with: { node-version: 22 }\n      - run: npm ci\n      - run: npx chatcops test\n```",
+   "text": "Testing your bot > Recorded replays\n\nA few things to know about recordings:\n\n- Headers aren't saved, and neither are query parameters like `key` or `api_key`. API keys usually travel in one of those, so they stay out of the files. The request and response bodies are saved, which means your system prompt and the replies are in the files, so treat them like the rest of your code. Request bodies stay readable JSON, so a re-recording's diff shows what you changed. Responses over 4 kB, such as a streamed reply with one event per token, are saved gzipped in base64, which keeps the files about a tenth of the size.\n- `repeat` records every run, and replay plays them back in the same order.\n- Replays answer at once, so `latency` in a replayed run is not the real latency.",
    "source": {
     "id": "https://chat.codercops.com/core/testing/",
     "url": "https://chat.codercops.com/core/testing/",
     "title": "Testing your bot",
-    "section": "Recorded replays > GitHub Actions"
+    "section": "Recorded replays"
    }
   },
   {
@@ -2305,7 +2315,7 @@
   },
   {
    "id": "ce2221b879e2784d9c0cbb0084ed80c77a23b437103082a64f00bfafb33c7bd4",
-   "text": "Testing your bot > Eval files\n\nTwo assertions check what ChatCops adds to a reply:\n\n- `cites` takes a URL glob, or a list of them, and each has to match a page the reply cites (`cites: \"https://acme.test/pricing*\"`). Globs work the same as in `ingest.include`. `cites: true` means it cites at least one page.\n- `lead-captured: true` means the turn captured a lead. An object, such as `lead-captured: { email: jane@acme.test }`, also has to match those fields of the lead.\n\nA test can also set:\n\n- `pageContext`: the page the visitor is on (`url`, `title`, and optionally `description` and `contentSnippet`)\n- `locale` and `userData`, as the widget would send them\n- `mocks.tools`: a fixed result for a server tool, so the test doesn't place a real order or send a real email\n- `repeat` and `passRate`: run the test several times and pass when that share of runs passed (models aren't deterministic)\n\n`defaults` at the top of the file applies to every test in it. A test's own values win, and tool mocks are merged:\n\n```yaml\nversion: 1\nname: Orders\ndefaults:\n  pageContext: { url: \"https://acme.com/account\", title: \"Your account\" }\n  mocks:\n    tools:\n      lookup_order: { success: true, data: { status: \"shipped\" } }\ntests:\n  - name: says where the order is\n    repeat: 5\n    passRate: 0.8\n    turns:\n      - user: Where is order A-1001?\n        expect:\n          - contains: shipped\n```\n\nA mock for a tool your config doesn't have is an error, so a renamed tool can't leave a mock behind that no longer does anything.\n\nEval files can also be modules (`.chat.ts`, `.chat.mjs`) that export the same object as their default, when you'd rather build tests in code.",
+   "text": "Testing your bot > Eval files\n\nTwo assertions check what ChatCops adds to a reply:\n\n- `cites` takes a URL glob, or a list of them, and each has to match a page the reply cites (`cites: \"https://acme.test/pricing*\"`). Globs work the same as in `ingest.include`. `cites: true` means it cites at least one page.\n- `lead-captured: true` means the turn captured a lead. An object, such as `lead-captured: { email: jane@acme.test }`, also has to match those fields of the lead.\n\nTwo assertions check tool calls made during a turn:\n\n- `calls-tool` asserts that the bot called a tool. It takes either a tool name (`calls-tool: lookup_order`) or `{ name, args }` to also check inputs (`calls-tool: { name: lookup_order, args: { id: \"A-1001\" } }`). Arguments match partially: every specified key must match, nested objects follow the same rule, extra input keys are allowed, and arrays must match exactly.\n- `no-tool-call: true` asserts that no tool was called during the turn. It also takes a tool name (`no-tool-call: cancel_order`) to assert that the specific tool was not called, even if other tools were called.\n\nA test can also set:\n\n- `pageContext`: the page the visitor is on (`url`, `title`, and optionally `description` and `contentSnippet`)\n- `locale` and `userData`, as the widget would send them\n- `mocks.tools`: a fixed result for a server tool, so the test doesn't place a real order or send a real email\n- `repeat` and `passRate`: run the test several times and pass when that share of runs passed (models aren't deterministic)\n\n`defaults` at the top of the file applies to every test in it. A test's own values win, and tool mocks are merged:",
    "source": {
     "id": "https://chat.codercops.com/core/testing/",
     "url": "https://chat.codercops.com/core/testing/",
@@ -2414,12 +2424,12 @@
   },
   {
    "id": "d67cd899bdbd09578761abf22b02f850019399d855002f72aa589e67080b67f9",
-   "text": "Testing your bot > Costs\n\nWith `prices` in the config, every turn and judge call gets a cost, and the run prints what it spent. Prices are in US dollars per million tokens, keyed by the model id. Copy them from your provider's pricing page, since they change.\n\n```ts\nimport { defineConfig } from '@chatcops/cli';\n\nexport default defineConfig({\n  server: { provider: { type: 'openai', apiKey: process.env.OPENAI_API_KEY!, model: 'gpt-5-mini' }, systemPrompt: 'You answer questions about Acme.' },\n  prices: {\n    // Example numbers only: use your provider's current prices.\n    'gpt-5-mini': { input: 0.25, output: 2 },\n    'gemini-3.5-flash-lite': { input: 0.1, output: 0.4 },\n  },\n});\n```\n\n`--max-cost 0.50` stops starting new turns once the run has spent 50 cents. Turns already running finish, so a run can go a little over. It needs a price for the bot's model and for the judge's, and refuses to run without them. Replays spend nothing, so `--max-cost` doesn't count them.",
+   "text": "Testing your bot > JavaScript checks\n\nFor checks YAML can't express, point `javascript` at a module. The path is relative to the eval file:\n\n```yaml\nexpect:\n  - javascript: ./checks/mentions-plan.mjs\n```\n\nThe module's default export is called with `(turn, conversation)` and may be async. It should return a boolean, or an object with `pass`, and optionally `reason` and `score`:\n\n```js\n// evals/checks/mentions-plan.mjs\nexport default function (turn) {\n  return turn.text.includes('plan');\n}\n```\n\n```js\n// evals/checks/no-apology.mjs\nexport default async function (turn, conversation) {\n  const hasApology = /sorry|apologize/i.test(turn.text);\n  return { pass: !hasApology, reason: hasApology ? 'reply contains an apology' : 'no apology found' };\n}\n```\n\nA missing file, a module without a default function, or a throw inside it are failures with the file name in the reason. Each module is loaded once per run, not once per turn. `.ts` modules work on Node with type stripping, the same as the config file.",
    "source": {
     "id": "https://chat.codercops.com/core/testing/",
     "url": "https://chat.codercops.com/core/testing/",
     "title": "Testing your bot",
-    "section": "Costs"
+    "section": "JavaScript checks"
    }
   },
   {
