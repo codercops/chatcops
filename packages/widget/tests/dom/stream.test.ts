@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Messages, lastBlockBoundary } from '../../src/dom/messages.js';
+import { getWidgetLocale, registerWidgetLocale } from '../../src/i18n.js';
 import { renderMarkdown } from '../../src/markdown.js';
 
 const frame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
@@ -148,5 +149,122 @@ describe('streaming replies', () => {
     await new Promise((resolve) => setTimeout(resolve, 120));
     await frame();
     expect(text()).toBe('One two');
+  });
+});
+
+describe('reply scrolling', () => {
+  let parent: HTMLDivElement;
+  let messages: Messages;
+  let log: HTMLDivElement;
+  let pill: HTMLButtonElement;
+  let height: number;
+
+  beforeEach(() => {
+    document.body.innerHTML = '';
+    parent = document.createElement('div');
+    document.body.appendChild(parent);
+    messages = new Messages(parent);
+    log = parent.querySelector('.cc-messages') as HTMLDivElement;
+    pill = parent.querySelector('.cc-new-reply') as HTMLButtonElement;
+    height = 1000;
+    Object.defineProperties(log, {
+      scrollHeight: { get: () => height },
+      clientHeight: { value: 300 },
+    });
+  });
+
+  it('shows a button outside the live log for a new message while scrolled up', () => {
+    log.scrollTop = 100;
+    messages.addMessage({ id: '1', role: 'assistant', content: 'Hello' });
+    expect(pill.hidden).toBe(false);
+    expect(pill.type).toBe('button');
+    expect(pill.textContent).toBe('New reply ↓');
+    expect(pill.closest('[aria-live]')).toBeNull();
+    expect(log.scrollTop).toBe(100);
+  });
+
+  it('shows for streamed text without pulling the log down', () => {
+    messages.addMessage({ id: '1', role: 'assistant', content: 'Hel', status: 'streaming' });
+    log.scrollTop = 100;
+    messages.updateMessage({ id: '1', role: 'assistant', content: 'Hello', status: 'streaming' });
+    expect(log.scrollTop).toBe(100);
+    expect(pill).not.toBeNull();
+    expect(pill.hidden).toBe(false);
+  });
+
+  it.each([0, 48])('follows new content within %i pixels of the bottom', (distance) => {
+    log.scrollTop = 700 - distance;
+    // The decision must use the old height, even if the new message is tall.
+    const append = log.appendChild.bind(log);
+    vi.spyOn(log, 'appendChild').mockImplementation((node) => {
+      height = 1400;
+      return append(node);
+    });
+    messages.addMessage({ id: '1', role: 'assistant', content: 'Hello' });
+    expect(pill.hidden).toBe(true);
+    expect(log.scrollTop).toBe(1400);
+    messages.updateMessage({ id: '1', role: 'assistant', content: 'Hello again' });
+    expect(pill.hidden).toBe(true);
+  });
+
+  it('hides when the visitor scrolls back within 48px of the bottom', () => {
+    messages.addMessage({ id: '1', role: 'assistant', content: 'Hello' });
+    log.scrollTop = 651;
+    log.dispatchEvent(new Event('scroll'));
+    expect(pill.hidden).toBe(false);
+    log.scrollTop = 652;
+    log.dispatchEvent(new Event('scroll'));
+    expect(pill.hidden).toBe(true);
+  });
+
+  it.each([false, true])('scrolls and hides on click (reduced motion: %s)', (reduced) => {
+    messages.addMessage({ id: '1', role: 'assistant', content: 'Hello' });
+    const scroll = vi.spyOn(log, 'scrollTo').mockImplementation(() => {});
+    const media = vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: reduced } as MediaQueryList);
+    pill.click();
+    expect(media).toHaveBeenCalledWith('(prefers-reduced-motion: reduce)');
+    expect(scroll).toHaveBeenCalledWith({ top: 1000, behavior: reduced ? 'instant' : 'smooth' });
+    expect(pill.hidden).toBe(true);
+    media.mockRestore();
+  });
+
+  it('does not show or scroll for typing alone while reading earlier messages', () => {
+    log.scrollTop = 100;
+    messages.showTyping();
+    expect(pill.hidden).toBe(true);
+    expect(log.scrollTop).toBe(100);
+    messages.addMessage({ id: '1', role: 'assistant', content: 'Hello' });
+    expect(pill.hidden).toBe(false);
+    messages.clear();
+    expect(pill.hidden).toBe(true);
+  });
+
+  it('hides the pill with the log for the pre-chat form', () => {
+    messages.addMessage({ id: '1', role: 'assistant', content: 'Hello' });
+    messages.setVisible(false);
+    expect(pill.closest('.cc-hidden')).toBeTruthy();
+    messages.setVisible(true);
+    expect(pill.closest('.cc-hidden')).toBeNull();
+  });
+
+  it('refreshes the button when the panel updates its locale labels', () => {
+    const actions = { newReplyLabel: 'New reply' };
+    const localized = document.createElement('div');
+    const log = new Messages(localized, actions);
+    actions.newReplyLabel = 'Nouvelle réponse';
+    log.refreshReplyLabel();
+    expect(localized.querySelector('.cc-new-reply')?.textContent).toBe('Nouvelle réponse ↓');
+  });
+
+  it('uses locale overrides and falls back to English for older registered locales', () => {
+    const { newReply: _newReply, ...olderStrings } = getWidgetLocale('en');
+    registerWidgetLocale('old', olderStrings as ReturnType<typeof getWidgetLocale>);
+    expect(getWidgetLocale('old').newReply).toBe('New reply');
+    // Existing locale files are partial and are merged with English by the widget.
+    const locale = getWidgetLocale('fr', { retryButton: 'Réessayer' });
+    expect(locale.newReply).toBe('New reply');
+    const localized = document.createElement('div');
+    new Messages(localized, { newReplyLabel: 'Nouvelle réponse' });
+    expect(localized.querySelector('.cc-new-reply')?.textContent).toBe('Nouvelle réponse ↓');
   });
 });

@@ -102,11 +102,14 @@ interface LocaleStrings {
   retryButton: string;
   regenerateButton: string;
   suggestionsLabel: string;
+  newReply: string;
   unreadCount: string;
   disclosure: string;          // "You're chatting with an AI assistant. It can make mistakes."
   disclosureLearnMore: string; // "Learn more"
 }
 ```
+
+The `newReply` string defaults to `New reply`. The widget adds a downward arrow to the button shown when new text arrives while the visitor is reading earlier messages. Clicking it returns to the latest reply. Existing translations use English for this string until they add it.
 
 ## Server-Side i18n
 

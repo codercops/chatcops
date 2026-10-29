@@ -120,6 +120,7 @@ export class Panel {
     // Messages reads its labels from this same object as it renders.
     if (this.options.messageActions) Object.assign(this.options.messageActions, actionLabels);
     this.renderHeader();
+    this.messages.refreshReplyLabel();
     this.input.setLabels(labels.placeholder, labels.sendLabel);
     this.footer.innerHTML = labels.footerText;
   }

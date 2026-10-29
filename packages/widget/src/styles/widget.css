@@ -195,6 +195,15 @@
   border-color: var(--cc-accent);
 }
 
+.cc-new-reply {
+  position: absolute;
+  inset-block-end: 12px;
+  inset-inline-end: 16px;
+  border-radius: 999px;
+  box-shadow: var(--cc-shadow);
+  font-size: 12px;
+}
+
 .cc-message a {
   color: var(--cc-accent);
   text-decoration: underline;
@@ -531,8 +540,9 @@
   white-space: nowrap;
 }
 
-/* Messages wrapper (only present when pre-chat form is enabled) */
+/* Messages wrapper and overlay anchor */
 .cc-messages-wrapper {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;

@@ -24,6 +24,7 @@ export interface MessageActions {
   regenerateLabel?: string;
   typingLabel?: string;
   sourcesLabel?: string;
+  newReplyLabel?: string;
 }
 
 /** How close to the bottom (px) the log has to be for new text to scroll it. */
@@ -55,6 +56,8 @@ export class Messages {
   private streams = new Map<string, Stream>();
   private streamIntervalMs: number;
   private announcement: HTMLDivElement;
+  private logEl: HTMLDivElement;
+  private newReplyEl: HTMLButtonElement;
   private typingEl: HTMLDivElement | null = null;
   private suggestionsEl: HTMLDivElement | null = null;
   private disclosureEl: HTMLElement | null = null;
@@ -67,13 +70,36 @@ export class Messages {
     this.container.className = 'cc-messages';
     this.container.setAttribute('role', 'log');
     this.container.setAttribute('aria-live', 'polite');
-    parent.appendChild(this.container);
+    this.logEl = document.createElement('div');
+    this.logEl.className = 'cc-messages-wrapper';
+    this.logEl.appendChild(this.container);
+    this.newReplyEl = document.createElement('button');
+    this.newReplyEl.type = 'button';
+    this.newReplyEl.className = 'cc-suggestion cc-new-reply';
+    this.refreshReplyLabel();
+    this.newReplyEl.hidden = true;
+    this.newReplyEl.addEventListener('click', () => {
+      this.container.scrollTo({
+        top: this.container.scrollHeight,
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+      });
+      this.newReplyEl.hidden = true;
+    });
+    this.container.addEventListener('scroll', () => {
+      if (!this.newReplyEl.hidden && this.nearBottom()) this.newReplyEl.hidden = true;
+    });
+    this.logEl.appendChild(this.newReplyEl);
+    parent.appendChild(this.logEl);
 
     this.announcement = document.createElement('div');
     this.announcement.className = 'cc-reply-announcement cc-sr-only';
     this.announcement.setAttribute('aria-live', 'polite');
     this.announcement.setAttribute('aria-atomic', 'true');
     parent.appendChild(this.announcement);
+  }
+
+  refreshReplyLabel(): void {
+    this.newReplyEl.textContent = `${this.actions?.newReplyLabel ?? 'New reply'} ↓`;
   }
 
   beginReply(): void {
@@ -99,7 +125,7 @@ export class Messages {
     if (msg.role === 'user') this.removeSuggestions();
     const el = this.createMessageElement(msg);
     this.container.appendChild(el);
-    if (follow) this.scrollToBottom();
+    this.followReply(follow);
     return el;
   }
 
@@ -113,7 +139,7 @@ export class Messages {
     this.endStream(msg.id);
     const follow = this.nearBottom();
     this.renderMessageElement(el, msg);
-    if (follow) this.scrollToBottom();
+    this.followReply(follow);
   }
 
   /** Takes the reply's text so far, and renders what changed on the next frame. */
@@ -158,7 +184,7 @@ export class Messages {
       stream.committed = boundary;
     }
     stream.tail.innerHTML = renderMarkdown(stream.text.slice(stream.committed));
-    if (follow) this.scrollToBottom();
+    this.followReply(follow);
   }
 
   private endStream(id: string): void {
@@ -174,11 +200,12 @@ export class Messages {
 
   showTyping(): void {
     if (this.typingEl) return;
+    const follow = this.nearBottom();
     this.typingEl = document.createElement('div');
     this.typingEl.className = 'cc-typing';
     this.typingEl.innerHTML = `<span class="cc-sr-only">${this.escapeHtml(this.actions?.typingLabel ?? 'Typing...')}</span><div class="cc-typing-dot" aria-hidden="true"></div><div class="cc-typing-dot" aria-hidden="true"></div><div class="cc-typing-dot" aria-hidden="true"></div>`;
     this.container.appendChild(this.typingEl);
-    this.scrollToBottom();
+    if (follow) this.scrollToBottom();
   }
 
   removeTyping(): void {
@@ -217,6 +244,7 @@ export class Messages {
     for (const id of [...this.streams.keys()]) this.endStream(id);
     this.container.innerHTML = '';
     this.typingEl = null;
+    this.newReplyEl.hidden = true;
     // A new conversation starts with the disclosure too.
     if (this.disclosureEl) this.container.prepend(this.disclosureEl);
   }
@@ -276,7 +304,12 @@ export class Messages {
   }
 
   setVisible(visible: boolean): void {
-    this.container.classList.toggle('cc-hidden', !visible);
+    this.logEl.classList.toggle('cc-hidden', !visible);
+  }
+
+  private followReply(follow: boolean): void {
+    this.newReplyEl.toggleAttribute('hidden', follow);
+    if (follow) this.scrollToBottom();
   }
 
   private findMessage(id: string): HTMLDivElement | null {

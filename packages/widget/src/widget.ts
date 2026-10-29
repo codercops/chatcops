@@ -498,6 +498,7 @@ export class Widget {
       regenerateLabel: l.regenerateButton,
       typingLabel: l.typingIndicator,
       sourcesLabel: l.sourcesLabel,
+      newReplyLabel: l.newReply,
     };
   }
 

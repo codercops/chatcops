@@ -207,6 +207,7 @@ export interface WidgetLocaleStrings {
     suggestionsLabel: string;
     unreadCount: string;
     sourcesLabel: string;
+    newReply: string;
     disclosure: string;
     disclosureLearnMore: string;
 }
