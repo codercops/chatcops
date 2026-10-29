@@ -41,7 +41,16 @@ tests:
           - not-contains: "$29"
 ```
 
-Options: `--filter` (a name, or `tag:<name>`), `--repeat`, `--concurrency`, `--reporter pretty|json` (repeatable), `--json`. `--record` saves every API call the tests make to `__cassettes__/` next to the eval files, and `--replay` answers them from there. Replay is the default when `CI` is set, so CI needs no API keys. `judge` assertions have a model from another provider grade a reply against a rubric (`--judge-model` to choose it), and with `prices` in the config, `--max-cost` stops a run once it has spent that much. It exits 0 when all tests passed, 1 when some failed, 2 when it couldn't run. See [Testing your bot](https://chat.codercops.com/core/testing/).
+Options: `--filter` (a name, or `tag:<name>`), `--repeat`, `--concurrency`, `--verbose`, `--reporter pretty|json` (repeatable), `--json`. The pretty report groups tests by file and includes run duration, assertion counts, available bot-token usage and total elapsed time. By default, assertion details are shown for failed tests; `--verbose` shows them for every test. `--record` saves every API call the tests make to `__cassettes__/` next to the eval files, and `--replay` answers them from there. Replay is the default when `CI` is set, so CI needs no API keys. `judge` assertions have a model from another provider grade a reply against a rubric (`--judge-model` to choose it), and with `prices` in the config, `--max-cost` stops a run once it has spent that much. It exits 0 when all tests passed, 1 when some failed, 2 when it couldn't run. See [Testing your bot](https://chat.codercops.com/core/testing/).
+
+To inspect failure formatting without calling a live AI provider, build the CLI and run its deterministic fake-provider demo from the repository root:
+
+```bash
+pnpm --filter @chatcops/cli build
+node packages/cli/dist/bin.js test packages/cli/tests/fixtures/reporter-failure.chat.yaml --config packages/cli/tests/fixtures/reporter-failure.config.mjs --live --verbose
+```
+
+The demo intentionally fails an assertion and exits with code 1; that is expected.
 
 Exit codes for ingest and search: 0 when everything worked, 1 when it finished with failed pages or discovery errors, 2 when it couldn't run (bad options, config problems, a different embedder than the index was built with).
 

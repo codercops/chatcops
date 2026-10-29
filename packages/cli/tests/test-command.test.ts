@@ -4,7 +4,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EXIT, main } from '../src/index.js';
 import { check, unknownAssertions } from '../src/test/assertions/index.js';
 import { matchesFilter } from '../src/test/load.js';
-import { pretty } from '../src/test/reporters/pretty.js';
 import type { TurnResult } from '../src/test/types.js';
 
 const TMP = resolve(__dirname, '.tmp-test');
@@ -64,11 +63,12 @@ function project(files: Record<string, string>, config = CONFIG): string {
   return dir;
 }
 
-async function run(args: string[], cwd: string) {
+async function run(args: string[], cwd: string, env: Record<string, string | undefined> = {}, isTTY = false) {
   let stdout = '';
   let stderr = '';
+  const stdoutStream = { write: (text: string) => (stdout += text), isTTY };
   // An empty env, so CI=true on the CI machine doesn't switch these runs to replay.
-  const code = await main(args, { stdout: { write: (t: string) => (stdout += t) }, stderr: { write: (t: string) => (stderr += t) }, cwd, env: {} });
+  const code = await main(args, { stdout: stdoutStream, stderr: { write: (text: string) => (stderr += text) }, cwd, env });
   return { code, stdout, stderr };
 }
 
@@ -94,8 +94,8 @@ describe('chatcops test', () => {
     const dir = project({ 'evals/pricing.chat.yaml': PRICING });
     const { code, stdout } = await run(['test'], dir);
     expect(code).toBe(EXIT.ok);
-    expect(stdout).toContain('✓ evals/pricing.chat.yaml > quotes the team price');
-    expect(stdout).toContain('✓ evals/pricing.chat.yaml > says hello');
+    expect(stdout).toContain(`${join('evals', 'pricing.chat.yaml')}\n  ✓ quotes the team price`);
+    expect(stdout).toContain('  ✓ says hello');
     expect(stdout).toContain('2 passed, 0 failed.');
   });
 
@@ -114,7 +114,7 @@ tests:
     });
     const { code, stdout } = await run(['test'], dir);
     expect(code).toBe(EXIT.problems);
-    expect(stdout).toContain('✗ evals/pricing.chat.yaml > wrong price');
+    expect(stdout).toContain(`${join('evals', 'pricing.chat.yaml')}\n  ✗ wrong price`);
     expect(stdout).toContain(`turn 1: the reply doesn't contain "$29"`);
     expect(stdout).toContain('turn 1: expected not: the reply contains "$19"');
     expect(stdout).toContain('reply: The Team plan is $19 a month.');
@@ -261,7 +261,7 @@ tests:
     const json = await run(['test', '--reporter', 'json'], dir);
     expect(JSON.parse(json.stdout)).toMatchObject({ passed: 2, failed: 0 });
     const both = await run(['test', '--reporter', 'pretty', '--reporter', 'json'], dir);
-    expect(both.stdout).toContain('✓ evals/pricing.chat.yaml > says hello');
+    expect(both.stdout).toContain('  ✓ says hello');
     expect(JSON.parse(both.stdout.trim().split('\n').at(-1) ?? '')).toMatchObject({ passed: 2 });
     const unknown = await run(['test', '--reporter', 'html'], dir);
     expect(unknown.stderr).toContain("--reporter html doesn't exist. Use one of: pretty, json.");
@@ -274,8 +274,18 @@ tests:
       'evals/pricing.chat.mjs': `export default { version: 1, name: 'Module', tests: [{ name: 'js', turns: [{ user: 'price', expect: [{ contains: '$19' }] }] }] };`,
     });
     const { code, stdout } = await run(['test', 'evals/*.chat.mjs'], dir);
-    expect(stdout).toContain('✓ evals/pricing.chat.mjs > js');
+    expect(stdout).toContain(`${join('evals', 'pricing.chat.mjs')}\n  ✓ js`);
     expect(code).toBe(EXIT.ok);
+  });
+
+  it('shows passing assertions with --verbose and documents the option in help', async () => {
+    const dir = project({ 'evals/pricing.chat.yaml': PRICING });
+    const normal = await run(['test'], dir);
+    expect(normal.stdout).not.toContain('turn 1: the reply contains "$19"');
+    const verbose = await run(['test', '--verbose'], dir);
+    expect(verbose.code).toBe(EXIT.ok);
+    expect(verbose.stdout).toContain('✓ turn 1: the reply contains "$19"');
+    expect((await run(['--help'], dir)).stdout).toContain('--verbose');
   });
 
   it('checks cites and lead-captured against real source and lead parts', async () => {
@@ -463,11 +473,6 @@ describe('assertions', () => {
     expect(matchesFilter(test, 'tag:pricing')).toBe(true);
     expect(matchesFilter(test, 'tag:sales')).toBe(false);
     expect(matchesFilter({ ...test, tags: undefined }, 'tag:pricing')).toBe(false);
-  });
-
-  it('prints a failed run with no turns', () => {
-    const out = pretty({ fixture: 'a.yaml', test: 't', passRate: 0, pass: false, runs: [{ fixture: 'a.yaml', test: 't', run: 1, pass: false, turns: [], error: 'turn 1 failed: x' }] });
-    expect(out).toBe('✗ a.yaml > t\n    turn 1 failed: x\n');
   });
 
   it('javascript: boolean and object returns, async, relative path', async () => {

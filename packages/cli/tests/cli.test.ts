@@ -159,7 +159,7 @@ describe('toSource', () => {
     expect(toSource('https://acme.test/sitemap.xml', undefined, '/x')).toEqual({ type: 'sitemap', url: 'https://acme.test/sitemap.xml' });
     expect(toSource('https://acme.test/sitemap.xml.gz?v=2', undefined, '/x')).toEqual({ type: 'sitemap', url: 'https://acme.test/sitemap.xml.gz?v=2' });
     expect(toSource('https://acme.test/pricing', undefined, '/x')).toEqual({ type: 'urls', urls: ['https://acme.test/pricing'] });
-    expect(toSource('docs', 'https://docs.acme.test', '/x')).toEqual({ type: 'directory', path: '/x/docs', baseUrl: 'https://docs.acme.test' });
+    expect(toSource('docs', 'https://docs.acme.test', TMP)).toEqual({ type: 'directory', path: join(TMP, 'docs'), baseUrl: 'https://docs.acme.test' });
   });
 });
 

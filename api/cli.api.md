@@ -81,7 +81,10 @@ export interface Reporter {
     onEnd?(results: TestResult[], summary: RunSummary): void | Promise<void>;
 }
 
-export type ReporterFactory = (output: ReporterOutput) => Reporter;
+export type ReporterFactory = (output: ReporterOutput, options: {
+    env?: Record<string, string | undefined>;
+    verbose?: boolean;
+}) => Reporter;
 
 export interface ReporterOutput {
     write(text: string): unknown;
@@ -122,6 +125,7 @@ export interface TestResult {
     runs: TestRunResult[];
     passRate: number;
     pass: boolean;
+    durationMs?: number;
 }
 
 export interface TestRunResult {
@@ -228,6 +232,9 @@ type Prices = Record<string, {
 
 interface RunSummary {
     mode: CassetteMode;
+    model?: string;
+    elapsedMs: number;
+    costIncomplete: boolean;
     judge?: string;
     costUsd?: number;
 }

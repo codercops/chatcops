@@ -113,7 +113,7 @@ describe('chatcops test --record and --replay', () => {
     const recorded = await run(['test', '--record'], dir);
     expect(recorded.code).toBe(EXIT.ok);
     expect(recorded.stderr).toContain('Recording API calls.');
-    expect(recorded.stderr).toContain('Saved evals/__cassettes__/pricing.chat.jsonl');
+    expect(recorded.stderr).toContain(`Saved ${join('evals', '__cassettes__', 'pricing.chat.jsonl')}`);
     expect(hits).toHaveLength(3);
     expect(hits[0].auth).toBe('Bearer sk-secret-header');
 
@@ -289,8 +289,8 @@ tests:
 
 describe('cassette helpers', () => {
   it('names the cassette after the eval file', () => {
-    expect(cassettePath('/p/evals/pricing.chat.yaml')).toBe('/p/evals/__cassettes__/pricing.chat.jsonl');
-    expect(cassettePath('/p/evals/a.chat.mjs')).toBe('/p/evals/__cassettes__/a.chat.jsonl');
+    expect(cassettePath(join(TMP, 'evals', 'pricing.chat.yaml'))).toBe(join(TMP, 'evals', '__cassettes__', 'pricing.chat.jsonl'));
+    expect(cassettePath(join(TMP, 'evals', 'a.chat.mjs'))).toBe(join(TMP, 'evals', '__cassettes__', 'a.chat.jsonl'));
   });
 
   it('hashes requests the same whatever the key order, and drops secrets from the URL', async () => {

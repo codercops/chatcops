@@ -105,4 +105,5 @@ export interface TestResult {
   runs: TestRunResult[];
   passRate: number;
   pass: boolean;
+  durationMs?: number;
 }

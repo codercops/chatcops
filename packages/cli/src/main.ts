@@ -55,6 +55,7 @@ Test options:
   --filter <text>       Only tests whose name contains text, or tag:<name>
   --repeat <n>          Run each test n times
   --concurrency <n>     Tests run at once (default 4)
+  --verbose             Show assertion details for every test
   --reporter <name>     pretty (default) or json. Repeatable.
   --json                Same as --reporter json
   --record              Call the APIs and save what they answer to __cassettes__
@@ -133,6 +134,7 @@ function parse(argv: string[]) {
       'top-k': { type: 'string' },
       filter: { type: 'string' },
       repeat: { type: 'string' },
+      verbose: { type: 'boolean' },
       reporter: { type: 'string', multiple: true },
       record: { type: 'boolean' },
       live: { type: 'boolean' },
