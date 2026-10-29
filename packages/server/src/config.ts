@@ -95,11 +95,13 @@ export interface ChatCopsServerConfig {
   /** How long a session token lasts, in seconds. Defaults to 900. */
   sessionTtlSec?: number;
   /**
-   * Refuse chat requests without a session token (401 `session_required`).
-   * Defaults to true when `sessionSecrets` is set. Set false while widgets
-   * older than 0.6, which don't send tokens, are still out there.
+   * Accept chat requests without a session token. Off by default: the
+   * server needs `sessionSecrets`, and each chat request needs a token from
+   * `<chat url>/session`, which the widget gets by itself. Set true for a
+   * server without `sessionSecrets`, or, with them, while widgets older than
+   * 0.6 (which don't send tokens) are still out there.
    */
-  requireSession?: boolean;
+  allowAnonymous?: boolean;
   /**
    * Cloudflare Turnstile when a session token is issued: `/session` needs a
    * Turnstile token and checks it with Cloudflare before signing. Refreshing

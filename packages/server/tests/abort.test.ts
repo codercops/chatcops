@@ -58,6 +58,7 @@ describe('handleChat with a signal', () => {
   it('passes the signal to the provider, stops quietly and saves the partial reply as aborted', async () => {
     const store = new MemoryStore();
     const { handleChat, cleanup } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'k' },
       systemPrompt: 'Test',
       storage: { conversations: store },
@@ -84,7 +85,7 @@ describe('handleChat with a signal', () => {
 
 describe('adapters stop the provider when the visitor disconnects', () => {
   it('Vercel: cancelling the response stream aborts the reply', async () => {
-    const handler = chatcopsVercelHandler({ provider: { type: 'claude', apiKey: 'k' }, systemPrompt: 'Test' });
+    const handler = chatcopsVercelHandler({ allowAnonymous: true, provider: { type: 'claude', apiKey: 'k' }, systemPrompt: 'Test' });
     const res = await handler(new Request('http://localhost/api/chat', { method: 'POST', body: JSON.stringify(body) }));
     const reader = res.body!.getReader();
     const first = new TextDecoder().decode((await reader.read()).value);
@@ -95,7 +96,7 @@ describe('adapters stop the provider when the visitor disconnects', () => {
   });
 
   it('Cloudflare: a failed write after the visitor left aborts the reply', async () => {
-    const handler = chatcopsCloudflareHandler({ provider: { type: 'claude', apiKey: 'k' }, systemPrompt: 'Test' });
+    const handler = chatcopsCloudflareHandler({ allowAnonymous: true, provider: { type: 'claude', apiKey: 'k' }, systemPrompt: 'Test' });
     const waitUntil = vi.fn();
     const res = await handler(
       new Request('http://localhost/api/chat', { method: 'POST', body: JSON.stringify(body) }),
@@ -138,7 +139,7 @@ describe('adapters stop the provider when the visitor disconnects', () => {
     };
     const req = { method: 'POST', body, ip: '127.0.0.1', socket: {} };
 
-    await chatcopsMiddleware({ provider: { type: 'claude', apiKey: 'k' }, systemPrompt: 'Test' })(
+    await chatcopsMiddleware({ allowAnonymous: true, provider: { type: 'claude', apiKey: 'k' }, systemPrompt: 'Test' })(
       req as unknown as ExpressRequest,
       res as unknown as ExpressResponse,
       vi.fn() as unknown as NextFunction

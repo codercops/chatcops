@@ -73,6 +73,7 @@ describe('createChatHandler with custom ConversationStore', () => {
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'You are a helpful assistant.',
       storage: { conversations: store },
@@ -162,6 +163,7 @@ describe('createChatHandler with custom ConversationStore', () => {
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'You are a helpful assistant.',
       storage: { conversations: store },
@@ -209,6 +211,7 @@ describe('createChatHandler with custom ConversationStore', () => {
     });
 
     const handlerA = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'You are a helpful assistant.',
       storage: { conversations: sharedStore },
@@ -235,6 +238,7 @@ describe('createChatHandler with custom ConversationStore', () => {
     });
 
     const handlerB = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'You are a helpful assistant.',
       storage: { conversations: sharedStore },
@@ -267,6 +271,7 @@ describe('createChatHandler with custom ConversationStore', () => {
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'You are a helpful assistant.',
     });

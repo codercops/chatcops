@@ -35,12 +35,13 @@ import { chatcopsMiddleware } from '@chatcops/server';
 const app = express();
 app.use(express.json());
 
-app.all('/chat', chatcopsMiddleware({
+app.use('/chat', chatcopsMiddleware({
   provider: {
     type: 'claude',
     apiKey: process.env.ANTHROPIC_API_KEY,
   },
   systemPrompt: 'You are a helpful assistant for our website.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET], // openssl rand -base64 32
 }));
 
 app.listen(3001);

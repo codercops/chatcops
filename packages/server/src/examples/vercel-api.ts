@@ -15,4 +15,6 @@ export default chatcopsVercelHandler({
   },
   systemPrompt: 'You are a helpful assistant.',
   allowedOrigins: ['*'],
+  // Signs the session tokens the widget fetches before it chats (`openssl rand -base64 32`).
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET ?? ''],
 });

@@ -23,6 +23,7 @@ import { MAX_VISITOR_CONTEXT_CHARS, buildVisitorContext, isLocaleTag } from '../
 async function send(body: Record<string, unknown>, store = new MemoryStore()) {
   calls.length = 0;
   const { handleChat, cleanup } = createChatHandler({
+    allowAnonymous: true,
     provider: { type: 'claude', apiKey: 'k' },
     systemPrompt: 'You are the Acme support bot.',
     storage: { conversations: store },

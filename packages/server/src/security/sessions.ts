@@ -21,7 +21,7 @@ export interface SessionConfig {
   logger?: Logger;
   sessionSecrets?: string[];
   sessionTtlSec?: number;
-  requireSession?: boolean;
+  allowAnonymous?: boolean;
   turnstile?: TurnstileConfig;
   identity?: { secret: string };
 }
@@ -63,7 +63,11 @@ export function createSessions(
 ): Sessions | undefined {
   const secrets = config.sessionSecrets;
   if (secrets === undefined) {
-    if (config.requireSession) throw new Error('`requireSession` needs `sessionSecrets` to sign tokens with.');
+    if (!config.allowAnonymous) {
+      throw new Error(
+        'Chat requests need a session token unless `allowAnonymous: true` is set. Set `sessionSecrets` (generate one with `openssl rand -base64 32`, and keep it on the server); the widget fetches tokens by itself. Or set `allowAnonymous: true` to accept chat without them. See https://chat.codercops.com/server/setup/#session-tokens'
+      );
+    }
     if (config.turnstile) throw new Error('`turnstile` is checked when a session token is issued, so it needs `sessionSecrets`.');
     if (config.identity) throw new Error('`identity` goes into session tokens, so it needs `sessionSecrets`.');
     return undefined;
@@ -90,7 +94,7 @@ export function createSessions(
   let identityKey: Promise<CryptoKey> | undefined;
   const getIdentityKey = () => (identityKey ??= importSessionKey(identitySecret as string));
   const nowSec = () => Math.floor(now() / 1000);
-  const required = config.requireSession ?? true;
+  const required = !config.allowAnonymous;
 
   return {
     required,

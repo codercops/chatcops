@@ -53,6 +53,7 @@ describe('originPolicy', () => {
 
 describe('the adapters', () => {
   const config = () => ({
+    allowAnonymous: true,
     provider: scriptedProvider([textStep('Hi.')]),
     systemPrompt: 'x',
     allowedOrigins: ['https://acme.com'],

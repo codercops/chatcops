@@ -19,7 +19,8 @@ app.use(express.json());
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
 // ChatCops endpoint
-app.all('/chat', chatcopsMiddleware({
+// app.use, so /chat/session (the widget's session token) reaches it too.
+app.use('/chat', chatcopsMiddleware({
   provider: {
     type: 'claude',
     apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -74,6 +75,7 @@ app.all('/chat', chatcopsMiddleware({
   rateLimit: { maxRequests: 30, windowMs: 60_000 },
   analytics: true,
   allowedOrigins: process.env.ALLOWED_ORIGINS?.split(',') ?? ['*'],
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
 }));
 
 const PORT = process.env.PORT ?? 3001;
@@ -111,6 +113,7 @@ app.listen(PORT, () => {
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-...
+CHATCOPS_SESSION_SECRET=...   # openssl rand -base64 32
 WEBHOOK_URL=https://hooks.example.com/chatcops
 WEBHOOK_SECRET=your-webhook-secret
 ALLOWED_ORIGINS=https://your-website.com

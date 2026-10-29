@@ -14,6 +14,7 @@ const ip = () => '203.0.113.7';
 
 function config(overrides: Partial<ChatCopsServerConfig> = {}): ChatCopsServerConfig {
   return {
+    allowAnonymous: true,
     provider: scriptedProvider([textStep('Hello there')]),
     systemPrompt: 'Test',
     clientIp: ip,

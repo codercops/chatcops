@@ -144,7 +144,7 @@ describe('POST /session', () => {
   });
 
   it('is 404 when session tokens are off', async () => {
-    const { session } = setup({ sessionSecrets: undefined });
+    const { session } = setup({ sessionSecrets: undefined, allowAnonymous: true });
     const res = await session();
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe('invalid_request');
@@ -207,8 +207,8 @@ describe('chat requests with session tokens on', () => {
     expect((await after.chat(minted.body.conversationId, minted.body.token)).status).toBe(200);
   });
 
-  it('let requests without a token through with requireSession: false, but still check the ones that send one', async () => {
-    const { session, chat } = setup({ requireSession: false });
+  it('let requests without a token through with allowAnonymous: true, but still check the ones that send one', async () => {
+    const { session, chat } = setup({ allowAnonymous: true });
     expect((await chat('anonymous')).status).toBe(200);
     const minted = await session();
     expect((await chat('not-the-token-conversation', minted.body.token)).status).toBe(401);
@@ -283,7 +283,7 @@ describe('Turnstile when a session is issued', () => {
   });
 
   it('needs sessionSecrets and a secret key', () => {
-    expect(() => createSessions({ turnstile })).toThrow('needs `sessionSecrets`');
+    expect(() => createSessions({ turnstile, allowAnonymous: true })).toThrow('needs `sessionSecrets`');
     expect(() => createSessions({ sessionSecrets: [SECRET], turnstile: { secretKey: '' } })).toThrow('needs its `secretKey`');
   });
 });
@@ -366,7 +366,7 @@ describe('signed-in visitors (identity)', () => {
   });
 
   it('needs sessionSecrets and a long enough secret, and checks tier budgets at startup', () => {
-    expect(() => createSessions({ identity: { secret: IDENTITY_SECRET } })).toThrow('needs `sessionSecrets`');
+    expect(() => createSessions({ identity: { secret: IDENTITY_SECRET }, allowAnonymous: true })).toThrow('needs `sessionSecrets`');
     expect(() => createSessions({ sessionSecrets: [SECRET], identity: { secret: 'short' } })).toThrow('at least 32 bytes');
     expect(() => setup({ budgets: { perConversation: { messages: 5 } }, identity: { secret: IDENTITY_SECRET, tiers: { pro: { perConversation: { messages: -1 } } } } })).toThrow(
       'budgets.perConversation.messages must be a positive number'
@@ -420,7 +420,7 @@ describe('the Express middleware', () => {
   });
 
   it('is 404 at /session when session tokens are off', async () => {
-    const off = await run({ provider: scriptedProvider([]), systemPrompt: 'Test', budgets: false }, '/session', {});
+    const off = await run({ allowAnonymous: true, provider: scriptedProvider([]), systemPrompt: 'Test', budgets: false }, '/session', {});
     expect(off.res.statusCode).toBe(404);
   });
 });
@@ -429,9 +429,15 @@ describe('session config', () => {
   it('fails at startup on a secret that is too short, or none at all', () => {
     expect(() => createSessions({ sessionSecrets: ['short'] })).toThrow('sessionSecrets[0] is 5 bytes; it needs at least 32');
     expect(() => createSessions({ sessionSecrets: [] })).toThrow('at least one secret');
-    expect(() => createSessions({ requireSession: true })).toThrow('needs `sessionSecrets`');
     expect(() => createSessions({ sessionSecrets: [SECRET], sessionTtlSec: 0 })).toThrow('sessionTtlSec');
-    expect(createSessions({})).toBeUndefined();
+  });
+
+  it('refuses to start without sessionSecrets unless allowAnonymous is set, and says how to fix it', () => {
+    expect(() => createSessions({})).toThrow(/session token unless `allowAnonymous: true`[\s\S]*openssl rand -base64 32/);
+    expect(() => createSessions({ allowAnonymous: false })).toThrow('allowAnonymous: true');
+    expect(createSessions({ allowAnonymous: true })).toBeUndefined();
+    expect(createSessions({ sessionSecrets: [SECRET] })?.required).toBe(true);
+    expect(createSessions({ sessionSecrets: [SECRET], allowAnonymous: true })?.required).toBe(false);
   });
 
   it('reads the Bearer scheme in any case', async () => {

@@ -140,7 +140,7 @@ Then go through the list:
 - `allowedOrigins` lists your sites, and nothing else. `['*']` is the default.
 - `storage` is a store package, so limits and budgets hold across instances.
 - `budgets.globalPerDay` is set to a number you're fine paying on a bad day.
-- `sessionSecrets` is set, from a secret store, never a `NEXT_PUBLIC_` or `VITE_` variable. Start with `requireSession: false` if widgets before 0.6 are still cached on your pages, and drop it after a few days.
+- `sessionSecrets` is set, from a secret store, never a `NEXT_PUBLIC_` or `VITE_` variable. Set `allowAnonymous: true` with it if widgets before 0.6 are still cached on your pages, and drop it after a few days.
 - On a host other than Vercel, Cloudflare or Express, `clientIp` reads your platform's header. Otherwise per-IP limits are skipped.
 - If you use the analytics endpoint, `analyticsToken` is set. Without it the endpoint is public.
 - Each tool checks its own input. The model writes it, and a visitor can steer the model, so treat a tool's input like a form submission: check ids belong to the visitor, and keep write actions behind your own auth.

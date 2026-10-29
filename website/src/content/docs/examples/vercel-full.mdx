@@ -48,9 +48,12 @@ export default chatcopsVercelHandler({
   ],
 
   allowedOrigins: ['*'],
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
   analytics: true,
 });
 ```
+
+Add `api/chat/session.ts` with `export { default, config } from '../chat';`, so `/api/chat/session`, where the widget gets its session token, reaches the same handler.
 
 ## Next.js Integration
 
@@ -68,12 +71,15 @@ const handler = chatcopsVercelHandler({
   },
   systemPrompt: 'You are a helpful assistant.',
   allowedOrigins: ['*'],
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
 });
 
 export const POST = handler;
 // The handler answers the CORS preflight, so a widget on another origin needs OPTIONS too.
 export const OPTIONS = handler;
 ```
+
+Then `app/api/chat/session/route.ts`, for the session token: `export { POST, OPTIONS } from '../route';`.
 
 More runtimes (Hono, Bun, Deno) are in [Next.js, Hono, Bun and Deno](/server/fetch-runtimes/).
 
@@ -107,5 +113,6 @@ Set in Vercel dashboard → Settings → Environment Variables:
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-...
+CHATCOPS_SESSION_SECRET=...   # openssl rand -base64 32
 WEBHOOK_URL=https://hooks.zapier.com/...
 ```

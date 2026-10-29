@@ -28,6 +28,7 @@ describe('the server logger', () => {
     const { logger, lines } = recorder();
     const failing = { name: 'lookup', description: 'x', execute: async () => Promise.reject(new Error('db down')) };
     const handler = createChatHandler({
+      allowAnonymous: true,
       provider: scriptedProvider([
         [{ type: 'tool-call', call: { id: 't1', name: 'lookup', input: {} } }, { type: 'finish', reason: 'tool-calls', usage: { inputTokens: 1, outputTokens: 1 }, parts: [{ type: 'tool-call', toolCallId: 't1', toolName: 'lookup', input: {}, executor: 'server', state: 'pending' }] }],
         textStep('Sorry, I could not look that up.'),

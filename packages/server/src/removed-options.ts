@@ -4,6 +4,8 @@ const UPGRADE_GUIDE = 'https://chat.codercops.com/getting-started/upgrading-to-1
 const REMOVED: Record<string, string> = {
   cors: "`cors` was removed in 1.0. Use `allowedOrigins: ['https://your.site']`, which also takes several sites and wildcards.",
   conversationStore: '`conversationStore` was removed in 1.0. Use `storage: { conversations: yourStore }`, or a store package.',
+  requireSession:
+    '`requireSession` was removed in 1.0: session tokens are required by default. To accept chat requests without one (what `requireSession: false` did), set `allowAnonymous: true`.',
   i18n: "`i18n` was removed in 1.0. It did nothing since 0.6: set the chat's text with the widget's `strings` option.",
 };
 

@@ -9,6 +9,27 @@ Go through the sections for the packages you use. If you're on 0.5 or earlier, r
 
 ## `@chatcops/server`
 
+### Session tokens are required by default
+
+A chat request now needs a session token unless you say otherwise, so a leaked or guessed conversation id is useless. The widget fetches tokens by itself (from 0.6), so for most sites the change is a secret and, on some platforms, a route:
+
+```typescript
+import { chatcopsMiddleware } from '@chatcops/server';
+
+chatcopsMiddleware({
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+  systemPrompt: 'You are helpful.',
+  // openssl rand -base64 32, kept on the server
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+});
+```
+
+- A server without `sessionSecrets` refuses to start, with a message saying what to set. Add a secret, or set `allowAnonymous: true` to keep the 0.x behavior.
+- `requireSession` is gone. `requireSession: false` (tokens checked when sent, not required) is now `allowAnonymous: true` next to `sessionSecrets`. `requireSession: true` was already the default with `sessionSecrets`, so delete it.
+- The widget asks `<chat url>/session` for its token, so that path has to reach the handler. With Express, mount it with `app.use('/chat', handler)`, not `app.all('/chat', handler)`. On Vercel and Next.js, add a route file at `/api/chat/session` that re-exports the chat route. Workers, Hono with both paths, Bun and Deno need nothing more. See [Session tokens](/server/setup/#session-tokens).
+- Widgets older than 0.6 and the AI SDK's `useChat` don't send tokens. For those, set `allowAnonymous: true`.
+- `chatcops test` runs your server in process and doesn't need tokens, whatever the config says.
+
 ### `cors` is now `allowedOrigins`
 
 ```typescript

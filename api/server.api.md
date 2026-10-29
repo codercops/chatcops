@@ -43,7 +43,7 @@ export interface ChatCopsServerConfig {
     clientIp?: ClientIpResolver;
     sessionSecrets?: string[];
     sessionTtlSec?: number;
-    requireSession?: boolean;
+    allowAnonymous?: boolean;
     turnstile?: TurnstileConfig;
     identity?: {
         secret: string;

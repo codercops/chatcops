@@ -21,7 +21,15 @@ export default chatcopsVercelHandler({
   },
   systemPrompt: 'You are a helpful assistant.',
   allowedOrigins: ['*'],
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
 });
+```
+
+The widget gets a session token from `/api/chat/session` before it chats, so give that path the same handler with a second file, `api/chat/session.ts`:
+
+```typescript
+// docs-check: skip, re-exports the route file above
+export { default, config } from '../chat';
 ```
 
 ## Environment Variables
@@ -34,6 +42,9 @@ ANTHROPIC_API_KEY=sk-ant-...
 OPENAI_API_KEY=sk-...
 # or
 GOOGLE_AI_API_KEY=...
+
+# Signs session tokens: openssl rand -base64 32
+CHATCOPS_SESSION_SECRET=...
 ```
 
 ## Widget Configuration

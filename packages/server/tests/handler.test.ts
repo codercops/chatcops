@@ -32,6 +32,7 @@ describe('createChatHandler', () => {
     const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
 
     const { cleanup } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
       allowedOrigins: ['*'],
@@ -47,8 +48,9 @@ describe('createChatHandler', () => {
     ['cors', { cors: '*' }, 'allowedOrigins'],
     ['conversationStore', { conversationStore: { get: async () => null, save: async () => {}, delete: async () => {} } }, 'storage'],
     ['i18n', { i18n: { defaultLocale: 'en', locales: {} } }, 'strings'],
+    ['requireSession', { requireSession: false }, 'allowAnonymous'],
   ])('refuses to start with %s, which 1.0 removed, and says what to use', (_name, removed, instead) => {
-    const config = { provider: { type: 'openai', apiKey: 'test-key' }, systemPrompt: 'Test', ...removed };
+    const config = { allowAnonymous: true, provider: { type: 'openai', apiKey: 'test-key' }, systemPrompt: 'Test', ...removed };
     expect(() => createChatHandler(config as never)).toThrow(new RegExp(`removed in 1\\.0[\\s\\S]*${instead}[\\s\\S]*upgrading-to-1`));
   });
 
@@ -56,6 +58,7 @@ describe('createChatHandler', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const { cleanup } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'openai', apiKey: 'test-key' },
       systemPrompt: 'Test',
     });
@@ -93,6 +96,7 @@ describe('createChatHandler', () => {
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'openai', apiKey: 'test-key' },
       systemPrompt: 'Test',
       allowedOrigins: ['*'],
@@ -130,6 +134,7 @@ describe('createChatHandler', () => {
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'openai', apiKey: 'test-key' },
       systemPrompt: 'Test',
       allowedOrigins: ['*'],
@@ -163,6 +168,7 @@ describe('createChatHandler', () => {
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'openai', apiKey: 'test-key' },
       systemPrompt: 'Test',
       allowedOrigins: ['*'],
@@ -191,12 +197,14 @@ describe('createChatHandler', () => {
     });
 
     const withOptions = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'openai', apiKey: 'test-key' },
       systemPrompt: 'Test',
       maxTokens: 4096,
       temperature: 0.2,
     });
     const withoutOptions = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'openai', apiKey: 'test-key' },
       systemPrompt: 'Test',
     });
@@ -244,6 +252,7 @@ describe('createChatHandler', () => {
     });
 
     const { handleChat, getAnalytics } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
       allowedOrigins: ['*'],
@@ -301,6 +310,7 @@ describe('createChatHandler', () => {
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
       allowedOrigins: ['*'],
@@ -371,6 +381,7 @@ describe('createChatHandler', () => {
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
       allowedOrigins: ['*'],
@@ -437,6 +448,7 @@ describe('createChatHandler', () => {
 
       try {
         const { handleChat, cleanup } = createChatHandler({
+          allowAnonymous: true,
           provider: { type: 'claude', apiKey: 'sk-secret-key' },
           systemPrompt: 'Test',
         });
@@ -466,6 +478,7 @@ describe('createChatHandler', () => {
       mockedCreateProvider.mockRejectedValue(failure);
 
       const { cleanup } = createChatHandler({
+        allowAnonymous: true,
         provider: { type: 'claude', apiKey: 'sk-secret-key' },
         systemPrompt: 'Test',
       });
@@ -481,6 +494,7 @@ describe('createChatHandler', () => {
       mockedCreateProvider.mockRejectedValue(new Error('setup failed'));
 
       const { handleChat, cleanup } = createChatHandler({
+        allowAnonymous: true,
         provider: { type: 'claude', apiKey: 'k' },
         systemPrompt: 'Test',
         rateLimit: { maxRequests: 1, windowMs: 60_000 },
@@ -536,6 +550,7 @@ describe('createChatHandler', () => {
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
       allowedOrigins: ['*'],
@@ -600,6 +615,7 @@ describe('createChatHandler', () => {
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
       allowedOrigins: ['*'],
@@ -650,6 +666,7 @@ describe('createChatHandler', () => {
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
       allowedOrigins: ['*'],
@@ -717,6 +734,7 @@ describe('createChatHandler', () => {
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
       allowedOrigins: ['*'],
@@ -793,6 +811,7 @@ describe('createChatHandler', () => {
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
       allowedOrigins: ['*'],
@@ -860,6 +879,7 @@ describe('createChatHandler', () => {
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
       allowedOrigins: ['*'],
@@ -897,6 +917,7 @@ describe('createChatHandler', () => {
     });
 
     const { handleChat } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'test-key' },
       systemPrompt: 'Test',
       allowedOrigins: ['*'],

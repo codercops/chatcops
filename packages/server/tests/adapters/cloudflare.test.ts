@@ -12,6 +12,7 @@ import { createChatHandler } from '../../src/handler.js';
 import { chatcopsCloudflareHandler } from '../../src/adapters/cloudflare.js';
 
 const config = {
+  allowAnonymous: true,
   provider: { type: 'claude' as const, apiKey: 'test-key' },
   systemPrompt: 'Test',
   allowedOrigins: ['*'],
@@ -32,6 +33,7 @@ describe('chatcopsCloudflareHandler', () => {
 
   it('returns Access-Control-Allow-Origin: * for 405 when cors is not configured', async () => {
     const handlerWithoutCors = chatcopsCloudflareHandler({
+      allowAnonymous: true,
       provider: { type: 'claude' as const, apiKey: 'test-key' },
       systemPrompt: 'Test',
     });
@@ -46,6 +48,7 @@ describe('chatcopsCloudflareHandler', () => {
 
   it('returns custom Access-Control-Allow-Origin for 405 when cors is configured', async () => {
     const handlerWithCustomCors = chatcopsCloudflareHandler({
+      allowAnonymous: true,
       provider: { type: 'claude' as const, apiKey: 'test-key' },
       systemPrompt: 'Test',
       allowedOrigins: ['https://example.com'],
@@ -68,6 +71,7 @@ describe('chatcopsCloudflareHandler', () => {
 
   it('returns Access-Control-Allow-Origin: * for OPTIONS when cors is not configured', async () => {
     const handlerWithoutCors = chatcopsCloudflareHandler({
+      allowAnonymous: true,
       provider: { type: 'claude' as const, apiKey: 'test-key' },
       systemPrompt: 'Test',
     });
@@ -92,6 +96,7 @@ describe('chatcopsCloudflareHandler', () => {
 
   it('returns Access-Control-Allow-Origin: * for 400 when cors is not configured', async () => {
     const handlerWithoutCors = chatcopsCloudflareHandler({
+      allowAnonymous: true,
       provider: { type: 'claude' as const, apiKey: 'test-key' },
       systemPrompt: 'Test',
     });
@@ -110,6 +115,7 @@ describe('chatcopsCloudflareHandler', () => {
 
   it('returns custom Access-Control-Allow-Origin for 400 when cors is configured', async () => {
     const handlerWithCustomCors = chatcopsCloudflareHandler({
+      allowAnonymous: true,
       provider: { type: 'claude' as const, apiKey: 'test-key' },
       systemPrompt: 'Test',
       allowedOrigins: ['https://example.com'],

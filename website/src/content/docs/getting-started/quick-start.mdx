@@ -35,6 +35,12 @@ Install the server package:
 npm install @chatcops/server express
 ```
 
+Make a secret for the session tokens the widget fetches before it chats, and keep it with your API key (never in client code):
+
+```bash
+openssl rand -base64 32   # put it in CHATCOPS_SESSION_SECRET
+```
+
 Create a minimal Express server:
 
 ```typescript
@@ -44,7 +50,8 @@ import { chatcopsMiddleware } from '@chatcops/server';
 const app = express();
 app.use(express.json());
 
-app.all('/chat', chatcopsMiddleware({
+// app.use, so /chat/session, where the widget gets its token, reaches it too.
+app.use('/chat', chatcopsMiddleware({
   provider: {
     type: 'claude',
     apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -53,6 +60,7 @@ app.all('/chat', chatcopsMiddleware({
   systemPrompt: `You are a helpful customer support assistant for our website.
     Be friendly, concise, and helpful.`,
   allowedOrigins: ['*'],
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
   rateLimit: { maxRequests: 30, windowMs: 60_000 },
 }));
 
@@ -60,6 +68,8 @@ app.listen(3001, () => {
   console.log('ChatCops server running on http://localhost:3001');
 });
 ```
+
+Without `sessionSecrets` the server refuses to start, so a chat can't be left open by accident. To try it without one, set `allowAnonymous: true` instead. See [Session tokens](/server/setup/#session-tokens).
 
 ## 3. Test It
 
