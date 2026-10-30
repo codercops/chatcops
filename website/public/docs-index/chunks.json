@@ -5,24 +5,24 @@
   "bot.mdx": "8694b700aeffda9c",
   "core/analytics.mdx": "4f7151c4ab14962d",
   "core/knowledge-base.mdx": "1e953b172594259f",
-  "core/providers.mdx": "2ce0e58f2b469a57",
-  "core/testing.mdx": "482714af34195f42",
+  "core/providers.mdx": "5b1de34798a563bc",
+  "core/testing.mdx": "808cb7940f7ed834",
   "core/tools.mdx": "4f7e16807ec2f372",
   "examples/cloudflare-full.mdx": "67368eb714a6174e",
   "examples/express-full.mdx": "ddf2e380c57ae619",
   "examples/vercel-full.mdx": "91e2a0f5fbaf359a",
   "getting-started/installation.mdx": "0aa86a5be34e2e57",
   "getting-started/quick-start.mdx": "9ed8e2340e29621f",
-  "getting-started/upgrading-to-1.mdx": "41c0fd07b581558b",
-  "getting-started/upgrading.mdx": "33ea50ad795dfb8d",
+  "getting-started/upgrading-to-1.mdx": "b503007f5835c0ad",
+  "getting-started/upgrading.mdx": "791ffd122086a6a9",
   "index.mdx": "305829ce790434fb",
   "server/ai-sdk.mdx": "368cc80275e7b27b",
   "server/cloudflare.mdx": "8c6d38c89a7b14aa",
   "server/express.mdx": "397c07ee534313d4",
-  "server/fetch-runtimes.mdx": "b4edeb276f93cbe0",
+  "server/fetch-runtimes.mdx": "ee5ab5acd21b6316",
   "server/protocol.mdx": "9f4f3b0f1de7a55b",
   "server/security.mdx": "904327913fe142f4",
-  "server/setup.mdx": "9c38aec71509763a",
+  "server/setup.mdx": "2f5c572b3fc66e53",
   "server/storage.mdx": "f8267702cf0b53ab",
   "server/vercel.mdx": "091acde7babd7d76",
   "widget/api.mdx": "17cb09583c9971df",
@@ -223,7 +223,7 @@
   },
   {
    "id": "0ef5f2f067726e547d6f864c28c8859c9f1e4dc4bcef14b610108dc3c893e82e",
-   "text": "Upgrading from 0.5 > Upgrade the server first\n\nUpgrade the server, deploy it, then update the widget. A widget from 0.5 or earlier sends requests without `\"protocol\": 1`, and the new server answers those in the exact 0.5 format until 1.0. The server logs one line the first time it does, so you can tell when old widgets are still around (cached pages, a pinned CDN version).\n\nThe 0.6 widget also works against a 0.5 server, so the order isn't critical. It just gets more from a 0.6 one: reply ids that regenerate can name, and a clear \"cut off\" state when a stream ends early.",
+   "text": "Upgrading from 0.5 > Upgrade the server first\n\nUpgrade the server, deploy it, then update the widget. A widget from 0.5 or earlier sends requests without `\"protocol\": 1`, and the new server answers those in the exact 0.5 format, through 1.x. The server logs one line the first time it does, so you can tell when old widgets are still around (cached pages, a pinned CDN version).\n\nThe 0.6 widget also works against a 0.5 server, so the order isn't critical. It just gets more from a 0.6 one: reply ids that regenerate can name, and a clear \"cut off\" state when a stream ends early.",
    "source": {
     "id": "https://chat.codercops.com/getting-started/upgrading/",
     "url": "https://chat.codercops.com/getting-started/upgrading/",
@@ -342,7 +342,7 @@
   },
   {
    "id": "1b45570cc21a20b2e66fb5ace6c8a7328df1124d51c2da19bea224d0413f28db",
-   "text": "Testing your bot > Eval files\n\n`defaults` at the top of the file applies to every test in it. A test's own values win, and tool mocks are merged:\n\n```yaml\nversion: 1\nname: Orders\ndefaults:\n  pageContext: { url: \"https://acme.com/account\", title: \"Your account\" }\n  mocks:\n    tools:\n      lookup_order: { success: true, data: { status: \"shipped\" } }\ntests:\n  - name: says where the order is\n    repeat: 5\n    passRate: 0.8\n    turns:\n      - user: Where is order A-1001?\n        expect:\n          - calls-tool: lookup_order\n          - calls-tool: { name: lookup_order, args: { id: \"A-1001\" } }\n          - no-tool-call: cancel_order\n          - contains: shipped\n```\n\nA mock for a tool your config doesn't have is an error, so a renamed tool can't leave a mock behind that no longer does anything.\n\nEval files can also be modules (`.chat.ts`, `.chat.mjs`) that export the same object as their default, when you'd rather build tests in code.",
+   "text": "Testing your bot > Eval files\n\nA test can also set:\n\n- `pageContext`: the page the visitor is on (`url`, `title`, and optionally `description` and `contentSnippet`)\n- `locale` and `userData`, as the widget would send them\n- `mocks.tools`: a fixed result for a server tool, so the test doesn't place a real order or send a real email\n- `repeat` and `passRate`: run the test several times and pass when that share of runs passed (models aren't deterministic)\n\n`defaults` at the top of the file applies to every test in it. A test's own values win, and tool mocks are merged:\n\n```yaml\nversion: 1\nname: Orders\ndefaults:\n  pageContext: { url: \"https://acme.com/account\", title: \"Your account\" }\n  mocks:\n    tools:\n      lookup_order: { success: true, data: { status: \"shipped\" } }\ntests:\n  - name: says where the order is\n    repeat: 5\n    passRate: 0.8\n    turns:\n      - user: Where is order A-1001?\n        expect:\n          - calls-tool: lookup_order\n          - calls-tool: { name: lookup_order, args: { id: \"A-1001\" } }\n          - no-tool-call: cancel_order\n          - contains: shipped\n```\n\nA mock for a tool your config doesn't have is an error, so a renamed tool can't leave a mock behind that no longer does anything.\n\nEval files can also be modules (`.chat.ts`, `.chat.mjs`) that export the same object as their default, when you'd rather build tests in code.",
    "source": {
     "id": "https://chat.codercops.com/core/testing/",
     "url": "https://chat.codercops.com/core/testing/",
@@ -552,7 +552,7 @@
   },
   {
    "id": "2ec93aa9f914c0505350c6cf02f4e5d862f812dd0210fff16bf8aca8bbd810d4",
-   "text": "Testing your bot > Eval files\n\nBy default the command runs every `evals/**/*.chat.yaml` file. Pass globs to pick others:\n\n```bash\nnpx chatcops test \"evals/pricing/*.chat.yaml\"\n```\n\nAn eval file has a name and a list of tests. Each test is one conversation, a turn at a time:\n\n```yaml\nversion: 1\nname: Pricing\ntests:\n  - name: quotes the Team price\n    tags: [pricing]\n    turns:\n      - user: How much is the Team plan?\n        expect:\n          - contains: \"$19\"\n          - not-contains: \"$29\"\n\n  - name: remembers the plan on a follow-up\n    turns:\n      - user: Tell me about the Team plan.\n      - user: How much is it per year?\n        expect:\n          - contains: \"$190\"\n```\n\nEach assertion has one key. `contains` takes a string or a list of strings that must all appear in the reply, `judge` has a model grade the reply ([below](#judged-by-a-model)), and every assertion also works with a `not-` prefix to say the opposite. An assertion name that doesn't exist fails the whole run before anything is sent, so a typo can't make a test pass by checking nothing.\n\nThree assertions catch a prompt change that makes replies longer, slower or more expensive:\n\n- `tokens-under: 800` checks the turn's input plus output tokens. `tokens-under: { input: 600, output: 200 }` checks them separately, and you can give only one of them. A turn without usage fails.\n- `latency-under: 3000` checks the time to the end of the reply, in milliseconds. Replays answer at once, so it only means something in live and recorded runs.\n- `cost-under: 0.01` checks what the turn cost in US dollars. It needs the model in `prices` ([Costs](#costs)), and a turn without a price fails with a reason that says so.\n\nTwo assertions check what ChatCops adds to a reply:",
+   "text": "Testing your bot > Eval files\n\nBy default the command runs every `evals/**/*.chat.yaml` file. Pass globs to pick others:\n\n```bash\nnpx chatcops test \"evals/pricing/*.chat.yaml\"\n```\n\nAn eval file has a name and a list of tests. Each test is one conversation, a turn at a time:\n\n```yaml\nversion: 1\nname: Pricing\ntests:\n  - name: quotes the Team price\n    tags: [pricing]\n    turns:\n      - user: How much is the Team plan?\n        expect:\n          - contains: \"$19\"\n          - not-contains: \"$29\"\n\n  - name: remembers the plan on a follow-up\n    turns:\n      - user: Tell me about the Team plan.\n      - user: How much is it per year?\n        expect:\n          - contains: \"$190\"\n```\n\nEach assertion has one key. `judge` has a model grade the reply ([below](#judged-by-a-model)), and every assertion also works with a `not-` prefix to say the opposite. An assertion name that doesn't exist fails the whole run before anything is sent, so a typo can't make a test pass by checking nothing.\n\nFour assertions check what the reply says:\n\n- `contains`: takes a string or a list of strings that must all appear in the reply (`contains: \"$19\"` or `contains: [Team, \"$19\"]`).\n- `icontains`: case-insensitive substring matching; takes a string or a list of strings (`icontains: team` or `icontains: [team, \"$19\"]`).\n- `regex`: matches the reply against a JavaScript `RegExp`. Accepts a pattern string (`regex: \"\\\\$\\\\d+\"`) or `{ pattern, flags }` (`regex: { pattern: \"team\", flags: \"i\" }`).\n- `equals`: compares the trimmed reply with the exact expected string (`equals: \"The Team plan is $19.\"`).\n\nThree assertions catch a prompt change that makes replies longer, slower or more expensive:",
    "source": {
     "id": "https://chat.codercops.com/core/testing/",
     "url": "https://chat.codercops.com/core/testing/",
@@ -741,7 +741,7 @@
   },
   {
    "id": "3db28a06fd618207fd309e32bc55e1343421dffee33a94d6585a03c1e1bf3d91",
-   "text": "Server Setup > Response format\n\nThe server answers in one of two formats. The widget from 0.6 on sends `\"protocol\": 1` in the request body and gets protocol v1. Requests without it, from widgets before 0.6 or older custom clients, get the 0.5 format, which keeps working until 1.0. A client can also ask for v1 with an `x-chatcops-protocol: 1` header. The server logs one line the first time it answers in the 0.5 format, so you can tell when old widgets are still around. `chatcopsAiSdkHandler` answers in a third format, the AI SDK's, for apps built on `useChat` (see [AI SDK](/server/ai-sdk/)).\n\nThe server writes one reply per conversation at a time, so a second message sent while a reply is streaming is refused instead of answering the same history twice. The widget doesn't let visitors send while a reply streams, so this only shows up with custom clients.\n\nEach reply is saved as one assistant message with its parts: the text, and every tool call and result in order. It's saved after each tool round, so a reply cut off partway still has the finished tool steps. A retry of a message that already has a finished reply gets that reply again, without calling the model.",
+   "text": "Server Setup > Response format\n\nThe server answers in one of two formats. The widget from 0.6 on sends `\"protocol\": 1` in the request body and gets protocol v1. Requests without it, from widgets before 0.6 or older custom clients, get the 0.5 format, which keeps working through 1.x and goes away in 2.0. A client can also ask for v1 with an `x-chatcops-protocol: 1` header. The server logs one line the first time it answers in the 0.5 format, so you can tell when old widgets are still around. `chatcopsAiSdkHandler` answers in a third format, the AI SDK's, for apps built on `useChat` (see [AI SDK](/server/ai-sdk/)).\n\nThe server writes one reply per conversation at a time, so a second message sent while a reply is streaming is refused instead of answering the same history twice. The widget doesn't let visitors send while a reply streams, so this only shows up with custom clients.\n\nEach reply is saved as one assistant message with its parts: the text, and every tool call and result in order. It's saved after each tool round, so a reply cut off partway still has the finished tool steps. A retry of a message that already has a finished reply gets that reply again, without calling the model.",
    "source": {
     "id": "https://chat.codercops.com/server/setup/",
     "url": "https://chat.codercops.com/server/setup/",
@@ -770,7 +770,7 @@
   },
   {
    "id": "40707fafa5a692c9cb363212f701cb75098d809521188d8dd90a905bff513d34",
-   "text": "Testing your bot > The config\n\n`chatcops test` reads the `server` section of `chatcops.config.ts`. It's the same config you give the server: the provider, system prompt, tools and knowledge.\n\n```ts\nimport { LeadCaptureTool } from '@chatcops/core';\nimport { defineConfig } from '@chatcops/cli';\n\nexport default defineConfig({\n  server: {\n    provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n    systemPrompt: 'You answer questions about Acme plans and orders.',\n    tools: [new LeadCaptureTool()],\n  },\n});\n```\n\nTests run in process, through the same request path the server uses, so knowledge, tools, page context and locale all work as they do in production. Each test starts with fresh in-memory storage; your real conversation store is never touched.",
+   "text": "Testing your bot > The config\n\n`chatcops test` reads the `server` section of `chatcops.config.ts`. It's the same config you give the server: the provider, system prompt, tools and knowledge.\n\nThe command, its flags and `defineConfig` are `@chatcops/cli`'s API. The package exports more (the runner, the assertion and reporter registries) for its own use, and those can change in a minor release until the CLI reaches 1.0.\n\n```ts\nimport { LeadCaptureTool } from '@chatcops/core';\nimport { defineConfig } from '@chatcops/cli';\n\nexport default defineConfig({\n  server: {\n    provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n    systemPrompt: 'You answer questions about Acme plans and orders.',\n    tools: [new LeadCaptureTool()],\n  },\n});\n```\n\nTests run in process, through the same request path the server uses, so knowledge, tools, page context and locale all work as they do in production. Each test starts with fresh in-memory storage; your real conversation store is never touched.",
    "source": {
     "id": "https://chat.codercops.com/core/testing/",
     "url": "https://chat.codercops.com/core/testing/",
@@ -1037,12 +1037,12 @@
   },
   {
    "id": "584fda1d654e2f3a9c639297d35ec83c6e7a5dd5842c8335b7eee1505c49c288",
-   "text": "Next.js, Hono, Bun and Deno > Checking your setup\n\nWith the server running (a placeholder key such as `test` is enough for the first two):\n\n```bash\n# CORS preflight: expect 204 with Access-Control-Allow-Origin\ncurl -i -X OPTIONS http://localhost:3000/api/chat\n\n# Broken JSON: expect 400 {\"error\":\"Invalid JSON body\"}\ncurl -i -X POST http://localhost:3000/api/chat -H 'Content-Type: application/json' --data '{broken'\n\n# A real reply (needs a real key): expect data: lines, ending with data: [DONE]\ncurl -N -X POST http://localhost:3000/api/chat -H 'Content-Type: application/json' \\\n  --data '{\"conversationId\":\"test\",\"message\":\"Hello\"}'\n```",
+   "text": "Next.js, Hono, Bun and Deno > Node's http module, Fastify, Koa\n\nThe handler does everything else itself: CORS and `allowedOrigins`, body limits, pings that keep the stream open through a slow tool, session tokens, and the 0.5 format for old widgets. That's why it's better to bridge to it than to call `createChatHandler` and write the HTTP side yourself.",
    "source": {
     "id": "https://chat.codercops.com/server/fetch-runtimes/",
     "url": "https://chat.codercops.com/server/fetch-runtimes/",
     "title": "Next.js, Hono, Bun and Deno",
-    "section": "Checking your setup"
+    "section": "Node's http module, Fastify, Koa"
    }
   },
   {
@@ -1464,6 +1464,16 @@
    }
   },
   {
+   "id": "7d050622899f733197b384efe4e6f0196bf9850282dcb90aaf791bb265f58697",
+   "text": "Next.js, Hono, Bun and Deno > The visitor's IP\n\nRate limits and the per-IP budget key on the visitor's IP. The handler only reads it from a header that the platform sets itself, because a visitor can send any `X-Forwarded-For` they like and get a fresh limit with every request.\n\n| Where it runs | Where the IP comes from |\n|---|---|\n| Vercel | Vercel's own headers (`x-vercel-forwarded-for`, `x-real-ip`, `x-forwarded-for`), which Vercel overwrites. Nothing to set. |\n| Cloudflare Workers (`chatcopsCloudflareHandler`) | `CF-Connecting-IP`. Nothing to set. |\n| Express | `req.ip`, which follows Express's `trust proxy` setting. Behind one proxy, call `app.set('trust proxy', 1)`. |\n| Anywhere else | Your `clientIp` function. |\n\nAnywhere else, set `clientIp` to read the header your host or proxy sets:\n\n```typescript\nimport { chatcopsVercelHandler } from '@chatcops/server';\n\nconst handler = chatcopsVercelHandler({\n  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n  systemPrompt: 'Be helpful.',\n  clientIp: (req) => req.headers.get('x-nf-client-connection-ip'), // Netlify\n  // clientIp: (req) => req.headers.get('x-real-ip'),            // your nginx, with proxy_set_header X-Real-IP $remote_addr\n});\n```\n\nBun and Deno have no proxy in front, so the examples above copy the socket address into a header and read that. With Hono, do the same in the route with Hono's `getConnInfo`, or read your proxy's header.\n\nWithout a way to tell the IP, per-IP limits are skipped and the server logs one warning saying so. Visitors never share one limit: that used to happen with an `\"unknown\"` key, where one busy visitor could use up the limit for everyone.",
+   "source": {
+    "id": "https://chat.codercops.com/server/fetch-runtimes/",
+    "url": "https://chat.codercops.com/server/fetch-runtimes/",
+    "title": "Next.js, Hono, Bun and Deno",
+    "section": "The visitor's IP"
+   }
+  },
+  {
    "id": "7db8d76bd8ea38c2b402fd295c91117222d5dc71c6b6dc199171fcbd9ca1df71",
    "text": "Express Adapter\n\nThe Express adapter wraps the ChatCops handler as Express middleware.",
    "source": {
@@ -1653,12 +1663,12 @@
   },
   {
    "id": "8f4496e4a4f952b5551e04525f6be8e95ea6dc72d77bf6dc33d4dcf82ddf85d2",
-   "text": "AI Providers > Tool support\n\nAll providers support tool calling with one tool format. ChatCops converts tool definitions to each provider's native format:\n\n- Claude: `tools` array with `input_schema`\n- OpenAI: `tools` array with `function.parameters`\n- Gemini: `functionDeclarations` with `parametersJsonSchema`\n\nWhen the model calls several tools at once, they run in parallel on every provider.\n\n```typescript\nimport { LeadCaptureTool } from '@chatcops/core';\nimport { chatcopsMiddleware } from '@chatcops/server';\n\nconst saveLead = async (lead: { name: string; email: string }) => console.log(lead);\nchatcopsMiddleware({\n  provider: { type: 'claude', apiKey: '...' },\n  systemPrompt: '...',\n  tools: [new LeadCaptureTool(saveLead)],\n});\n```\n\nThe same tool definition works across all providers without changes.",
+   "text": "AI Providers > Running a turn > runTurn options\n\n| Option | What it's for |\n|---|---|\n| `provider`, `messages`, `systemPrompt`, `conversationId` | Required. `messages` is the history, oldest first, ending with the visitor's message |\n| `systemContext` | Per-request instructions, sent after the system prompt so a cached prompt stays cached |\n| `sources` | Retrieved chunks the reply can cite. Each cited page becomes a `source` part, once |\n| `tools` | A `toolRegistry([...])`. Without it the model gets no tools |\n| `messageId` | The id to save the reply under. A new one by default |\n| `maxSteps` | Model requests in the turn, the final answer included. Default 6 |\n| `toolTimeoutMs`, `maxTokens`, `temperature` | As on the server config |\n| `signal` | Aborts the turn, for example when the visitor disconnects. The reply is saved as `aborted` |\n| `exposeUsage` | Adds token usage to the `finish` part |\n| `logger` | Where warnings and tool errors go. Default `consoleLogger()` |\n| `budget` | `{ guard, context }`: checked before each model request and charged after it |\n| `onPersist(message, { final })` | Saves the reply: after each tool round with `final: false`, and once at the end with `final: true` |\n| `onPart(part)` | Called as each tool call, tool result and emitted part (a captured lead) is added |\n\nThe turn's return value is `{ status, message, usage, finishReason, error? }`. `status` is `complete`, `incomplete` (an error, the token limit or the step limit) or `aborted`, and `error` says what went wrong for an incomplete turn that ended in one.\n\nFor tests, `@chatcops/core/testing/provider` has `scriptedProvider()`, which plays back a script of steps instead of calling a model.",
    "source": {
     "id": "https://chat.codercops.com/core/providers/",
     "url": "https://chat.codercops.com/core/providers/",
     "title": "AI Providers",
-    "section": "Tool support"
+    "section": "Running a turn > runTurn options"
    }
   },
   {
@@ -1668,6 +1678,16 @@
     "id": "https://chat.codercops.com/server/ai-sdk/",
     "url": "https://chat.codercops.com/server/ai-sdk/",
     "title": "AI SDK (useChat)"
+   }
+  },
+  {
+   "id": "8f5a7f374ae95dea44523d706bec6de2a9b360d43958dfc58872f416ca3d7f43",
+   "text": "AI Providers > Tool support\n\nAll providers support tool calling with one tool format. ChatCops converts tool definitions to each provider's native format:\n\n- Claude: `tools` array with `input_schema`\n- OpenAI: `tools` array with `function.parameters`\n- Gemini: `functionDeclarations` with `parametersJsonSchema`\n\nWhen the model calls several tools at once, they run in parallel on every provider.\n\n```typescript\nimport { LeadCaptureTool } from '@chatcops/core';\nimport { chatcopsMiddleware } from '@chatcops/server';\n\nconst saveLead = async (lead: { name: string; email: string }) => console.log(lead);\nchatcopsMiddleware({\n  provider: { type: 'claude', apiKey: '...' },\n  systemPrompt: '...',\n  tools: [new LeadCaptureTool(saveLead)],\n});\n```\n\nThe same tool definition works across all providers without changes.",
+   "source": {
+    "id": "https://chat.codercops.com/core/providers/",
+    "url": "https://chat.codercops.com/core/providers/",
+    "title": "AI Providers",
+    "section": "Tool support"
    }
   },
   {
@@ -1888,6 +1908,16 @@
    }
   },
   {
+   "id": "aad2bf6231aacca7e28f98230e140d25222035df488da35296cb2851a6756689",
+   "text": "Next.js, Hono, Bun and Deno > Checking your setup\n\nWith the server running (a placeholder key such as `test` is enough for the first two):\n\n```bash\n# CORS preflight: expect 204 with Access-Control-Allow-Origin\ncurl -i -X OPTIONS http://localhost:3000/api/chat\n\n# Broken JSON: expect 400 {\"error\":\"Invalid JSON body\"}\ncurl -i -X POST http://localhost:3000/api/chat -H 'Content-Type: application/json' --data '{broken'\n\n# A real reply (needs a real key): expect data: lines, ending with data: [DONE]\ncurl -N -X POST http://localhost:3000/api/chat -H 'Content-Type: application/json' \\\n  --data '{\"conversationId\":\"test\",\"message\":\"Hello\"}'\n```",
+   "source": {
+    "id": "https://chat.codercops.com/server/fetch-runtimes/",
+    "url": "https://chat.codercops.com/server/fetch-runtimes/",
+    "title": "Next.js, Hono, Bun and Deno",
+    "section": "Checking your setup"
+   }
+  },
+  {
    "id": "ab3ab53c8f4792009836615628c05974d0f686daa51cf2bba852047fe834886d",
    "text": "Express Adapter > With Lead Capture\n\n```typescript\nimport { LeadCaptureTool } from '@chatcops/core';\nimport express from 'express';\nimport { chatcopsMiddleware } from '@chatcops/server';\n\nconst app = express();\nconst db = { leads: { create: async (_lead: unknown) => {} } };\n\napp.use('/chat', chatcopsMiddleware({\n  provider: {\n    type: 'claude',\n    apiKey: process.env.ANTHROPIC_API_KEY!,\n  },\n  systemPrompt: 'You are a helpful assistant. Capture leads when users share contact info.',\n  tools: [\n    new LeadCaptureTool(async (lead) => {\n      // Save to your database, CRM, etc.\n      await db.leads.create(lead);\n      console.log('Lead captured:', lead.email);\n    }),\n  ],\n}));\n```",
    "source": {
@@ -1899,12 +1929,12 @@
   },
   {
    "id": "ac46316b6999f7bff3e00fdf6e6fdb67276a019a178c805c48306f9ae0f00b4d",
-   "text": "Next.js, Hono, Bun and Deno > The visitor's IP\n\nRate limits and the per-IP budget key on the visitor's IP. The handler only reads it from a header that the platform sets itself, because a visitor can send any `X-Forwarded-For` they like and get a fresh limit with every request.\n\n| Where it runs | Where the IP comes from |\n|---|---|\n| Vercel | Vercel's own headers (`x-vercel-forwarded-for`, `x-real-ip`, `x-forwarded-for`), which Vercel overwrites. Nothing to set. |\n| Cloudflare Workers (`chatcopsCloudflareHandler`) | `CF-Connecting-IP`. Nothing to set. |\n| Express | `req.ip`, which follows Express's `trust proxy` setting. Behind one proxy, call `app.set('trust proxy', 1)`. |\n| Anywhere else | Your `clientIp` function. |\n\nAnywhere else, set `clientIp` to read the header your host or proxy sets:\n\n```typescript\nimport { chatcopsVercelHandler } from '@chatcops/server';\n\nconst handler = chatcopsVercelHandler({\n  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n  systemPrompt: 'Be helpful.',\n  clientIp: (req) => req.headers.get('x-nf-client-connection-ip'), // Netlify\n  // clientIp: (req) => req.headers.get('x-real-ip'),            // your nginx, with proxy_set_header X-Real-IP $remote_addr\n});\n```\n\nBun and Deno have no proxy in front, so the examples above copy the socket address into a header and read that. With Hono, do the same in the route with Hono's `getConnInfo`, or read your proxy's header.\n\nWithout a way to tell the IP, per-IP limits are skipped and the server logs one warning saying so. Visitors never share one limit: that used to happen with an `\"unknown\"` key, where one busy visitor could use up the limit for everyone.",
+   "text": "Next.js, Hono, Bun and Deno > Node's http module, Fastify, Koa\n\nA server that gives you Node's `req` and `res` instead of a `Request` can still use the same handler: turn the request into a `Request`, and stream the `Response` back. This works for `node:http` as below, and for Fastify (`request.raw`, `reply.raw`) or Koa (`ctx.req`, `ctx.res`) the same way.\n\n```typescript\nimport { createServer } from 'node:http';\nimport { Readable } from 'node:stream';\nimport { chatcopsVercelHandler } from '@chatcops/server';\n\nconst chat = chatcopsVercelHandler({\n  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },\n  systemPrompt: 'You are a helpful assistant.',\n  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],\n  // Set below from the socket, so a visitor can't choose it.\n  clientIp: (req) => req.headers.get('x-client-ip'),\n});\n\ncreateServer(async (req, res) => {\n  const { pathname } = new URL(req.url ?? '/', 'http://localhost');\n  // The chat, and the session token the widget asks for first.\n  if (pathname !== '/api/chat' && pathname !== '/api/chat/session') {\n    res.writeHead(404).end();\n    return;\n  }\n\n  const headers = new Headers();\n  for (const [name, value] of Object.entries(req.headers)) {\n    if (typeof value === 'string') headers.set(name, value);\n  }\n  headers.set('x-client-ip', req.socket.remoteAddress ?? '');\n  const request = new Request(`http://localhost${req.url}`, {\n    method: req.method,\n    headers,\n    body: req.method === 'POST' ? (Readable.toWeb(req) as ReadableStream) : undefined,\n    duplex: 'half', // Node needs this to send a streamed body\n  } as RequestInit);\n\n  const response = await chat(request);\n  res.writeHead(response.status, Object.fromEntries(response.headers));\n  if (!response.body) {\n    res.end();\n    return;\n  }\n  // Stop the reply, and the model request behind it, when the visitor leaves.\n  const body = Readable.fromWeb(response.body as import('node:stream/web').ReadableStream);\n  res.on('close', () => body.destroy());\n  body.pipe(res);\n}).listen(3000);\n```",
    "source": {
     "id": "https://chat.codercops.com/server/fetch-runtimes/",
     "url": "https://chat.codercops.com/server/fetch-runtimes/",
     "title": "Next.js, Hono, Bun and Deno",
-    "section": "The visitor's IP"
+    "section": "Node's http module, Fastify, Koa"
    }
   },
   {
@@ -2386,7 +2416,7 @@
   },
   {
    "id": "ce2221b879e2784d9c0cbb0084ed80c77a23b437103082a64f00bfafb33c7bd4",
-   "text": "Testing your bot > Eval files\n\nTwo assertions check what ChatCops adds to a reply:\n\n- `cites` takes a URL glob, or a list of them, and each has to match a page the reply cites (`cites: \"https://acme.test/pricing*\"`). Globs work the same as in `ingest.include`. `cites: true` means it cites at least one page.\n- `lead-captured: true` means the turn captured a lead. An object, such as `lead-captured: { email: jane@acme.test }`, also has to match those fields of the lead.\n\nTwo assertions check tool calls made during a turn:\n\n- `calls-tool` asserts that the bot called a tool. It takes either a tool name (`calls-tool: lookup_order`) or `{ name, args }` to also check inputs (`calls-tool: { name: lookup_order, args: { id: \"A-1001\" } }`). Arguments match partially: every specified key must match, nested objects follow the same rule, extra input keys are allowed, and arrays must match exactly.\n- `no-tool-call: true` asserts that no tool was called during the turn. It also takes a tool name (`no-tool-call: cancel_order`) to assert that the specific tool was not called, even if other tools were called.\n\nA test can also set:\n\n- `pageContext`: the page the visitor is on (`url`, `title`, and optionally `description` and `contentSnippet`)\n- `locale` and `userData`, as the widget would send them\n- `mocks.tools`: a fixed result for a server tool, so the test doesn't place a real order or send a real email\n- `repeat` and `passRate`: run the test several times and pass when that share of runs passed (models aren't deterministic)\n\n`defaults` at the top of the file applies to every test in it. A test's own values win, and tool mocks are merged:",
+   "text": "Testing your bot > Eval files\n\nThree assertions catch a prompt change that makes replies longer, slower or more expensive:\n\n- `tokens-under: 800` checks the turn's input plus output tokens. `tokens-under: { input: 600, output: 200 }` checks them separately, and you can give only one of them. A turn without usage fails.\n- `latency-under: 3000` checks the time to the end of the reply, in milliseconds. Replays answer at once, so it only means something in live and recorded runs.\n- `cost-under: 0.01` checks what the turn cost in US dollars. It needs the model in `prices` ([Costs](#costs)), and a turn without a price fails with a reason that says so.\n\nTwo assertions check what ChatCops adds to a reply:\n\n- `cites` takes a URL glob, or a list of them, and each has to match a page the reply cites (`cites: \"https://acme.test/pricing*\"`). Globs work the same as in `ingest.include`. `cites: true` means it cites at least one page.\n- `lead-captured: true` means the turn captured a lead. An object, such as `lead-captured: { email: jane@acme.test }`, also has to match those fields of the lead.\n\nTwo assertions check tool calls made during a turn:\n\n- `calls-tool` asserts that the bot called a tool. It takes either a tool name (`calls-tool: lookup_order`) or `{ name, args }` to also check inputs (`calls-tool: { name: lookup_order, args: { id: \"A-1001\" } }`). Arguments match partially: every specified key must match, nested objects follow the same rule, extra input keys are allowed, and arrays must match exactly.\n- `no-tool-call: true` asserts that no tool was called during the turn. It also takes a tool name (`no-tool-call: cancel_order`) to assert that the specific tool was not called, even if other tools were called.\n\nA test can also set:",
    "source": {
     "id": "https://chat.codercops.com/core/testing/",
     "url": "https://chat.codercops.com/core/testing/",
@@ -2436,7 +2466,7 @@
   },
   {
    "id": "d0c87b3d303ff8aee47467c49c0cefc99984e7228a7a9d7b3470072bab0f1fd3",
-   "text": "AI Providers > Running a turn\n\n`runTurn()` is what sits between a provider and the server: it calls `step()`, runs the tools the model asks for, and repeats until the model answers, up to 5 tool rounds. It yields the parts the widget receives (`text-delta`, `tool-call`, `lead-captured`, `finish` and so on) and returns the reply as a `ChatMessage`.\n\n```typescript\nimport { createProvider, runTurn, toolRegistry } from '@chatcops/core';\nimport type { ChatTool } from '@chatcops/core';\n\nconst lookupOrderTool: ChatTool = {\n  name: 'lookup_order',\n  description: 'Look up an order by id.',\n  async execute(input) { return { success: true, data: { orderId: input.orderId } }; },\n};\n\nconst provider = await createProvider({ type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! });\nconst turn = runTurn({\n  provider,\n  messages: [{ id: '1', role: 'user', content: 'Where is order A-1001?', timestamp: Date.now() }],\n  systemPrompt: 'You are helpful.',\n  tools: toolRegistry([lookupOrderTool]),\n  conversationId: 'c1',\n});\n\nfor await (const part of turn) {\n  if (part.type === 'text-delta') process.stdout.write(part.delta);\n}\n```\n\nProvider errors don't throw. They end the turn with an `error` part and a `finish` part with reason `error`. The built-in providers have only `step()`, so to get a reply from one outside the server, use `runTurn()`. It also gives you the reply's parts, status and token usage. (`chat()` and `chatSync()` on the built-in providers were removed in 1.0.)\n\nFor tests, `@chatcops/core/testing/provider` has `scriptedProvider()`, which plays back a script of steps instead of calling a model.",
+   "text": "AI Providers > Running a turn\n\n`runTurn()` is what sits between a provider and the server: it calls `step()`, runs the tools the model asks for, and repeats until the model answers, up to 5 tool rounds. It yields the parts the widget receives (`text-delta`, `tool-call`, `lead-captured`, `finish` and so on) and returns the reply as a `ChatMessage`.\n\n```typescript\nimport { createProvider, runTurn, toolRegistry } from '@chatcops/core';\nimport type { ChatTool } from '@chatcops/core';\n\nconst lookupOrderTool: ChatTool = {\n  name: 'lookup_order',\n  description: 'Look up an order by id.',\n  async execute(input) { return { success: true, data: { orderId: input.orderId } }; },\n};\n\nconst provider = await createProvider({ type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! });\nconst turn = runTurn({\n  provider,\n  messages: [{ id: '1', role: 'user', content: 'Where is order A-1001?', timestamp: Date.now() }],\n  systemPrompt: 'You are helpful.',\n  tools: toolRegistry([lookupOrderTool]),\n  conversationId: 'c1',\n});\n\nfor await (const part of turn) {\n  if (part.type === 'text-delta') process.stdout.write(part.delta);\n}\n```\n\nProvider errors don't throw. They end the turn with an `error` part and a `finish` part with reason `error`. The built-in providers have only `step()`, so to get a reply from one outside the server, use `runTurn()`. It also gives you the reply's parts, status and token usage. (`chat()` and `chatSync()` on the built-in providers were removed in 1.0.)",
    "source": {
     "id": "https://chat.codercops.com/core/providers/",
     "url": "https://chat.codercops.com/core/providers/",
@@ -2743,7 +2773,7 @@
   },
   {
    "id": "ea2290b65ed99dda2c1da7928d51058ae12dfdb788f22b851c322a6f7e4dda89",
-   "text": "Upgrading to 1.0\n\n1.0 removes the options and methods that 0.6 to 0.8 marked as deprecated. Each one now fails at startup with a message that names what to use instead and links here, so an upgrade can't quietly change how your chat behaves. After 1.0, ChatCops follows semver strictly: a breaking change waits for 2.0.\n\nGo through the sections for the packages you use. If you're on 0.5 or earlier, read [Upgrading from 0.5](/getting-started/upgrading/) first.",
+   "text": "Upgrading to 1.0\n\n1.0 removes the options and methods that 0.6 to 0.8 marked as deprecated. Each one now fails at startup with a message that names what to use instead and links here, so an upgrade can't quietly change how your chat behaves. After 1.0, ChatCops follows semver strictly: a breaking change waits for 2.0.\n\nThe one thing 1.0 keeps from 0.x on purpose is the 0.5 stream format. A widget older than 0.6, or a client that doesn't send `\"protocol\": 1`, still gets it, so pages with an old widget cached or pinned on a CDN keep working. It, and `regenerate: true` in requests (what those widgets send), go away in 2.0. The server logs `legacy_stream_format` the first time it answers in it, so you can tell when it's safe to stop caring.\n\nGo through the sections for the packages you use. If you're on 0.5 or earlier, read [Upgrading from 0.5](/getting-started/upgrading/) first.",
    "source": {
     "id": "https://chat.codercops.com/getting-started/upgrading-to-1/",
     "url": "https://chat.codercops.com/getting-started/upgrading-to-1/",

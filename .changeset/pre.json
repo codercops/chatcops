@@ -1,0 +1,18 @@
+{
+  "mode": "pre",
+  "tag": "rc",
+  "initialVersions": {
+    "@chatcops/cli": "0.1.0",
+    "@chatcops/core": "0.6.0",
+    "@chatcops/ingest": "0.1.0",
+    "@chatcops/server": "0.7.0",
+    "@chatcops/store-cloudflare": "0.2.0",
+    "@chatcops/store-postgres": "0.2.0",
+    "@chatcops/store-redis": "0.2.0",
+    "@chatcops/store-sqlite": "0.2.0",
+    "@chatcops/store-upstash-vector": "0.1.0",
+    "@chatcops/widget": "0.7.0",
+    "@chatcops/website": "0.0.6"
+  },
+  "changesets": []
+}
