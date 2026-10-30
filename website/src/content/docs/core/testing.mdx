@@ -15,6 +15,8 @@ It exits 0 when every test passed, 1 when some failed, and 2 when it couldn't ru
 
 `chatcops test` reads the `server` section of `chatcops.config.ts`. It's the same config you give the server: the provider, system prompt, tools and knowledge.
 
+The command, its flags and `defineConfig` are `@chatcops/cli`'s API. The package exports more (the runner, the assertion and reporter registries) for its own use, and those can change in a minor release until the CLI reaches 1.0.
+
 ```ts
 import { LeadCaptureTool } from '@chatcops/core';
 import { defineConfig } from '@chatcops/cli';

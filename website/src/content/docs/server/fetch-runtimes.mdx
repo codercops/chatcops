@@ -134,6 +134,58 @@ Deno.serve({ port: 8000 }, (req, info) => {
 
 Run it with `deno run --allow-net --allow-env --allow-read --allow-sys server.ts`. Pin the version in the `npm:` specifier as above. Deno also skips npm versions published in the last 24 hours by default, so right after a ChatCops release it may resolve the previous version for a day.
 
+## Node's http module, Fastify, Koa
+
+A server that gives you Node's `req` and `res` instead of a `Request` can still use the same handler: turn the request into a `Request`, and stream the `Response` back. This works for `node:http` as below, and for Fastify (`request.raw`, `reply.raw`) or Koa (`ctx.req`, `ctx.res`) the same way.
+
+```typescript
+import { createServer } from 'node:http';
+import { Readable } from 'node:stream';
+import { chatcopsVercelHandler } from '@chatcops/server';
+
+const chat = chatcopsVercelHandler({
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+  systemPrompt: 'You are a helpful assistant.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+  // Set below from the socket, so a visitor can't choose it.
+  clientIp: (req) => req.headers.get('x-client-ip'),
+});
+
+createServer(async (req, res) => {
+  const { pathname } = new URL(req.url ?? '/', 'http://localhost');
+  // The chat, and the session token the widget asks for first.
+  if (pathname !== '/api/chat' && pathname !== '/api/chat/session') {
+    res.writeHead(404).end();
+    return;
+  }
+
+  const headers = new Headers();
+  for (const [name, value] of Object.entries(req.headers)) {
+    if (typeof value === 'string') headers.set(name, value);
+  }
+  headers.set('x-client-ip', req.socket.remoteAddress ?? '');
+  const request = new Request(`http://localhost${req.url}`, {
+    method: req.method,
+    headers,
+    body: req.method === 'POST' ? (Readable.toWeb(req) as ReadableStream) : undefined,
+    duplex: 'half', // Node needs this to send a streamed body
+  } as RequestInit);
+
+  const response = await chat(request);
+  res.writeHead(response.status, Object.fromEntries(response.headers));
+  if (!response.body) {
+    res.end();
+    return;
+  }
+  // Stop the reply, and the model request behind it, when the visitor leaves.
+  const body = Readable.fromWeb(response.body as import('node:stream/web').ReadableStream);
+  res.on('close', () => body.destroy());
+  body.pipe(res);
+}).listen(3000);
+```
+
+The handler does everything else itself: CORS and `allowedOrigins`, body limits, pings that keep the stream open through a slow tool, session tokens, and the 0.5 format for old widgets. That's why it's better to bridge to it than to call `createChatHandler` and write the HTTP side yourself.
+
 ## The visitor's IP
 
 Rate limits and the per-IP budget key on the visitor's IP. The handler only reads it from a header that the platform sets itself, because a visitor can send any `X-Forwarded-For` they like and get a fresh limit with every request.

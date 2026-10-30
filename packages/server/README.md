@@ -222,23 +222,9 @@ const handler = createChatHandler({
 
 ## Custom integrations
 
-`createChatHandler(config)` returns `handleChat(body, clientIp, options)`, an async generator of SSE `data` payloads. The built-in adapters use it; call it directly for other runtimes. Pass `options.signal` and abort it when the visitor disconnects: the provider request is cancelled, nothing more is yielded, and the partial reply isn't saved.
+For a runtime with the Fetch API's `Request` and `Response` (Next.js, Hono, Bun, Deno, Workers), pass requests to `chatcopsVercelHandler(config)`: it's a plain `(Request) => Promise<Response>`. For Node's `req` and `res` (`node:http`, Fastify, Koa), turn the request into a `Request` and stream the `Response` back. The docs have the code: [Next.js, Hono, Bun and Deno](https://chat.codercops.com/server/fetch-runtimes/). Route both the chat path and `<chat path>/session` to it, since the widget gets its session token there.
 
-```typescript
-const abort = new AbortController();
-const stream = new ReadableStream({
-  async start(controller) {
-    for await (const chunk of handler.handleChat(body, clientIp, { signal: abort.signal })) {
-      if (abort.signal.aborted) break;
-      controller.enqueue(new TextEncoder().encode(`data: ${chunk}\n\n`));
-    }
-    if (!abort.signal.aborted) controller.close();
-  },
-  cancel() {
-    abort.abort(); // the runtime cancels the response when the client goes away
-  },
-});
-```
+The handler does CORS, `allowedOrigins`, body limits, pings, session tokens and the 0.5 format for old widgets, so bridging to it is better than calling `createChatHandler` and writing the HTTP side yourself.
 
 ## License
 

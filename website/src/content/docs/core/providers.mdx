@@ -232,6 +232,26 @@ for await (const part of turn) {
 
 Provider errors don't throw. They end the turn with an `error` part and a `finish` part with reason `error`. The built-in providers have only `step()`, so to get a reply from one outside the server, use `runTurn()`. It also gives you the reply's parts, status and token usage. (`chat()` and `chatSync()` on the built-in providers were removed in 1.0.)
 
+### runTurn options
+
+| Option | What it's for |
+|---|---|
+| `provider`, `messages`, `systemPrompt`, `conversationId` | Required. `messages` is the history, oldest first, ending with the visitor's message |
+| `systemContext` | Per-request instructions, sent after the system prompt so a cached prompt stays cached |
+| `sources` | Retrieved chunks the reply can cite. Each cited page becomes a `source` part, once |
+| `tools` | A `toolRegistry([...])`. Without it the model gets no tools |
+| `messageId` | The id to save the reply under. A new one by default |
+| `maxSteps` | Model requests in the turn, the final answer included. Default 6 |
+| `toolTimeoutMs`, `maxTokens`, `temperature` | As on the server config |
+| `signal` | Aborts the turn, for example when the visitor disconnects. The reply is saved as `aborted` |
+| `exposeUsage` | Adds token usage to the `finish` part |
+| `logger` | Where warnings and tool errors go. Default `consoleLogger()` |
+| `budget` | `{ guard, context }`: checked before each model request and charged after it |
+| `onPersist(message, { final })` | Saves the reply: after each tool round with `final: false`, and once at the end with `final: true` |
+| `onPart(part)` | Called as each tool call, tool result and emitted part (a captured lead) is added |
+
+The turn's return value is `{ status, message, usage, finishReason, error? }`. `status` is `complete`, `incomplete` (an error, the token limit or the step limit) or `aborted`, and `error` says what went wrong for an incomplete turn that ended in one.
+
 For tests, `@chatcops/core/testing/provider` has `scriptedProvider()`, which plays back a script of steps instead of calling a model.
 
 ## Tool support
