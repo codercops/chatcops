@@ -109,6 +109,7 @@ export declare class Widget {
 
 export interface WidgetConfig {
     apiUrl: string;
+    nonce?: string;
     timeout?: number;
     turnstileSiteKey?: string;
     userToken?: string;
