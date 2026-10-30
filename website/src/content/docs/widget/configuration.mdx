@@ -252,7 +252,7 @@ interface WidgetConfig {
   nonce?: string;                // CSP nonce for the widget's injected styles
   timeout?: number;              // Inactivity timeout in ms, default: 30000
   turnstileSiteKey?: string;     // Cloudflare Turnstile site key, when the server has `turnstile` set
-  userToken?: string;            // Your server's signed token for a signed-in visitor (server `identity`)
+  userToken?: string | (() => string | undefined | Promise<string | undefined>); // Your server's signed token for a signed-in visitor (server `identity`), or a function that returns a fresh one
 
   // Display mode
   mode?: 'popup' | 'inline';       // Default: 'popup'

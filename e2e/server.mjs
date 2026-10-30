@@ -191,6 +191,12 @@ const endpoints = {
   '/api/chat': chatEndpoint(),
   // Session tokens on, for the session spec.
   '/api/secure-chat': chatEndpoint({ sessionSecrets: ['an-e2e-session-secret-of-32-bytes-or-more'], allowAnonymous: false }),
+  // Signed-in visitors: the userToken spec signs a token with this secret.
+  '/api/identity-chat': chatEndpoint({
+    sessionSecrets: ['an-e2e-session-secret-of-32-bytes-or-more'],
+    identity: { secret: 'an-e2e-identity-secret-of-32-bytes-or-more' },
+    allowAnonymous: false,
+  }),
 };
 
 /** Runs a Fetch API handler for a Node request. */

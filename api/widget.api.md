@@ -84,6 +84,8 @@ export interface ThemeConfig {
 
 export type ThemeMode = 'light' | 'dark' | 'auto';
 
+export type UserToken = string | (() => string | undefined | Promise<string | undefined>);
+
 export declare class Widget {
     get isInline(): boolean;
     constructor(config: WidgetConfig);
@@ -114,7 +116,7 @@ export interface WidgetConfig {
     nonce?: string;
     timeout?: number;
     turnstileSiteKey?: string;
-    userToken?: string;
+    userToken?: UserToken;
     mode?: 'popup' | 'inline';
     siteId?: string;
     container?: string | HTMLElement;

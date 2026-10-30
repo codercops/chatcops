@@ -6,6 +6,7 @@ import ChatCops, {
   type PreChatFormConfig,
   type ThemeConfig,
   type ThemeMode,
+  type UserToken,
   type WidgetConfig,
   type WidgetLocaleStrings,
   type WidgetUpdate,
@@ -39,6 +40,15 @@ describe('the widget API types', () => {
     expectTypeOf<ChatCopsLoader['setConsent']>().parameters.toEqualTypeOf<[boolean]>();
     // @ts-expect-error: consent is a boolean
     ChatCops.setConsent('yes');
+  });
+
+  it('takes a string or a function for userToken', () => {
+    expectTypeOf<WidgetConfig['userToken']>().toEqualTypeOf<UserToken | undefined>();
+    expectTypeOf<UserToken>().toEqualTypeOf<string | (() => string | undefined | Promise<string | undefined>)>();
+    const config: WidgetConfig = { apiUrl: '/api/chat', userToken: async () => 'signed.token' };
+    ChatCops.init({ ...config, userToken: () => undefined });
+    // @ts-expect-error: a function has to return a string
+    ChatCops.init({ apiUrl: '/api/chat', userToken: () => 42 });
   });
 
   it('types update() the same in both builds, without position', () => {

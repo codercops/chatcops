@@ -182,3 +182,148 @@ describe('ChatClient with session tokens', () => {
     expect(String(fetch.mock.calls[1][0])).toBe(sessionUrl);
   });
 });
+
+describe('ChatClient with a userToken provider', () => {
+  const sessionFlow = () =>
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(unauthorized())
+      .mockResolvedValueOnce(minted('c1'))
+      .mockResolvedValueOnce(v1Reply());
+  const sessionBody = (fetch: ReturnType<typeof vi.fn>) => calls(fetch)[1].body;
+
+  it('asks for a token when it requests a session, and sends what the provider returns', async () => {
+    const fetch = sessionFlow();
+    const userToken = vi.fn(async () => 'fresh.signed.token');
+    await collect(new ChatClient({ apiUrl: API, userToken }));
+    expect(userToken).toHaveBeenCalledTimes(1);
+    expect(sessionBody(fetch as never)).toEqual({ conversationId: 'c1', userToken: 'fresh.signed.token' });
+  });
+
+  it('accepts a provider that answers at once', async () => {
+    const fetch = sessionFlow();
+    await collect(new ChatClient({ apiUrl: API, userToken: () => 'sync.token' }));
+    expect(sessionBody(fetch as never)).toEqual({ conversationId: 'c1', userToken: 'sync.token' });
+  });
+
+  it('does not call the provider when the server has no sessions', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(v1Reply());
+    const userToken = vi.fn(() => 'token');
+    await collect(new ChatClient({ apiUrl: API, userToken }));
+    expect(userToken).not.toHaveBeenCalled();
+  });
+
+  it('calls it once per session request, not once per message', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(unauthorized())
+      .mockResolvedValueOnce(minted('c1'))
+      .mockResolvedValueOnce(v1Reply())
+      .mockResolvedValueOnce(v1Reply())
+      .mockResolvedValueOnce(v1Reply());
+    const userToken = vi.fn(() => 'token');
+    const client = new ChatClient({ apiUrl: API, userToken });
+    await collect(client);
+    await collect(client);
+    await collect(client);
+    expect(userToken).toHaveBeenCalledTimes(1);
+    expect(calls(fetch as never).filter((c) => c.url.endsWith('/session'))).toHaveLength(1);
+  });
+
+  it('gets a new token for the next session, once the session token has expired', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(unauthorized())
+      .mockResolvedValueOnce(minted('c1', 'tok-1'))
+      .mockResolvedValueOnce(v1Reply())
+      .mockResolvedValueOnce(unauthorized('token_expired'))
+      .mockResolvedValueOnce(minted('c1', 'tok-2'))
+      .mockResolvedValueOnce(v1Reply());
+    let n = 0;
+    const client = new ChatClient({ apiUrl: API, userToken: async () => `signed-${++n}` });
+    await collect(client);
+    await collect(client);
+    const sessions = calls(fetch as never).filter((c) => c.url.endsWith('/session'));
+    expect(sessions.map((s) => s.body.userToken)).toEqual(['signed-1', 'signed-2']);
+  });
+
+  it('sends no identity when the provider has none (a signed-out visitor)', async () => {
+    const fetch = sessionFlow();
+    await collect(new ChatClient({ apiUrl: API, userToken: async () => undefined }));
+    expect(sessionBody(fetch as never)).toEqual({ conversationId: 'c1' });
+  });
+
+  it.each([
+    ['throws', 1, () => { throw new Error('signed out'); }],
+    ['rejects', 1, () => Promise.reject(new Error('network'))],
+    ['returns something that is not a string', 0, () => 42 as never],
+    ['returns an empty string', 0, () => ''],
+  ])('starts the session without an identity when the provider %s', async (_, logged, userToken) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fetch = sessionFlow();
+    const chunks = await collect(new ChatClient({ apiUrl: API, userToken }));
+    expect(sessionBody(fetch as never)).toEqual({ conversationId: 'c1' });
+    expect(chunks).toContainEqual({ done: true });
+    expect(warn).toHaveBeenCalledTimes(logged);
+  });
+
+  it('logs why the provider failed', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    sessionFlow();
+    const error = new Error('token endpoint is down');
+    await collect(new ChatClient({ apiUrl: API, userToken: () => Promise.reject(error) }));
+    expect(warn.mock.calls[0]).toContain(error);
+  });
+
+  it('starts the session without an identity when the provider takes too long', async () => {
+    vi.useFakeTimers();
+    try {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const fetch = sessionFlow();
+      const done = collect(new ChatClient({ apiUrl: API, userToken: () => new Promise<string>(() => undefined), timeout: 60_000 }));
+      await vi.advanceTimersByTimeAsync(4_900);
+      expect(calls(fetch as never)).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(200);
+      await done;
+      expect(sessionBody(fetch as never)).toEqual({ conversationId: 'c1' });
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('leaves no timer behind when the provider answers', async () => {
+    vi.useFakeTimers();
+    try {
+      sessionFlow();
+      const done = collect(new ChatClient({ apiUrl: API, userToken: async () => 'token', timeout: 60_000 }));
+      await vi.advanceTimersByTimeAsync(0);
+      await done;
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('still sends a fixed string as before', async () => {
+    const fetch = sessionFlow();
+    await collect(new ChatClient({ apiUrl: API, userToken: 'host.signed.token' }));
+    expect(sessionBody(fetch as never)).toEqual({ conversationId: 'c1', userToken: 'host.signed.token' });
+  });
+
+  it('can be replaced by a fixed string, or by none, with setUserToken', async () => {
+    const userToken = vi.fn(() => 'from-provider');
+    const client = new ChatClient({ apiUrl: API, userToken });
+    client.setUserToken('fixed');
+    expect(client.identity).toBe('fixed');
+    const fetch = sessionFlow();
+    await collect(client);
+    expect(sessionBody(fetch as never)).toEqual({ conversationId: 'c1', userToken: 'fixed' });
+    expect(userToken).not.toHaveBeenCalled();
+  });
+
+  it('can be set after construction with setUserToken', async () => {
+    const client = new ChatClient({ apiUrl: API });
+    client.setUserToken(async () => 'late-provider');
+    const fetch = sessionFlow();
+    await collect(client);
+    expect(sessionBody(fetch as never)).toEqual({ conversationId: 'c1', userToken: 'late-provider' });
+  });
+});

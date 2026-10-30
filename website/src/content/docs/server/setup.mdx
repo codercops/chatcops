@@ -278,6 +278,22 @@ Then put it on the page with `data-user-token="..."` on the script tag, or `user
 
 The user id goes into the session token and is stored on the conversation with its first message. The same user can resume that conversation later with a fresh token, even without the old session token. Another user, or an anonymous visitor, can't. A `tier` swaps in that tier's budgets (merged over `budgets`) for the user's replies. A `userToken` that doesn't verify or has expired gets `401 session_required`, rather than an anonymous session, so a bug on your site shows up. The widget sends the token every time it asks for a session, so give it a lifetime longer than a visit, such as a day.
 
+### A fresh token for each session
+
+A page can stay open for hours before the visitor opens the chat, and a short-lived token may have expired by then. Pass a function as `userToken` instead of a string, and the widget calls it each time it asks for a session, right before the request. It is not called for every message, only when a session is requested.
+
+```typescript
+ChatCops.init({
+  apiUrl: '/api/chat',
+  userToken: async () => {
+    const response = await fetch('/api/chat-token', { credentials: 'same-origin' });
+    return response.ok ? (await response.json()).token : undefined;
+  },
+});
+```
+
+The function may be async, and may return `undefined` for a visitor who is signed out. If it throws, rejects, returns something that is not a string, or takes longer than 5 seconds, the session starts without the visitor and the reason is logged to the console with `console.warn`, so the chat still opens. The token is sent only to your configured `apiUrl`. Keep the signing secret on your server and sign in an endpoint like the one above, never in the browser. A string still works as before.
+
 ## Budgets
 
 Budgets cap what replies can cost, so a script hammering your endpoint can't run up the bill. They're counted in `storage`, so they hold across instances.

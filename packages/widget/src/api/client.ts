@@ -2,14 +2,23 @@ import type { WirePart } from './protocol.js';
 import { keyStore, type KeyStore } from '../storage.js';
 import type { WidgetChatRequest, WidgetChatChunk } from './types.js';
 
+/** A signed token for the visitor, or a function that returns one (or none) each time a session is requested. */
+export type UserToken = string | (() => string | undefined | Promise<string | undefined>);
+
+/** How long a `userToken` function may take before the session starts without an identity. */
+const USER_TOKEN_TIMEOUT = 5000;
+
 export interface ChatClientOptions {
   apiUrl: string;
   /** Inactivity timeout in milliseconds. Defaults to 30000. */
   timeout?: number;
   /** Cloudflare Turnstile site key, when the server checks Turnstile before issuing a session. */
   turnstileSiteKey?: string;
-  /** The host site's signed token for a signed-in visitor, sent when asking for a session. */
-  userToken?: string;
+  /**
+   * The host site's signed token for a signed-in visitor, sent when asking for a session.
+   * A function is called for a fresh one each time, and may be async.
+   */
+  userToken?: UserToken;
   /** Where the session token is kept. Defaults to localStorage; the widget passes its own store. */
   store?: KeyStore;
 }
@@ -34,7 +43,7 @@ export class ChatClient {
   private saved?: Partial<Session>;
   private store: KeyStore;
   private turnstileSiteKey?: string;
-  private userToken?: string;
+  private userToken?: UserToken;
 
   constructor(options: ChatClientOptions) {
     this.apiUrl = options.apiUrl;
@@ -52,7 +61,7 @@ export class ChatClient {
    * different user). `forget: false` leaves the stored token alone, for a widget that
    * may not use storage yet.
    */
-  setUserToken(token: string | undefined, forget = true): void {
+  setUserToken(token: UserToken | undefined, forget = true): void {
     if (token === this.userToken) return;
     this.userToken = token;
     if (forget) this.forgetSession();
@@ -65,8 +74,28 @@ export class ChatClient {
     this.store.remove(this.sessionKey);
   }
 
-  get identity(): string | undefined {
+  get identity(): UserToken | undefined {
     return this.userToken;
+  }
+
+  /** The token to send with a session request. A function that fails, or is too slow, means no identity. */
+  private async resolveUserToken(): Promise<string | undefined> {
+    const source = this.userToken;
+    if (typeof source !== 'function') return source;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const token = await Promise.race([
+        source(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(reject, USER_TOKEN_TIMEOUT, new Error('timed out'));
+        }),
+      ]);
+      return typeof token === 'string' && token ? token : undefined;
+    } catch (error) {
+      console.warn('ChatCops: userToken() failed, so the session starts without the visitor', error);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   async *sendMessage(
@@ -145,7 +174,7 @@ export class ChatClient {
         const minted = await post(this.apiUrl.replace(/\/?(\?.*)?$/, '/session$1'), {
           conversationId: request.conversationId,
           previousToken: saved.token,
-          userToken: this.userToken,
+          userToken: await this.resolveUserToken(),
           // Its own chunk: only sites with a Turnstile key download it.
           turnstileToken:
             this.turnstileSiteKey && !resumable

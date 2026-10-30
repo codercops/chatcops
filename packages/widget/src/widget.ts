@@ -2,7 +2,7 @@ import { createShadowRoot, destroyShadowRoot } from './dom/shadow.js';
 import { FAB } from './dom/fab.js';
 import { Panel, type PanelLabels } from './dom/panel.js';
 import { BUBBLE_SHOWN_KEY, WelcomeBubble } from './dom/bubble.js';
-import { ChatClient } from './api/client.js';
+import { ChatClient, type UserToken } from './api/client.js';
 import { ConversationStorage, type Persistence } from './storage.js';
 import { claimNamespace, type ClaimedNamespace } from './namespace.js';
 import { applyTheme, type ThemeConfig } from './theme.js';
@@ -53,8 +53,11 @@ export interface WidgetConfig {
   /**
    * For a visitor your site has signed in: an HS256 JWT your server signs
    * with the chat server's `identity.secret` (`sub`, `exp`, optional `tier`).
+   * Give a function (it may be async) to get a fresh token each time the
+   * widget asks for a session; if it fails or takes over 5 seconds, the
+   * session starts without the visitor.
    */
-  userToken?: string;
+  userToken?: UserToken;
   mode?: 'popup' | 'inline';
   /**
    * Names this widget's saved conversation. Set a different one on each widget

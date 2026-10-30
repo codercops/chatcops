@@ -23,6 +23,7 @@ export {
 export type { MessageData, MessageErrorType, MessageStatus } from './dom/messages.js';
 export type { ThemeConfig, ThemeMode } from './theme.js';
 export type { Persistence } from './storage.js';
+export type { UserToken } from './api/client.js';
 export type { WidgetLocaleStrings } from './i18n.js';
 export { parseAutoOpen } from './script-config.js';
 

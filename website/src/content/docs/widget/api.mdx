@@ -148,6 +148,8 @@ ChatCops.setUser({ name: session.name, email: session.email, token: session.chat
 ChatCops.setUser(null);
 ```
 
+`setUser` replaces the identity the widget was started with, including a [`userToken` function](/server/setup/#a-fresh-token-for-each-session).
+
 ### `ChatCops.setConsent(consent)`
 
 Tell the widget whether the visitor accepted functional cookies, for a chat with [`waitForConsent`](/widget/configuration/#waiting-for-cookie-consent). `true` replaces the notice with the normal chat; `false` closes the chat, removes the conversation and session token the widget saved in this browser, and shows the notice again on the next open. With the script tag build, a call before `init()` or before the chat has loaded is kept until it does, and the last call wins. While consent is missing, `sendMessage()` resolves without sending, so don't wait on a reply.
