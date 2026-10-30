@@ -140,6 +140,15 @@ import { Icon } from '@astrojs/starlight/components';
 		transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
 	}
 
+	@media (max-width: 49.99rem) {
+		.theme-toggle-btn {
+			width: 2.75rem;
+			height: 2.75rem;
+			min-width: 44px;
+			min-height: 44px;
+		}
+	}
+
 	.theme-toggle-btn:hover {
 		border-color: var(--sl-color-gray-2);
 		color: var(--sl-color-white);

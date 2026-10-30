@@ -47,6 +47,7 @@ export default defineConfig({
       ],
       components: {
         ThemeSelect: './src/components/ThemeToggle.astro',
+        MobileMenuFooter: './src/components/MobileMenuFooter.astro',
       },
       head: [
         {
