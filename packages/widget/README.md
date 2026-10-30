@@ -90,7 +90,7 @@ ChatCops.init({
   welcomeBubble: {
     text: 'Need help? Chat with us!',
     delay: 3000,                        // ms before showing
-    showOnce: true,                     // per session
+    showOnce: true,                     // once per browser ('local'), per tab ('session'), every load ('none')
   },
   placeholder: 'Type a message...',
 

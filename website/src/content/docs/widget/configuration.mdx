@@ -285,7 +285,7 @@ interface WidgetConfig {
   welcomeBubble?: {           // Popup mode only
     text: string;             // Text shown on hover bubble
     delay?: number;           // ms before bubble appears
-    showOnce?: boolean;       // Only show once per session
+    showOnce?: boolean;       // Show only once (default: true): per browser with 'local' persistence, per tab with 'session', every page load with 'none'
   };
   placeholder?: string;       // Input placeholder text
   persistence?: 'local' | 'session' | 'none'; // Where the chat is saved, default: 'local'
