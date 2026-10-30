@@ -1,5 +1,18 @@
 # @chatcops/website
 
+## 0.0.7-rc.0
+
+### Patch Changes
+
+- Updated dependencies [3fada9b]
+- Updated dependencies [3f6fd66]
+- Updated dependencies [6e88477]
+- Updated dependencies [e28116a]
+  - @chatcops/server@1.0.0-rc.0
+  - @chatcops/core@1.0.0-rc.0
+  - @chatcops/widget@1.0.0-rc.0
+  - @chatcops/store-cloudflare@1.0.0-rc.0
+
 ## 0.0.6
 
 ### Patch Changes

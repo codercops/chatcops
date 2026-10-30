@@ -1,5 +1,21 @@
 # @chatcops/cli
 
+## 0.2.0-rc.0
+
+### Minor Changes
+
+- 6190309: `chatcops test` has `icontains`, `regex` and `equals` text assertions.
+
+### Patch Changes
+
+- Updated dependencies [3fada9b]
+- Updated dependencies [3f6fd66]
+- Updated dependencies [6e88477]
+- Updated dependencies [e28116a]
+  - @chatcops/server@1.0.0-rc.0
+  - @chatcops/core@1.0.0-rc.0
+  - @chatcops/ingest@0.2.0-rc.0
+
 ## 0.1.0
 
 ### Minor Changes

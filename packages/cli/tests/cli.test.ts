@@ -61,7 +61,7 @@ describe('chatcops', () => {
     const cwd = TMP;
     expect((await run(['--help'], cwd)).stdout).toContain('chatcops ingest [options]');
     expect(await run([], cwd)).toMatchObject({ code: EXIT.unusable });
-    expect((await run(['--version'], cwd)).stdout).toMatch(/^\d+\.\d+\.\d+\n$/);
+    expect((await run(['--version'], cwd)).stdout).toMatch(/^\d+\.\d+\.\d+(-[\w.]+)?\n$/);
     expect(await run(['deploy'], cwd)).toMatchObject({ code: EXIT.unusable, stderr: expect.stringContaining('Unknown command "deploy"') });
     expect(await run(['ingest', '--nope'], cwd)).toMatchObject({ code: EXIT.unusable, stderr: expect.stringContaining("Unknown option '--nope'") });
     expect(await run(['ingest', '--max-pages', 'ten'], cwd)).toMatchObject({ code: EXIT.unusable, stderr: expect.stringContaining('--max-pages takes a whole number') });
@@ -167,6 +167,6 @@ describe('the built command', () => {
   it('runs from dist/bin.js', () => {
     const bin = resolve(__dirname, '../dist/bin.js');
     const out = execFileSync(process.execPath, [bin, '--version'], { encoding: 'utf8' });
-    expect(out).toMatch(/^\d+\.\d+\.\d+\n$/);
+    expect(out).toMatch(/^\d+\.\d+\.\d+(-[\w.]+)?\n$/);
   });
 });
