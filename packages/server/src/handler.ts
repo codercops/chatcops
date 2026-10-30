@@ -146,7 +146,7 @@ export function createChatHandler(config: ChatCopsServerConfig) {
       loggedLegacyFormat = true;
       log.info(
         'legacy_stream_format',
-        'Answered a request in the 0.5 stream format, from a widget older than 0.6 or a client that doesn\'t send `protocol: 1`. That format keeps working until 1.0.'
+        'Answered a request in the 0.5 stream format, from a widget older than 0.6 or a client that doesn\'t send `protocol: 1`. That format keeps working through 1.x and goes away in 2.0.'
       );
     }
 

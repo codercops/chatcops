@@ -9,7 +9,7 @@ The versions are `@chatcops/server` 0.6, `@chatcops/widget` 0.6 and `@chatcops/c
 
 ## Upgrade the server first
 
-Upgrade the server, deploy it, then update the widget. A widget from 0.5 or earlier sends requests without `"protocol": 1`, and the new server answers those in the exact 0.5 format until 1.0. The server logs one line the first time it does, so you can tell when old widgets are still around (cached pages, a pinned CDN version).
+Upgrade the server, deploy it, then update the widget. A widget from 0.5 or earlier sends requests without `"protocol": 1`, and the new server answers those in the exact 0.5 format, through 1.x. The server logs one line the first time it does, so you can tell when old widgets are still around (cached pages, a pinned CDN version).
 
 The 0.6 widget also works against a 0.5 server, so the order isn't critical. It just gets more from a 0.6 one: reply ids that regenerate can name, and a clear "cut off" state when a stream ends early.
 

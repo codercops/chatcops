@@ -5,6 +5,8 @@ description: What 1.0 removed, and what to change in your config or code, one st
 
 1.0 removes the options and methods that 0.6 to 0.8 marked as deprecated. Each one now fails at startup with a message that names what to use instead and links here, so an upgrade can't quietly change how your chat behaves. After 1.0, ChatCops follows semver strictly: a breaking change waits for 2.0.
 
+The one thing 1.0 keeps from 0.x on purpose is the 0.5 stream format. A widget older than 0.6, or a client that doesn't send `"protocol": 1`, still gets it, so pages with an old widget cached or pinned on a CDN keep working. It, and `regenerate: true` in requests (what those widgets send), go away in 2.0. The server logs `legacy_stream_format` the first time it answers in it, so you can tell when it's safe to stop caring.
+
 Go through the sections for the packages you use. If you're on 0.5 or earlier, read [Upgrading from 0.5](/getting-started/upgrading/) first.
 
 ## `@chatcops/server`
