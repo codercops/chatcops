@@ -9,6 +9,47 @@ const tempRoot = await mkdtemp(join(root, 'website', '.docs-check-'));
 const samplesRoot = join(tempRoot, 'samples');
 const samples = [];
 const skipped = [];
+// Every TypeScript block, skipped or not, for the session check below.
+const blocks = [];
+
+// 1.0 refuses to start a server without `sessionSecrets` (or `allowAnonymous: true`),
+// which type-checking can't see. Flags a handler built from an object literal that
+// has neither, or a full `ChatCopsServerConfig` that has neither, unless it spreads
+// another config in.
+const handlerCall = /\b(chatcopsMiddleware|chatcopsVercelHandler|chatcopsCloudflareHandler|chatcopsAiSdkHandler|createChatHandler)\(\s*\{|:\s*(ChatCopsServerConfig)\s*=\s*\{/g;
+function missingSessionConfig(code) {
+  const lines = [];
+  for (const match of code.matchAll(handlerCall)) {
+    let depth = 0;
+    let end = code.length;
+    for (let i = match.index + match[0].length - 1; i < code.length; i++) {
+      if (code[i] === '{') depth++;
+      else if (code[i] === '}' && --depth === 0) {
+        end = i;
+        break;
+      }
+    }
+    const config = code.slice(match.index, end);
+    if (!/\b(sessionSecrets|allowAnonymous)\b|\.\.\./.test(config)) {
+      lines.push({ offset: code.slice(0, match.index).split('\n').length - 1, name: match[1] ? `${match[1]}()` : `A ${match[2]}` });
+    }
+  }
+  return lines;
+}
+
+function typeScriptBlocks(contents) {
+  const found = [];
+  const lines = contents.split(/\r?\n/);
+  let start = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (start < 0 && /^```(?:typescript|ts)\s*$/.test(lines[i])) start = i + 1;
+    else if (start >= 0 && /^```\s*$/.test(lines[i])) {
+      found.push({ line: start + 1, code: lines.slice(start, i).join('\n') });
+      start = -1;
+    }
+  }
+  return found;
+}
 
 async function findMdxFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -37,6 +78,7 @@ try {
         blockLines = [];
       } else if (inTypeScript && /^```\s*$/.test(lines[i])) {
         const label = `${relative(root, file).split(sep).join('/')}:${firstLine}`;
+        blocks.push({ label: relative(root, file).split(sep).join('/'), line: firstLine, code: blockLines.join('\n') });
         if (blockLines[0]?.trim().startsWith('// docs-check: skip')) {
           skipped.push(label);
         } else {
@@ -46,6 +88,25 @@ try {
       } else if (inTypeScript) {
         blockLines.push(lines[i]);
       }
+    }
+  }
+
+  // The READMEs and the homepage's code aren't type-checked, but are copied just as often.
+  const readmes = [join(root, 'README.md'), ...(await readdir(join(root, 'packages'))).map((name) => join(root, 'packages', name, 'README.md'))];
+  for (const file of readmes) {
+    const contents = await readFile(file, 'utf8').catch(() => undefined);
+    if (contents === undefined) continue;
+    for (const block of typeScriptBlocks(contents)) blocks.push({ label: relative(root, file).split(sep).join('/'), ...block });
+  }
+  const examples = join(root, 'packages', 'server', 'src', 'examples');
+  for (const file of [join(root, 'website', 'src', 'components', 'react', 'CodeTabs.tsx'), ...(await readdir(examples)).map((name) => join(examples, name))]) {
+    blocks.push({ label: relative(root, file).split(sep).join('/'), line: 1, code: await readFile(file, 'utf8') });
+  }
+  let unsessioned = 0;
+  for (const block of blocks) {
+    for (const { offset, name } of missingSessionConfig(block.code)) {
+      console.error(`${block.label}:${block.line + offset}: ${name} has no \`sessionSecrets\` or \`allowAnonymous: true\`, so it doesn't start on 1.0.`);
+      unsessioned++;
     }
   }
 
@@ -150,8 +211,10 @@ try {
 
   console.log(`Checked ${samples.length} TypeScript blocks; skipped ${skipped.length}.`);
   if (skipped.length > 0) console.log(`Skipped: ${skipped.join(', ')}`);
+  if (unsessioned > 0) console.error(`${unsessioned} server examples would not start: add \`sessionSecrets\` (or \`allowAnonymous: true\` for a test).`);
   if (result.error) throw result.error;
   if (result.status !== 0) process.exitCode = result.status ?? 1;
+  else if (unsessioned > 0) process.exitCode = 1;
 } finally {
   await rm(tempRoot, { recursive: true, force: true });
 }

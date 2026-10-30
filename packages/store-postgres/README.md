@@ -56,6 +56,7 @@ Pass the complete storage object to the server:
 chatcopsMiddleware({
   provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
   systemPrompt: 'You are a helpful assistant.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
   storage,
 });
 ```

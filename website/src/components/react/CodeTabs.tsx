@@ -11,7 +11,7 @@ import { chatcopsMiddleware } from '@chatcops/server';
 const app = express();
 app.use(express.json());
 
-app.all('/chat', chatcopsMiddleware({
+app.use('/chat', chatcopsMiddleware({
   provider: {
     type: 'claude',
     apiKey: process.env.ANTHROPIC_API_KEY,
@@ -19,6 +19,7 @@ app.all('/chat', chatcopsMiddleware({
   },
   systemPrompt: 'You are a helpful assistant.',
   allowedOrigins: ['*'],
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET],
   rateLimit: { maxRequests: 30, windowMs: 60_000 },
 }));
 
@@ -38,6 +39,7 @@ export default chatcopsVercelHandler({
   },
   systemPrompt: 'You are a helpful assistant.',
   allowedOrigins: ['*'],
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET],
 });`,
   },
   {
@@ -54,6 +56,7 @@ function getHandler(env) {
     },
     systemPrompt: 'You are a helpful assistant.',
     allowedOrigins: ['*'],
+    sessionSecrets: [env.CHATCOPS_SESSION_SECRET],
   });
   return handler;
 }
@@ -81,7 +84,7 @@ function highlight(code: string) {
       '<span class="text-[#67e8f9]">$1</span>'
     )
     .replace(
-      /\b(provider|type|apiKey|model|systemPrompt|allowedOrigins|rateLimit|maxRequests|windowMs|runtime|config)\b(?=[\s]*:)/g,
+      /\b(provider|type|apiKey|model|systemPrompt|allowedOrigins|sessionSecrets|rateLimit|maxRequests|windowMs|runtime|config)\b(?=[\s]*:)/g,
       '<span class="text-[#fbbf24]">$1</span>'
     )
     .replace(

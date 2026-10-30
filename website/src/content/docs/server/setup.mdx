@@ -142,6 +142,7 @@ import { scriptedProvider, textStep } from '@chatcops/core/testing/provider';
 const handler = createChatHandler({
   provider: scriptedProvider([textStep('Hello from a test.')]),
   systemPrompt: 'Be brief.',
+  allowAnonymous: true, // the test posts without a session token
 });
 ```
 
@@ -157,6 +158,7 @@ import { postgresStorage } from '@chatcops/store-postgres';
 const handler = chatcopsMiddleware({
   provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
   systemPrompt: 'You are a helpful assistant.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
   storage: postgresStorage({ db: new pg.Pool({ connectionString: process.env.DATABASE_URL }) }),
 });
 ```
@@ -171,6 +173,7 @@ import { createChatHandler } from '@chatcops/server';
 const { purge } = createChatHandler({
   provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
   systemPrompt: 'Be helpful.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
 });
 await purge(); // resolves how many were deleted
 ```
@@ -396,9 +399,11 @@ import { jsonLogger } from '@chatcops/core';
 import { chatcopsMiddleware } from '@chatcops/server';
 
 const app = express();
-app.post('/chat', chatcopsMiddleware({
+app.use(express.json());
+app.use('/chat', chatcopsMiddleware({
   provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
   systemPrompt: 'You answer questions about Acme.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
   logger: jsonLogger({ level: 'warn' }),
 }));
 ```

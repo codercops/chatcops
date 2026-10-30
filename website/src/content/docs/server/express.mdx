@@ -68,6 +68,7 @@ app.use('/chat', chatcopsMiddleware({
     apiKey: process.env.ANTHROPIC_API_KEY!,
   },
   systemPrompt: 'You are a helpful assistant. Capture leads when users share contact info.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
   tools: [
     new LeadCaptureTool(async (lead) => {
       // Save to your database, CRM, etc.

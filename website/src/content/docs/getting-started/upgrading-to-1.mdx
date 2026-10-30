@@ -40,6 +40,7 @@ import { chatcopsMiddleware } from '@chatcops/server';
 chatcopsMiddleware({
   provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
   systemPrompt: 'You are helpful.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
   // Before: cors: 'https://acme.com'
   allowedOrigins: ['https://acme.com'],
 });
@@ -58,6 +59,7 @@ declare const myStore: ConversationStore;
 chatcopsMiddleware({
   provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
   systemPrompt: 'You are helpful.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
   // Before: conversationStore: myStore
   storage: { conversations: myStore },
 });

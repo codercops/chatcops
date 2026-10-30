@@ -205,6 +205,7 @@ import { chatcopsVercelHandler } from '@chatcops/server';
 const handler = chatcopsVercelHandler({
   provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
   systemPrompt: 'Be helpful.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
   clientIp: (req) => req.headers.get('x-nf-client-connection-ip'), // Netlify
   // clientIp: (req) => req.headers.get('x-real-ip'),            // your nginx, with proxy_set_header X-Real-IP $remote_addr
 });
@@ -216,7 +217,7 @@ Without a way to tell the IP, per-IP limits are skipped and the server logs one 
 
 ## Checking your setup
 
-With the server running (a placeholder key such as `test` is enough for the first two):
+With the server running (a placeholder key such as `test` is enough for the first three):
 
 ```bash
 # CORS preflight: expect 204 with Access-Control-Allow-Origin
@@ -225,7 +226,13 @@ curl -i -X OPTIONS http://localhost:3000/api/chat
 # Broken JSON: expect 400 {"error":"Invalid JSON body"}
 curl -i -X POST http://localhost:3000/api/chat -H 'Content-Type: application/json' --data '{broken'
 
-# A real reply (needs a real key): expect data: lines, ending with data: [DONE]
+# No session token: expect 401, which tells the widget to get one
+curl -i -X POST http://localhost:3000/api/chat -H 'Content-Type: application/json' \
+  --data '{"protocol":1,"conversationId":"test","message":"Hello"}'
+
+# A real reply (needs a real key): get a token, then expect data: lines, ending with data: [DONE]
+TOKEN=$(curl -s -X POST http://localhost:3000/api/chat/session -H 'Content-Type: application/json' \
+  --data '{"conversationId":"test"}' | node -pe 'JSON.parse(require("fs").readFileSync(0)).token')
 curl -N -X POST http://localhost:3000/api/chat -H 'Content-Type: application/json' \
-  --data '{"conversationId":"test","message":"Hello"}'
+  -H "Authorization: Bearer $TOKEN" --data '{"protocol":1,"conversationId":"test","message":"Hello"}'
 ```

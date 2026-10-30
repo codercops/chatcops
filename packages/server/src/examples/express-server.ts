@@ -3,7 +3,7 @@
  *
  * Run:
  *   npm install express @chatcops/server
- *   ANTHROPIC_API_KEY=sk-... npx tsx express-server.ts
+ *   ANTHROPIC_API_KEY=sk-... CHATCOPS_SESSION_SECRET=$(openssl rand -base64 32) npx tsx express-server.ts
  */
 import express from 'express';
 import { chatcopsMiddleware } from '@chatcops/server';
@@ -11,7 +11,8 @@ import { chatcopsMiddleware } from '@chatcops/server';
 const app = express();
 app.use(express.json());
 
-app.all('/chat', chatcopsMiddleware({
+// app.use, not app.all: the widget gets its session token from /chat/session.
+app.use('/chat', chatcopsMiddleware({
   provider: {
     type: 'claude',
     apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -30,5 +31,7 @@ ask for their name, email, and project details to capture as a lead.`,
 const PORT = process.env.PORT ?? 3001;
 app.listen(PORT, () => {
   console.log(`ChatCops server running on http://localhost:${PORT}`);
-  console.log(`Test with: curl -X POST http://localhost:${PORT}/chat -H "Content-Type: application/json" -d '{"conversationId":"test","message":"Hello!"}'`);
+  console.log('Test it: get a session token, then send a message with it:');
+  console.log(`  TOKEN=$(curl -s -X POST http://localhost:${PORT}/chat/session -H 'Content-Type: application/json' -d '{"conversationId":"test"}' | node -pe 'JSON.parse(require("fs").readFileSync(0)).token')`);
+  console.log(`  curl -N -X POST http://localhost:${PORT}/chat -H 'Content-Type: application/json' -H "Authorization: Bearer $TOKEN" -d '{"protocol":1,"conversationId":"test","message":"Hello!"}'`);
 });

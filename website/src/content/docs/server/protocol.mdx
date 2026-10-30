@@ -451,10 +451,18 @@ You can test a running ChatCops server using `curl`.
 ### Command
 
 ```bash
+# A session token for the conversation, as the widget gets one first
+TOKEN=$(curl -s -X POST http://localhost:3001/chat/session \
+  -H 'Content-Type: application/json' \
+  -d '{"conversationId":"test-1"}' | node -pe 'JSON.parse(require("fs").readFileSync(0)).token')
+
 curl -N -X POST http://localhost:3001/chat \
   -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"protocol":1,"conversationId":"test-1","message":"Hi"}'
 ```
+
+- The first command asks `/chat/session` for a token, which the server needs with every chat request unless it sets `allowAnonymous: true` (then the second command alone works).
 
 - `-N` (or `--no-buffer`): Disables curl's buffer so streaming chunks print to the terminal immediately as they arrive.
 - The server must be running and listening on `http://localhost:3001`.

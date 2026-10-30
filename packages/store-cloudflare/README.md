@@ -66,6 +66,7 @@ interface Env {
   DB: D1Database;
   COUNTERS?: DurableObjectNamespace<ChatCopsCounter>;
   ANTHROPIC_API_KEY: string;
+  CHATCOPS_SESSION_SECRET: string;
 }
 
 let handler: ReturnType<typeof chatcopsCloudflareHandler> | undefined;
@@ -75,6 +76,7 @@ export default {
     handler ??= chatcopsCloudflareHandler({
       provider: { type: 'claude', apiKey: env.ANTHROPIC_API_KEY },
       systemPrompt: 'You are a helpful assistant.',
+      sessionSecrets: [env.CHATCOPS_SESSION_SECRET],
       storage: cloudflareStorage({
         d1: env.DB,
         counters: env.COUNTERS,

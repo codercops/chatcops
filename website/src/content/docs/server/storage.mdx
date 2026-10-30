@@ -49,6 +49,7 @@ const handler = chatcopsMiddleware({
     apiKey: process.env.ANTHROPIC_API_KEY!,
   },
   systemPrompt: 'You are a helpful customer support assistant.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
   storage,
 });
 ```
@@ -89,6 +90,7 @@ const handler = chatcopsMiddleware({
     apiKey: process.env.ANTHROPIC_API_KEY!,
   },
   systemPrompt: 'You are a helpful customer support assistant.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
   storage,
 });
 ```
@@ -121,6 +123,7 @@ const handler = chatcopsMiddleware({
     apiKey: process.env.ANTHROPIC_API_KEY!,
   },
   systemPrompt: 'You are a helpful customer support assistant.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
   storage,
 });
 ```
@@ -148,6 +151,7 @@ const handler = chatcopsMiddleware({
     apiKey: process.env.ANTHROPIC_API_KEY!,
   },
   systemPrompt: 'You are a helpful customer support assistant.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
   storage,
 });
 ```
@@ -165,6 +169,7 @@ const storage = sqliteStorage({ path: './chatcops.db' });
 const handler = chatcopsMiddleware({
   provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
   systemPrompt: 'You are a helpful customer support assistant.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
   storage,
 });
 ```
@@ -188,6 +193,7 @@ export default {
     const handler = chatcopsCloudflareHandler({
       provider: { type: 'claude', apiKey: env.ANTHROPIC_API_KEY },
       systemPrompt: 'You are a helpful customer support assistant.',
+      sessionSecrets: [env.CHATCOPS_SESSION_SECRET],
       storage: cloudflareStorage({ d1: env.DB, counters: env.COUNTERS }),
     });
     return handler(request, env, ctx);
@@ -250,6 +256,7 @@ const myStore: ConversationStore = {
 const handler = chatcopsMiddleware({
   provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
   systemPrompt: 'Be helpful.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
   storage: { conversations: myStore },
 });
 ```
@@ -425,6 +432,7 @@ import { postgresStorage } from '@chatcops/store-postgres';
 const handler = createChatHandler({
   provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
   systemPrompt: 'Be helpful.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
   storage: postgresStorage({ db: new Pool({ connectionString: process.env.DATABASE_URL }) }),
   retention: { conversationsDays: 30 },
 });
@@ -458,6 +466,7 @@ const storage = postgresStorage({ db });
 const config: ChatCopsServerConfig = {
   provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
   systemPrompt: 'You are a helpful assistant.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
   storage,
   retention: { conversationsDays: 30 },
 };
@@ -497,6 +506,7 @@ try {
   const handler = createChatHandler({
     provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
     systemPrompt: '',
+    sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
     storage: postgresStorage({ db }),
     retention: { conversationsDays: 30 },
   });
@@ -535,6 +545,7 @@ import { NextRequest, NextResponse } from 'next/server';
 const handler = createChatHandler({
   provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
   systemPrompt: 'Be helpful.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
 });
 
 export const runtime = 'nodejs';
@@ -601,6 +612,7 @@ import { redisStorage } from '@chatcops/store-redis';
 
 interface Env {
   ANTHROPIC_API_KEY: string;
+  CHATCOPS_SESSION_SECRET: string;
   UPSTASH_REDIS_REST_URL: string;
   UPSTASH_REDIS_REST_TOKEN: string;
 }
@@ -622,6 +634,7 @@ function getFetchHandler(env: Env) {
   fetchHandler ??= chatcopsCloudflareHandler({
     provider: { type: 'claude', apiKey: env.ANTHROPIC_API_KEY },
     systemPrompt: 'You are a helpful assistant.',
+    sessionSecrets: [env.CHATCOPS_SESSION_SECRET],
     storage: makeStorage(env),
     retention: { conversationsDays: 30 },
     allowedOrigins: ['*'],
@@ -639,6 +652,7 @@ export default {
     const purgeHandler = createChatHandler({
       provider: { type: 'claude', apiKey: env.ANTHROPIC_API_KEY },
       systemPrompt: '',
+      sessionSecrets: [env.CHATCOPS_SESSION_SECRET],
       storage: makeStorage(env),
       retention: { conversationsDays: 30 },
     });

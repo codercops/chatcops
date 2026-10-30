@@ -220,6 +220,7 @@ const vectors = memoryVectors({ dimensions: embedder.dimensions });
 const handler = chatcopsMiddleware({
   provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
   systemPrompt: 'Answer questions about Acme.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
   knowledge: [retrieverKnowledge(hybridRetriever({ store: vectors, embedder }), { topK: 5 })],
 });
 ```

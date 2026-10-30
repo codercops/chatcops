@@ -287,6 +287,7 @@ it('looks the order up before answering', async () => {
   const handler = chatcopsVercelHandler({
     provider,
     systemPrompt: 'You answer questions about orders.',
+    allowAnonymous: true, // the test posts without a session token
     tools: [{
       name: 'lookup_order',
       description: 'Finds an order by id.',

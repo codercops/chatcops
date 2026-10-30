@@ -119,6 +119,7 @@ import { chatcopsVercelHandler } from '@chatcops/server/vercel';
 export default chatcopsVercelHandler({
   provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY },
   systemPrompt: 'You are a helpful assistant.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET],
 });
 ```
 
@@ -132,6 +133,7 @@ function getHandler(env: Env) {
   handler ??= chatcopsCloudflareHandler({
     provider: { type: 'openai', apiKey: env.OPENAI_API_KEY },
     systemPrompt: 'You are a helpful assistant.',
+    sessionSecrets: [env.CHATCOPS_SESSION_SECRET],
   });
   return handler;
 }

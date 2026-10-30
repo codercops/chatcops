@@ -1,8 +1,10 @@
 /**
  * Example: Vercel API Route
  *
- * Place this file at: api/chat.ts
- * Set env vars: ANTHROPIC_API_KEY
+ * Place this file at: api/chat.ts, and add api/chat/session.ts with
+ *   export { default, config } from '../chat';
+ * so the widget can get its session token there.
+ * Set env vars: ANTHROPIC_API_KEY, and CHATCOPS_SESSION_SECRET (`openssl rand -base64 32`)
  */
 import { chatcopsVercelHandler } from '@chatcops/server';
 

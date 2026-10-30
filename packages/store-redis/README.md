@@ -50,6 +50,7 @@ export const POST = chatcopsVercelHandler({
   storage,
   provider: { type: 'openai', apiKey: process.env.OPENAI_API_KEY },
   systemPrompt: 'You are a helpful assistant.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET],
 });
 ```
 
@@ -76,6 +77,7 @@ export const POST = chatcopsVercelHandler({
   storage,
   provider: { type: 'openai', apiKey: process.env.OPENAI_API_KEY },
   systemPrompt: 'You are a helpful assistant.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET],
 });
 ```
 

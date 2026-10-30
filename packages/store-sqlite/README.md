@@ -17,6 +17,7 @@ const storage = sqliteStorage({ path: './chatcops.db' });
 app.use('/api/chat', chatcopsMiddleware({
   provider,
   systemPrompt: 'You are a helpful assistant.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET],
   storage,
 }));
 ```
