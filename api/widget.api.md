@@ -210,6 +210,9 @@ export interface WidgetLocaleStrings {
     preChatInvalidEmail: string;
     retryButton: string;
     regenerateButton: string;
+    copyButton: string;
+    copySuccess: string;
+    copyFailure: string;
     suggestionsLabel: string;
     unreadCount: string;
     sourcesLabel: string;
