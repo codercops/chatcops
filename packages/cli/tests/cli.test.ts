@@ -22,7 +22,7 @@ afterAll(async () => {
  * the same in-memory storage (kept on globalThis), so one can build an index
  * and another search it.
  */
-function project(options: { shared: string; embedderId?: string; body?: string } = { shared: 'default' }): string {
+function project(options: { shared: string; embedderId?: string; index?: string; body?: string } = { shared: 'default' }): string {
   const dir = mkdtempSync(join(TMP, 'project-'));
   const embedderId = options.embedderId ?? 'test:fake@4';
   writeFileSync(
@@ -42,7 +42,7 @@ export default {
       return texts.map((t) => Float32Array.from([1, /refund/i.test(t) ? 5 : 0, /pricing|plan/i.test(t) ? 5 : 0, 1]));
     },
   },
-  ingest: { sources: [{ type: 'urls', urls: ['${site.url}/pricing'] }] },
+  ingest: { ${options.index ? `index: '${options.index}', ` : ''}sources: [{ type: 'urls', urls: ['${site.url}/pricing'] }] },
 };
 `
   );
@@ -138,6 +138,19 @@ describe('chatcops', () => {
       stderr: expect.stringContaining('was built with test:fake@4, but the config\'s embedder is other:model@4'),
     });
     expect(await run(['ingest'], other)).toMatchObject({ code: EXIT.unusable, stderr: expect.stringContaining('Index "default" was built with test:fake@4') });
+  });
+
+  it('searches the index named in ingest.index', async () => {
+    const cwd = project({ shared: 'named', index: 'docs' });
+    await run(['ingest'], cwd);
+    const json = await run(['search', 'pricing', '--json'], cwd);
+    expect(json.stderr).not.toContain(`hasn't been built yet`);
+    const result = JSON.parse(json.stdout) as { index: string; chunks: Array<{ source: { url: string } }> };
+    expect(result.index).toBe('docs');
+    expect(result.chunks[0].source.url).toBe(`${site.url}/pricing`);
+
+    const other = project({ shared: 'named', index: 'docs', embedderId: 'other:model@4' });
+    expect(await run(['search', 'pricing'], other)).toMatchObject({ code: EXIT.unusable, stderr: expect.stringContaining('Index "docs" was built with test:fake@4') });
   });
 
   it('says so when searching an index that was never built, and needs a question', async () => {

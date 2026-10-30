@@ -187,7 +187,7 @@ async function runSearch(question: string, values: Values, io: Io): Promise<numb
   const topK = wholeNumber(values['top-k'], '--top-k') ?? 5;
   const loaded = await loadConfig(io.cwd, values.config);
   try {
-    const index = values.index ?? 'default';
+    const index = values.index ?? loaded.config.ingest?.index ?? 'default';
     const { embedder, store, manifest } = indexConfig(loaded);
     const meta = await manifest.get<{ embedder: string }>(manifestKeys(index).meta);
     if (meta && meta.embedder !== embedder.id) {
