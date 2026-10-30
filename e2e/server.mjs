@@ -28,6 +28,7 @@ const files = {
   '/theme.html': ['fixtures/theme.html', 'text/html'],
   '/prechat.html': ['fixtures/prechat.html', 'text/html'],
   '/locale.html': ['fixtures/locale.html', 'text/html'],
+  '/csp.html': ['fixtures/csp.html', 'text/html'],
   '/locales/zz.js': ['fixtures/locales/zz.js', 'text/javascript'],
 };
 
@@ -273,7 +274,11 @@ const server = createServer(async (req, res) => {
 
     const file = files[url.pathname];
     if (file) {
-      res.writeHead(200, { 'Content-Type': file[1] });
+      const headers = { 'Content-Type': file[1] };
+      if (url.pathname === '/csp.html') {
+        headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'nonce-chatcops-e2e'; style-src 'nonce-chatcops-e2e'; connect-src 'self'; img-src 'self' data:";
+      }
+      res.writeHead(200, headers);
       let content = await readFile(join(here, file[0]), 'utf8');
       content = content.replaceAll('__E2E_API_PORT__', String(apiPort));
       return res.end(content);

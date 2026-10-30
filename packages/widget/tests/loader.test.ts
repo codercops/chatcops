@@ -67,12 +67,26 @@ describe('the script tag loader', () => {
     expect(launcherButton()).not.toBeNull();
     expect(launcherButton()?.getAttribute('aria-label')).toBe('Open chat');
     expect(launcherButton()?.classList.contains('cc-left')).toBe(true);
+    expect(shadow()?.querySelector('style')?.hasAttribute('nonce')).toBe(false);
     expect(host()?.style.getPropertyValue('--cc-theme-accent')).toBe('#16a34a');
     expect(shadow()?.querySelector('.cc-panel')).toBeNull();
     expect(load).not.toHaveBeenCalled();
     expect(getItem).not.toHaveBeenCalled();
     expect(setItem).not.toHaveBeenCalled();
     expect(fetch).not.toHaveBeenCalled();
+    loader.destroy();
+  });
+
+  it('applies the configured nonce to launcher and panel styles', async () => {
+    const { load } = panel();
+    const loader = createLoader(load);
+    loader.init({ apiUrl: 'https://api.test/chat', nonce: 'request-nonce' });
+
+    expect(shadow()?.querySelector('style')?.nonce).toBe('request-nonce');
+    loader.open();
+    await settle();
+    expect(shadow()?.querySelector('style')?.nonce).toBe('request-nonce');
+
     loader.destroy();
   });
 

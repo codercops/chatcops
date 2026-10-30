@@ -185,6 +185,7 @@ export function createLoader(
     document.body.appendChild(launcher);
     const shadow = launcher.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
+    if (current.nonce) style.nonce = current.nonce;
     style.textContent = launcherStyles;
     shadow.appendChild(style);
     if (current.theme) applyTheme(shadow, current.theme);

@@ -18,6 +18,7 @@ export function configFromScript(script: HTMLScriptElement): WidgetConfig | unde
 
   return {
     apiUrl,
+    nonce: script.nonce || undefined,
     turnstileSiteKey: script.dataset.turnstileSiteKey,
     userToken: script.dataset.userToken,
     mode: mode || undefined,

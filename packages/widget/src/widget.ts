@@ -41,6 +41,8 @@ export interface PreChatFormConfig {
 
 export interface WidgetConfig {
   apiUrl: string;
+  /** CSP nonce applied to the widget's injected style elements. */
+  nonce?: string;
   /** Request/stream inactivity timeout in milliseconds. Defaults to 30000. */
   timeout?: number;
   /**
@@ -227,9 +229,9 @@ export class Widget {
     prefetch(this.config);
     if (this.isInline) {
       this.containerEl = this.resolveContainer();
-      this.shadow = createShadowRoot(this.containerEl, { dir: this.config.dir, locale: this.config.locale });
+      this.shadow = createShadowRoot(this.containerEl, { dir: this.config.dir, locale: this.config.locale, nonce: this.config.nonce });
     } else {
-      this.shadow = createShadowRoot(undefined, { dir: this.config.dir, locale: this.config.locale });
+      this.shadow = createShadowRoot(undefined, { dir: this.config.dir, locale: this.config.locale, nonce: this.config.nonce });
     }
     this.mounted = true;
 
@@ -591,6 +593,7 @@ export class Widget {
           fields: formConfig.fields,
           submitLabel: formConfig.submitLabel ?? this.locale.preChatSubmit,
           locale: this.locale,
+          nonce: this.config.nonce,
           onSubmit: (data) => this.handlePreChatSubmit(data),
         });
       },

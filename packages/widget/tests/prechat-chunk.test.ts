@@ -20,13 +20,14 @@ afterEach(() => {
 
 describe('the pre-chat form chunk', () => {
   it('shows the form once its chunk has loaded, with its styles added once', async () => {
-    widget = new Widget({ apiUrl: 'https://api.test/chat', preChatForm });
+    widget = new Widget({ apiUrl: 'https://api.test/chat', preChatForm, nonce: 'request-nonce' });
     widget.init();
     widget.open();
     await vi.dynamicImportSettled();
 
     expect(shadow()?.querySelector('.cc-prechat')).not.toBeNull();
     expect(shadow()?.querySelectorAll('style[data-cc-prechat]')).toHaveLength(1);
+    expect(Array.from(shadow()?.querySelectorAll('style') ?? [], (style) => style.nonce)).toEqual(['request-nonce', 'request-nonce']);
     // The input stays hidden until the form is sent.
     expect(shadow()?.querySelector('.cc-input-area')?.classList.contains('cc-hidden')).toBe(true);
   });

@@ -25,6 +25,33 @@ test('the panel downloads on hover, not on page load, and opens on click', async
   expect(panelRequests(requested)).toHaveLength(1);
 });
 
+test('the script nonce allows launcher, panel and lazy pre-chat styles under CSP', async ({ page }) => {
+  await page.addInitScript(() => {
+    (window as unknown as { cspViolations: string[] }).cspViolations = [];
+    document.addEventListener('securitypolicyviolation', (event) => {
+      (window as unknown as { cspViolations: string[] }).cspViolations.push(event.violatedDirective);
+    });
+  });
+  await page.goto('/csp.html');
+  await expect(page.locator(fab)).toBeVisible();
+  expect(await page.locator('#chatcops-root').evaluate((host) => host.shadowRoot?.querySelector('style')?.nonce)).toBe('chatcops-e2e');
+
+  await page.evaluate(() => {
+    (window as unknown as { ChatCops: { init(config: object): void } }).ChatCops.init({
+      apiUrl: '/api/chat',
+      nonce: 'chatcops-e2e',
+      preChatForm: { enabled: true, fields: [{ name: 'name', label: 'Name', type: 'text' }] },
+    });
+  });
+  await page.locator(fab).click();
+  await expect(page.locator('.cc-prechat')).toBeVisible();
+  const nonces = await page.locator('#chatcops-root').evaluate((host) =>
+    Array.from(host.shadowRoot?.querySelectorAll('style') ?? [], (style) => style.nonce)
+  );
+  expect(nonces).toEqual(['chatcops-e2e', 'chatcops-e2e']);
+  expect(await page.evaluate(() => (window as unknown as { cspViolations: string[] }).cspViolations)).toEqual([]);
+});
+
 for (const [build, path] of [['loader', '/'], ['single-file build', '/full.html']] as const) {
   test(`nothing reads or writes storage before the visitor interacts (${build})`, async ({ page }) => {
     await countStorageCalls(page);

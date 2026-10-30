@@ -12,6 +12,7 @@ export const HOST_ID = 'chatcops-root';
 export interface ShadowOptions {
   dir?: 'ltr' | 'rtl' | 'auto';
   locale?: string;
+  nonce?: string;
 }
 
 const RTL_LANGUAGES = new Set(['ar', 'he', 'fa', 'ur']);
@@ -46,6 +47,7 @@ export function createShadowRoot(container?: HTMLElement, options: ShadowOptions
   const shadow = host.attachShadow({ mode: 'open' });
 
   const style = document.createElement('style');
+  if (options.nonce) style.nonce = options.nonce;
   style.textContent = launcherStyles + widgetStyles;
   shadow.appendChild(style);
 

@@ -88,4 +88,10 @@ describe('configFromScript', () => {
     const config = configFromScript(script({ apiUrl: '/api/chat' }));
     expect(config).toMatchObject({ apiUrl: '/api/chat', mode: undefined, container: undefined, welcomeBubble: undefined, autoOpen: undefined });
   });
+
+  it('reads the nonce property from a script tag', () => {
+    const tag = script({ apiUrl: '/api/chat' });
+    tag.nonce = 'request-nonce';
+    expect(configFromScript(tag)?.nonce).toBe('request-nonce');
+  });
 });

@@ -15,6 +15,7 @@ export interface PreChatFormOptions {
   fields: PreChatField[];
   submitLabel: string;
   locale: WidgetLocaleStrings;
+  nonce?: string;
   onSubmit: (data: Record<string, string>) => void;
 }
 
@@ -64,7 +65,7 @@ export class PreChatForm {
 
     this.container.appendChild(form);
     parent.appendChild(this.container);
-    addStyles(parent.getRootNode());
+    addStyles(parent.getRootNode(), options.nonce);
 
     this.updateSubmitState();
 
@@ -227,9 +228,10 @@ export class PreChatForm {
 }
 
 /** Adds the form's styles to the widget's shadow root, once. */
-function addStyles(root: Node): void {
+function addStyles(root: Node, nonce?: string): void {
   if (!(root instanceof ShadowRoot) || root.querySelector('style[data-cc-prechat]')) return;
   const style = document.createElement('style');
+  if (nonce) style.nonce = nonce;
   style.dataset.ccPrechat = '';
   style.textContent = prechatStyles;
   root.appendChild(style);

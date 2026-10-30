@@ -5,6 +5,16 @@ description: All configuration options for the ChatCops widget.
 
 The widget can be configured via `data-*` attributes on the script tag or programmatically via `ChatCops.init()`.
 
+## Content Security Policy
+
+If your site's Content Security Policy requires a nonce for inline styles, add the same per-response nonce to the widget script tag. Script-tag installs, including `chatcops.full.min.js`, read their script element's `nonce` and apply it to the launcher, chat panel, and lazy pre-chat form styles. For ESM and other programmatic `ChatCops.init()` calls, pass it as `nonce`:
+
+```typescript
+ChatCops.init({ apiUrl: '/api/chat', nonce: 'YOUR_RESPONSE_NONCE' });
+```
+
+Include that nonce in your response's `style-src` policy. Generate a fresh, unpredictable nonce for each response and use it for both the policy and widget script.
+
 ## Display Modes
 
 ChatCops supports two display modes:
@@ -19,6 +29,7 @@ ChatCops supports two display modes:
 ```html
 <script
   src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  nonce="YOUR_RESPONSE_NONCE"
   data-api-url="https://your-api.com/chat"
   data-accent="#6366f1"
   data-text-color="#FAFAF9"
@@ -213,6 +224,7 @@ const leadForm: PreChatFormConfig = {
 // docs-check: skip, a reference listing rather than code to run
 interface WidgetConfig {
   apiUrl: string;
+  nonce?: string;                // CSP nonce for the widget's injected styles
   timeout?: number;              // Inactivity timeout in ms, default: 30000
   turnstileSiteKey?: string;     // Cloudflare Turnstile site key, when the server has `turnstile` set
   userToken?: string;            // Your server's signed token for a signed-in visitor (server `identity`)
