@@ -580,6 +580,9 @@ export class Widget {
       regenerateLabel: l.regenerateButton,
       typingLabel: l.typingIndicator,
       sourcesLabel: l.sourcesLabel,
+      copyLabel: l.copyButton,
+      copySuccessLabel: l.copySuccess,
+      copyFailureLabel: l.copyFailure,
     };
   }
 

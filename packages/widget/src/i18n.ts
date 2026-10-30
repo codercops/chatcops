@@ -29,6 +29,9 @@ export interface WidgetLocaleStrings {
   preChatInvalidEmail: string;
   retryButton: string;
   regenerateButton: string;
+  copyButton: string;
+  copySuccess: string;
+  copyFailure: string;
   suggestionsLabel: string;
   unreadCount: string;
   sourcesLabel: string;
@@ -68,6 +71,9 @@ const en: WidgetLocaleStrings = {
   preChatInvalidEmail: 'Please enter a valid email',
   retryButton: 'Retry',
   regenerateButton: 'Regenerate',
+  copyButton: 'Copy reply',
+  copySuccess: 'Reply copied.',
+  copyFailure: 'Could not copy reply.',
   suggestionsLabel: 'Suggested questions',
   unreadCount: '{count} unread',
   sourcesLabel: 'Sources',

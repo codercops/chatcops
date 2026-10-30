@@ -2,6 +2,7 @@ import { renderMarkdown } from '../markdown.js';
 
 const RETRY_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M17.65 6.35A7.96 7.96 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>';
 const REGENERATE_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0020 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 004 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>';
+const COPY_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>';
 
 export type MessageStatus = 'streaming' | 'complete' | 'error';
 export type MessageErrorType = 'rate_limit' | 'network' | 'provider_error' | 'timeout' | 'budget' | 'budget_daily' | 'unavailable' | 'cut_off';
@@ -24,6 +25,9 @@ export interface MessageActions {
   regenerateLabel?: string;
   typingLabel?: string;
   sourcesLabel?: string;
+  copyLabel?: string;
+  copySuccessLabel?: string;
+  copyFailureLabel?: string;
 }
 
 /** How close to the bottom (px) the log has to be for new text to scroll it. */
@@ -59,6 +63,7 @@ export class Messages {
   private suggestionsEl: HTMLDivElement | null = null;
   private disclosureEl: HTMLElement | null = null;
   private actions?: MessageActions;
+  private announcementVersion = 0;
 
   constructor(parent: HTMLElement, actions?: MessageActions, options: { streamIntervalMs?: number } = {}) {
     this.actions = actions;
@@ -77,12 +82,14 @@ export class Messages {
   }
 
   beginReply(): void {
+    this.announcementVersion++;
     this.announcement.textContent = '';
     this.container.setAttribute('aria-live', 'off');
   }
 
   finishReply(msg?: MessageData): void {
     if (msg?.role === 'assistant' && (msg.status === 'complete' || msg.status === 'error')) {
+      this.announcementVersion++;
       const rendered = this.findMessage(msg.id);
       const content = rendered?.querySelector('.cc-message-content')?.textContent?.trim() ?? '';
       const error = rendered?.querySelector('.cc-message-error-note')?.textContent?.trim() ?? '';
@@ -214,6 +221,7 @@ export class Messages {
   }
 
   clear(): void {
+    this.announcementVersion++;
     for (const id of [...this.streams.keys()]) this.endStream(id);
     this.container.innerHTML = '';
     this.typingEl = null;
@@ -366,19 +374,55 @@ export class Messages {
   }
 
   private createActionsContainer(msg: MessageData): HTMLDivElement | null {
-    if (msg.status !== 'error' || !this.actions?.onRetry) {
+    const canCopy = msg.role === 'assistant' && msg.id !== 'welcome' && msg.status !== 'streaming' && msg.status !== 'error' && msg.content.trim() !== '';
+    const canRetry = msg.status === 'error' && this.actions?.onRetry;
+    if (!canCopy && !canRetry) {
       return null;
     }
 
     const actions = document.createElement('div');
     actions.className = 'cc-message-actions';
-    actions.appendChild(this.createActionButton({
-      className: 'cc-message-retry',
-      label: this.actions.retryLabel ?? 'Retry',
-      icon: RETRY_ICON,
-      onClick: () => this.actions?.onRetry?.(msg.id),
-    }));
+    if (canCopy) {
+      actions.appendChild(this.createActionButton({
+        className: 'cc-message-copy',
+        label: this.actions?.copyLabel ?? 'Copy reply',
+        icon: COPY_ICON,
+        onClick: () => this.copyReply(msg.id),
+      }));
+    }
+    if (canRetry) {
+      actions.appendChild(this.createActionButton({
+        className: 'cc-message-retry',
+        label: this.actions?.retryLabel ?? 'Retry',
+        icon: RETRY_ICON,
+        onClick: () => this.actions?.onRetry?.(msg.id),
+      }));
+    }
     return actions;
+  }
+
+  /** Start the clipboard write in the click handler so it keeps user activation. */
+  private copyReply(messageId: string): void {
+    const content = this.findMessage(messageId)?.querySelector<HTMLElement>('.cc-message-content');
+    const text = content ? readableText(content) : '';
+    const version = this.announcementVersion;
+    const announce = (message: string) => {
+      if (version === this.announcementVersion) this.announcement.textContent = message;
+    };
+
+    try {
+      const clipboard = navigator.clipboard;
+      if (!clipboard?.writeText || !text) {
+        announce(this.actions?.copyFailureLabel ?? 'Could not copy reply.');
+        return;
+      }
+      Promise.resolve(clipboard.writeText(text)).then(
+        () => announce(this.actions?.copySuccessLabel ?? 'Reply copied.'),
+        () => announce(this.actions?.copyFailureLabel ?? 'Could not copy reply.'),
+      );
+    } catch {
+      announce(this.actions?.copyFailureLabel ?? 'Could not copy reply.');
+    }
   }
 
   private ensureActionsContainer(msgEl: HTMLDivElement): HTMLDivElement {
@@ -420,6 +464,31 @@ export class Messages {
     div.textContent = text;
     return div.innerHTML;
   }
+}
+
+function readableText(element: HTMLElement): string {
+  if (typeof element.innerText === 'string') return element.innerText.trim();
+
+  let text = '';
+  const blockTags = new Set(['BLOCKQUOTE', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'OL', 'P', 'PRE', 'UL']);
+  const visit = (node: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      text += node.textContent ?? '';
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    const tag = (node as Element).tagName;
+    if (tag === 'BR') {
+      text += '\n';
+      return;
+    }
+    const isBlock = blockTags.has(tag);
+    if (isBlock && text && !text.endsWith('\n')) text += '\n';
+    node.childNodes.forEach(visit);
+    if (isBlock && !text.endsWith('\n')) text += '\n';
+  };
+  visit(element);
+  return text.replace(/\n{3,}/g, '\n\n').trim();
 }
 
 /**

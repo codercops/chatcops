@@ -292,7 +292,8 @@
 
 .cc-consent-btn,
 .cc-message-retry,
-.cc-message-regenerate {
+.cc-message-regenerate,
+.cc-message-copy {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -309,13 +310,15 @@
 
 .cc-consent-btn:hover,
 .cc-message-retry:hover,
-.cc-message-regenerate:hover {
+.cc-message-regenerate:hover,
+.cc-message-copy:hover {
   background: var(--cc-bg-input);
   color: var(--cc-text);
 }
 
 .cc-message-retry svg,
-.cc-message-regenerate svg {
+.cc-message-regenerate svg,
+.cc-message-copy svg {
   fill: currentColor;
 }
 
@@ -596,6 +599,7 @@
 .cc-suggestion:focus-visible,
 .cc-message-retry:focus-visible,
 .cc-message-regenerate:focus-visible,
+.cc-message-copy:focus-visible,
 .cc-bubble-trigger:focus-visible,
 .cc-bubble-close:focus-visible,
 .cc-input:focus-visible {
