@@ -101,7 +101,7 @@ ChatCops.init({
   // Behavior
   persistence: 'local',                 // 'local' | 'session' | 'none', default: 'local'
   historyTtlDays: 30,                   // drop saved chats older than this
-  maxMessages: 50,                      // max persisted messages
+  maxMessages: 50,                      // non-negative safe integer; invalid values default to 50
   pageContext: true,                     // send page URL/title to API
   autoOpen: 5000,                       // auto-open after ms (popup only)
   locale: 'en',
@@ -114,6 +114,8 @@ ChatCops.init({
   onError: (err) => {},
 });
 ```
+
+`maxMessages` limits the number of transcript messages saved (the default is `50`). Set it to a positive safe integer to save only the latest messages, or to `0` to save none; the chat remains usable in memory. Negative numbers, fractions, `NaN`, `Infinity`, and other values that are not non-negative safe integers fall back to `50`.
 
 ## API
 
