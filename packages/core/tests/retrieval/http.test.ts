@@ -25,6 +25,34 @@ describe('postWithRetries Retry-After', () => {
     expect(send).toHaveBeenCalledTimes(2);
   });
 
+  it.each([
+    ['1.5', 1500],
+    ['120.5', 30_000],
+  ])('treats numeric value %s as seconds instead of parsing it as a date', async (value, delayMs) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-01T00:00:00.000Z'));
+    const send = vi.fn().mockResolvedValueOnce(response(429, value)).mockResolvedValueOnce(new Response('ok'));
+    const result = postWithRetries('Provider', send, post);
+
+    await vi.advanceTimersByTimeAsync(delayMs - 1);
+    expect(send).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await result;
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses exponential backoff for a negative numeric value', async () => {
+    vi.useFakeTimers();
+    const send = vi.fn().mockResolvedValueOnce(response(429, '-1')).mockResolvedValueOnce(new Response('ok'));
+    const result = postWithRetries('Provider', send, post);
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(send).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await result;
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
   it('waits until a future HTTP date', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-11-01T00:00:00.000Z'));

@@ -42,7 +42,9 @@ function retryAfterDelayMs(value: string | null): number | undefined {
   if (value === null) return undefined;
 
   const trimmed = value.trim();
-  if (/^\d+$/.test(trimmed)) return Math.min(Number(trimmed), 30) * 1000;
+  const seconds = Number(trimmed);
+  if (trimmed !== '' && Number.isFinite(seconds)) return seconds >= 0 ? Math.min(seconds, 30) * 1000 : undefined;
+  if (!/[a-z]/i.test(trimmed)) return undefined;
 
   const date = Date.parse(trimmed);
   if (!Number.isFinite(date)) return undefined;
