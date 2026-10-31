@@ -38,9 +38,22 @@ export async function postWithRetries(
     } catch {
       // A failed cleanup should not prevent the request from being retried.
     }
-    const wait = Number(response.headers.get('retry-after'));
-    await sleep(Number.isFinite(wait) && wait > 0 ? Math.min(wait, 30) * 1000 : 1000 * attempt, signal);
+    const retryAfterMs = retryAfterDelayMs(response.headers.get('retry-after'));
+    await sleep(retryAfterMs ?? 1000 * attempt, signal);
   }
+}
+
+function retryAfterDelayMs(value: string | null): number | undefined {
+  if (value === null) return undefined;
+
+  const trimmed = value.trim();
+  const seconds = Number(trimmed);
+  if (trimmed !== '' && Number.isFinite(seconds)) return seconds >= 0 ? Math.min(seconds, 30) * 1000 : undefined;
+  if (!/[a-z]/i.test(trimmed)) return undefined;
+
+  const date = Date.parse(trimmed);
+  if (!Number.isFinite(date)) return undefined;
+  return Math.min(Math.max(date - Date.now(), 0), 30_000);
 }
 
 /** A whole number of texts per request, from 1 to what the API accepts. */
