@@ -1,5 +1,11 @@
 # @chatcops/core
 
+## 1.1.0
+
+### Minor Changes
+
+- b8a3f9e: Allow webhook configs to set per-endpoint delivery timeouts and maximum attempts.
+
 ## 1.0.0
 
 ### Major Changes

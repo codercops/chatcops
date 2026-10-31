@@ -112,6 +112,8 @@ class VectorKnowledgeSource implements KnowledgeSource {
 
 `@chatcops/ingest` fills a vector store from your site: it reads your sitemap (or a list of URLs, or a folder of Markdown and HTML files), extracts each page's readable content, splits it into chunks along headings, and embeds them.
 
+For a complete walkthrough from choosing a store to connecting a bot, see [Index Your Site](/getting-started/index-your-site/).
+
 ```typescript
 import { memoryStorage, memoryVectors, openaiEmbedder } from '@chatcops/core';
 import { ingest } from '@chatcops/ingest';
