@@ -181,9 +181,10 @@ function validateDeliveryOptions(config: WebhookConfig): void {
 function parseRetryAfter(value: string | null): number | undefined {
   if (!value) return undefined;
   const seconds = Number(value);
-  if (Number.isFinite(seconds) && seconds >= 0) {
-    return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
-  }
+  if (Number.isFinite(seconds)) return seconds >= 0 ? Math.min(seconds * 1000, MAX_RETRY_AFTER_MS) : undefined;
+  // An HTTP-date has day and month names. Without the check, Date.parse reads
+  // values like "120.5" or "-1 day" as dates long past, and the retry wouldn't wait.
+  if (!/[a-z]/i.test(value)) return undefined;
 
   const retryAt = Date.parse(value);
   if (Number.isNaN(retryAt)) return undefined;
