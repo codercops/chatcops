@@ -559,7 +559,12 @@ export class Widget {
    */
   update(changes: WidgetUpdate): void {
     const current = this.config;
-    const theme = { ...current.theme, ...changes.theme, position: current.theme?.position };
+    const theme = {
+      ...current.theme,
+      ...changes.theme,
+      tokens: { ...current.theme?.tokens, ...changes.theme?.tokens },
+      position: current.theme?.position,
+    };
     this.config = {
       ...current,
       ...changes,
@@ -610,6 +615,9 @@ export class Widget {
       regenerateLabel: l.regenerateButton,
       typingLabel: l.typingIndicator,
       sourcesLabel: l.sourcesLabel,
+      copyLabel: l.copyButton,
+      copySuccessLabel: l.copySuccess,
+      copyFailureLabel: l.copyFailure,
     };
   }
 

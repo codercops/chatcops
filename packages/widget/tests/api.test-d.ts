@@ -6,6 +6,7 @@ import ChatCops, {
   type PreChatFormConfig,
   type ThemeConfig,
   type ThemeMode,
+  type WidgetTokens,
   type UserToken,
   type WidgetConfig,
   type WidgetLocaleStrings,
@@ -61,6 +62,7 @@ describe('the widget API types', () => {
     expectTypeOf(ChatCops.update).parameters.toEqualTypeOf<[WidgetUpdate]>();
     expectTypeOf<ChatCopsLoader['update']>().parameters.toEqualTypeOf<[WidgetUpdate]>();
     ChatCops.update({ theme: { mode: 'dark', accent: '#000' }, branding: { name: 'Sales' }, strings: { sendButton: 'Go' } });
+    ChatCops.update({ theme: { tokens: { border: '#d0d4da', 'panel-width': '440px' } } });
     // @ts-expect-error: moving the chat needs init()
     ChatCops.update({ theme: { position: 'bottom-left' } });
     // @ts-expect-error: the server can't change on a running chat
@@ -70,6 +72,12 @@ describe('the widget API types', () => {
   it('exports the types a config is made of', () => {
     expectTypeOf<NonNullable<WidgetConfig['theme']>>().toEqualTypeOf<ThemeConfig>();
     expectTypeOf<NonNullable<ThemeConfig['mode']>>().toEqualTypeOf<ThemeMode>();
+    expectTypeOf<NonNullable<ThemeConfig['tokens']>>().toEqualTypeOf<WidgetTokens>();
+    const tokens: WidgetTokens = { border: '#d0d4da', 'panel-width': '440px' };
+    expectTypeOf(tokens).toEqualTypeOf<WidgetTokens>();
+    // @ts-expect-error: token names must be supported by the widget
+    const typo: WidgetTokens = { 'panel-wdith': '440px' };
+    expectTypeOf(typo).toEqualTypeOf<WidgetTokens>();
     expectTypeOf<NonNullable<WidgetConfig['preChatForm']>>().toEqualTypeOf<PreChatFormConfig>();
     expectTypeOf<NonNullable<WidgetConfig['persistence']>>().toEqualTypeOf<Persistence>();
     expectTypeOf<MessageStatus>().toEqualTypeOf<'streaming' | 'complete' | 'error'>();

@@ -7,7 +7,7 @@
 //   node scripts/api-snapshot.mjs --check   # fail if they're out of date
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { basename, dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
@@ -125,7 +125,9 @@ function referencedTypes(checker, declarations, ownDir) {
     if (name) {
       const symbol = checker.getSymbolAtLocation(ts.isQualifiedName(name) ? name.right : name);
       const target = symbol && resolve(checker, symbol);
-      const own = target?.declarations?.some((d) => d.getSourceFile().fileName.startsWith(ownDir));
+      const own = target?.declarations?.some((d) =>
+        d.getSourceFile().fileName.replaceAll('\\', '/').startsWith(`${ownDir.replaceAll('\\', '/')}/`)
+      );
       if (own && !(target.flags & ts.SymbolFlags.TypeParameter)) found.add(target);
     }
     ts.forEachChild(node, visit);
@@ -238,7 +240,7 @@ function snapshot(packageDir) {
   if (internal) body += `\n\n## Types no entry exports\n\nThey're part of the API above all the same: a change to one is a change to the API.\n\n\`\`\`ts\n${internal}\n\`\`\``;
   return {
     name: pkg.name,
-    file: join(apiDir, `${packageDir.split('/').pop()}.api.md`),
+    file: join(apiDir, `${basename(packageDir)}.api.md`),
     text: `# ${pkg.name} public API\n\nMade by \`node scripts/api-snapshot.mjs\` from the built types. Don't edit it by hand: change the code, build, and run the script again.\n\n${body}\n`,
   };
 }
@@ -254,7 +256,9 @@ if (!check) {
   for (const result of results) writeFileSync(result.file, result.text);
   console.log(`Wrote ${results.length} API snapshots to api/.`);
 } else {
-  const stale = results.filter((result) => !existsSync(result.file) || readFileSync(result.file, 'utf8') !== result.text);
+  const stale = results.filter((result) =>
+    !existsSync(result.file) || readFileSync(result.file, 'utf8').replaceAll('\r\n', '\n') !== result.text
+  );
   if (stale.length === 0) {
     console.log(`The API snapshots of ${results.length} packages are up to date.`);
   } else {

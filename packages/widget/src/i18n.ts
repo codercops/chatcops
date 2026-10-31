@@ -31,6 +31,9 @@ export interface WidgetLocaleStrings {
   retryButton: string;
   messageWaiting: string;
   regenerateButton: string;
+  copyButton: string;
+  copySuccess: string;
+  copyFailure: string;
   suggestionsLabel: string;
   unreadCount: string;
   sourcesLabel: string;
@@ -75,6 +78,9 @@ const en: WidgetLocaleStrings = {
   messageWaiting: "Will send when you're back online",
   retryButton: 'Retry',
   regenerateButton: 'Regenerate',
+  copyButton: 'Copy reply',
+  copySuccess: 'Reply copied.',
+  copyFailure: 'Could not copy reply.',
   suggestionsLabel: 'Suggested questions',
   unreadCount: '{count} unread',
   sourcesLabel: 'Sources',

@@ -1,15 +1,22 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Messages } from '../../src/dom/messages.js';
 
 describe('Messages', () => {
   let parent: HTMLDivElement;
   let messages: Messages;
+  let clipboardDescriptor: PropertyDescriptor | undefined;
 
   beforeEach(() => {
+    clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
     document.body.innerHTML = '';
     parent = document.createElement('div');
     document.body.appendChild(parent);
     messages = new Messages(parent);
+  });
+
+  afterEach(() => {
+    if (clipboardDescriptor) Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
+    else Reflect.deleteProperty(navigator, 'clipboard');
   });
 
   it('creates a messages container', () => {
@@ -177,6 +184,60 @@ describe('Messages', () => {
     });
 
     expect(parent.querySelector('.cc-message-retry')).toBeNull();
+  });
+
+  it('copies completed assistant replies as readable text and announces success', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    parent.innerHTML = '';
+    messages = new Messages(parent, {
+      copyLabel: 'Copiar respuesta',
+      copySuccessLabel: 'Respuesta copiada.',
+      copyFailureLabel: 'No se pudo copiar.',
+    });
+    messages.addMessage({
+      id: 'copy-1',
+      role: 'assistant',
+      content: 'First line\n\n```js\nconst answer = 42;\nreturn answer;\n```',
+      status: 'complete',
+    });
+    const content = parent.querySelector<HTMLElement>('[data-id="copy-1"] .cc-message-content');
+    if (!content) throw new Error('no reply content');
+    Object.defineProperty(content, 'innerText', {
+      configurable: true,
+      value: 'First line\n\nconst answer = 42;\nreturn answer;',
+    });
+
+    const button = parent.querySelector<HTMLButtonElement>('.cc-message-copy');
+    expect(button?.textContent).toContain('Copiar respuesta');
+    expect(button?.type).toBe('button');
+    button?.click();
+    expect(writeText).toHaveBeenCalledWith('First line\n\nconst answer = 42;\nreturn answer;');
+    await vi.waitFor(() => expect(parent.querySelector('.cc-reply-announcement')?.textContent).toBe('Respuesta copiada.'));
+    expect(parent.querySelectorAll('.cc-reply-announcement')).toHaveLength(1);
+  });
+
+  it('hides the copy action while streaming and adds it when complete', () => {
+    messages.addMessage({ id: 'copy-stream', role: 'assistant', content: 'Partial', status: 'streaming' });
+    expect(parent.querySelector('.cc-message-copy')).toBeNull();
+
+    messages.updateMessage({ id: 'copy-stream', role: 'assistant', content: 'Finished', status: 'complete' });
+    expect(parent.querySelector('.cc-message-copy')).toBeTruthy();
+  });
+
+  it('announces failure when the clipboard is unavailable or rejects the write', async () => {
+    parent.innerHTML = '';
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined });
+    messages = new Messages(parent, { copyFailureLabel: 'Copy failed.' });
+    messages.addMessage({ id: 'copy-no-clipboard', role: 'assistant', content: 'Answer', status: 'complete' });
+    parent.querySelector<HTMLButtonElement>('.cc-message-copy')?.click();
+    expect(parent.querySelector('.cc-reply-announcement')?.textContent).toBe('Copy failed.');
+
+    const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    parent.querySelector<HTMLButtonElement>('.cc-message-copy')?.click();
+    await vi.waitFor(() => expect(parent.querySelector('.cc-reply-announcement')?.textContent).toBe('Copy failed.'));
+    expect(writeText).toHaveBeenCalledWith('Answer');
   });
 
   it('removes a message by id', () => {

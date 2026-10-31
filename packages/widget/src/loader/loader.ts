@@ -293,7 +293,12 @@ export function createLoader(
       updates.push(changes);
       const shadow = launcher?.shadowRoot;
       // The whole theme so far: a partial one would drop the mode it doesn't name.
-      if (changes.theme && shadow) applyTheme(shadow, Object.assign({}, config?.theme, ...updates.map((u) => u.theme)));
+      if (changes.theme && shadow) {
+        const themes = [config?.theme, ...updates.map((u) => u.theme)];
+        applyTheme(shadow, Object.assign({}, ...themes, {
+          tokens: Object.assign({}, ...themes.map((theme) => theme?.tokens)),
+        }));
+      }
       if (changes.strings?.openChat) button?.setAttribute('aria-label', changes.strings.openChat);
     },
 

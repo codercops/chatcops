@@ -30,6 +30,9 @@ const ur: Partial<WidgetLocaleStrings> = {
   preChatInvalidEmail: 'براہِ کرم درست ای میل درج کریں',
   retryButton: 'دوبارہ کوشش کریں',
   regenerateButton: 'جواب دوبارہ بنائیں',
+  copyButton: 'جواب کاپی کریں',
+  copySuccess: 'جواب کاپی ہو گیا۔',
+  copyFailure: 'جواب کاپی نہیں ہو سکا۔',
   unreadCount: '{count} غیر پڑھے',
 };
 

@@ -203,12 +203,17 @@ describe('update', () => {
   const host = (widget: Widget) => root(widget).host as HTMLElement;
 
   it('changes the theme in place and keeps what it leaves out', () => {
-    const widget = new Widget({ apiUrl: '/chat', theme: { mode: 'dark', accent: '#2563eb', fontFamily: 'Inter' } });
+    const widget = new Widget({
+      apiUrl: '/chat',
+      theme: { mode: 'dark', accent: '#2563eb', fontFamily: 'Inter', tokens: { border: '#d0d4da', 'panel-width': '440px' } },
+    });
     widget.init();
     const panel = root(widget).querySelector('.cc-panel');
-    widget.update({ theme: { accent: '#16a34a' } });
+    widget.update({ theme: { accent: '#16a34a', tokens: { border: '#ccddee' } } });
     expect(host(widget).style.getPropertyValue('--cc-theme-accent')).toBe('#16a34a');
     expect(host(widget).style.getPropertyValue('--cc-font')).toBe('Inter');
+    expect(host(widget).style.getPropertyValue('--cc-border')).toBe('#ccddee');
+    expect(host(widget).style.getPropertyValue('--cc-panel-width')).toBe('440px');
     expect(host(widget).dataset.ccMode).toBe('dark');
     widget.update({ theme: { mode: 'light' } });
     expect(host(widget).dataset.ccMode).toBe('light');
@@ -497,6 +502,27 @@ describe('the script tag loader API', () => {
     expect((root?.host as HTMLElement | undefined)?.style.getPropertyValue('--cc-theme-accent')).toBe('#16a34a');
     loader.update({ branding: { name: 'Support' } });
     expect(root?.querySelector('.cc-header-name')?.textContent).toBe('Support');
+    loader.destroy();
+  });
+
+  it('preserves token overrides across partial updates before and after loading', async () => {
+    const loader = createLoader(panel());
+    loader.init({ apiUrl: '/chat', theme: { fontFamily: 'Arial', tokens: { font: 'Inter' } } });
+    loader.update({ theme: { tokens: { border: '#ddd' } } });
+    loader.update({ theme: { tokens: { 'panel-width': '440px' } } });
+    const checkTokens = () => {
+      const host = document.querySelector('.chatcops-root') as HTMLElement;
+      expect(host.style.getPropertyValue('--cc-font')).toBe('Inter');
+      expect(host.style.getPropertyValue('--cc-border')).toBe('#ddd');
+      expect(host.style.getPropertyValue('--cc-panel-width')).toBe('440px');
+    };
+    checkTokens();
+    loader.open();
+    await tick();
+    await tick();
+    checkTokens();
+    loader.update({ theme: { tokens: { 'panel-height': '600px' } } });
+    checkTokens();
     loader.destroy();
   });
 

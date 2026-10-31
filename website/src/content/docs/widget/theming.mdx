@@ -18,6 +18,10 @@ ChatCops.init({
     accentDark: '#a5b4fc',       // the accent in dark mode; defaults to accent
     fontFamily: 'Inter, sans-serif',
     borderRadius: 12,            // px if a number, or any CSS length like '1rem'
+    tokens: {
+      border: '#d0d4da',
+      'panel-width': '440px',
+    },
     position: 'bottom-right',    // or 'bottom-left'
   },
 });
@@ -37,6 +41,36 @@ On the script tag, these are `data-theme-mode`, `data-accent` and `data-accent-d
 | Errors | `#c62828` | `#ef4444` |
 
 The dark look is the one the widget had before light mode existed. Text on the accent is picked for contrast (white or near-black, with the accent darkened a little when neither reaches 4.5:1), in each mode for its own accent.
+
+## CSS tokens
+
+Use `theme.tokens` to set any widget CSS token from JavaScript. Token names omit the `--cc-` prefix, and TypeScript checks them against the supported names. Tokens apply in every mode and take precedence over the corresponding options such as `accent` and `bgColor`. They can also be changed on a running widget with `update({ theme: { tokens: ... } })`.
+
+| Token | What it colors | Light default | Dark default |
+|-------|----------------|---------------|--------------|
+| `accent` | Primary accents, launcher and visitor messages | `#4f46e5` | `#6366f1` |
+| `accent-hover` | Hovered accent backgrounds | `#4338ca` | `#4f46e5` |
+| `on-accent` | Text and icons on accent backgrounds | `#ffffff` | `#ffffff` |
+| `accent-contrast` | Accent background chosen for readable text | `#4f46e5` | `#6164ec` |
+| `text` | Main text | `#1a1d23` | `#ffffff` |
+| `text-secondary` | Secondary and subdued text | `#5b616e` | `#a0a0a0` |
+| `bg` | Main widget background | `#ffffff` | `#0a0a0a` |
+| `bg-surface` | Raised surfaces, such as bot messages and header | `#f4f5f7` | `#1a1a1a` |
+| `surface-raised` | Menus above the panel, such as the header menu | `#ffffff` | `#1e1e1e` |
+| `bg-input` | Input backgrounds | `#ffffff` | `#2a2a2a` |
+| `border` | Widget and input borders | `#d9dce1` | `#333333` |
+| `danger` | Error and destructive states | `#c62828` | `#ef4444` |
+| `code-bg` | Inline code backgrounds | `rgb(0 0 0 / 0.07)` | `rgba(0, 0, 0, 0.2)` |
+| `pre-bg` | Code block backgrounds | `rgb(0 0 0 / 0.05)` | `rgba(0, 0, 0, 0.3)` |
+| `shadow` | Shared panel shadow | `0 12px 40px rgb(16 24 40 / 0.18)` | `0 8px 32px rgba(0,0,0,.4)` |
+| `font` | Widget font family | `system-ui, -apple-system, sans-serif` | `system-ui, -apple-system, sans-serif` |
+| `radius` | Shared corner radius | `12px` | `12px` |
+| `fab-size` | Launcher button width and height | `56px` | `56px` |
+| `panel-width` | Chat panel width | `400px` | `400px` |
+| `panel-height` | Chat panel height | `560px` | `560px` |
+| `focus-ring` | Keyboard focus indicator | `0 0 0 2px var(--cc-bg), 0 0 0 4px var(--cc-accent)` | `0 0 0 2px var(--cc-bg), 0 0 0 4px var(--cc-accent)` |
+
+`accent`, `accent-hover`, `on-accent`, and `accent-contrast` defaults may be adjusted by `accent` and `accentDark`. `focus-ring` references the active background and accent colors.
 
 ### Upgrading from a dark-only version
 
@@ -65,18 +99,16 @@ ChatCops.init({
 
 ## CSS Override (Advanced)
 
-You can override widget styles by targeting the host element. The first widget on a page has the id `chatcops-root`, and every widget host has the class `chatcops-root`, so use `.chatcops-root` to style all of them:
+You can override widget styles by targeting the host element. The first widget on a page has the id `chatcops-root`, and every widget host has the class `chatcops-root`, so use `.chatcops-root` to style all of them. For a CSS-only override in one pinned mode, target its `data-cc-mode` value:
 
 ```css
-#chatcops-root {
-  --cc-accent: #e11d48;
-  --cc-bg: #ffffff;
-  --cc-text: #111111;
-  --cc-panel-width: 450px;
-  --cc-panel-height: 600px;
-  --cc-fab-size: 64px;
+.chatcops-root[data-cc-mode="dark"] {
+  --cc-border: #d0d4da;
+  --cc-panel-width: 440px;
 }
 ```
+
+The host has `data-cc-mode="light"` or `"dark"` when that mode is selected explicitly.
 
 ## AI-generated replies
 
@@ -89,6 +121,8 @@ document.getElementById('chatcops-root').shadowRoot.querySelectorAll('[data-ai-g
 ## ThemeConfig Interface
 
 ```typescript
+import type { WidgetTokens } from '@chatcops/widget';
+
 interface ThemeConfig {
   mode?: 'light' | 'dark' | 'auto';  // Default 'auto': follows the system setting
   accent?: string;          // Hex color
@@ -97,6 +131,7 @@ interface ThemeConfig {
   bgColor?: string;         // Hex color
   fontFamily?: string;      // CSS font-family string
   borderRadius?: string | number;  // px if a number or numeric string (12, '12'), or any CSS length ('1rem')
+  tokens?: WidgetTokens;    // Partial CSS tokens, named without the '--cc-' prefix; applied in every mode
   position?: 'bottom-right' | 'bottom-left';
 }
 ```

@@ -94,6 +94,40 @@ describe('applyTheme', () => {
     expect(get('--cc-bg-surface')).toBe('#1e1e1e');
     expect(get('--cc-bg-input')).toBe('#2c2c2c');
   });
+
+  it('sets custom tokens after the existing options', () => {
+    applyTheme(root, {
+      accent: '#4f46e5',
+      bgColor: '#0a0a0a',
+      tokens: { accent: '#e11d48', bg: '#18181b', border: '#d0d4da', 'panel-width': '440px' },
+    });
+    expect(get('--cc-accent')).toBe('#e11d48');
+    expect(get('--cc-bg')).toBe('#18181b');
+    expect(get('--cc-border')).toBe('#d0d4da');
+    expect(get('--cc-panel-width')).toBe('440px');
+  });
+
+  it('ignores unknown token names and empty values', () => {
+    applyTheme(root, { tokens: { border: '', unknown: '#fff' } as never });
+    expect(get('--cc-border')).toBe('');
+    expect(get('--cc-unknown')).toBe('');
+  });
+
+  it('ignores undefined and whitespace-only token values', () => {
+    applyTheme(root, { tokens: { border: undefined, font: '   ', 'panel-width': '440px' } });
+    expect(get('--cc-border')).toBe('');
+    expect(get('--cc-font')).toBe('');
+    expect(get('--cc-panel-width')).toBe('440px');
+  });
+
+  it('keeps token overrides on the host in each selected mode', () => {
+    applyTheme(root, { mode: 'light', tokens: { border: '#d0d4da' } });
+    expect(host.dataset.ccMode).toBe('light');
+    expect(get('--cc-border')).toBe('#d0d4da');
+    applyTheme(root, { mode: 'dark' });
+    expect(host.dataset.ccMode).toBe('dark');
+    expect(get('--cc-border')).toBe('#d0d4da');
+  });
 });
 
 describe('accent text contrast', () => {
@@ -247,4 +281,3 @@ describe('focus ring', () => {
     expect(host.style.getPropertyValue('--cc-focus-ring')).toBe('0 0 0 3px red');
   });
 });
-
