@@ -201,14 +201,17 @@ describe('Messages', () => {
       content: 'First line\n\n```js\nconst answer = 42;\nreturn answer;\n```',
       status: 'complete',
     });
+    const content = parent.querySelector<HTMLElement>('[data-id="copy-1"] .cc-message-content')!;
+    Object.defineProperty(content, 'innerText', {
+      configurable: true,
+      value: 'First line\n\nconst answer = 42;\nreturn answer;',
+    });
 
     const button = parent.querySelector<HTMLButtonElement>('.cc-message-copy');
     expect(button?.textContent).toContain('Copiar respuesta');
     expect(button?.type).toBe('button');
     button?.click();
-    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('const answer = 42;'));
-    expect(writeText.mock.calls[0][0]).not.toContain('```');
-    expect(writeText.mock.calls[0][0]).toMatch(/\n/);
+    expect(writeText).toHaveBeenCalledWith('First line\n\nconst answer = 42;\nreturn answer;');
     await vi.waitFor(() => expect(parent.querySelector('.cc-reply-announcement')?.textContent).toBe('Respuesta copiada.'));
     expect(parent.querySelectorAll('.cc-reply-announcement')).toHaveLength(1);
   });

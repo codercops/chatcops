@@ -404,7 +404,7 @@ export class Messages {
   /** Start the clipboard write in the click handler so it keeps user activation. */
   private copyReply(messageId: string): void {
     const content = this.findMessage(messageId)?.querySelector<HTMLElement>('.cc-message-content');
-    const text = content ? readableText(content) : '';
+    const text = content?.innerText.trim() ?? '';
     const version = this.announcementVersion;
     const announce = (message: string) => {
       if (version === this.announcementVersion) this.announcement.textContent = message;
@@ -464,31 +464,6 @@ export class Messages {
     div.textContent = text;
     return div.innerHTML;
   }
-}
-
-function readableText(element: HTMLElement): string {
-  if (typeof element.innerText === 'string') return element.innerText.trim();
-
-  let text = '';
-  const blockTags = new Set(['BLOCKQUOTE', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'OL', 'P', 'PRE', 'UL']);
-  const visit = (node: Node) => {
-    if (node.nodeType === Node.TEXT_NODE) {
-      text += node.textContent ?? '';
-      return;
-    }
-    if (node.nodeType !== Node.ELEMENT_NODE) return;
-    const tag = (node as Element).tagName;
-    if (tag === 'BR') {
-      text += '\n';
-      return;
-    }
-    const isBlock = blockTags.has(tag);
-    if (isBlock && text && !text.endsWith('\n')) text += '\n';
-    node.childNodes.forEach(visit);
-    if (isBlock && !text.endsWith('\n')) text += '\n';
-  };
-  visit(element);
-  return text.replace(/\n{3,}/g, '\n\n').trim();
 }
 
 /**
