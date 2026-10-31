@@ -83,6 +83,40 @@ describe('Widget', () => {
     widget.destroy();
   });
 
+  it('reports malformed inline container selectors with a ChatCops error', () => {
+    const widget = new Widget({
+      apiUrl: 'https://api.test/chat',
+      mode: 'inline',
+      container: '[',
+      siteId: 'invalid-container-selector',
+    });
+
+    expect(() => widget.init()).toThrowError('ChatCops: invalid container selector: [');
+  });
+
+  it('keeps the existing error when an inline container selector has no match', () => {
+    const widget = new Widget({
+      apiUrl: 'https://api.test/chat',
+      mode: 'inline',
+      container: '#missing-container',
+      siteId: 'missing-container-selector',
+    });
+
+    expect(() => widget.init()).toThrowError('ChatCops: container element not found: #missing-container');
+  });
+
+  it('resolves a valid inline container selector', () => {
+    const container = document.createElement('div');
+    container.id = 'inline-container';
+    document.body.appendChild(container);
+    const widget = new Widget({ apiUrl: 'https://api.test/chat', mode: 'inline', container: '#inline-container' });
+
+    widget.init();
+
+    expect(container.querySelector('.chatcops-root')).not.toBeNull();
+    widget.destroy();
+  });
+
   afterEach(() => {
     document.documentElement.removeAttribute('style');
     vi.useRealTimers();

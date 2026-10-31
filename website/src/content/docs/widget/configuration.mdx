@@ -126,7 +126,7 @@ ChatCops.init({
 });
 ```
 
-The `container` option accepts a CSS selector string or a direct `HTMLElement` reference.
+The `container` option accepts a valid CSS selector string or a direct `HTMLElement` reference. An invalid selector throws a `ChatCops: invalid container selector` error; a valid selector that matches no element throws a `ChatCops: container element not found` error.
 
 ### More than one widget on a page
 

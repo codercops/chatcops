@@ -237,7 +237,12 @@ export class Widget {
       throw new Error('ChatCops: "container" is required when mode is "inline"');
     }
     if (typeof this.config.container === 'string') {
-      const el = document.querySelector(this.config.container);
+      let el: Element | null;
+      try {
+        el = document.querySelector(this.config.container);
+      } catch {
+        throw new Error(`ChatCops: invalid container selector: ${this.config.container}`);
+      }
       if (!el) {
         throw new Error(`ChatCops: container element not found: ${this.config.container}`);
       }
