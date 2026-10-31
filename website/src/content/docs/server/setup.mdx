@@ -356,7 +356,7 @@ Each webhook gets a POST with a JSON body for every event it subscribes to:
 
 `id` is the same on every retry, so use it to ignore duplicates; it's also in the `X-ChatCops-Event-Id` header.
 
-**Retries.** Each webhook can set `timeoutMs` (per attempt, default `5000`) and `maxAttempts` (1 to 10, default `3`); a bad value fails at startup. Network errors, 429 and 5xx responses are retried (a 429's `Retry-After` is honored, up to 10 seconds); other 4xx responses are final, and redirects aren't followed. Between attempts it waits 1 second, then 2, then 4, doubling each time. A delivery that fails for good is logged with the event type, id and the receiver's origin, never the body.
+**Retries.** Each webhook can set `timeoutMs` (per attempt, default `5000`) and `maxAttempts` (1 to 10, default `3`); a bad value fails at startup. Network errors, 429 and 5xx responses are retried; other 4xx responses are final, and redirects aren't followed. A 429's `Retry-After` accepts delay-seconds or an HTTP-date; date delays are measured from receipt and capped at 10 seconds (past dates retry immediately), while missing or invalid values use the existing exponential backoff. Between attempts it waits 1 second, then 2, then 4, doubling each time. A delivery that fails for good is logged with the event type, id and the receiver's origin, never the body.
 
 **Verifying the signature.** With a `secret`, each request has an `X-ChatCops-Signature: t=<unix seconds>,v1=<hex>` header, an HMAC-SHA256 of `<t>.<raw body>`. Verify it against the raw body, before parsing it:
 
@@ -379,7 +379,7 @@ app.post('/hooks/chatcops', express.text({ type: 'application/json' }), async (r
 });
 ```
 
-`verifyWebhook` also rejects signatures older than 5 minutes (`toleranceSec` changes that).
+`verifyWebhook` also rejects signatures more than 5 minutes (300 seconds) away from now, in the past or the future. `toleranceSec` changes that: it takes a whole number of seconds, `0` or more, where `0` accepts only a signature made in the same second. Any other value (`NaN`, `Infinity`, a negative number, a fraction) throws a `RangeError`, since it would otherwise switch the check off, and a wrong setting should be loud rather than look like a bad signature.
 
 **Allowed URLs.** Webhook URLs must use https, and hosts on loopback, private or link-local networks (`localhost`, `10.x`, `192.168.x`, `169.254.169.254` and so on) are refused when the server starts. For a receiver on your own machine during development, set `allowPrivateNetwork: true` on that webhook:
 

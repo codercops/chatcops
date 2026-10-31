@@ -169,6 +169,72 @@ describe('webhook retries', () => {
     expect(calls).toHaveLength(3);
   });
 
+  it('parses HTTP-date Retry-After values and caps their delay at 10 seconds', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-31T14:00:00.000Z'));
+    const calls = captureFetch([
+      new Response('', {
+        status: 429,
+        headers: { 'Retry-After': new Date(Date.now() + 5_000).toUTCString() },
+      }),
+      new Response('', {
+        status: 429,
+        headers: { 'Retry-After': new Date(Date.now() + 30_000).toUTCString() },
+      }),
+      new Response('', { status: 200 }),
+    ]);
+    const dispatcher = new WebhookDispatcher([{ url: 'https://hooks.test/date', events: ['*'] }]);
+
+    const done = dispatcher.dispatch('lead:captured', {});
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(calls).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(calls).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(calls).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(1);
+    await done;
+    expect(calls).toHaveLength(3);
+  });
+
+  it('retries immediately for a past HTTP-date Retry-After value', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-31T14:00:00.000Z'));
+    const calls = captureFetch([
+      new Response('', {
+        status: 429,
+        headers: { 'Retry-After': 'Sat, 31 Oct 2026 13:59:59 GMT' },
+      }),
+      new Response('', { status: 200 }),
+    ]);
+    const dispatcher = new WebhookDispatcher([{ url: 'https://hooks.test/past-date', events: ['*'] }]);
+
+    const done = dispatcher.dispatch('lead:captured', {});
+    await vi.advanceTimersByTimeAsync(0);
+    await done;
+    expect(calls).toHaveLength(2);
+  });
+
+  it.each([
+    ['invalid', 'not a valid HTTP date'],
+    ['missing', null],
+  ])('%s Retry-After uses the exponential fallback', async (_label, retryAfter) => {
+    vi.useFakeTimers();
+    const headers = retryAfter ? { 'Retry-After': retryAfter } : {};
+    const calls = captureFetch([
+      new Response('', { status: 429, headers }),
+      new Response('', { status: 200 }),
+    ]);
+    const dispatcher = new WebhookDispatcher([{ url: 'https://hooks.test/fallback', events: ['*'] }]);
+
+    const done = dispatcher.dispatch('lead:captured', {});
+    await vi.advanceTimersByTimeAsync(999);
+    expect(calls).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await done;
+    expect(calls).toHaveLength(2);
+  });
+
   it("doesn't retry other client errors, and logs the failure without the body or secret", async () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     const calls = captureFetch([new Response('', { status: 400 })]);
