@@ -33,9 +33,20 @@ export async function postWithRetries(
       const detail = (await response.text().catch(() => '')).slice(0, 300);
       throw new Error(`${provider} ${operation} failed with HTTP ${response.status}${detail ? `: ${detail}` : ''}`);
     }
-    const wait = Number(response.headers.get('retry-after'));
-    await sleep(Number.isFinite(wait) && wait > 0 ? Math.min(wait, 30) * 1000 : 1000 * attempt, signal);
+    const retryAfterMs = retryAfterDelayMs(response.headers.get('retry-after'));
+    await sleep(retryAfterMs ?? 1000 * attempt, signal);
   }
+}
+
+function retryAfterDelayMs(value: string | null): number | undefined {
+  if (value === null) return undefined;
+
+  const trimmed = value.trim();
+  if (/^\d+$/.test(trimmed)) return Math.min(Number(trimmed), 30) * 1000;
+
+  const date = Date.parse(trimmed);
+  if (!Number.isFinite(date)) return undefined;
+  return Math.min(Math.max(date - Date.now(), 0), 30_000);
 }
 
 /** A whole number of texts per request, from 1 to what the API accepts. */
