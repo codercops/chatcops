@@ -257,6 +257,7 @@ declare const TOKEN_NAMES: readonly [
     "text",
     "bg",
     "bg-surface",
+    "surface-raised",
     "bg-input",
     "border",
     "text-secondary",

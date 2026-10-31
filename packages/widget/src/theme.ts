@@ -8,6 +8,7 @@ const TOKEN_NAMES = [
   'text',
   'bg',
   'bg-surface',
+  'surface-raised',
   'bg-input',
   'border',
   'text-secondary',
