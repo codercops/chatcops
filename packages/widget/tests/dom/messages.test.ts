@@ -201,7 +201,8 @@ describe('Messages', () => {
       content: 'First line\n\n```js\nconst answer = 42;\nreturn answer;\n```',
       status: 'complete',
     });
-    const content = parent.querySelector<HTMLElement>('[data-id="copy-1"] .cc-message-content')!;
+    const content = parent.querySelector<HTMLElement>('[data-id="copy-1"] .cc-message-content');
+    if (!content) throw new Error('no reply content');
     Object.defineProperty(content, 'innerText', {
       configurable: true,
       value: 'First line\n\nconst answer = 42;\nreturn answer;',
