@@ -8,7 +8,7 @@
   {
     "name": "widget, chat panel (chatcops.panel.js, loaded on open)",
     "path": "packages/widget/dist/chatcops.panel.js",
-    "limit": "18 KB",
+    "limit": "19 KB",
     "gzip": true
   },
   {
@@ -18,15 +18,21 @@
     "gzip": true
   },
   {
+    "name": "widget, header menu (chunks/menu-*.js, loaded on first open)",
+    "path": "packages/widget/dist/chunks/menu-*.js",
+    "limit": "2 KB",
+    "gzip": true
+  },
+  {
     "name": "widget, single file (chatcops.full.min.js)",
     "path": "packages/widget/dist/chatcops.full.min.js",
-    "limit": "20 KB",
+    "limit": "22 KB",
     "gzip": true
   },
   {
     "name": "widget, ESM (unminified: sites bundle and minify it, so this only catches runaway growth)",
     "path": "packages/widget/dist/chatcops.esm.js",
-    "limit": "30 KB",
+    "limit": "32 KB",
     "gzip": true
   }
 ]

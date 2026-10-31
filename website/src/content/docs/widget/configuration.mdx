@@ -28,7 +28,7 @@ ChatCops supports two display modes:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js"
   nonce="YOUR_RESPONSE_NONCE"
   data-api-url="https://your-api.com/chat"
   data-accent="#6366f1"
@@ -46,6 +46,7 @@ ChatCops supports two display modes:
   data-placeholder="Type a message..."
   data-locale="en"
   data-auto-open="1000"
+  data-privacy-url="https://example.com/privacy"
 ></script>
 ```
 
@@ -54,7 +55,7 @@ ChatCops supports two display modes:
 ```html
 <div id="chat-container" style="width: 400px; height: 500px;"></div>
 <script
-  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js"
   data-api-url="https://your-api.com/chat"
   data-mode="inline"
   data-container="#chat-container"
@@ -218,6 +219,19 @@ ChatCops.init({
 
 `disclosure: false` (or `data-disclosure="false"`) removes it. The widget then logs a note in the console, because telling visitors some other way is up to you.
 
+### Privacy policy link
+
+Add `privacyUrl` (or `data-privacy-url` on the script tag) to show a "Privacy" link in the header's "More options" menu (`⋯`), opening your site's privacy policy in a new tab:
+
+```typescript
+ChatCops.init({
+  apiUrl: '/api/chat',
+  privacyUrl: 'https://example.com/privacy',
+});
+```
+
+Only `https:` and `http:` URLs are accepted. Invalid or unsafe URLs (such as `javascript:`) are omitted.
+
 ### Streaming inactivity timeout
 
 Set `timeout` in `ChatCops.init()` to change the inactivity timeout in milliseconds.
@@ -230,6 +244,16 @@ A response can stream for longer than the timeout as long as chunks keep arrivin
 A request that never responds, or a stream that stops sending data, fails with a
 timeout error. Use a larger value for backends with longer silent periods. This
 option is available through programmatic configuration.
+
+### Messages sent while offline
+
+If the browser reports it is offline (`navigator.onLine`), a message the visitor sends is shown with the note "Will send when you're back online" (the `messageWaiting` string) and is not sent. When the `online` event fires, the widget sends the waiting messages in order, one at a time, with no click needed. A message that then fails gets the usual error and Retry button, and the ones after it still go. If the connection drops again partway, the rest keep waiting. The `message` event for a waiting message fires when it is sent, not when it is typed.
+
+Waiting messages live in this page view only: they are not saved, so a reload, `ChatCops.newConversation()` or `ChatCops.clear()` drops them. The note is announced through the reply live region. A reply that fails because the connection drops in the middle is not part of this; it still shows the network error with Retry.
+
+### Stopping a reply
+
+While a reply streams, the send button becomes a Stop button, named by the `stopButton` string (`Stop` in English; a language without it shows the English one). Clicking it ends the request, so the server stops generating, and keeps the text that has streamed as a finished reply: no error, and the visitor can use Regenerate to ask again. The `message` event fires for it with `status: 'complete'`. If the visitor stops before any text has arrived, no reply appears. The text box stays locked while a reply streams, so Escape does not stop it and still closes the popup.
 
 ## WidgetConfig Interface
 
@@ -298,6 +322,7 @@ interface WidgetConfig {
   locale?: string;            // Sent to the server with each message. Only English strings are built in
   dir?: 'ltr' | 'rtl' | 'auto'; // Text direction; defaults from locale, then document direction
   strings?: Partial<WidgetLocaleStrings>; // Custom i18n overrides
+  privacyUrl?: string;        // Link in header menu to your site's privacy policy (https: or http: only)
   preChatForm?: {
     enabled: boolean;
     title?: string;
@@ -356,6 +381,7 @@ See the [pre-chat form guide](/widget/pre-chat-form) for field behavior, validat
 | `data-persistence` | `persistence` | `'local'`, `'session'` or `'none'` |
 | `data-history-ttl-days` | `historyTtlDays` | Days a saved conversation is kept |
 | `data-wait-for-consent` | `waitForConsent` | Wait for `ChatCops.setConsent(true)` before using storage or the API. `"false"` turns it off |
+| `data-privacy-url` | `privacyUrl` | Privacy policy link in header menu (https: or http: only) |
 | `data-turnstile-site-key` | `turnstileSiteKey` | Cloudflare Turnstile site key, when the server checks Turnstile |
 | `data-user-token` | `userToken` | Signed token for a signed-in visitor, when the server has `identity` set |
 

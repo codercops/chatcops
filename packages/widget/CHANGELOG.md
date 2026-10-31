@@ -1,5 +1,31 @@
 # @chatcops/widget
 
+## 1.0.0
+
+### Major Changes
+
+- 3f6fd66: Removes the APIs that 0.6 to 0.8 deprecated. Each one now fails at startup with a message naming the replacement, and [Upgrading to 1.0](https://chat.codercops.com/getting-started/upgrading-to-1/) has a step for each.
+
+  - Server: `cors` (use `allowedOrigins`), `conversationStore` (use `storage: { conversations }`), `i18n` (ignored since 0.6), and the `RateLimiter` and `RateLimitConfig` exports (use `createRateLimiter` from `@chatcops/core`). Webhook bodies no longer repeat `event` and `timestamp`: read `type` and `created`.
+  - Core: analytics stats drop `leadsCapture` (use `leadsCaptured`), and the `noun:verb` event names are no longer read as `noun.verb` ones or repeated in `eventCounts`. Events a store saved under them still count.
+  - Core: the Claude, OpenAI and Gemini providers no longer have `chat()` and `chatSync()`; use `runTurn()`. On `AIProvider`, `chat()` is optional and `chatSync()` is gone, so a custom provider needs `step()` or `chat()`.
+  - Widget: `persistHistory` (use `persistence: 'none'`). Setting it throws, so a site that asked for nothing to be saved never starts saving.
+
+### Minor Changes
+
+- 2f9b9dc: `waitForConsent` holds the chat behind a notice until `ChatCops.setConsent(true)`. While it waits the widget uses no storage and calls no API; `setConsent(false)` closes the chat and removes what it saved. The notice has a button that calls `onConsentRequest`, and the script tag takes `data-wait-for-consent`.
+- e699c3d: Add a header "More options" menu (`⋯`) with "New conversation", "Download transcript" and an optional "Privacy" link configured via `privacyUrl` (or `data-privacy-url`).
+- a3ed530: A message sent while the browser is offline is shown as waiting ("Will send when you're back online", the new `messageWaiting` string) instead of failing. The widget sends the waiting messages in order, one at a time, when the `online` event fires. They are never saved, and a reload or a new conversation drops them.
+- 05cf305: While a reply streams, the send button becomes a Stop button. Clicking it ends the request and keeps what has streamed as a finished reply, with Regenerate and no error. The button's name is the new `stopButton` string, with an English default.
+- 991839f: `userToken` can be a function (sync or async) that returns a fresh signed token. The widget calls it once each time it asks the server for a session, not per message. If it throws, rejects or takes over 5 seconds, the session starts without the visitor and a warning is logged. A string still works as before.
+
+### Patch Changes
+
+- d2494da: Apply CSP nonces to the widget's injected styles.
+- aa85ebd: Numbered lists in replies keep their numbers. A list that starts after 1, including each step of a list split by blank lines, now renders with `start` instead of restarting at 1.
+- 5309e65: Reuse a script tag's CSP nonce when manually initializing the widget.
+- 6696a21: `ChatCops.setUser({ token })` takes a function (sync or async) that returns a fresh token, the same as `userToken`. Passing the same function again keeps the chat; a different function, a string or no token starts a new one.
+
 ## 1.0.0-rc.0
 
 ### Major Changes

@@ -93,7 +93,7 @@ describe('Panel', () => {
   it('wraps Tab from the last focusable element to the first', () => {
     const panel = createPanel();
     panel.show();
-    const closeButton = root.querySelector('.cc-header-close') as HTMLButtonElement;
+    const moreButton = root.querySelector('.cc-header-more') as HTMLButtonElement;
     const textarea = root.querySelector('.cc-panel textarea') as HTMLTextAreaElement;
     textarea.focus();
 
@@ -101,13 +101,13 @@ describe('Panel', () => {
     textarea.dispatchEvent(event);
 
     expect(event.defaultPrevented).toBe(true);
-    expect(root.activeElement).toBe(closeButton);
+    expect(root.activeElement).toBe(moreButton);
   });
 
   it('wraps Shift+Tab from the first focusable element to the latest one', () => {
     const panel = createPanel({ preChatEnabled: true });
     panel.show();
-    const closeButton = root.querySelector('.cc-header-close') as HTMLButtonElement;
+    const moreButton = root.querySelector('.cc-header-more') as HTMLButtonElement;
     const submitButton = document.createElement('button');
     submitButton.textContent = 'Submit pre-chat form';
     submitButton.tabIndex = 0;
@@ -118,7 +118,7 @@ describe('Panel', () => {
     preChatForm.className = 'cc-prechat-fields';
     preChatForm.append(preChatInput, submitButton);
     panel.messagesContainer.appendChild(preChatForm);
-    closeButton.focus();
+    moreButton.focus();
 
     const event = new KeyboardEvent('keydown', {
       key: 'Tab',
@@ -126,7 +126,7 @@ describe('Panel', () => {
       bubbles: true,
       cancelable: true,
     });
-    closeButton.dispatchEvent(event);
+    moreButton.dispatchEvent(event);
 
     expect(event.defaultPrevented).toBe(true);
     expect(root.activeElement).toBe(root.querySelector('.cc-panel textarea'));
@@ -135,7 +135,7 @@ describe('Panel', () => {
   it('recomputes focusable elements after they are added or removed', () => {
     const panel = createPanel();
     panel.show();
-    const closeButton = root.querySelector('.cc-header-close') as HTMLButtonElement;
+    const moreButton = root.querySelector('.cc-header-more') as HTMLButtonElement;
     const textarea = root.querySelector('.cc-panel textarea') as HTMLTextAreaElement;
     const retryButton = document.createElement('button');
     retryButton.textContent = 'Retry';
@@ -151,7 +151,7 @@ describe('Panel', () => {
     const tabFromRetry = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
     retryButton.dispatchEvent(tabFromRetry);
     expect(tabFromRetry.defaultPrevented).toBe(true);
-    expect(root.activeElement).toBe(closeButton);
+    expect(root.activeElement).toBe(moreButton);
 
     retryButton.remove();
     textarea.focus();
@@ -162,7 +162,7 @@ describe('Panel', () => {
     });
     textarea.dispatchEvent(tabAfterRetryIsRemoved);
     expect(tabAfterRetryIsRemoved.defaultPrevented).toBe(true);
-    expect(root.activeElement).toBe(closeButton);
+    expect(root.activeElement).toBe(moreButton);
   });
 
   it('does not trap focus in a closed popup', () => {

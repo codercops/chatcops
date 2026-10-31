@@ -7,7 +7,7 @@ import { EXIT, wholeNumber, type Io, type Values } from '../main.js';
 import { assertionName, unknownAssertions } from './assertions/index.js';
 import { Spend } from './cost.js';
 import { resolveJudge } from './judge.js';
-import { DEFAULT_PATTERN, findFixtures, loadFixture, matchesFilter } from './load.js';
+import { DEFAULT_PATTERN, assertionsOf, findFixtures, loadFixture, matchesFilter } from './load.js';
 import type { CassetteMode, Cassettes } from './cassette.js';
 import { runFixtures, withMocks, withoutKeys, type FixtureJob } from './run.js';
 import { REPORTERS } from './reporters/index.js';
@@ -33,7 +33,7 @@ export async function runTests(
   const fixtures: FixtureJob[] = [];
   for (const file of files) {
     const fixture = await loadFixture(file);
-    const unknown = unknownAssertions(fixture.tests.flatMap((test) => test.turns.flatMap((turn) => turn.expect ?? [])));
+    const unknown = unknownAssertions(fixture.tests.flatMap(assertionsOf));
     if (unknown.length) throw new ConfigError(`${relative(io.cwd, file)} uses assertions that don't exist: ${unknown.join(', ')}`);
     for (const test of fixture.tests) {
       try {
@@ -63,7 +63,8 @@ export async function runTests(
     throw new ConfigError(`The server config's provider can't start: ${(error as Error).message}`);
   }
 
-  const usesJudge = fixtures.some((job) => job.tests.some((test) => test.turns.some((turn) => turn.expect?.some((a) => assertionName(a).name === 'judge'))));
+  // A simulated visitor is played by the judge model too.
+  const usesJudge = fixtures.some((job) => job.tests.some((test) => test.simulate || assertionsOf(test).some((a) => assertionName(a).name === 'judge')));
   const judge = usesJudge
     ? await resolveJudge({
         ...(cli.judge ? { configured: cli.judge } : {}),
@@ -106,13 +107,13 @@ export async function runTests(
     },
   });
   const elapsedMs = performance.now() - started;
-  const costs = results.flatMap((r) => r.runs.flatMap((run) => run.turns.flatMap(({ turn, results: checks }) => [turn.costUsd, ...checks.map((c) => c.costUsd)])));
+  const costs = results.flatMap((r) => r.runs.flatMap((run) => run.turns.flatMap(({ turn, results: checks }) => [turn.costUsd, turn.visitorCostUsd, ...checks.map((c) => c.costUsd)])));
   const priced = costs.filter((cost): cost is number => cost !== undefined);
   const costIncomplete =
     results.some((result) =>
       result.runs.some(
         (run) =>
-          run.turns.some(({ turn }) => turn.costUsd === undefined) ||
+          run.turns.some(({ turn }) => turn.costUsd === undefined || (turn.simulated && turn.visitorCostUsd === undefined)) ||
           run.turns.some(({ results: checks }) => checks.some((check) => assertionName(check.assertion).name === 'judge' && check.costUsd === undefined))
       )
     );

@@ -16,7 +16,7 @@ Multi-provider (Claude, OpenAI, Gemini), lead capture, knowledge base, conversat
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js"
   data-api-url="https://your-api.com/chat"
   data-accent="#6366f1">
 </script>
@@ -38,10 +38,10 @@ app.use(express.json());
 app.use('/chat', chatcopsMiddleware({
   provider: {
     type: 'claude',
-    apiKey: process.env.ANTHROPIC_API_KEY,
+    apiKey: process.env.ANTHROPIC_API_KEY!,
   },
   systemPrompt: 'You are a helpful assistant for our website.',
-  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET], // openssl rand -base64 32
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!], // openssl rand -base64 32
 }));
 
 app.listen(3001);
@@ -52,7 +52,7 @@ That's it. Your site now has an AI chat widget.
 ## Features
 
 - **Multi-provider** - Claude, OpenAI, Gemini. Switch with one config change.
-- **Zero-dependency widget** - Shadow DOM isolated, ~13KB gzipped.
+- **Zero-dependency widget** - Shadow DOM isolated. The script tag loads a launcher under 5 kB gzipped, and the chat itself loads when it's opened.
 - **Streaming responses** - Real-time SSE streaming from all providers.
 - **Lead capture** - Built-in tool for capturing contact info, with webhook support.
 - **Knowledge base** - Feed text chunks or FAQ pairs for context-aware responses.
@@ -104,7 +104,7 @@ ChatCops.init({
     delay: 3000,
   },
   locale: 'en',
-  persistHistory: true,
+  persistence: 'local', // the default; 'session' keeps it for the tab, 'none' saves nothing
   onMessage: (msg) => console.log('New message:', msg),
 });
 ```
@@ -117,11 +117,13 @@ ChatCops.init({
 import { chatcopsVercelHandler } from '@chatcops/server/vercel';
 
 export default chatcopsVercelHandler({
-  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY },
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
   systemPrompt: 'You are a helpful assistant.',
-  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET],
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
 });
 ```
+
+Add `api/chat/session.ts` with `export { default } from '../chat';` so the widget can get its session token there.
 
 ### Cloudflare Workers
 

@@ -98,6 +98,18 @@ export class Messages {
     this.container.setAttribute('aria-live', 'polite');
   }
 
+  /** Puts a note under the visitor's message saying it is waiting to be sent (and announces it), or takes the note off. */
+  setWaiting(id: string, note?: string): void {
+    const el = this.findMessage(id);
+    el?.querySelector('.cc-message-waiting')?.remove();
+    if (!el || !note) return;
+    const waiting = document.createElement('div');
+    waiting.className = 'cc-message-waiting';
+    waiting.textContent = note;
+    el.appendChild(waiting);
+    this.announcement.textContent = note;
+  }
+
   addMessage(msg: MessageData): HTMLDivElement {
     // The visitor's own message always brings the log down; a reply only
     // when they haven't scrolled up to read.

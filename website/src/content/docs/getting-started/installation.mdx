@@ -9,16 +9,18 @@ ChatCops consists of three packages. Install only what you need.
 
 ### CDN (Recommended)
 
-The simplest way — no build step required:
+The simplest way, with no build step:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js"
   data-api-url="https://your-api.com/chat"
 ></script>
 ```
 
-`chatcops.min.js` is a small loader (about 3 kB) that draws the chat button. The rest of the chat (`chatcops.panel.js`, next to it) downloads when the visitor hovers or clicks the button, or when the chat has to open on its own. So pages where nobody opens the chat only pay for the button. Parts that only some sites use, the pre-chat form and Turnstile, are separate files in `dist/chunks/` and download only on sites that turn them on.
+`@1` in the URL gets every 1.x release, with fixes and new features, but never 2.0, whose breaking changes wait for you to upgrade. Pin an exact version (`@1.0.0`) to change nothing until you choose to. A URL without a version follows npm's `latest`, so a new major reaches your site the day it's published.
+
+`chatcops.min.js` is a small loader (under 5 kB gzipped) that draws the chat button. The rest of the chat (`chatcops.panel.js`, next to it) downloads when the visitor hovers or clicks the button, or when the chat has to open on its own. So pages where nobody opens the chat only pay for the button. Parts that only some sites use, the pre-chat form and Turnstile, are separate files in `dist/chunks/` and download only on sites that turn them on.
 
 ### Self-hosting
 

@@ -139,6 +139,55 @@ for (const look of looks) {
       await expectAccessible(page);
     });
 
+    test('S18 a reply the visitor stopped', async ({ page }) => {
+      await start(page, look);
+      await page.evaluate(() => {
+        const w = window as unknown as { __aborts: number };
+        const realFetch = window.fetch;
+        w.__aborts = 0;
+        window.fetch = (input, init) => {
+          init?.signal?.addEventListener('abort', () => w.__aborts++);
+          return realFetch(input, init);
+        };
+      });
+      await openChat(page);
+      await ask(page, 'Please keep it still streaming');
+      const reply = page.locator('.cc-message-assistant').last();
+      await expect(reply).toContainText('Hello from the');
+      await expect(page.locator(send)).toHaveAccessibleName('Stop');
+      await expectAccessible(page);
+
+      await page.locator(send).click();
+      // The browser's request was aborted, which is what lets the server stop the model.
+      await expect.poll(() => page.evaluate(() => (window as unknown as { __aborts: number }).__aborts)).toBe(1);
+
+      await expect(reply).toContainText('Hello from the');
+      await expect(page.locator('.cc-message-error-note')).toHaveCount(0);
+      await expect(page.locator('.cc-message-regenerate')).toBeVisible();
+      await expect(page.locator(send)).toHaveAccessibleName('Send');
+      await expect(page.locator(input)).toBeEnabled();
+      await expectAccessible(page);
+    });
+
+    test('S19 a message waiting for the connection', async ({ page }) => {
+      await start(page, look);
+      await openChat(page);
+      await page.context().setOffline(true);
+      await ask(page, 'Are you there?');
+
+      await expect(page.locator('.cc-message-waiting')).toHaveText("Will send when you're back online");
+      await expect(page.locator('.cc-reply-announcement')).toHaveText("Will send when you're back online");
+      await expect(page.locator(input)).toBeEnabled();
+      await expectAccessible(page);
+
+      // Nothing is clicked: the widget sends it when the browser is back online.
+      await page.context().setOffline(false);
+      await expect(page.locator('.cc-message-assistant').last()).toContainText('Hello from the test server.');
+      await expect(page.locator('.cc-message-waiting')).toHaveCount(0);
+      await expect(page.locator('.cc-message-error-note')).toHaveCount(0);
+      await expectAccessible(page);
+    });
+
     test('S7 reply with sources', async ({ page }) => {
       await start(page, look);
       await openChat(page);
@@ -166,13 +215,17 @@ for (const look of looks) {
       await expectAccessible(page);
     });
 
-    test('S11 offline', async ({ page, context }) => {
+    // A message typed while the browser is offline waits (S19). This is the connection failing on a request
+    // that was sent: the network error, with Retry.
+    test('S11 connection lost', async ({ page }) => {
       await start(page, look);
       await openChat(page);
-      await context.setOffline(true);
+      await page.route('**/api/chat', (route) =>
+        route.request().method() === 'POST' ? route.abort('internetdisconnected') : route.fallback()
+      );
       await ask(page, 'Hi');
       await expect(page.locator('.cc-message-retry')).toBeVisible();
-      await context.setOffline(false);
+      await expect(page.locator('.cc-message-waiting')).toHaveCount(0);
       await expectAccessible(page);
     });
 
@@ -199,6 +252,31 @@ for (const look of looks) {
       await page.locator('.cc-consent-btn').focus();
       await expect(page.locator('.cc-consent-btn')).toBeFocused();
       await expectAccessible(page);
+    });
+
+    test('header menu with keyboard navigation and New conversation', async ({ page }) => {
+      await start(page, look, { privacyUrl: 'https://example.com/privacy' });
+      await openChat(page);
+      await ask(page, 'First message');
+      await expect(page.locator('.cc-message-assistant').last()).toContainText('Hello from the test server.');
+      await expect(page.locator('.cc-message-user')).toHaveCount(1);
+
+      const moreBtn = page.locator('.cc-header-more');
+      await moreBtn.focus();
+      await expect(moreBtn).toBeFocused();
+      await page.keyboard.press('ArrowDown');
+
+      const menu = page.locator('.cc-header-menu');
+      await expect(menu).toBeVisible();
+      await expect(moreBtn).toHaveAttribute('aria-expanded', 'true');
+
+      await expectAccessible(page);
+
+      await page.keyboard.press('Enter');
+      await expect(menu).not.toBeVisible();
+      await expect(moreBtn).toHaveAttribute('aria-expanded', 'false');
+
+      await expect(page.locator('.cc-message-user')).toHaveCount(0);
     });
 
     test.describe('S14 on a phone', () => {

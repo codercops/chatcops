@@ -103,6 +103,10 @@ export default {
 Pass a Vectorize index and its configured dimensions to expose `storage.vectors`:
 
 ```ts
+import { cloudflareStorage } from '@chatcops/store-cloudflare';
+
+declare const env: Env; // the Worker's bindings
+
 const storage = cloudflareStorage({
   d1: env.DB,
   vectorize: env.VECTORIZE,
@@ -122,6 +126,10 @@ ALTER TABLE chatcops_messages ADD COLUMN workspace_id TEXT;
 ```
 
 ```ts
+import { cloudflareStorage } from '@chatcops/store-cloudflare';
+
+declare const env: Env;
+
 cloudflareStorage({
   d1: env.DB,
   extraColumns: ['workspace_id'],
@@ -146,6 +154,10 @@ Cloudflare D1 does not provide interactive transactions. To ensure data integrit
 To prune old conversations and expired metadata on a schedule (e.g., via a Cron Trigger):
 
 ```ts
+import type { ChatCopsStorage } from '@chatcops/core';
+
+declare const storage: ChatCopsStorage; // from cloudflareStorage()
+
 // Delete conversations older than 30 days
 const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
 const purgedCount = await storage.conversations.purge?.(cutoff);

@@ -31,6 +31,7 @@ export function applyTheme(root: ShadowRoot, theme: ThemeConfig): void {
   if (theme.bgColor) {
     host.style.setProperty('--cc-bg', theme.bgColor);
     host.style.setProperty('--cc-bg-surface', lighten(theme.bgColor, 8));
+    host.style.setProperty('--cc-surface-raised', lighten(theme.bgColor, 12));
     host.style.setProperty('--cc-bg-input', lighten(theme.bgColor, 14));
   }
   if (theme.fontFamily) {

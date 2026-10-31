@@ -12,6 +12,7 @@
   --cc-text: #1a1d23;
   --cc-bg: #ffffff;
   --cc-bg-surface: #f4f5f7;
+  --cc-surface-raised: #ffffff;
   --cc-bg-input: #ffffff;
   --cc-border: #d9dce1;
   --cc-text-secondary: #5b616e;
@@ -46,6 +47,7 @@
   --cc-text: #ffffff;
   --cc-bg: #0a0a0a;
   --cc-bg-surface: #1a1a1a;
+  --cc-surface-raised: #1e1e1e;
   --cc-bg-input: #2a2a2a;
   --cc-border: #333333;
   --cc-text-secondary: #a0a0a0;
@@ -66,6 +68,7 @@
     --cc-text: #ffffff;
     --cc-bg: #0a0a0a;
     --cc-bg-surface: #1a1a1a;
+    --cc-surface-raised: #1e1e1e;
     --cc-bg-input: #2a2a2a;
     --cc-border: #333333;
     --cc-text-secondary: #a0a0a0;

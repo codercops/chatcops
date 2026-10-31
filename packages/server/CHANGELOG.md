@@ -1,5 +1,27 @@
 # @chatcops/server
 
+## 1.0.0
+
+### Major Changes
+
+- 3f6fd66: Removes the APIs that 0.6 to 0.8 deprecated. Each one now fails at startup with a message naming the replacement, and [Upgrading to 1.0](https://chat.codercops.com/getting-started/upgrading-to-1/) has a step for each.
+
+  - Server: `cors` (use `allowedOrigins`), `conversationStore` (use `storage: { conversations }`), `i18n` (ignored since 0.6), and the `RateLimiter` and `RateLimitConfig` exports (use `createRateLimiter` from `@chatcops/core`). Webhook bodies no longer repeat `event` and `timestamp`: read `type` and `created`.
+  - Core: analytics stats drop `leadsCapture` (use `leadsCaptured`), and the `noun:verb` event names are no longer read as `noun.verb` ones or repeated in `eventCounts`. Events a store saved under them still count.
+  - Core: the Claude, OpenAI and Gemini providers no longer have `chat()` and `chatSync()`; use `runTurn()`. On `AIProvider`, `chat()` is optional and `chatSync()` is gone, so a custom provider needs `step()` or `chat()`.
+  - Widget: `persistHistory` (use `persistence: 'none'`). Setting it throws, so a site that asked for nothing to be saved never starts saving.
+
+- e28116a: Session tokens are required by default. A server without `sessionSecrets` refuses to start unless it sets `allowAnonymous: true`, so a chat can't be left open to guessed or leaked conversation ids by accident. `requireSession` is removed: `requireSession: false` is now `allowAnonymous: true` next to `sessionSecrets`, and `true` was already the default. The widget fetches tokens itself from 0.6, but it asks `<chat url>/session`, so with Express mount the handler with `app.use('/chat', ...)`, and on Vercel or Next.js add a `/session` route that re-exports the chat route. `chatcops test` runs the server in process without needing tokens. See [Upgrading to 1.0](https://chat.codercops.com/getting-started/upgrading-to-1/).
+
+### Patch Changes
+
+- 0348e0e: The Express example mounts the handler with `app.use('/chat', ...)`, so the widget's `/chat/session` request reaches it, and its test command gets a session token first. The Vercel example says to add `api/chat/session.ts`.
+- 3fada9b: The 0.5 stream format, for widgets older than 0.6 and clients that don't send `protocol: 1`, stays through 1.x and goes away in 2.0. The startup note and the docs said 1.0.
+- 6e88477: `createChatHandler` now throws when `retention.conversationsDays` is 0, negative or not a finite number. Before, 0 or a negative value made `purge()` delete every conversation.
+- Updated dependencies [3c0f13c]
+- Updated dependencies [3f6fd66]
+  - @chatcops/core@1.0.0
+
 ## 1.0.0-rc.0
 
 ### Major Changes

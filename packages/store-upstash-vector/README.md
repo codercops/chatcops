@@ -44,8 +44,12 @@ To expose the store through `ChatCopsStorage`, assign it to `vectors`:
 
 ```ts
 import { memoryStorage } from '@chatcops/core';
+import { upstashVectors } from '@chatcops/store-upstash-vector';
+import type { Index } from '@upstash/vector';
 
-const storage = { ...memoryStorage(), vectors: upstashVectors({ index, dimensions }) };
+declare const index: Index; // as above
+
+const storage = { ...memoryStorage(), vectors: upstashVectors({ index, dimensions: 1024 }) };
 ```
 
 Here `memoryStorage` is imported from `@chatcops/core` when you want its other in-memory capabilities alongside the Upstash vector index.

@@ -1,5 +1,24 @@
 # @chatcops/cli
 
+## 0.2.0
+
+### Minor Changes
+
+- 6190309: `chatcops test` has `icontains`, `regex` and `equals` text assertions.
+
+### Patch Changes
+
+- c0bb930: `chatcops search` now uses `ingest.index` from the config when `--index` isn't passed, the same index `chatcops ingest` builds.
+- Updated dependencies [3c0f13c]
+- Updated dependencies [0348e0e]
+- Updated dependencies [3fada9b]
+- Updated dependencies [3f6fd66]
+- Updated dependencies [6e88477]
+- Updated dependencies [e28116a]
+  - @chatcops/core@1.0.0
+  - @chatcops/server@1.0.0
+  - @chatcops/ingest@0.2.0
+
 ## 0.2.0-rc.0
 
 ### Minor Changes

@@ -1,5 +1,13 @@
 # @chatcops/store-upstash-vector
 
+## 0.2.0
+
+### Patch Changes
+
+- Updated dependencies [3c0f13c]
+- Updated dependencies [3f6fd66]
+  - @chatcops/core@1.0.0
+
 ## 0.2.0-rc.0
 
 ### Patch Changes

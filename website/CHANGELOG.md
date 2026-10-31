@@ -1,5 +1,29 @@
 # @chatcops/website
 
+## 0.0.7
+
+### Patch Changes
+
+- Updated dependencies [3c0f13c]
+- Updated dependencies [0348e0e]
+- Updated dependencies [d2494da]
+- Updated dependencies [3fada9b]
+- Updated dependencies [aa85ebd]
+- Updated dependencies [3f6fd66]
+- Updated dependencies [6e88477]
+- Updated dependencies [e28116a]
+- Updated dependencies [2f9b9dc]
+- Updated dependencies [e699c3d]
+- Updated dependencies [5309e65]
+- Updated dependencies [a3ed530]
+- Updated dependencies [6696a21]
+- Updated dependencies [05cf305]
+- Updated dependencies [991839f]
+  - @chatcops/core@1.0.0
+  - @chatcops/server@1.0.0
+  - @chatcops/widget@1.0.0
+  - @chatcops/store-cloudflare@0.3.0
+
 ## 0.0.7-rc.0
 
 ### Patch Changes

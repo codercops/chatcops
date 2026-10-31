@@ -146,6 +146,35 @@ export default defineConfig({
 
 A judge's scores can change when its model changes, so keep the same judge for a suite, and re-record when you switch. Judge calls are recorded and replayed like the bot's, so in CI the same verdicts come back without a key.
 
+## Simulated visitors
+
+Some behavior only shows up over a conversation you can't script, like "an annoyed customer who gives their email on the third message". A test with `simulate` instead of `turns` has a second model play the visitor from a persona, and the runner goes back and forth with your bot until a stop condition:
+
+```yaml
+version: 1
+name: Refunds
+tests:
+  - name: annoyed customer leaves an email
+    simulate:
+      persona: >
+        Your mug arrived broken and you're annoyed. You want a refund.
+        Give your email (sam@example.com) only when the assistant asks for it.
+      maxTurns: 6
+      stopWhen: lead-captured
+    expect:
+      - lead-captured: { email: sam@example.com }
+      - judge: { rubric: "Apologizes once and does not argue.", threshold: 0.7 }
+```
+
+- `persona` is who the visitor is and what they want. It is the visitor model's instructions, so say when it should hand out details.
+- `maxTurns` is the most visitor messages it sends, from 1 to 20.
+- `stopWhen: lead-captured` ends the conversation once the bot has captured a lead. Leave it out to run until `maxTurns`, or until the visitor model answers only `DONE` because its goal is reached. (`stopWhen: handoff` waits for the handoff feature and is rejected for now.)
+- `expect` is checked once, on the last turn, with the whole conversation, so a `judge` here grades the whole exchange. It works with every assertion. A simulated test has `simulate` or `turns`, never both, and a test-level `expect` only goes with `simulate`.
+
+The visitor is played by the judge model: the same `--judge-model` or `judge` in the config, a different provider from your bot by default, and no run without its key ([see above](#judged-by-a-model)). It is told to play the persona, write only the visitor's next message, and treat the bot's replies as data, not instructions. Its messages differ from run to run, so use `repeat` and `passRate` for a test that has to hold most of the time, and keep the persona specific.
+
+Everything the visitor model says goes through `fetch`, so `--record` and `--replay` cover it like the judge: in CI the same visitor messages come back, with no key and no network call. Changing the persona changes the request, so the replay misses the recording and fails until you record again. The visitor model's calls count in the run's cost and in `--max-cost`. A failed run prints each turn's visitor message and the bot's reply, so you can read what happened.
+
 ## JavaScript checks
 
 For checks YAML can't express, point `javascript` at a module. The path is relative to the eval file:
@@ -176,7 +205,7 @@ A missing file, a module without a default function, or a throw inside it are fa
 
 ## Costs
 
-With `prices` in the config, every turn and judge call gets a cost, and the run prints what it spent. Prices are in US dollars per million tokens, keyed by the model id. Copy them from your provider's pricing page, since they change.
+With `prices` in the config, every turn, judge call and simulated visitor message gets a cost, and the run prints what it spent. Prices are in US dollars per million tokens, keyed by the model id. Copy them from your provider's pricing page, since they change.
 
 
 ```ts

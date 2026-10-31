@@ -128,7 +128,7 @@ tests:
   it('refuses to run without a key for the default judge', async () => {
     const dir = project({ 'evals/judged.chat.yaml': JUDGED }, config().replace(/ {2}judge: \{[\s\S]*?\n {2}\},\n/, ''));
     const { code, stderr } = await run(['test'], dir);
-    expect(stderr).toContain('judge assertions need a key for the judge (gemini): set GEMINI_API_KEY or GOOGLE_API_KEY');
+    expect(stderr).toContain('judge assertions and simulated visitors need a key for the judge (gemini): set GEMINI_API_KEY or GOOGLE_API_KEY');
     expect(code).toBe(EXIT.unusable);
     expect((await run(['test', '--judge-model', 'mistral'], dir)).stderr).toContain('--judge-model mistral: the provider is one of claude, openai or gemini');
   });

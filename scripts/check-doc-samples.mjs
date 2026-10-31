@@ -37,20 +37,6 @@ function missingSessionConfig(code) {
   return lines;
 }
 
-function typeScriptBlocks(contents) {
-  const found = [];
-  const lines = contents.split(/\r?\n/);
-  let start = -1;
-  for (let i = 0; i < lines.length; i++) {
-    if (start < 0 && /^```(?:typescript|ts)\s*$/.test(lines[i])) start = i + 1;
-    else if (start >= 0 && /^```\s*$/.test(lines[i])) {
-      found.push({ line: start + 1, code: lines.slice(start, i).join('\n') });
-      start = -1;
-    }
-  }
-  return found;
-}
-
 async function findMdxFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const nested = await Promise.all(entries.map(async (entry) => {
@@ -62,7 +48,12 @@ async function findMdxFiles(directory) {
 }
 
 try {
-  const files = (await findMdxFiles(docsRoot)).sort();
+  // The docs pages, and the READMEs, which npm and GitHub show and people copy from just as often.
+  const readmes = [];
+  for (const file of [join(root, 'README.md'), ...(await readdir(join(root, 'packages'))).map((name) => join(root, 'packages', name, 'README.md'))]) {
+    if (await readFile(file).then(() => true, () => false)) readmes.push(file);
+  }
+  const files = [...(await findMdxFiles(docsRoot)).sort(), ...readmes];
 
   for (const file of files) {
     const contents = await readFile(file, 'utf8');
@@ -91,13 +82,7 @@ try {
     }
   }
 
-  // The READMEs and the homepage's code aren't type-checked, but are copied just as often.
-  const readmes = [join(root, 'README.md'), ...(await readdir(join(root, 'packages'))).map((name) => join(root, 'packages', name, 'README.md'))];
-  for (const file of readmes) {
-    const contents = await readFile(file, 'utf8').catch(() => undefined);
-    if (contents === undefined) continue;
-    for (const block of typeScriptBlocks(contents)) blocks.push({ label: relative(root, file).split(sep).join('/'), ...block });
-  }
+  // The homepage's code and the server examples aren't type-checked here, but are copied just as often.
   const examples = join(root, 'packages', 'server', 'src', 'examples');
   for (const file of [join(root, 'website', 'src', 'components', 'react', 'CodeTabs.tsx'), ...(await readdir(examples)).map((name) => join(examples, name))]) {
     blocks.push({ label: relative(root, file).split(sep).join('/'), line: 1, code: await readFile(file, 'utf8') });
@@ -163,6 +148,7 @@ try {
     '@upstash/redis': [join(root, 'packages', 'store-redis', 'node_modules', '@upstash', 'redis')],
     '@upstash/redis/*': [join(root, 'packages', 'store-redis', 'node_modules', '@upstash', 'redis', '*')],
     ioredis: [join(root, 'packages', 'store-redis', 'node_modules', 'ioredis')],
+    postgres: [join(root, 'packages', 'store-postgres', 'node_modules', 'postgres')],
   };
   const tsconfigPath = join(tempRoot, 'tsconfig.json');
   await writeFile(tsconfigPath, JSON.stringify({

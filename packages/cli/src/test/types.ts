@@ -15,6 +15,15 @@ export interface Turn {
   expect?: Assertion[];
 }
 
+/** A second model plays the visitor from a persona, until a stop condition. */
+export interface Simulate {
+  persona: string;
+  /** 1 to 20 visitor messages. */
+  maxTurns: number;
+  /** Ends the conversation once the bot has done this. */
+  stopWhen?: 'lead-captured';
+}
+
 export interface TestCase {
   name: string;
   tags?: string[];
@@ -23,7 +32,11 @@ export interface TestCase {
   userData?: Record<string, string>;
   /** Server tools answered with a fixed result instead of running. */
   mocks?: { tools?: Record<string, ToolResult> };
-  turns: Turn[];
+  /** Fixed messages. A test has either `turns` or `simulate`. */
+  turns?: Turn[];
+  simulate?: Simulate;
+  /** For `simulate`: checked once, on the last turn, with the whole conversation. */
+  expect?: Assertion[];
   /** Run the test this many times. Default 1. */
   repeat?: number;
   /** Share of repeats that must pass. Default 1 (all of them). */
@@ -34,7 +47,7 @@ export interface Fixture {
   version: 1;
   name: string;
   /** Test defaults; a test's own values win, and `mocks.tools` are merged. */
-  defaults?: Partial<Omit<TestCase, 'name' | 'turns'>>;
+  defaults?: Partial<Omit<TestCase, 'name' | 'turns' | 'simulate' | 'expect'>>;
   tests: TestCase[];
 }
 
@@ -56,6 +69,10 @@ export interface TurnResult {
   model?: string;
   /** What the turn cost in US dollars, from `prices` in the config. Unset when the model has no price. */
   costUsd?: number;
+  /** The visitor's message came from a simulated visitor. */
+  simulated?: boolean;
+  /** What the simulated visitor's messages for this turn cost, in US dollars. Unset when the judge model has no price. */
+  visitorCostUsd?: number;
 }
 
 export interface AssertionResult {
@@ -75,12 +92,14 @@ export interface AssertionContext {
   judge?: Judge;
 }
 
-/** Grades a reply against a rubric with a model. */
+/** Grades a reply against a rubric with a model, and plays simulated visitors. */
 export interface Judge {
   /** `provider:model`, printed with every run that uses it. */
   id: string;
   model?: string;
   grade(rubric: string, conversation: TurnResult[]): Promise<{ score: number; reason: string; costUsd?: number }>;
+  /** Plays the visitor of a `simulate` test: its next message, or `DONE` when its goal is reached. */
+  play(persona: string, conversation: TurnResult[]): Promise<{ message: string; costUsd?: number }>;
 }
 
 type CheckResult = AssertionResult | Omit<AssertionResult, 'assertion'>;

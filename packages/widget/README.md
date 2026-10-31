@@ -8,7 +8,7 @@ Embeddable AI chatbot widget. Zero dependencies, Shadow DOM isolated, ~13KB gzip
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js"
   data-api-url="https://your-api.com/chat"
   data-accent="#6366f1">
 </script>
@@ -101,6 +101,7 @@ ChatCops.init({
   pageContext: true,                     // send page URL/title to API
   autoOpen: 5000,                       // auto-open after ms (popup only)
   locale: 'en',
+  privacyUrl: 'https://example.com/privacy', // link in header menu (https: or http:)
 
   // Callbacks
   onOpen: () => {},
@@ -112,7 +113,7 @@ ChatCops.init({
 
 ## API
 
-```typescript
+```text
 ChatCops.init(config)         // Initialize the widget
 ChatCops.open()               // Open the chat panel (popup mode)
 ChatCops.close()              // Close the chat panel
@@ -129,7 +130,7 @@ All configuration can be set via `data-*` attributes:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js"
   data-api-url="/chat"
   data-mode="popup"
   data-accent="#6366f1"
@@ -146,7 +147,8 @@ All configuration can be set via `data-*` attributes:
   data-welcome-bubble-delay="3000"
   data-placeholder="Type here..."
   data-locale="en"
-  data-auto-open="true">
+  data-auto-open="true"
+  data-privacy-url="https://example.com/privacy">
 </script>
 ```
 

@@ -23,7 +23,10 @@ DATABASE_URL=postgres://... npx chatcops-postgres migrate
 Or from code, for example at startup:
 
 ```ts
+import pg from 'pg';
 import { migrate } from '@chatcops/store-postgres';
+
+const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 await migrate(pool);
 ```
 
@@ -53,6 +56,11 @@ With postgres.js, wrap the client the same way: `fromPostgresJs(postgres(url))`.
 Pass the complete storage object to the server:
 
 ```ts
+import type { ChatCopsStorage } from '@chatcops/core';
+import { chatcopsMiddleware } from '@chatcops/server';
+
+declare const storage: ChatCopsStorage; // from postgresStorage() above
+
 chatcopsMiddleware({
   provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
   systemPrompt: 'You are a helpful assistant.',
@@ -73,6 +81,11 @@ chatcopsMiddleware({
 To stamp your own columns on every new conversation and message row (a tenant id, a site id), add them with your own migration, declare them, and say how to fill them:
 
 ```ts
+import pg from 'pg';
+import { postgresStorage } from '@chatcops/store-postgres';
+
+declare const pool: pg.Pool;
+
 // ALTER TABLE chatcops_conversations ADD COLUMN workspace_id uuid;
 // ALTER TABLE chatcops_messages ADD COLUMN workspace_id uuid;
 const storage = postgresStorage({
@@ -101,6 +114,10 @@ Writing to a conversation is one `INSERT ... ON CONFLICT` that locks its row, so
 Nothing is deleted on its own. Call `purge(before)` on a schedule to delete conversations last updated before a time, with their messages. It also clears expired counters and keys:
 
 ```ts
+import type { ChatCopsStorage } from '@chatcops/core';
+
+declare const storage: ChatCopsStorage; // from postgresStorage()
+
 const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
 await storage.conversations.purge?.(thirtyDaysAgo);
 ```

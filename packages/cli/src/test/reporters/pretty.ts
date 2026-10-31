@@ -85,14 +85,20 @@ function appendDetails(
   for (const run of result.runs) {
     for (const [index, { turn, results: checks }] of run.turns.entries()) {
       if (showRun && index === 0) lines.push(paint('gray', `    Run ${run.run}`));
-      if (!checks.length) lines.push(paint('gray', '      No assertions for this turn.'));
+      // A simulated visitor wrote its own messages, so the exchange is shown to make a failure readable.
+      if (turn.simulated) {
+        lines.push(paint('gray', `      turn ${index + 1} visitor: ${clip(turn.user)}`));
+        lines.push(paint('gray', `      turn ${index + 1} reply: ${clip(turn.text)}`));
+      } else if (!checks.length) {
+        lines.push(paint('gray', '      No assertions for this turn.'));
+      }
       for (const check of checks) {
         const status = check.pass ? paint('green', '✓') : paint('red', '✗');
         const wrapped = wrapText(`turn ${index + 1}: ${reason(check)}`, 76);
         lines.push(`      ${status} ${wrapped[0]}`);
         for (const continuation of wrapped.slice(1)) lines.push(`        ${continuation}`);
       }
-      if (checks.some((check) => !check.pass)) {
+      if (!turn.simulated && checks.some((check) => !check.pass)) {
         lines.push(paint('gray', `      reply: ${clip(turn.text)}`));
       }
     }

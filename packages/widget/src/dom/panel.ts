@@ -1,10 +1,21 @@
 import { Messages, type MessageActions, type MessageData } from './messages.js';
 import { Input } from './input.js';
+import { CLOSE_ICON, MORE_ICON } from './icons.js';
+import type { HeaderMenu } from './menu.js';
 
 export const PANEL_ID = 'cc-panel';
 
 const BOT_ICON = `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>`;
-const CLOSE_ICON = `<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>`;
+
+let menuChunk: Promise<typeof import('./menu.js')> | undefined;
+
+export function loadMenu(): Promise<typeof import('./menu.js')> {
+  menuChunk ??= import('./menu.js').catch((error: unknown) => {
+    menuChunk = undefined;
+    throw error;
+  });
+  return menuChunk;
+}
 
 export interface PanelOptions {
   position: 'bottom-right' | 'bottom-left';
@@ -19,13 +30,35 @@ export interface PanelOptions {
   footerText: string;
   closeLabel: string;
   sendLabel: string;
+  stopLabel: string;
+  moreLabel?: string;
+  newConversationLabel?: string;
+  downloadTranscriptLabel?: string;
+  privacyLabel?: string;
+  privacyUrl?: string;
   messageActions?: MessageActions;
   onSend: (text: string) => void;
+  onStop: () => void;
   onClose: () => void;
+  onNewConversation?: () => void;
+  onDownloadTranscript?: () => void;
 }
 
 /** The parts of the panel that `update()` can change. */
-export type PanelLabels = Pick<PanelOptions, 'branding' | 'placeholder' | 'footerText' | 'closeLabel' | 'sendLabel'>;
+export type PanelLabels = Pick<
+  PanelOptions,
+  | 'branding'
+  | 'placeholder'
+  | 'footerText'
+  | 'closeLabel'
+  | 'sendLabel'
+  | 'stopLabel'
+  | 'moreLabel'
+  | 'newConversationLabel'
+  | 'downloadTranscriptLabel'
+  | 'privacyLabel'
+  | 'privacyUrl'
+>;
 
 export class Panel {
   private el: HTMLDivElement;
@@ -33,6 +66,8 @@ export class Panel {
   private options: PanelOptions;
   private header: HTMLDivElement;
   private footer: HTMLDivElement;
+  private moreBtn: HTMLButtonElement | null = null;
+  private headerMenu: HeaderMenu | null = null;
   messages: Messages;
   input: Input;
   messagesContainer: HTMLElement;
@@ -53,6 +88,11 @@ export class Panel {
       this.el.setAttribute('aria-modal', 'true');
       this.el.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
+          if (this.headerMenu?.isOpen) {
+            this.headerMenu.close();
+            this.moreBtn?.focus();
+            return;
+          }
           options.onClose();
           return;
         }
@@ -89,6 +129,12 @@ export class Panel {
     this.renderHeader();
     this.el.appendChild(this.header);
 
+    this.el.addEventListener('pointerdown', (e) => {
+      if (this.headerMenu?.isOpen && !this.header.contains(e.target as Node)) {
+        this.headerMenu.close();
+      }
+    });
+
     if (options.preChatEnabled) {
       this.messagesContainer = document.createElement('div');
       this.messagesContainer.className = 'cc-messages-wrapper';
@@ -102,7 +148,9 @@ export class Panel {
     this.input = new Input(this.el, {
       placeholder: options.placeholder,
       sendLabel: options.sendLabel,
+      stopLabel: options.stopLabel,
       onSend: options.onSend,
+      onStop: options.onStop,
     });
 
     // Footer
@@ -120,13 +168,17 @@ export class Panel {
     // Messages reads its labels from this same object as it renders.
     if (this.options.messageActions) Object.assign(this.options.messageActions, actionLabels);
     this.renderHeader();
-    this.input.setLabels(labels.placeholder, labels.sendLabel);
+    this.headerMenu?.update(labels);
+    this.input.setLabels(labels.placeholder, labels.sendLabel, labels.stopLabel);
     this.footer.innerHTML = labels.footerText;
   }
 
   private renderHeader(): void {
     const { branding, closeLabel, inline, onClose } = this.options;
-    const hadFocus = this.header.contains((this.el.getRootNode() as ShadowRoot | Document).activeElement);
+    const active = (this.el.getRootNode() as ShadowRoot | Document).activeElement;
+    const moreHadFocus = this.moreBtn && (this.moreBtn === active || this.headerMenu?.el.contains(active));
+    const closeHadFocus = !inline && this.header.contains(active) && !moreHadFocus;
+
     this.header.replaceChildren();
     if (!inline) this.el.setAttribute('aria-label', branding.name);
 
@@ -148,6 +200,29 @@ export class Panel {
     info.innerHTML = `<div class="cc-header-name">${this.escapeHtml(branding.name)}</div><div class="cc-header-subtitle">${this.escapeHtml(branding.subtitle)}</div>`;
     this.header.appendChild(info);
 
+    const moreBtn = document.createElement('button');
+    moreBtn.className = 'cc-header-more';
+    moreBtn.setAttribute('aria-haspopup', 'menu');
+    moreBtn.setAttribute('aria-expanded', 'false');
+    moreBtn.setAttribute('aria-label', this.options.moreLabel ?? 'More options');
+    moreBtn.innerHTML = MORE_ICON;
+    this.moreBtn = moreBtn;
+
+    const load = (e: Event) => {
+      void loadMenu().then(({ attachMenu }) => {
+        this.headerMenu = attachMenu(moreBtn, this.header, this.options, e, this.headerMenu);
+      });
+    };
+    moreBtn.onclick = load;
+    moreBtn.onkeydown = load;
+    moreBtn.onpointerenter = () => void loadMenu();
+
+    this.header.appendChild(moreBtn);
+    if (this.headerMenu) {
+      this.headerMenu.setButton(moreBtn);
+      this.header.appendChild(this.headerMenu.el);
+    }
+
     if (!inline) {
       const closeBtn = document.createElement('button');
       closeBtn.className = 'cc-header-close';
@@ -155,9 +230,10 @@ export class Panel {
       closeBtn.innerHTML = CLOSE_ICON;
       closeBtn.addEventListener('click', onClose);
       this.header.appendChild(closeBtn);
-      // Re-rendered under the visitor's focus: keep it on the close button.
-      if (hadFocus) closeBtn.focus();
+      if (closeHadFocus) closeBtn.focus();
     }
+
+    if (moreHadFocus) moreBtn.focus();
   }
 
   show(): void {
@@ -169,6 +245,7 @@ export class Panel {
   }
 
   hide(): void {
+    this.headerMenu?.close();
     this.el.classList.remove('cc-visible');
     if (!this.inline) this.setHidden(true);
   }
@@ -192,6 +269,7 @@ export class Panel {
   }
 
   destroy(): void {
+    this.headerMenu?.close();
     this.el.remove();
   }
 

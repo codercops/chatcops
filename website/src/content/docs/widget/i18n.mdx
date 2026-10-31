@@ -13,7 +13,7 @@ The widget sends `locale` with every message, and the server asks the model to r
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js"
   data-api-url="/api/chat"
   data-locale="es"
 ></script>
@@ -75,6 +75,7 @@ interface LocaleStrings {
   welcomeMessage: string;
   inputPlaceholder: string;
   sendButton: string;
+  stopButton: string;          // The send button's name while a reply streams
   closeButton: string;
   openChat: string;
   defaultName: string;
@@ -99,6 +100,7 @@ interface LocaleStrings {
   preChatSubmit: string;
   preChatRequired: string;
   preChatInvalidEmail: string;
+  messageWaiting: string;      // "Will send when you're back online", under a message sent while offline
   retryButton: string;
   regenerateButton: string;
   suggestionsLabel: string;

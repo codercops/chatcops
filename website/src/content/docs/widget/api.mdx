@@ -67,7 +67,7 @@ document.querySelector('#help-btn')?.addEventListener('click', () => ChatCops.to
 
 ### `ChatCops.sendMessage(text, options?)`
 
-Send a message as if the visitor typed it, for example from a "Ask about pricing" button on your page. The chat opens first, unless you pass `{ open: false }`. The promise resolves when the reply has finished. While a reply is still coming, another message is ignored, as it is in the input.
+Send a message as if the visitor typed it, for example from a "Ask about pricing" button on your page. The chat opens first, unless you pass `{ open: false }`. The promise resolves when the reply has finished. While a reply is still coming, another message is ignored, as it is in the input. While the browser is offline the message waits and is sent when the connection is back, so the promise resolves at once, without a reply (see [messages sent while offline](/widget/configuration/#messages-sent-while-offline)).
 
 ```typescript
 document.querySelector('#pricing-question')?.addEventListener('click', () => {
@@ -220,7 +220,7 @@ When using the CDN script tag, the widget auto-initializes by reading `data-*` a
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js"
   data-api-url="https://your-api.com/chat"
   data-accent="#6366f1"
 ></script>
@@ -231,7 +231,7 @@ When using the CDN script tag, the widget auto-initializes by reading `data-*` a
 ```html
 <div id="my-chat" style="width: 400px; height: 500px;"></div>
 <script
-  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js"
   data-api-url="https://your-api.com/chat"
   data-mode="inline"
   data-container="#my-chat"

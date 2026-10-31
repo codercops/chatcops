@@ -49,7 +49,7 @@ export declare function findFixtures(cwd: string, patterns: string[]): Promise<s
 export interface Fixture {
     version: 1;
     name: string;
-    defaults?: Partial<Omit<TestCase, 'name' | 'turns'>>;
+    defaults?: Partial<Omit<TestCase, 'name' | 'turns' | 'simulate' | 'expect'>>;
     tests: TestCase[];
 }
 
@@ -114,7 +114,9 @@ export interface TestCase {
     mocks?: {
         tools?: Record<string, ToolResult>;
     };
-    turns: Turn[];
+    turns?: Turn[];
+    simulate?: Simulate;
+    expect?: Assertion[];
     repeat?: number;
     passRate?: number;
 }
@@ -168,6 +170,8 @@ export interface TurnResult {
     error?: string;
     model?: string;
     costUsd?: number;
+    simulated?: boolean;
+    visitorCostUsd?: number;
 }
 ```
 
@@ -216,6 +220,10 @@ interface Judge {
         reason: string;
         score: number;
     }>;
+    play(persona: string, conversation: TurnResult[]): Promise<{
+        costUsd?: number;
+        message: string;
+    }>;
 }
 
 interface PageContext {
@@ -237,6 +245,12 @@ interface RunSummary {
     costIncomplete: boolean;
     judge?: string;
     costUsd?: number;
+}
+
+interface Simulate {
+    persona: string;
+    maxTurns: number;
+    stopWhen?: 'lead-captured';
 }
 
 declare class Spend {

@@ -1,0 +1,45 @@
+.cc-header-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  inset-inline-end: 12px;
+  background: var(--cc-surface-raised);
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  padding: 4px;
+  min-width: 170px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+}
+
+.cc-header-menu[hidden] {
+  display: none;
+}
+
+.cc-menu-item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--cc-text);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+.cc-menu-item:hover {
+  background: var(--cc-bg-input);
+}
+
+.cc-menu-item:focus-visible {
+  background: var(--cc-bg-input);
+  outline: 2px solid transparent;
+  box-shadow: var(--cc-focus-ring);
+}
