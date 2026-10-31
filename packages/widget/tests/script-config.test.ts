@@ -70,6 +70,20 @@ describe('configFromScript', () => {
   });
 
   it.each([
+    ['true', true],
+    ['false', false],
+    ['0', 0],
+    ['2000', 2000],
+    ['2147483647', 2_147_483_647],
+    ['2147483648', undefined],
+    ['999999999999999999999999999999', undefined],
+    ['1.5', undefined],
+    ['', true],
+  ])('parses data-auto-open="%s" as %s', (autoOpen, expected) => {
+    expect(configFromScript(script({ apiUrl: '/api/chat', autoOpen }))?.autoOpen).toBe(expected);
+  });
+
+  it.each([
     ['3000', 3000],
     ['3s', undefined],
     ['1.5', undefined],

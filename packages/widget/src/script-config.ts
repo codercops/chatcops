@@ -1,10 +1,15 @@
 import type { WidgetConfig } from './widget.js';
 
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
+
 export function parseAutoOpen(value?: string): boolean | number | undefined {
   if (value === undefined) return undefined;
   if (value === '' || value === 'true') return true;
   if (value === 'false') return false;
-  if (/^\d+$/.test(value)) return Number(value);
+  if (/^\d+$/.test(value)) {
+    const delay = Number(value);
+    if (Number.isSafeInteger(delay) && delay <= MAX_TIMER_DELAY_MS) return delay;
+  }
   return undefined;
 }
 
