@@ -18,7 +18,7 @@ export function configFromScript(script: HTMLScriptElement): WidgetConfig | unde
   const apiUrl = script.dataset.apiUrl;
   if (!apiUrl) return undefined;
 
-  const mode = script.dataset.mode as 'popup' | 'inline' | undefined;
+  const mode = (['popup', 'inline'] as const).find((value) => value === script.dataset.mode);
   const container = script.dataset.container;
 
   return {
@@ -26,17 +26,17 @@ export function configFromScript(script: HTMLScriptElement): WidgetConfig | unde
     nonce: script.nonce || undefined,
     turnstileSiteKey: script.dataset.turnstileSiteKey,
     userToken: script.dataset.userToken,
-    mode: mode || undefined,
+    mode,
     container: container || undefined,
     theme: {
-      mode: (script.dataset.themeMode as 'light' | 'dark' | 'auto') || undefined,
+      mode: (['light', 'dark', 'auto'] as const).find((value) => value === script.dataset.themeMode),
       accent: script.dataset.accent,
       accentDark: script.dataset.accentDark,
       textColor: script.dataset.textColor,
       bgColor: script.dataset.bgColor,
       fontFamily: script.dataset.fontFamily,
       borderRadius: script.dataset.borderRadius,
-      position: (script.dataset.position as 'bottom-right' | 'bottom-left') || undefined,
+      position: (['bottom-right', 'bottom-left'] as const).find((value) => value === script.dataset.position),
     },
     branding: {
       name: script.dataset.brandName,

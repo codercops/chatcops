@@ -1,5 +1,16 @@
 # @chatcops/widget
 
+## 1.1.0
+
+### Minor Changes
+
+- 065662a: Add a localized copy action to completed assistant replies.
+- e3975f3: Add typed CSS token overrides to `theme` and support changing them with `update()`.
+
+### Patch Changes
+
+- 597ff63: `theme.tokens` takes `surface-raised`, the background of the header menu.
+
 ## 1.0.0
 
 ### Major Changes
