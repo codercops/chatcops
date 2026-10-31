@@ -181,8 +181,13 @@ function validateDeliveryOptions(config: WebhookConfig): void {
 function parseRetryAfter(value: string | null): number | undefined {
   if (!value) return undefined;
   const seconds = Number(value);
-  if (!Number.isFinite(seconds) || seconds < 0) return undefined;
-  return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
+  }
+
+  const retryAt = Date.parse(value);
+  if (Number.isNaN(retryAt)) return undefined;
+  return Math.min(Math.max(retryAt - Date.now(), 0), MAX_RETRY_AFTER_MS);
 }
 
 async function hmacHex(secret: string, message: string): Promise<string> {
