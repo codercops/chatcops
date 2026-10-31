@@ -10,31 +10,36 @@ npm install @chatcops/core
 
 ## Providers
 
-Unified interface for Claude, OpenAI, and Gemini. Supports streaming (AsyncGenerator) and sync modes.
+Unified interface for Claude, OpenAI and Gemini. A provider takes one model step at a time; `runTurn` runs a whole reply on top of it, with tool calls, and streams its parts.
 
 ```typescript
-import { createProvider } from '@chatcops/core';
+import { createProvider, runTurn, toolRegistry } from '@chatcops/core';
 
 const provider = await createProvider({
   type: 'claude',       // 'claude' | 'openai' | 'gemini'
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   model: 'claude-haiku-5-5', // optional
 });
 
-// Streaming
-for await (const chunk of provider.chat({
+const turn = runTurn({
+  provider,
   messages: [{ id: '1', role: 'user', content: 'Hello', timestamp: Date.now() }],
   systemPrompt: 'You are a helpful assistant.',
-})) {
-  process.stdout.write(chunk);
-}
-
-// Sync
-const response = await provider.chatSync({
-  messages: [{ id: '1', role: 'user', content: 'Hello', timestamp: Date.now() }],
-  systemPrompt: 'You are a helpful assistant.',
+  tools: toolRegistry([]),
+  conversationId: 'one-off',
 });
+
+// The parts as they stream, then the finished message
+let next = await turn.next();
+while (!next.done) {
+  if (next.value.type === 'text-delta') process.stdout.write(next.value.delta);
+  next = await turn.next();
+}
+const { message, status } = next.value;
+console.log(status, message.content.length);
 ```
+
+Most sites don't call this directly: `@chatcops/server` runs the turns for the widget.
 
 Default models: `claude-haiku-5-5` (Claude), `gpt-5-mini` (OpenAI), `gemini-3.5-flash-lite` (Gemini).
 

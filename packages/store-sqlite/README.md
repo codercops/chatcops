@@ -9,15 +9,18 @@ pnpm add @chatcops/store-sqlite
 ```
 
 ```ts
+import express from 'express';
 import { chatcopsMiddleware } from '@chatcops/server';
 import { sqliteStorage } from '@chatcops/store-sqlite';
 
 const storage = sqliteStorage({ path: './chatcops.db' });
 
+const app = express();
+app.use(express.json());
 app.use('/api/chat', chatcopsMiddleware({
-  provider,
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
   systemPrompt: 'You are a helpful assistant.',
-  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET],
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
   storage,
 }));
 ```
@@ -31,6 +34,10 @@ SQLite is intended here for one server process and a local file. Back up the dat
 To stamp columns of your own (a tenant or site id) on every new row, add them with your own `ALTER TABLE` and pass `extraColumns` with a `rowHook`:
 
 ```ts
+import { DatabaseSync } from 'node:sqlite';
+import { sqliteStorage } from '@chatcops/store-sqlite';
+
+const database = new DatabaseSync('./chatcops.db');
 database.exec('ALTER TABLE chatcops_conversations ADD COLUMN workspace_id TEXT');
 database.exec('ALTER TABLE chatcops_messages ADD COLUMN workspace_id TEXT');
 

@@ -112,7 +112,7 @@ ChatCops.init({
 
 ## API
 
-```typescript
+```text
 ChatCops.init(config)         // Initialize the widget
 ChatCops.open()               // Open the chat panel (popup mode)
 ChatCops.close()              // Close the chat panel
