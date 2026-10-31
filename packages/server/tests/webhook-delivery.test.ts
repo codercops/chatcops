@@ -126,14 +126,29 @@ describe('webhook retries', () => {
     }
   );
 
-  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])(
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1, 11])(
     'rejects invalid maxAttempts value %s',
     (maxAttempts) => {
       expect(() => new WebhookDispatcher([{ url: 'https://hooks.test/lead', events: ['*'], maxAttempts }])).toThrow(
-        'webhook.maxAttempts must be a positive safe integer'
+        'webhook.maxAttempts must be an integer between 1 and 10'
       );
     }
   );
+
+  it('allows the maximum of 10 attempts', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const calls = captureFetch(Array.from({ length: 10 }, () => new Response('', { status: 500 })));
+    const dispatcher = new WebhookDispatcher([
+      { url: 'https://hooks.test/maximum-attempts', events: ['*'], maxAttempts: 10 },
+    ]);
+
+    const done = dispatcher.dispatch('lead:captured', {});
+    await vi.runAllTimersAsync();
+    await done;
+
+    expect(calls).toHaveLength(10);
+  });
 
   it('retries 429 and waits for Retry-After, capped at 10 seconds', async () => {
     vi.useFakeTimers();

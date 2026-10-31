@@ -18,6 +18,7 @@ export const DEFAULT_SIGNATURE_TOLERANCE_SEC = 300;
 const DEFAULT_MAX_ATTEMPTS = 3;
 const MAX_RETRY_AFTER_MS = 10_000;
 const MAX_TIMEOUT_MS = 2_147_483_647;
+const MAX_CONFIGURED_ATTEMPTS = 10;
 
 /**
  * Throws when a webhook URL isn't safe to call from a server: anything other
@@ -169,8 +170,11 @@ function validateDeliveryOptions(config: WebhookConfig): void {
   if (config.timeoutMs !== undefined && (!Number.isSafeInteger(config.timeoutMs) || config.timeoutMs < 1 || config.timeoutMs > MAX_TIMEOUT_MS)) {
     throw new Error(`webhook.timeoutMs must be an integer between 1 and ${MAX_TIMEOUT_MS}`);
   }
-  if (config.maxAttempts !== undefined && (!Number.isSafeInteger(config.maxAttempts) || config.maxAttempts < 1)) {
-    throw new Error('webhook.maxAttempts must be a positive safe integer');
+  if (
+    config.maxAttempts !== undefined &&
+    (!Number.isSafeInteger(config.maxAttempts) || config.maxAttempts < 1 || config.maxAttempts > MAX_CONFIGURED_ATTEMPTS)
+  ) {
+    throw new Error(`webhook.maxAttempts must be an integer between 1 and ${MAX_CONFIGURED_ATTEMPTS}`);
   }
 }
 
