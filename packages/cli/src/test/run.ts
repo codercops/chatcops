@@ -5,7 +5,7 @@ import { ConfigError } from '../config.js';
 import { check } from './assertions/index.js';
 import type { Cassettes } from './cassette.js';
 import { costOf, dollars, type Prices, type Spend } from './cost.js';
-import type { Fixture, Judge, TestCase, TestResult, TestRunResult, TurnResult } from './types.js';
+import type { Assertion, Fixture, Judge, TestCase, TestResult, TestRunResult, TurnResult } from './types.js';
 
 export interface RunOptions {
   /** Tests run at once. Default 4. */
@@ -99,26 +99,31 @@ async function runOnce(
   const conversationId = `eval-${randomUUID()}`;
   const conversation: TurnResult[] = [];
 
-  for (const turnSpec of test.turns) {
-    if (spend?.exceeded) {
-      result.pass = false;
-      result.error = `stopped before turn ${conversation.length + 1}: --max-cost ${dollars(spend.max ?? 0)} reached (${dollars(spend.spent)} spent)`;
-      break;
-    }
+  /** Stops the run when `--max-cost` is reached. */
+  const overBudget = (): boolean => {
+    if (!spend?.exceeded) return false;
+    result.pass = false;
+    result.error = `stopped before turn ${conversation.length + 1}: --max-cost ${dollars(spend.max ?? 0)} reached (${dollars(spend.spent)} spent)`;
+    return true;
+  };
+
+  /** One exchange: sends the message, collects the reply and checks it. Undefined when the run has to stop. */
+  const exchange = async (message: string, expects: Assertion[], extra: Partial<TurnResult> = {}): Promise<TurnResult | undefined> => {
     const turn = await sendTurn(handler, {
       conversationId,
-      message: turnSpec.user,
+      message,
       ...(test.locale ? { locale: test.locale } : {}),
       ...(test.pageContext ? { pageContext: test.pageContext } : {}),
       ...(test.userData ? { userData: test.userData } : {}),
     });
+    Object.assign(turn, extra);
     if (options.model) turn.model = options.model;
     const costUsd = costOf(options.model, turn.usage, options.prices);
     if (costUsd !== undefined) turn.costUsd = costUsd;
     spend?.add(costUsd);
     conversation.push(turn);
     const checks = [];
-    for (const assertion of turnSpec.expect ?? []) {
+    for (const assertion of expects) {
       const checked = await check(assertion, turn, conversation, context);
       spend?.add(checked.costUsd);
       checks.push(checked);
@@ -128,10 +133,76 @@ async function runOnce(
     if (turn.error) {
       result.pass = false;
       result.error = `turn ${conversation.length} failed: ${turn.error}`;
-      break;
+      return undefined;
+    }
+    return turn;
+  };
+
+  if (test.simulate) {
+    await simulateVisitor(test.simulate, options.judge, { result, conversation, spend, overBudget, exchange });
+    // Checked once, on the last turn, with the whole conversation. A run that stopped early has nothing to check.
+    const last = result.turns.at(-1);
+    if (last && !result.error) {
+      for (const assertion of test.expect ?? []) {
+        const checked = await check(assertion, last.turn, conversation, context);
+        spend?.add(checked.costUsd);
+        last.results.push(checked);
+        if (!checked.pass) result.pass = false;
+      }
+    }
+  } else {
+    for (const turnSpec of test.turns ?? []) {
+      if (overBudget() || !(await exchange(turnSpec.user, turnSpec.expect ?? []))) break;
     }
   }
   return result;
+}
+
+/** A visitor message from the judge model that means it has nothing more to say. */
+const isDone = (message: string) => /^done\.?$/i.test(message);
+
+/**
+ * Plays a `simulate` test: the judge model writes the visitor's messages from
+ * the persona, one at a time, until `maxTurns`, until it answers only `DONE`,
+ * or until the bot has captured a lead when `stopWhen` says so.
+ */
+async function simulateVisitor(
+  { persona, maxTurns, stopWhen }: NonNullable<TestCase['simulate']>,
+  visitor: Judge | undefined,
+  run: {
+    result: TestRunResult;
+    conversation: TurnResult[];
+    spend: Spend | undefined;
+    overBudget: () => boolean;
+    exchange: (message: string, expects: Assertion[], extra?: Partial<TurnResult>) => Promise<TurnResult | undefined>;
+  }
+): Promise<void> {
+  const { result, conversation, spend } = run;
+  const fail = (error: string) => {
+    result.pass = false;
+    result.error = error;
+  };
+  if (!visitor) return fail('a simulate test needs a model to play the visitor: set `judge` in the config or pass --judge-model');
+  while (conversation.length < maxTurns) {
+    if (run.overBudget()) return;
+    let said: { message: string; costUsd?: number };
+    try {
+      said = await visitor.play(persona, conversation);
+    } catch (error) {
+      return fail(`the simulated visitor failed before turn ${conversation.length + 1}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    spend?.add(said.costUsd);
+    if (isDone(said.message)) {
+      const last = conversation.at(-1);
+      if (!last) return fail('the simulated visitor said DONE before sending a message');
+      if (said.costUsd !== undefined) last.visitorCostUsd = (last.visitorCostUsd ?? 0) + said.costUsd;
+      return;
+    }
+    if (!said.message) return fail(`the simulated visitor answered with nothing before turn ${conversation.length + 1}`);
+    const turn = await run.exchange(said.message, [], { simulated: true, ...(said.costUsd !== undefined ? { visitorCostUsd: said.costUsd } : {}) });
+    if (!turn) return;
+    if (stopWhen === 'lead-captured' && turn.toolCalls.some((call) => call.name === 'capture_lead')) return;
+  }
 }
 
 /** Sends one message and collects the reply's parts as a turn result. */

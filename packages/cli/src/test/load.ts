@@ -5,7 +5,7 @@ import { globToRegExp } from '@chatcops/ingest';
 import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
 import { ConfigError } from '../config.js';
-import type { Fixture, TestCase } from './types.js';
+import type { Assertion, Fixture, TestCase } from './types.js';
 
 export const DEFAULT_PATTERN = 'evals/**/*.chat.yaml';
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', '__cassettes__']);
@@ -30,7 +30,38 @@ const common = {
   passRate: z.number().min(0).max(1).optional(),
 };
 const turn = z.object({ user: z.string().min(1), expect: z.array(assertion).optional() }).strict();
-const testCase = z.object({ name: z.string().min(1), turns: z.array(turn).min(1), ...common }).strict();
+const simulate = z
+  .object({
+    persona: z.string().min(1),
+    maxTurns: z.number().int().min(1).max(20),
+    stopWhen: z
+      .string()
+      .optional()
+      .superRefine((value, context) => {
+        if (value === undefined || value === 'lead-captured') return;
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: value === 'handoff' ? "`stopWhen: handoff` isn't available yet: it waits for the handoff feature (F-10). Use `lead-captured` or leave it out." : 'stopWhen is `lead-captured`, or leave it out',
+        });
+      }),
+  })
+  .strict();
+const testCase = z
+  .object({
+    name: z.string().min(1),
+    turns: z.array(turn).min(1).optional(),
+    simulate: simulate.optional(),
+    expect: z.array(assertion).optional(),
+    ...common,
+  })
+  .strict()
+  .superRefine((test, context) => {
+    if (test.turns && test.simulate) context.addIssue({ code: z.ZodIssueCode.custom, message: 'a test has either `turns` or `simulate`, not both' });
+    else if (!test.turns && !test.simulate) context.addIssue({ code: z.ZodIssueCode.custom, message: 'a test needs `turns` or `simulate`' });
+    if (test.expect && !test.simulate) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['expect'], message: 'a test-level `expect` belongs to `simulate`; with `turns`, put `expect` on each turn' });
+    }
+  });
 const fixtureSchema = z
   .object({
     version: z.literal(1),
@@ -86,6 +117,11 @@ export async function findFixtures(cwd: string, patterns: string[]): Promise<str
   }
   await walk(cwd);
   return found.sort();
+}
+
+/** Every assertion a test makes: on its turns, and the test-level ones of a `simulate` test. */
+export function assertionsOf(test: TestCase): Assertion[] {
+  return [...(test.turns ?? []).flatMap((turn) => turn.expect ?? []), ...(test.expect ?? [])];
 }
 
 /** `--filter`: a substring of the test name, or `tag:<name>`. */
