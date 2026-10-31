@@ -709,6 +709,12 @@ export interface ReasoningPart {
 
 export declare function reciprocalRankFusion(lists: ScoredRecord[][], k?: number): RetrievedChunk[];
 
+export interface RedactOptions {
+    patterns?: RegExp[];
+}
+
+export declare function redactPII(text: string, options?: RedactOptions): string;
+
 export declare class RefusalError extends Error {
     constructor();
 }

@@ -173,3 +173,30 @@ ChatCops.on('message', (...args: unknown[]) => {
 // Server-side (automatic with analytics: true)
 // conversation.started, message.sent, message.received, lead.captured
 ```
+
+## Redacting personal data
+
+`redactPII()` takes personal data out of text, so that what a visitor typed can be kept without it. Each kind is replaced with a tag:
+
+| Finds | Replaced with |
+|---|---|
+| Email addresses | `[email]` |
+| Phone numbers: `+` and 8 to 15 digits, or a local format with separators such as `(415) 555-0100` | `[phone]` |
+| Card numbers of 13 to 19 digits that pass the Luhn check | `[card]` |
+| IBANs that pass the mod-97 check | `[iban]` |
+| IPv4 and IPv6 addresses | `[ip]` |
+| Each of your own `patterns` | `[redacted]` |
+
+```typescript
+import { redactPII } from '@chatcops/core';
+
+redactPII('Mail jo@example.com or call 415-555-0100');
+// 'Mail [email] or call [phone]'
+
+redactPII('Order ORD-1042 shipped', { patterns: [/ORD-\d+/] });
+// 'Order [redacted] shipped'
+```
+
+Your `patterns` run first, and every match is replaced, whether or not the pattern has the `g` flag.
+
+It is best effort, not a guarantee. It leans towards leaving text alone, so a plain run of digits (`Order 12345678`), a price, a date, a time or a version number such as `1.1.1` is not touched, and neither is a card-like number that fails its check. It does not find names, street addresses or anything else written in free text, so don't rely on it as the only protection for sensitive data.
