@@ -26,7 +26,7 @@ export function configFromScript(script: HTMLScriptElement): WidgetConfig | unde
     nonce: script.nonce || undefined,
     turnstileSiteKey: script.dataset.turnstileSiteKey,
     userToken: script.dataset.userToken,
-    mode: mode || undefined,
+    mode,
     container: container || undefined,
     theme: {
       mode: (['light', 'dark', 'auto'] as const).find((value) => value === script.dataset.themeMode),
