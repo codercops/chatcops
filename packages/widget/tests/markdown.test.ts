@@ -65,6 +65,11 @@ describe('renderMarkdown', () => {
     expect(result).toContain('Outro');
   });
 
+  it('keeps the item number when a list does not start at 1', () => {
+    expect(renderMarkdown('1. Install\n\n2. Configure')).toBe('<ol><li>Install</li></ol><br><ol start="2"><li>Configure</li></ol>');
+    expect(renderMarkdown('3. third\n4. fourth')).toBe('<ol start="3"><li>third</li><li>fourth</li></ol>');
+  });
+
   it('escapes HTML to prevent injection', () => {
     const result = renderMarkdown('<script>alert("xss")</script>');
     expect(result).not.toContain('<script>');

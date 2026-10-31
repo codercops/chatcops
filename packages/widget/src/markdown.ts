@@ -74,14 +74,15 @@ export function renderMarkdown(input: string): string {
   // `1.` list stays two separate lists. Intra-list newlines are removed
   // here so the line-break step below does not insert <br> between items.
   html = html.replace(/^[-*+] (.+)$/gm, '<li data-md="ul">$1</li>');
-  html = html.replace(/^\d+\. (.+)$/gm, '<li data-md="ol">$1</li>');
+  html = html.replace(/^(\d+)\. (.+)$/gm, '<li data-md="ol" data-n="$1">$2</li>');
   html = html.replace(
-    /(?:<li data-md="ul">.*?<\/li>\n?)+|(?:<li data-md="ol">.*?<\/li>\n?)+/g,
+    /(?:<li data-md="ul">.*?<\/li>\n?)+|(?:<li data-md="ol" data-n="\d+">.*?<\/li>\n?)+/g,
     (run) => {
       const ordered = run.includes('data-md="ol"');
       const tag = ordered ? 'ol' : 'ul';
-      const items = run.replace(/ data-md="(?:ul|ol)"/g, '').replace(/\n/g, '');
-      return `<${tag}>${items}</${tag}>`;
+      const start = ordered ? Number(/data-n="(\d+)"/.exec(run)?.[1]) : 1;
+      const items = run.replace(/ data-md="(?:ul|ol)"( data-n="\d+")?/g, '').replace(/\n/g, '');
+      return `<${tag}${start !== 1 ? ` start="${start}"` : ''}>${items}</${tag}>`;
     }
   );
 
