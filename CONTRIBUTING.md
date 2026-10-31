@@ -2,17 +2,17 @@
 
 Thanks for helping out. This guide covers setup, how we work, and what a good PR looks like.
 
-## Hacktoberfest 2026
+## How to contribute
 
-We're taking part in Hacktoberfest this year, and first-time contributors are very welcome.
+First-time contributors are very welcome.
 
-1. Pick an open issue labeled [`hacktoberfest`](https://github.com/codercops/chatcops/issues?q=is%3Aissue+is%3Aopen+label%3Ahacktoberfest+no%3Aassignee) or [`good first issue`](https://github.com/codercops/chatcops/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22+no%3Aassignee) that nobody is assigned to.
+1. Pick an open issue labeled [`good first issue`](https://github.com/codercops/chatcops/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22+no%3Aassignee) that nobody is assigned to.
 2. Comment on it to ask for it. I'll assign it to you, usually within a day. Please don't start on an issue that's assigned to someone else.
 3. Take one issue at a time. Once your PR is merged, grab the next one. After 3 merged PRs with us you can hold two issues at once.
 4. If you're assigned and there's no PR or update for 5 days, I'll free the issue up for someone else. Just comment if you need more time.
 5. Open your PR against `dev` here in codercops/chatcops and put `Closes #<issue number>` in the description. For an issue that stays open across several PRs, like one language of the translations issue, write `Part of #<issue number>` instead. A PR merged inside your own fork never reaches us, so it doesn't count. A check on the PR ("Claim check") fails if that issue isn't assigned to you. Another one ("Description check") fails while the "How I tested this" or "AI assistance" section of the description is missing or empty.
 
-PRs count for Hacktoberfest once they're merged or labeled `hacktoberfest-accepted`. PRs that aren't linked to an issue, only reformat code, or change things nobody asked for will be closed, and spammy ones get the `spam` label. If you have an idea that isn't an issue yet, open an issue first so we can agree on it before you write code. The full rules are under [Ground rules](#ground-rules) below.
+A merged PR counts on the monthly leaderboard once it's labeled `codercops-accepted`. A workflow adds that label when the PR is merged, as long as every issue it closes is assigned to you. PRs that aren't linked to an issue, only reformat code, or change things nobody asked for will be closed, and spammy ones get the `spam` label. If you have an idea that isn't an issue yet, open an issue first so we can agree on it before you write code. The full rules are under [Ground rules](#ground-rules) below.
 
 Stuck? Ask on the issue, or in `#oss-help` on our [Discord](https://discord.gg/mpGdJyjaRQ). Questions are welcome. Claims still happen on the issue, so the assignment stays visible to everyone.
 
@@ -38,7 +38,7 @@ These get closed and labeled `spam`:
 - claiming a pile of issues at once, or bulk and automated submissions
 - untested generated code
 
-Two spam PRs and you won't be assigned more issues this month, and you're out of the CODERCOPS goodies.
+Two spam PRs and you won't be assigned more issues this month, and your PRs stop counting on the leaderboard.
 
 ### Reviews
 
@@ -48,15 +48,15 @@ For a bug fix, check that your new test fails without the fix: undo the change i
 
 I review most PRs within a few days. Please don't ping repeatedly or DM maintainers about a review. If three days pass with no reply, one follow-up comment on the PR is fine.
 
-### Goodies
+### Monthly leaderboard
 
-The top 5 contributors this October get a CODERCOPS T-shirt and stickers. You need at least 5 merged PRs labeled `hacktoberfest-accepted` across chatcops, ogcops, toolbelt and discord-bot, merged between Oct 1 and Oct 31 (UTC), and ties go to whoever got there first. To keep it fair:
+Every month has its own leaderboard at [oss.codercops.com/leaderboard](https://oss.codercops.com/leaderboard). It counts PRs labeled `codercops-accepted` across chatcops, ogcops, toolbelt and discord-bot that were merged in that month (UTC). You're ranked from 3 merged PRs, and the top 5 get a shout-out on our X and LinkedIn pages. To keep it fair:
 
 - only PRs for issues that were assigned to you count
 - a fix split into several PRs counts once
 - what counts is the maintainers' call, and that call is final
 
-These goodies come from CODERCOPS through our own open source program. They're separate from Hacktoberfest, so anything Hacktoberfest itself gives out is a different thing with its own rules.
+People who keep contributing can be invited as maintainers with Triage access. [GOVERNANCE.md](https://github.com/codercops/.github/blob/main/GOVERNANCE.md) explains how that works and who maintains what.
 
 ## Prerequisites
 
@@ -210,7 +210,7 @@ ANTHROPIC_API_KEY=sk-... npx tsx src/examples/express-server.ts
 
 `npx` downloads `tsx` the first time.
 
-The widget has a size budget, gzipped: 5 kB for the script tag loader (`dist/chatcops.min.js`), 19 kB for the chat panel it loads when the chat opens (`dist/chatcops.panel.js`), 2 kB for the pre-chat form chunk, 22 kB for the single-file build (`dist/chatcops.full.min.js`) and 32 kB for the unminified ESM build. CI checks them with `pnpm size` after a build (limits in `.size-limit.json`). To save bytes, the minifier renames the private class members listed in `packages/widget/mangle.ts`. A name can go on that list only if the code touches it through `this` and nowhere else, which `tests/mangle.test.ts` checks. A config field, a request body key or a DOM property renamed there would break only the CDN build.
+The widget has a size budget, gzipped: 5 kB for the script tag loader (`dist/chatcops.min.js`), 19 kB for the chat panel it loads when the chat opens (`dist/chatcops.panel.js`), 2 kB for the pre-chat form chunk, 23 kB for the single-file build (`dist/chatcops.full.min.js`) and 32 kB for the unminified ESM build. CI checks them with `pnpm size` after a build (limits in `.size-limit.json`). To save bytes, the minifier renames the private class members listed in `packages/widget/mangle.ts`. A name can go on that list only if the code touches it through `this` and nowhere else, which `tests/mangle.test.ts` checks. A config field, a request body key or a DOM property renamed there would break only the CDN build.
 
 ### Browser tests
 

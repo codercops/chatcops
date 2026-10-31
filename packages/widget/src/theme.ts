@@ -1,5 +1,32 @@
 export type ThemeMode = 'light' | 'dark' | 'auto';
 
+const TOKEN_NAMES = [
+  'accent',
+  'accent-hover',
+  'on-accent',
+  'accent-contrast',
+  'text',
+  'bg',
+  'bg-surface',
+  'surface-raised',
+  'bg-input',
+  'border',
+  'text-secondary',
+  'danger',
+  'code-bg',
+  'pre-bg',
+  'shadow',
+  'font',
+  'radius',
+  'fab-size',
+  'panel-width',
+  'panel-height',
+  'focus-ring',
+] as const;
+
+export type WidgetTokenName = (typeof TOKEN_NAMES)[number];
+export type WidgetTokens = Partial<Record<WidgetTokenName, string>>;
+
 export interface ThemeConfig {
   /**
    * `auto` (the default) follows the visitor's system setting and switches
@@ -13,6 +40,7 @@ export interface ThemeConfig {
   bgColor?: string;
   fontFamily?: string;
   borderRadius?: string | number;
+  tokens?: WidgetTokens;
   position?: 'bottom-right' | 'bottom-left';
 }
 
@@ -40,6 +68,13 @@ export function applyTheme(root: ShadowRoot, theme: ThemeConfig): void {
   if (theme.borderRadius !== undefined) {
     const radius = toCssLength(theme.borderRadius);
     if (radius) host.style.setProperty('--cc-radius', radius);
+  }
+  if (theme.tokens) {
+    for (const [name, value] of Object.entries(theme.tokens)) {
+      if (TOKEN_NAMES.includes(name as WidgetTokenName) && typeof value === 'string' && value.trim()) {
+        host.style.setProperty(`--cc-${name}`, value);
+      }
+    }
   }
 }
 

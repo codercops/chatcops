@@ -26,7 +26,7 @@ jobs:
     # Maintainers and bots don't claim issues.
     if: >-
       github.event.pull_request.user.type != 'Bot' &&
-      !contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
+      !contains(fromJSON('["OWNER", "MEMBER"]'), github.event.pull_request.author_association)
     runs-on: ubuntu-latest
     steps:
       - name: Check the linked issue

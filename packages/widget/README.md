@@ -75,6 +75,10 @@ ChatCops.init({
     bgColor: '#0a0a0a',
     fontFamily: 'system-ui, sans-serif',
     borderRadius: '12px',
+    tokens: {
+      border: '#d0d4da',
+      'panel-width': '440px',
+    },
     position: 'bottom-right',           // 'bottom-right' | 'bottom-left'
   },
 

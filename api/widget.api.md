@@ -79,6 +79,7 @@ export interface ThemeConfig {
     bgColor?: string;
     fontFamily?: string;
     borderRadius?: string | number;
+    tokens?: WidgetTokens;
     position?: 'bottom-right' | 'bottom-left';
 }
 
@@ -228,6 +229,10 @@ export interface WidgetLocaleStrings {
     privacy: string;
 }
 
+export type WidgetTokenName = (typeof TOKEN_NAMES)[number];
+
+export type WidgetTokens = Partial<Record<WidgetTokenName, string>>;
+
 export type WidgetUpdate = Pick<WidgetConfig, 'branding' | 'welcomeMessage' | 'disclosure' | 'suggestions' | 'placeholder' | 'strings' | 'privacyUrl'> & {
     theme?: Omit<ThemeConfig, 'position'>;
 };
@@ -240,4 +245,34 @@ The same for each of: `ar`, `de`, `es`, `fr`, `he`, `hi`, `it`, `ja`, `ko`, `nl`
 ```ts
 declare const _default: Partial<WidgetLocaleStrings>;
 export { _default as default };
+```
+
+## Types no entry exports
+
+They're part of the API above all the same: a change to one is a change to the API.
+
+```ts
+declare const TOKEN_NAMES: readonly [
+    "accent",
+    "accent-hover",
+    "on-accent",
+    "accent-contrast",
+    "text",
+    "bg",
+    "bg-surface",
+    "surface-raised",
+    "bg-input",
+    "border",
+    "text-secondary",
+    "danger",
+    "code-bg",
+    "pre-bg",
+    "shadow",
+    "font",
+    "radius",
+    "fab-size",
+    "panel-width",
+    "panel-height",
+    "focus-ring"
+];
 ```
