@@ -302,6 +302,8 @@ describe('webhook URL guard', () => {
   it.each([
     'http://hooks.example.com/lead',
     'https://localhost/hook',
+    'https://localhost./hook',
+    'https://widget.localhost./hook',
     'https://127.0.0.1/hook',
     'https://10.0.0.5/hook',
     'https://172.16.3.4/hook',
@@ -311,18 +313,29 @@ describe('webhook URL guard', () => {
     'https://[fd00::1]/hook',
     'https://[::ffff:10.0.0.1]/hook',
     'https://metadata.google.internal/computeMetadata',
+    'https://metadata.google.internal./computeMetadata',
     'ftp://hooks.example.com/lead',
   ])('refuses %s', (url) => {
     expect(() => assertSafeWebhookUrl(url)).toThrow();
     expect(() => new WebhookDispatcher([{ url, events: ['*'] }])).toThrow();
   });
 
-  it.each(['https://hooks.example.com/lead', 'https://8.8.8.8/hook', 'https://172.32.0.1/hook', 'https://[2606:4700::1]/hook'])(
+  it.each([
+    'https://hooks.example.com/lead',
+    'https://hooks.example.com./lead',
+    'https://8.8.8.8/hook',
+    'https://172.32.0.1/hook',
+    'https://[2606:4700::1]/hook',
+  ])(
     'accepts %s',
     (url) => {
       expect(() => assertSafeWebhookUrl(url)).not.toThrow();
     }
   );
+
+  it('keeps a public hostname trailing dot in the returned delivery URL', () => {
+    expect(assertSafeWebhookUrl('https://hooks.example.com./lead').hostname).toBe('hooks.example.com.');
+  });
 
   it('allows a local http receiver with allowPrivateNetwork', () => {
     expect(() => new WebhookDispatcher([{ url: 'http://localhost:4000/hook', events: ['*'], allowPrivateNetwork: true }])).not.toThrow();
