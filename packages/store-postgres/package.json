@@ -1,7 +1,6 @@
 {
   "name": "@chatcops/store-postgres",
   "version": "0.3.0",
-  "private": true,
   "description": "Postgres storage for ChatCops: conversations, counters, keys and analytics events",
   "keywords": [
     "chatcops",

@@ -1,7 +1,6 @@
 {
   "name": "@chatcops/ingest",
   "version": "0.2.0",
-  "private": true,
   "description": "Turn a website into a searchable ChatCops knowledge index: discover, fetch, extract, chunk and embed",
   "keywords": [
     "chatcops",
