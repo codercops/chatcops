@@ -197,6 +197,22 @@ describe('webhook retries', () => {
     expect(calls).toHaveLength(3);
   });
 
+  it('waits for a fractional Retry-After in seconds', async () => {
+    vi.useFakeTimers();
+    const calls = captureFetch([
+      new Response('', { status: 429, headers: { 'Retry-After': '1.5' } }),
+      new Response('', { status: 200 }),
+    ]);
+    const dispatcher = new WebhookDispatcher([{ url: 'https://hooks.test/fraction', events: ['*'] }]);
+
+    const done = dispatcher.dispatch('lead:captured', {});
+    await vi.advanceTimersByTimeAsync(1_499);
+    expect(calls).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await done;
+    expect(calls).toHaveLength(2);
+  });
+
   it('retries immediately for a past HTTP-date Retry-After value', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-10-31T14:00:00.000Z'));
@@ -218,6 +234,9 @@ describe('webhook retries', () => {
   it.each([
     ['invalid', 'not a valid HTTP date'],
     ['missing', null],
+    // Both of these are dates long past to Date.parse, which would retry at once.
+    ['negative', '-1'],
+    ['numbers with no day or month name', '1 2'],
   ])('%s Retry-After uses the exponential fallback', async (_label, retryAfter) => {
     vi.useFakeTimers();
     const headers = retryAfter ? { 'Retry-After': retryAfter } : {};
