@@ -1,7 +1,6 @@
 {
   "name": "@chatcops/store-redis",
   "version": "0.3.0",
-  "private": true,
   "description": "Redis and Upstash storage for ChatCops",
   "keywords": [
     "chatcops",

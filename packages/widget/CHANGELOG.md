@@ -1,5 +1,16 @@
 # @chatcops/widget
 
+## 1.1.1
+
+### Patch Changes
+
+- 1694df2: Ignore script-tag auto-open delays outside the supported timer range.
+- 5eec65e: Ignore invalid enum values in widget script-tag attributes.
+- a2cfb5a: Ignore invalid `data-wait-for-consent` values in script-tag configuration.
+- bc8de56: Validate `maxMessages` before saving conversation history, and default invalid values to 50.
+- 8a77822: `autoOpen` and `welcomeBubble.delay` passed to `init()` no longer fire at once when the number is out of range. A delay past what `setTimeout` holds (2,147,483,647 ms, about 24.8 days) waits that long, `autoOpen` with `NaN`, a negative number or a non-number doesn't auto-open, and the bubble delay falls back to its default of 3000 ms. The script tag attributes were already checked.
+- 6544378: Report a clear ChatCops error for invalid inline container selectors.
+
 ## 1.1.0
 
 ### Minor Changes

@@ -1,5 +1,15 @@
 # @chatcops/server
 
+## 1.1.1
+
+### Patch Changes
+
+- 5610d2d: Honor HTTP-date values in webhook Retry-After headers.
+- 03726d2: A webhook `Retry-After` of `-1`, or numbers with no day or month name, falls back to the usual backoff again instead of retrying at once. `Date.parse` read them as dates long past.
+- c8d6627: `verifyWebhook()` now checks `toleranceSec`: it must be a whole number of seconds, 0 or more, or the call throws a `RangeError`. Before, `NaN` and `Infinity` made the age check never reject, so a stale signature passed. The default of 300 seconds and `0` (the same second only) work as before.
+- Updated dependencies [864eb15]
+  - @chatcops/core@1.1.1
+
 ## 1.1.0
 
 ### Minor Changes

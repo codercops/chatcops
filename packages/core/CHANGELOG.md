@@ -1,5 +1,11 @@
 # @chatcops/core
 
+## 1.1.1
+
+### Patch Changes
+
+- 864eb15: Cancel retryable HTTP response bodies before waiting and retrying.
+
 ## 1.1.0
 
 ### Minor Changes
