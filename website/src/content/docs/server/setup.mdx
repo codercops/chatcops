@@ -356,7 +356,7 @@ Each webhook gets a POST with a JSON body for every event it subscribes to:
 
 `id` is the same on every retry, so use it to ignore duplicates; it's also in the `X-ChatCops-Event-Id` header.
 
-**Retries.** Each webhook can set `timeoutMs` (per attempt, default `5000`) and `maxAttempts` (1 to 10, default `3`); a bad value fails at startup. Network errors, 429 and 5xx responses are retried (a 429's `Retry-After` is honored, up to 10 seconds); other 4xx responses are final, and redirects aren't followed. The existing exponential delays are unchanged. A delivery that fails for good is logged with the event type, id and the receiver's origin, never the body.
+**Retries.** Each webhook can set `timeoutMs` (per attempt, default `5000`) and `maxAttempts` (1 to 10, default `3`); a bad value fails at startup. Network errors, 429 and 5xx responses are retried (a 429's `Retry-After` is honored, up to 10 seconds); other 4xx responses are final, and redirects aren't followed. Between attempts it waits 1 second, then 2, then 4, doubling each time. A delivery that fails for good is logged with the event type, id and the receiver's origin, never the body.
 
 **Verifying the signature.** With a `secret`, each request has an `X-ChatCops-Signature: t=<unix seconds>,v1=<hex>` header, an HMAC-SHA256 of `<t>.<raw body>`. Verify it against the raw body, before parsing it:
 
