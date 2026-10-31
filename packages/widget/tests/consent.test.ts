@@ -458,14 +458,20 @@ describe('data-wait-for-consent', () => {
   };
 
   it.each([
-    [{ waitForConsent: '' }, true],
-    [{ waitForConsent: 'true' }, true],
-    [{ waitForConsent: 'false' }, false],
-    [{ waitForConsent: 'flase' }, undefined],
-    [{ waitForConsent: 'yes' }, undefined],
-    [{}, undefined],
-  ])('reads %j as %s', (data, expected) => {
+    [{ waitForConsent: '' }, true, undefined],
+    [{ waitForConsent: 'true' }, true, undefined],
+    [{ waitForConsent: 'false' }, false, undefined],
+    [{ waitForConsent: 'flase' }, true, 'flase'],
+    [{ waitForConsent: 'yes' }, true, 'yes'],
+    [{}, undefined, undefined],
+  ])('reads %j as %s and warns for invalid input', (data, expected, invalidValue) => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     expect(configFromScript(script(data))?.waitForConsent).toBe(expected);
+    if (invalidValue) {
+      expect(warning).toHaveBeenCalledWith(expect.stringContaining(`data-wait-for-consent="${invalidValue}"`));
+    } else {
+      expect(warning).not.toHaveBeenCalled();
+    }
   });
 });
 

@@ -380,7 +380,7 @@ See the [pre-chat form guide](/widget/pre-chat-form) for field behavior, validat
 | `data-dir` | `dir` | Text direction: `'ltr'`, `'rtl'` or `'auto'` |
 | `data-persistence` | `persistence` | `'local'`, `'session'` or `'none'` |
 | `data-history-ttl-days` | `historyTtlDays` | Days a saved conversation is kept |
-| `data-wait-for-consent` | `waitForConsent` | `"true"` or an empty value enables consent waiting; `"false"` disables it. Other values are ignored |
+| `data-wait-for-consent` | `waitForConsent` | When present, anything except `"false"` waits for consent. Invalid non-empty values log a warning; `"true"` or an empty value enables it without a warning |
 | `data-privacy-url` | `privacyUrl` | Privacy policy link in header menu (https: or http: only) |
 | `data-turnstile-site-key` | `turnstileSiteKey` | Cloudflare Turnstile site key, when the server checks Turnstile |
 | `data-user-token` | `userToken` | Signed token for a signed-in visitor, when the server has `identity` set |

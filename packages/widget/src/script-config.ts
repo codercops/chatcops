@@ -17,7 +17,10 @@ function parseOptionalBoolean(value?: string): boolean | undefined {
   if (value === undefined) return undefined;
   if (value === '' || value === 'true') return true;
   if (value === 'false') return false;
-  return undefined;
+  console.warn(
+    `[chatcops] data-wait-for-consent="${value}" isn't true or false, so the chat waits for consent. Use "true" or "false".`,
+  );
+  return true;
 }
 
 /** The widget config from a script tag's `data-*` attributes, or `undefined` without `data-api-url`. */
