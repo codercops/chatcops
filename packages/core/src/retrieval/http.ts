@@ -33,6 +33,11 @@ export async function postWithRetries(
       const detail = (await response.text().catch(() => '')).slice(0, 300);
       throw new Error(`${provider} ${operation} failed with HTTP ${response.status}${detail ? `: ${detail}` : ''}`);
     }
+    try {
+      await response.body?.cancel();
+    } catch {
+      // A failed cleanup should not prevent the request from being retried.
+    }
     const wait = Number(response.headers.get('retry-after'));
     await sleep(Number.isFinite(wait) && wait > 0 ? Math.min(wait, 30) * 1000 : 1000 * attempt, signal);
   }
