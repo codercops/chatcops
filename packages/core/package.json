@@ -1,6 +1,6 @@
 {
   "name": "@chatcops/core",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Core AI provider abstraction, tools, and knowledge base for ChatCops",
   "keywords": [
     "chatcops",
