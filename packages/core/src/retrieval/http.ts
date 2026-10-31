@@ -35,6 +35,11 @@ export async function postWithRetries(
     }
     const retryAfterMs = retryAfterDelayMs(response.headers.get('retry-after'));
     await sleep(retryAfterMs ?? 1000 * attempt, signal);
+    try {
+      await response.body?.cancel();
+    } catch {
+      // A failed cleanup should not prevent the request from being retried.
+    }
   }
 }
 
