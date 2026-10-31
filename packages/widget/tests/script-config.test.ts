@@ -75,8 +75,8 @@ describe('configFromScript', () => {
     const config = configFromScript(script({ apiUrl: '/api/chat', [attribute]: value }));
 
     if (attribute === 'mode') expect(config?.mode).toBe(value);
-    if (attribute === 'themeMode') expect(config?.theme.mode).toBe(value);
-    if (attribute === 'position') expect(config?.theme.position).toBe(value);
+    if (attribute === 'themeMode') expect(config?.theme?.mode).toBe(value);
+    if (attribute === 'position') expect(config?.theme?.position).toBe(value);
   });
 
   it.each([
@@ -87,8 +87,8 @@ describe('configFromScript', () => {
     const config = configFromScript(script({ apiUrl: '/api/chat', [attribute]: value }));
 
     if (attribute === 'mode') expect(config?.mode).toBeUndefined();
-    if (attribute === 'themeMode') expect(config?.theme.mode).toBeUndefined();
-    if (attribute === 'position') expect(config?.theme.position).toBeUndefined();
+    if (attribute === 'themeMode') expect(config?.theme?.mode).toBeUndefined();
+    if (attribute === 'position') expect(config?.theme?.position).toBeUndefined();
   });
 
   it('ignores a persistence mode or history length it does not know', () => {
