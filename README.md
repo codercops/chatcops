@@ -16,7 +16,7 @@ Multi-provider (Claude, OpenAI, Gemini), lead capture, knowledge base, conversat
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js"
   data-api-url="https://your-api.com/chat"
   data-accent="#6366f1">
 </script>

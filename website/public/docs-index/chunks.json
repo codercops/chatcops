@@ -8,27 +8,27 @@
   "core/providers.mdx": "5b1de34798a563bc",
   "core/testing.mdx": "e9aefb9a277edd48",
   "core/tools.mdx": "4f7e16807ec2f372",
-  "examples/cloudflare-full.mdx": "67368eb714a6174e",
-  "examples/express-full.mdx": "ddf2e380c57ae619",
-  "examples/vercel-full.mdx": "91e2a0f5fbaf359a",
-  "getting-started/installation.mdx": "0aa86a5be34e2e57",
-  "getting-started/quick-start.mdx": "9ed8e2340e29621f",
+  "examples/cloudflare-full.mdx": "57f9d5213f3e6946",
+  "examples/express-full.mdx": "216f4dbd276c0907",
+  "examples/vercel-full.mdx": "24e59119ffd6afc3",
+  "getting-started/installation.mdx": "4838aea049ebbe29",
+  "getting-started/quick-start.mdx": "19f3a76f54861425",
   "getting-started/upgrading-to-1.mdx": "7a87f9fa1b5b027e",
   "getting-started/upgrading.mdx": "791ffd122086a6a9",
   "index.mdx": "305829ce790434fb",
   "server/ai-sdk.mdx": "368cc80275e7b27b",
-  "server/cloudflare.mdx": "8c6d38c89a7b14aa",
+  "server/cloudflare.mdx": "e73c71817390238f",
   "server/express.mdx": "63235bcf373ed614",
   "server/fetch-runtimes.mdx": "b633a44555b0e262",
   "server/protocol.mdx": "c0a3778b343b8d51",
-  "server/security.mdx": "904327913fe142f4",
+  "server/security.mdx": "b167792058cff2cc",
   "server/setup.mdx": "6a4c3b961d6c8916",
   "server/storage.mdx": "fb753e13c509e53b",
-  "server/vercel.mdx": "091acde7babd7d76",
-  "widget/api.mdx": "9d6bd272cb21ae70",
-  "widget/configuration.mdx": "7e90d3b9e07701d6",
+  "server/vercel.mdx": "3005dbeed80ca585",
+  "widget/api.mdx": "d022176d59b6c3ca",
+  "widget/configuration.mdx": "09bba3feb8a226f0",
   "widget/events.mdx": "184357696a0d1f0b",
-  "widget/i18n.mdx": "3594304b5a065290",
+  "widget/i18n.mdx": "fb3bbf786f91c1f7",
   "widget/pre-chat-form.mdx": "88cb4543323e91c5",
   "widget/theming.mdx": "1d2f2d376db6f58c"
  },
@@ -313,12 +313,12 @@
   },
   {
    "id": "191f37efabb6c5a42279946db31085bb53cd6c42afa6530d027bb9d92547f5e9",
-   "text": "Widget Configuration > WidgetConfig Interface\n\nSee the [pre-chat form guide](/widget/pre-chat-form) for field behavior, validation, and how answers are sent to the server. The form is configured with JavaScript; it has no `data-*` attributes.",
+   "text": "Widget Configuration > Programmatic Configuration > Stopping a reply\n\nWhile a reply streams, the send button becomes a Stop button, named by the `stopButton` string (`Stop` in English; a language without it shows the English one). Clicking it ends the request, so the server stops generating, and keeps the text that has streamed as a finished reply: no error, and the visitor can use Regenerate to ask again. The `message` event fires for it with `status: 'complete'`. If the visitor stops before any text has arrived, no reply appears. The text box stays locked while a reply streams, so Escape does not stop it and still closes the popup.",
    "source": {
     "id": "https://chat.codercops.com/widget/configuration/",
     "url": "https://chat.codercops.com/widget/configuration/",
     "title": "Widget Configuration",
-    "section": "WidgetConfig Interface"
+    "section": "Programmatic Configuration > Stopping a reply"
    }
   },
   {
@@ -770,6 +770,16 @@
    }
   },
   {
+   "id": "3fcc0985c2a38634bd7c9a29c740fd36c94f236e2cd0f96a01cac448f3c0916b",
+   "text": "Widget Configuration > Script Tag Attribute Reference\n\n| Attribute | Config Key | Description |\n|-----------|-----------|-------------|\n| `data-api-url` | `apiUrl` | API endpoint URL (required) |\n| `data-mode` | `mode` | `'popup'` or `'inline'` |\n| `data-container` | `container` | CSS selector for inline container |\n| `data-theme-mode` | `theme.mode` | `'light'`, `'dark'` or `'auto'` |\n| `data-accent` | `theme.accent` | Primary accent color |\n| `data-accent-dark` | `theme.accentDark` | Accent color in dark mode |\n| `data-text-color` | `theme.textColor` | Primary text color |\n| `data-bg-color` | `theme.bgColor` | Background color |\n| `data-font-family` | `theme.fontFamily` | Font family |\n| `data-border-radius` | `theme.borderRadius` | Border radius. A bare number is px (`12`), or use any CSS length (`1rem`) |\n| `data-position` | `theme.position` | `'bottom-right'` or `'bottom-left'` |\n| `data-brand-name` | `branding.name` | Header title |\n| `data-brand-avatar` | `branding.avatar` | Avatar image URL |\n| `data-brand-subtitle` | `branding.subtitle` | Subtitle text |\n| `data-welcome-message` | `welcomeMessage` | First assistant message |\n| `data-disclosure` | `disclosure` | `\"false\"` turns the AI disclosure off |\n| `data-disclosure-text` | `disclosure.text` | Wording of the AI disclosure |\n| `data-disclosure-url` | `disclosure.learnMoreUrl` | \"Learn more\" link in the AI disclosure |\n| `data-welcome-bubble` | `welcomeBubble.text` | Welcome bubble text |\n| `data-welcome-bubble-delay` | `welcomeBubble.delay` | Bubble delay in ms |\n| `data-placeholder` | `placeholder` | Input placeholder |\n| `data-auto-open` | `autoOpen` | Auto-open delay in ms or `true` |\n| `data-locale` | `locale` | Language code |\n| `data-dir` | `dir` | Text direction: `'ltr'`, `'rtl'` or `'auto'` |\n| `data-persistence` | `persistence` | `'local'`, `'session'` or `'none'` |\n| `data-history-ttl-days` | `historyTtlDays` | Days a saved conversation is kept |\n| `data-wait-for-consent` | `waitForConsent` | Wait for `ChatCops.setConsent(true)` before using storage or the API. `\"false\"` turns it off |\n| `data-privacy-url` | `privacyUrl` | Privacy policy link in header menu (https: or http: only) |\n| `data-turnstile-site-key` | `turnstileSiteKey` | Cloudflare Turnstile site key, when the server checks Turnstile |\n| `data-user-token` | `userToken` | Signed token for a signed-in visitor, when the server has `identity` set |",
+   "source": {
+    "id": "https://chat.codercops.com/widget/configuration/",
+    "url": "https://chat.codercops.com/widget/configuration/",
+    "title": "Widget Configuration",
+    "section": "Script Tag Attribute Reference"
+   }
+  },
+  {
    "id": "406d61b47daa294a6a3a59321331dfe377e274bf41eff4ef09503e2df359c2fd",
    "text": "Server Setup\n\nThe `@chatcops/server` package provides a universal chat handler that works with any HTTP framework via adapters.",
    "source": {
@@ -820,7 +830,7 @@
   },
   {
    "id": "43edec894688421ec4c5f494207cc689e573f9983b795ea7c88a6f795d9b0612",
-   "text": "Cloudflare Workers Adapter > Widget Configuration\n\n```html\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js\"\n  data-api-url=\"https://chatcops.your-domain.workers.dev\"\n></script>\n```",
+   "text": "Cloudflare Workers Adapter > Widget Configuration\n\n```html\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js\"\n  data-api-url=\"https://chatcops.your-domain.workers.dev\"\n></script>\n```",
    "source": {
     "id": "https://chat.codercops.com/server/cloudflare/",
     "url": "https://chat.codercops.com/server/cloudflare/",
@@ -830,12 +840,12 @@
   },
   {
    "id": "43f4d77bbea484dfd90553ad7402a4698b6b7b8c1bfd8f201d951eb52e230c25",
-   "text": "Widget Configuration > WidgetConfig Interface\n\n`WidgetConfig` and the types it's made of are all exported from `@chatcops/widget`, so a site can type its own pieces of a config:\n\n```typescript\nimport type { PreChatFormConfig, ThemeConfig } from '@chatcops/widget';\n\nconst brand: ThemeConfig = { mode: 'auto', accent: '#2563eb', borderRadius: 12 };\nconst leadForm: PreChatFormConfig = {\n  enabled: true,\n  fields: [{ name: 'email', label: 'Work email', type: 'email', required: true }],\n};\n```",
+   "text": "Widget Configuration > Programmatic Configuration > Streaming inactivity timeout\n\nSet `timeout` in `ChatCops.init()` to change the inactivity timeout in milliseconds.\nThe default is `30000` (30 seconds). It starts when a request begins and restarts\nwhenever a nonempty stream chunk arrives, including heartbeat comments, partial\nSSE events and malformed data. It measures received transport activity, not the\ntime between displayed text updates or the total response duration.\n\nA response can stream for longer than the timeout as long as chunks keep arriving.\nA request that never responds, or a stream that stops sending data, fails with a\ntimeout error. Use a larger value for backends with longer silent periods. This\noption is available through programmatic configuration.",
    "source": {
     "id": "https://chat.codercops.com/widget/configuration/",
     "url": "https://chat.codercops.com/widget/configuration/",
     "title": "Widget Configuration",
-    "section": "WidgetConfig Interface"
+    "section": "Programmatic Configuration > Streaming inactivity timeout"
    }
   },
   {
@@ -998,7 +1008,7 @@
   },
   {
    "id": "547a4db5cbe14a6fdecc6482d3aa567d270b80a724c30693b7a1841008a2397c",
-   "text": "Cloudflare Worker Full Example > Widget HTML\n\n```html\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js\"\n  data-api-url=\"https://chatcops-worker.your-subdomain.workers.dev\"\n  data-accent=\"#6366f1\"\n  data-brand-name=\"AI Support\"\n  data-welcome-message=\"Hi! How can I help?\"\n></script>\n```",
+   "text": "Cloudflare Worker Full Example > Widget HTML\n\n```html\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js\"\n  data-api-url=\"https://chatcops-worker.your-subdomain.workers.dev\"\n  data-accent=\"#6366f1\"\n  data-brand-name=\"AI Support\"\n  data-welcome-message=\"Hi! How can I help?\"\n></script>\n```",
    "source": {
     "id": "https://chat.codercops.com/examples/cloudflare-full/",
     "url": "https://chat.codercops.com/examples/cloudflare-full/",
@@ -1017,7 +1027,7 @@
   },
   {
    "id": "55895aa1efc0dfb52da1d524a35839e976643022a149c4406322844a2679fc5e",
-   "text": "API Reference > Auto-Initialization > Inline\n\n```html\n<div id=\"my-chat\" style=\"width: 400px; height: 500px;\"></div>\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js\"\n  data-api-url=\"https://your-api.com/chat\"\n  data-mode=\"inline\"\n  data-container=\"#my-chat\"\n></script>\n```\n\nThe script tag approach is equivalent to calling `ChatCops.init()` with the corresponding config. You can still use the programmatic API after auto-init (e.g., `ChatCops.open()`).",
+   "text": "API Reference > Auto-Initialization > Inline\n\n```html\n<div id=\"my-chat\" style=\"width: 400px; height: 500px;\"></div>\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js\"\n  data-api-url=\"https://your-api.com/chat\"\n  data-mode=\"inline\"\n  data-container=\"#my-chat\"\n></script>\n```\n\nThe script tag approach is equivalent to calling `ChatCops.init()` with the corresponding config. You can still use the programmatic API after auto-init (e.g., `ChatCops.open()`).",
    "source": {
     "id": "https://chat.codercops.com/widget/api/",
     "url": "https://chat.codercops.com/widget/api/",
@@ -1096,7 +1106,7 @@
   },
   {
    "id": "5f73e0fc43850faec0aa3b893006b3df1e4b107f461e9f60a297af99c919add6",
-   "text": "Vercel Adapter > Widget Configuration\n\nPoint the widget to your Vercel deployment:\n\n```html\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js\"\n  data-api-url=\"https://your-app.vercel.app/api/chat\"\n></script>\n```",
+   "text": "Vercel Adapter > Widget Configuration\n\nPoint the widget to your Vercel deployment:\n\n```html\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js\"\n  data-api-url=\"https://your-app.vercel.app/api/chat\"\n></script>\n```",
    "source": {
     "id": "https://chat.codercops.com/server/vercel/",
     "url": "https://chat.codercops.com/server/vercel/",
@@ -1116,7 +1126,7 @@
   },
   {
    "id": "61d6bdd811ff91da5241dae508630d4bc36fa336fa2e908514807df32f90caf9",
-   "text": "API Reference > Methods > `ChatCops.sendMessage(text, options?)`\n\nSend a message as if the visitor typed it, for example from a \"Ask about pricing\" button on your page. The chat opens first, unless you pass `{ open: false }`. The promise resolves when the reply has finished. While a reply is still coming, another message is ignored, as it is in the input.\n\n```typescript\ndocument.querySelector('#pricing-question')?.addEventListener('click', () => {\n  void ChatCops.sendMessage('How much is the Team plan?');\n});\n```",
+   "text": "API Reference > Methods > `ChatCops.sendMessage(text, options?)`\n\nSend a message as if the visitor typed it, for example from a \"Ask about pricing\" button on your page. The chat opens first, unless you pass `{ open: false }`. The promise resolves when the reply has finished. While a reply is still coming, another message is ignored, as it is in the input. While the browser is offline the message waits and is sent when the connection is back, so the promise resolves at once, without a reply (see [messages sent while offline](/widget/configuration/#messages-sent-while-offline)).\n\n```typescript\ndocument.querySelector('#pricing-question')?.addEventListener('click', () => {\n  void ChatCops.sendMessage('How much is the Team plan?');\n});\n```",
    "source": {
     "id": "https://chat.codercops.com/widget/api/",
     "url": "https://chat.codercops.com/widget/api/",
@@ -1186,12 +1196,12 @@
   },
   {
    "id": "666383e7d9834f25b652cef9d9c0ca9d3cc14959c3b022b4d439f8bbf588b589",
-   "text": "Widget Configuration > WidgetConfig Interface\n\n```typescript\n// docs-check: skip, a reference listing rather than code to run\ninterface WidgetConfig {\n  apiUrl: string;\n  nonce?: string;                // CSP nonce for the widget's injected styles\n  timeout?: number;              // Inactivity timeout in ms, default: 30000\n  turnstileSiteKey?: string;     // Cloudflare Turnstile site key, when the server has `turnstile` set\n  userToken?: string | (() => string | undefined | Promise<string | undefined>); // Your server's signed token for a signed-in visitor (server `identity`), or a function that returns a fresh one\n\n  // Display mode\n  mode?: 'popup' | 'inline';       // Default: 'popup'\n  container?: string | HTMLElement; // Required when mode is 'inline'\n  siteId?: string;                 // Names the saved conversation; set one per widget when a page has several\n\n  theme?: {\n    mode?: 'light' | 'dark' | 'auto';  // Default: 'auto', which follows the system setting\n    accent?: string;          // Hex color, default: '#4f46e5' (light), '#6366f1' (dark)\n    accentDark?: string;      // Hex color, the accent in dark mode. Default: accent\n    textColor?: string;       // Hex color, replaces the text color in every mode\n    bgColor?: string;         // Hex color, replaces the background in every mode\n    fontFamily?: string;      // CSS font-family\n    borderRadius?: string | number;  // px if a number or numeric string (12, '12'), or any CSS length ('1rem'). Default: 12\n    position?: 'bottom-right' | 'bottom-left';\n  };\n\n  branding?: {\n    name?: string;            // Header title\n    avatar?: string;          // URL or data URI\n    subtitle?: string;        // Below title in header\n  };\n\n  welcomeMessage?: string;    // First assistant message\n  disclosure?: false | {      // The \"you're chatting with an AI\" note, on by default\n    text?: string;            // Replaces the wording\n    learnMoreUrl?: string;    // Adds a \"Learn more\" link (http or https)\n  };\n  suggestions?: string[];     // Suggested question buttons shown in a new conversation\n  welcomeBubble?: {           // Popup mode only\n    text: string;             // Text shown on hover bubble\n    delay?: number;           // ms before bubble appears\n    showOnce?: boolean;       // Show only once (default: true): per browser with 'local' persistence, per tab with 'session', every page load with 'none'\n  };\n  placeholder?: string;       // Input placeholder text\n  persistence?: 'local' | 'session' | 'none'; // Where the chat is saved, default: 'local'\n  historyTtlDays?: number;    // Drop saved chats older than this, default: 30\n  waitForConsent?: boolean;   // Show a notice and use no storage or API until setConsent(true), default: false\n  onConsentRequest?: () => void; // The notice's button; leave it out to have no button\n  maxMessages?: number;       // Max messages to persist, default: 50\n  pageContext?: boolean;       // Send page URL/title, default: true\n  autoOpen?: boolean | number; // Popup mode only. true = immediate, number = delay in ms\n  locale?: string;            // Sent to the server with each message. Only English strings are built in\n  dir?: 'ltr' | 'rtl' | 'auto'; // Text direction; defaults from locale, then document direction\n  strings?: Partial<WidgetLocaleStrings>; // Custom i18n overrides\n  preChatForm?: {\n    enabled: boolean;\n    title?: string;\n    subtitle?: string;\n    submitLabel?: string;\n    fields: Array<{\n      name: string;\n      type: 'text' | 'email' | 'select' | 'textarea';\n      label: string;\n      placeholder?: string;\n      required?: boolean;\n      options?: string[];\n    }>;\n  };\n\n  // Callbacks\n  onOpen?: () => void;\n  onClose?: () => void;\n  onMessage?: (message: MessageData) => void;\n  onError?: (error: Error) => void;\n  onLeadCaptured?: (leadData?: Record<string, unknown>) => void;\n  onPreChatSubmit?: (data: Record<string, string>) => void;\n}\n```",
+   "text": "Widget Configuration > Programmatic Configuration > Messages sent while offline\n\nIf the browser reports it is offline (`navigator.onLine`), a message the visitor sends is shown with the note \"Will send when you're back online\" (the `messageWaiting` string) and is not sent. When the `online` event fires, the widget sends the waiting messages in order, one at a time, with no click needed. A message that then fails gets the usual error and Retry button, and the ones after it still go. If the connection drops again partway, the rest keep waiting. The `message` event for a waiting message fires when it is sent, not when it is typed.\n\nWaiting messages live in this page view only: they are not saved, so a reload, `ChatCops.newConversation()` or `ChatCops.clear()` drops them. The note is announced through the reply live region. A reply that fails because the connection drops in the middle is not part of this; it still shows the network error with Retry.",
    "source": {
     "id": "https://chat.codercops.com/widget/configuration/",
     "url": "https://chat.codercops.com/widget/configuration/",
     "title": "Widget Configuration",
-    "section": "WidgetConfig Interface"
+    "section": "Programmatic Configuration > Messages sent while offline"
    }
   },
   {
@@ -1256,7 +1266,7 @@
   },
   {
    "id": "6b5048b59aa0f98d5de8f011f5a84753cc154f0f9cd5a51bba6967e38dd3e5e6",
-   "text": "Internationalization > Locale Strings\n\n`strings` accepts any of these keys:\n\n```typescript\ninterface LocaleStrings {\n  welcomeMessage: string;\n  inputPlaceholder: string;\n  sendButton: string;\n  closeButton: string;\n  openChat: string;\n  defaultName: string;\n  defaultSubtitle: string;\n  greetingWithName: string;\n  selectPlaceholder: string;\n  dismissBubble: string;\n  errorGeneric: string;\n  errorNetwork: string;\n  errorRateLimit: string;\n  errorRateLimitWait: string;   // {seconds} is how long to wait\n  errorBudget: string;\n  errorBudgetDaily: string;\n  errorUnavailable: string;\n  errorCutOff: string;\n  typingIndicator: string;\n  poweredBy: string;\n  newConversation: string;\n  welcomeBubbleDefault: string;\n  preChatTitle: string;\n  preChatSubtitle: string;\n  preChatSubmit: string;\n  preChatRequired: string;\n  preChatInvalidEmail: string;\n  retryButton: string;\n  regenerateButton: string;\n  suggestionsLabel: string;\n  unreadCount: string;\n  disclosure: string;          // \"You're chatting with an AI assistant. It can make mistakes.\"\n  disclosureLearnMore: string; // \"Learn more\"\n  consentNotice: string;       // \"Chat is available once you accept functional cookies.\"\n  consentButton: string;       // \"Cookie settings\"\n}\n```",
+   "text": "Internationalization > Locale Strings\n\n`strings` accepts any of these keys:\n\n```typescript\ninterface LocaleStrings {\n  welcomeMessage: string;\n  inputPlaceholder: string;\n  sendButton: string;\n  stopButton: string;          // The send button's name while a reply streams\n  closeButton: string;\n  openChat: string;\n  defaultName: string;\n  defaultSubtitle: string;\n  greetingWithName: string;\n  selectPlaceholder: string;\n  dismissBubble: string;\n  errorGeneric: string;\n  errorNetwork: string;\n  errorRateLimit: string;\n  errorRateLimitWait: string;   // {seconds} is how long to wait\n  errorBudget: string;\n  errorBudgetDaily: string;\n  errorUnavailable: string;\n  errorCutOff: string;\n  typingIndicator: string;\n  poweredBy: string;\n  newConversation: string;\n  welcomeBubbleDefault: string;\n  preChatTitle: string;\n  preChatSubtitle: string;\n  preChatSubmit: string;\n  preChatRequired: string;\n  preChatInvalidEmail: string;\n  messageWaiting: string;      // \"Will send when you're back online\", under a message sent while offline\n  retryButton: string;\n  regenerateButton: string;\n  suggestionsLabel: string;\n  unreadCount: string;\n  disclosure: string;          // \"You're chatting with an AI assistant. It can make mistakes.\"\n  disclosureLearnMore: string; // \"Learn more\"\n  consentNotice: string;       // \"Chat is available once you accept functional cookies.\"\n  consentButton: string;       // \"Cookie settings\"\n}\n```",
    "source": {
     "id": "https://chat.codercops.com/widget/i18n/",
     "url": "https://chat.codercops.com/widget/i18n/",
@@ -1286,12 +1296,12 @@
   },
   {
    "id": "6c81f22a1038d5f694f0c19b0d6ab953455e84df58984c5508555cd11d155aff",
-   "text": "Widget Configuration > Script Tag Attribute Reference\n\n| Attribute | Config Key | Description |\n|-----------|-----------|-------------|\n| `data-api-url` | `apiUrl` | API endpoint URL (required) |\n| `data-mode` | `mode` | `'popup'` or `'inline'` |\n| `data-container` | `container` | CSS selector for inline container |\n| `data-theme-mode` | `theme.mode` | `'light'`, `'dark'` or `'auto'` |\n| `data-accent` | `theme.accent` | Primary accent color |\n| `data-accent-dark` | `theme.accentDark` | Accent color in dark mode |\n| `data-text-color` | `theme.textColor` | Primary text color |\n| `data-bg-color` | `theme.bgColor` | Background color |\n| `data-font-family` | `theme.fontFamily` | Font family |\n| `data-border-radius` | `theme.borderRadius` | Border radius. A bare number is px (`12`), or use any CSS length (`1rem`) |\n| `data-position` | `theme.position` | `'bottom-right'` or `'bottom-left'` |\n| `data-brand-name` | `branding.name` | Header title |\n| `data-brand-avatar` | `branding.avatar` | Avatar image URL |\n| `data-brand-subtitle` | `branding.subtitle` | Subtitle text |\n| `data-welcome-message` | `welcomeMessage` | First assistant message |\n| `data-disclosure` | `disclosure` | `\"false\"` turns the AI disclosure off |\n| `data-disclosure-text` | `disclosure.text` | Wording of the AI disclosure |\n| `data-disclosure-url` | `disclosure.learnMoreUrl` | \"Learn more\" link in the AI disclosure |\n| `data-welcome-bubble` | `welcomeBubble.text` | Welcome bubble text |\n| `data-welcome-bubble-delay` | `welcomeBubble.delay` | Bubble delay in ms |\n| `data-placeholder` | `placeholder` | Input placeholder |\n| `data-auto-open` | `autoOpen` | Auto-open delay in ms or `true` |\n| `data-locale` | `locale` | Language code |\n| `data-dir` | `dir` | Text direction: `'ltr'`, `'rtl'` or `'auto'` |\n| `data-persistence` | `persistence` | `'local'`, `'session'` or `'none'` |\n| `data-history-ttl-days` | `historyTtlDays` | Days a saved conversation is kept |\n| `data-wait-for-consent` | `waitForConsent` | Wait for `ChatCops.setConsent(true)` before using storage or the API. `\"false\"` turns it off |\n| `data-turnstile-site-key` | `turnstileSiteKey` | Cloudflare Turnstile site key, when the server checks Turnstile |\n| `data-user-token` | `userToken` | Signed token for a signed-in visitor, when the server has `identity` set |",
+   "text": "Widget Configuration > WidgetConfig Interface\n\n`WidgetConfig` and the types it's made of are all exported from `@chatcops/widget`, so a site can type its own pieces of a config:\n\n```typescript\nimport type { PreChatFormConfig, ThemeConfig } from '@chatcops/widget';\n\nconst brand: ThemeConfig = { mode: 'auto', accent: '#2563eb', borderRadius: 12 };\nconst leadForm: PreChatFormConfig = {\n  enabled: true,\n  fields: [{ name: 'email', label: 'Work email', type: 'email', required: true }],\n};\n```",
    "source": {
     "id": "https://chat.codercops.com/widget/configuration/",
     "url": "https://chat.codercops.com/widget/configuration/",
     "title": "Widget Configuration",
-    "section": "Script Tag Attribute Reference"
+    "section": "WidgetConfig Interface"
    }
   },
   {
@@ -1553,6 +1563,16 @@
    }
   },
   {
+   "id": "80c26295e2a3fa2018a3a7a11a4b901befc05e7e1977532ee4f47d36ed5c7134",
+   "text": "Widget Configuration > Inline Mode Behavior\n\nWhen using `mode: 'inline'`:\n\n- The chat panel renders inside the specified container element\n- No floating action button (FAB) is created\n- No welcome bubble is shown\n- The panel is visible immediately (no toggle needed)\n- `autoOpen` is ignored (always open)\n- The panel fills 100% width and height of the container\n- Mobile responsive overrides do not apply — the container controls sizing\n- `open()` and `close()` still work programmatically",
+   "source": {
+    "id": "https://chat.codercops.com/widget/configuration/",
+    "url": "https://chat.codercops.com/widget/configuration/",
+    "title": "Widget Configuration",
+    "section": "Inline Mode Behavior"
+   }
+  },
+  {
    "id": "80d467724e22ea498b891d3816b17f64f0dad0e67f2140d180465daae9a2336a",
    "text": "AI SDK (useChat) > The visitor's IP\n\nPer-IP rate limits and budgets need the visitor's IP. On Vercel and Cloudflare Workers the handler reads it from the platform's own headers. Anywhere else, set `clientIp` as on the [fetch runtimes page](/server/fetch-runtimes/#the-visitors-ip).",
    "source": {
@@ -1612,6 +1632,16 @@
    }
   },
   {
+   "id": "887c1207ecdb65e68e00bb8173ad48f999059dccec0e06ef9a14a548379011e6",
+   "text": "Widget Configuration > CSS Custom Properties\n\nThe widget uses Shadow DOM and exposes these CSS custom properties on its host element:\n\n| Variable | Description | Default |\n|----------|-------------|---------|\n| `--cc-accent` | Primary accent color | `#6366f1` |\n| `--cc-accent-hover` | Hover state of accent | `#4f46e5` |\n| `--cc-text` | Primary text color | `#ffffff` |\n| `--cc-bg` | Background color | `#0a0a0a` |\n| `--cc-bg-surface` | Surface background | `#1a1a1a` |\n| `--cc-bg-input` | Input area background | `#2a2a2a` |\n| `--cc-border` | Border color | `#333333` |\n| `--cc-text-secondary` | Secondary text | `#a0a0a0` |\n| `--cc-font` | Font family | `system-ui` |\n| `--cc-radius` | Border radius | `12px` |\n| `--cc-shadow` | Panel box shadow | `0 8px 32px rgba(0, 0, 0, 0.4)` |\n| `--cc-fab-size` | FAB button size | `56px` |\n| `--cc-panel-width` | Chat panel width | `400px` |\n| `--cc-panel-height` | Chat panel height | `560px` |\n| `--cc-focus-ring` | Focus ring | `0 0 0 2px var(--cc-bg), 0 0 0 4px var(--cc-accent)` |",
+   "source": {
+    "id": "https://chat.codercops.com/widget/configuration/",
+    "url": "https://chat.codercops.com/widget/configuration/",
+    "title": "Widget Configuration",
+    "section": "CSS Custom Properties"
+   }
+  },
+  {
    "id": "896ca220e761c9afe35f20b04d237f4e852532eb3218d7824fceab8bda181f53",
    "text": "Storage > Redis > ioredis\n\n```bash\nnpm install @chatcops/server @chatcops/store-redis ioredis\n```\n\n```typescript\nimport Redis from 'ioredis';\nimport { chatcopsMiddleware } from '@chatcops/server';\nimport { fromIoRedis, redisStorage } from '@chatcops/store-redis';\n\nconst redis = new Redis(process.env.REDIS_URL!);\nconst storage = redisStorage({\n  redis: fromIoRedis(redis),\n  prefix: 'chatcops',\n});\n\nconst handler = chatcopsMiddleware({\n  provider: {\n    type: 'claude',\n    apiKey: process.env.ANTHROPIC_API_KEY!,\n  },\n  systemPrompt: 'You are a helpful customer support assistant.',\n  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],\n  storage,\n});\n```",
    "source": {
@@ -1633,7 +1663,7 @@
   },
   {
    "id": "8a96b21f3d48252182a7d2d4a4d11668c72acdb927b04e9f1904091059412316",
-   "text": "Widget Configuration > Script Tag Attributes > Popup Mode (default)\n\n```html\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js\"\n  nonce=\"YOUR_RESPONSE_NONCE\"\n  data-api-url=\"https://your-api.com/chat\"\n  data-accent=\"#6366f1\"\n  data-text-color=\"#FAFAF9\"\n  data-bg-color=\"#0A0A0A\"\n  data-font-family=\"Inter, sans-serif\"\n  data-border-radius=\"12\"\n  data-position=\"bottom-right\"\n  data-brand-name=\"Support Bot\"\n  data-brand-avatar=\"https://example.com/avatar.png\"\n  data-brand-subtitle=\"Usually replies instantly\"\n  data-welcome-message=\"Hi! How can I help you today?\"\n  data-welcome-bubble=\"Need help? Chat with us!\"\n  data-welcome-bubble-delay=\"3000\"\n  data-placeholder=\"Type a message...\"\n  data-locale=\"en\"\n  data-auto-open=\"1000\"\n></script>\n```",
+   "text": "Widget Configuration > Script Tag Attributes > Popup Mode (default)\n\n```html\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js\"\n  nonce=\"YOUR_RESPONSE_NONCE\"\n  data-api-url=\"https://your-api.com/chat\"\n  data-accent=\"#6366f1\"\n  data-text-color=\"#FAFAF9\"\n  data-bg-color=\"#0A0A0A\"\n  data-font-family=\"Inter, sans-serif\"\n  data-border-radius=\"12\"\n  data-position=\"bottom-right\"\n  data-brand-name=\"Support Bot\"\n  data-brand-avatar=\"https://example.com/avatar.png\"\n  data-brand-subtitle=\"Usually replies instantly\"\n  data-welcome-message=\"Hi! How can I help you today?\"\n  data-welcome-bubble=\"Need help? Chat with us!\"\n  data-welcome-bubble-delay=\"3000\"\n  data-placeholder=\"Type a message...\"\n  data-locale=\"en\"\n  data-auto-open=\"1000\"\n  data-privacy-url=\"https://example.com/privacy\"\n></script>\n```",
    "source": {
     "id": "https://chat.codercops.com/widget/configuration/",
     "url": "https://chat.codercops.com/widget/configuration/",
@@ -1860,7 +1890,7 @@
   },
   {
    "id": "a1eacb899b09f9d0423776d9704121e1d917c7b7681e0b4e9ee8ad7b40708eb4",
-   "text": "Internationalization > Setting a Locale > Via script tag\n\n```html\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js\"\n  data-api-url=\"/api/chat\"\n  data-locale=\"es\"\n></script>\n```\n\nWith the script tag build, `data-locale` is all you need when the language has a translation: the chat loads `locales/<language>.js` from next to `chatcops.panel.js`, at the same time as the panel. Only the language part of the code is used, so `pt-BR` loads `pt`. If there's no file for the language, or it fails to load, the chat opens in English and logs a warning. The launcher button reads its label before any of this loads, so set `strings.openChat` in `ChatCops.init` if it should be translated from the start.",
+   "text": "Internationalization > Setting a Locale > Via script tag\n\n```html\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js\"\n  data-api-url=\"/api/chat\"\n  data-locale=\"es\"\n></script>\n```\n\nWith the script tag build, `data-locale` is all you need when the language has a translation: the chat loads `locales/<language>.js` from next to `chatcops.panel.js`, at the same time as the panel. Only the language part of the code is used, so `pt-BR` loads `pt`. If there's no file for the language, or it fails to load, the chat opens in English and logs a warning. The launcher button reads its label before any of this loads, so set `strings.openChat` in `ChatCops.init` if it should be translated from the start.",
    "source": {
     "id": "https://chat.codercops.com/widget/i18n/",
     "url": "https://chat.codercops.com/widget/i18n/",
@@ -1939,12 +1969,12 @@
   },
   {
    "id": "ac43c625a7f98588f41f05ee7b451fb1b7f67f8db389d60c8e6695eeb61e143e",
-   "text": "Widget Configuration > CSS Custom Properties\n\nThe widget uses Shadow DOM and exposes these CSS custom properties on its host element:\n\n| Variable | Description | Default |\n|----------|-------------|---------|\n| `--cc-accent` | Primary accent color | `#6366f1` |\n| `--cc-accent-hover` | Hover state of accent | `#4f46e5` |\n| `--cc-text` | Primary text color | `#ffffff` |\n| `--cc-bg` | Background color | `#0a0a0a` |\n| `--cc-bg-surface` | Surface background | `#1a1a1a` |\n| `--cc-bg-input` | Input area background | `#2a2a2a` |\n| `--cc-border` | Border color | `#333333` |\n| `--cc-text-secondary` | Secondary text | `#a0a0a0` |\n| `--cc-font` | Font family | `system-ui` |\n| `--cc-radius` | Border radius | `12px` |\n| `--cc-shadow` | Panel box shadow | `0 8px 32px rgba(0, 0, 0, 0.4)` |\n| `--cc-fab-size` | FAB button size | `56px` |\n| `--cc-panel-width` | Chat panel width | `400px` |\n| `--cc-panel-height` | Chat panel height | `560px` |\n| `--cc-focus-ring` | Focus ring | `0 0 0 2px var(--cc-bg), 0 0 0 4px var(--cc-accent)` |",
+   "text": "Widget Configuration > WidgetConfig Interface\n\n```typescript\n// docs-check: skip, a reference listing rather than code to run\ninterface WidgetConfig {\n  apiUrl: string;\n  nonce?: string;                // CSP nonce for the widget's injected styles\n  timeout?: number;              // Inactivity timeout in ms, default: 30000\n  turnstileSiteKey?: string;     // Cloudflare Turnstile site key, when the server has `turnstile` set\n  userToken?: string | (() => string | undefined | Promise<string | undefined>); // Your server's signed token for a signed-in visitor (server `identity`), or a function that returns a fresh one\n\n  // Display mode\n  mode?: 'popup' | 'inline';       // Default: 'popup'\n  container?: string | HTMLElement; // Required when mode is 'inline'\n  siteId?: string;                 // Names the saved conversation; set one per widget when a page has several\n\n  theme?: {\n    mode?: 'light' | 'dark' | 'auto';  // Default: 'auto', which follows the system setting\n    accent?: string;          // Hex color, default: '#4f46e5' (light), '#6366f1' (dark)\n    accentDark?: string;      // Hex color, the accent in dark mode. Default: accent\n    textColor?: string;       // Hex color, replaces the text color in every mode\n    bgColor?: string;         // Hex color, replaces the background in every mode\n    fontFamily?: string;      // CSS font-family\n    borderRadius?: string | number;  // px if a number or numeric string (12, '12'), or any CSS length ('1rem'). Default: 12\n    position?: 'bottom-right' | 'bottom-left';\n  };\n\n  branding?: {\n    name?: string;            // Header title\n    avatar?: string;          // URL or data URI\n    subtitle?: string;        // Below title in header\n  };\n\n  welcomeMessage?: string;    // First assistant message\n  disclosure?: false | {      // The \"you're chatting with an AI\" note, on by default\n    text?: string;            // Replaces the wording\n    learnMoreUrl?: string;    // Adds a \"Learn more\" link (http or https)\n  };\n  suggestions?: string[];     // Suggested question buttons shown in a new conversation\n  welcomeBubble?: {           // Popup mode only\n    text: string;             // Text shown on hover bubble\n    delay?: number;           // ms before bubble appears\n    showOnce?: boolean;       // Show only once (default: true): per browser with 'local' persistence, per tab with 'session', every page load with 'none'\n  };\n  placeholder?: string;       // Input placeholder text\n  persistence?: 'local' | 'session' | 'none'; // Where the chat is saved, default: 'local'\n  historyTtlDays?: number;    // Drop saved chats older than this, default: 30\n  waitForConsent?: boolean;   // Show a notice and use no storage or API until setConsent(true), default: false\n  onConsentRequest?: () => void; // The notice's button; leave it out to have no button\n  maxMessages?: number;       // Max messages to persist, default: 50\n  pageContext?: boolean;       // Send page URL/title, default: true\n  autoOpen?: boolean | number; // Popup mode only. true = immediate, number = delay in ms\n  locale?: string;            // Sent to the server with each message. Only English strings are built in\n  dir?: 'ltr' | 'rtl' | 'auto'; // Text direction; defaults from locale, then document direction\n  strings?: Partial<WidgetLocaleStrings>; // Custom i18n overrides\n  privacyUrl?: string;        // Link in header menu to your site's privacy policy (https: or http: only)\n  preChatForm?: {\n    enabled: boolean;\n    title?: string;\n    subtitle?: string;\n    submitLabel?: string;\n    fields: Array<{\n      name: string;\n      type: 'text' | 'email' | 'select' | 'textarea';\n      label: string;\n      placeholder?: string;\n      required?: boolean;\n      options?: string[];\n    }>;\n  };\n\n  // Callbacks\n  onOpen?: () => void;\n  onClose?: () => void;\n  onMessage?: (message: MessageData) => void;\n  onError?: (error: Error) => void;\n  onLeadCaptured?: (leadData?: Record<string, unknown>) => void;\n  onPreChatSubmit?: (data: Record<string, string>) => void;\n}\n```",
    "source": {
     "id": "https://chat.codercops.com/widget/configuration/",
     "url": "https://chat.codercops.com/widget/configuration/",
     "title": "Widget Configuration",
-    "section": "CSS Custom Properties"
+    "section": "WidgetConfig Interface"
    }
   },
   {
@@ -2028,7 +2058,7 @@
   },
   {
    "id": "b246a6a0bcf5ac97c8e4c33042a94ab19fbd283867bcdf14e50a0bbd586d08cb",
-   "text": "Express Full Example > Widget HTML\n\n```html\n<!DOCTYPE html>\n<html>\n<head>\n  <title>Acme Corp</title>\n</head>\n<body>\n  <h1>Welcome to Acme Corp</h1>\n\n  <script\n    src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js\"\n    data-api-url=\"http://localhost:3001/chat\"\n    data-accent=\"#6366f1\"\n    data-brand-name=\"Acme Support\"\n    data-brand-subtitle=\"Usually replies instantly\"\n    data-welcome-message=\"Hi! I'm Acme's AI assistant. How can I help you today?\"\n    data-welcome-bubble=\"Need help? Chat with us!\"\n    data-welcome-bubble-delay=\"5000\"\n  ></script>\n</body>\n</html>\n```",
+   "text": "Express Full Example > Widget HTML\n\n```html\n<!DOCTYPE html>\n<html>\n<head>\n  <title>Acme Corp</title>\n</head>\n<body>\n  <h1>Welcome to Acme Corp</h1>\n\n  <script\n    src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js\"\n    data-api-url=\"http://localhost:3001/chat\"\n    data-accent=\"#6366f1\"\n    data-brand-name=\"Acme Support\"\n    data-brand-subtitle=\"Usually replies instantly\"\n    data-welcome-message=\"Hi! I'm Acme's AI assistant. How can I help you today?\"\n    data-welcome-bubble=\"Need help? Chat with us!\"\n    data-welcome-bubble-delay=\"5000\"\n  ></script>\n</body>\n</html>\n```",
    "source": {
     "id": "https://chat.codercops.com/examples/express-full/",
     "url": "https://chat.codercops.com/examples/express-full/",
@@ -2097,7 +2127,7 @@
   },
   {
    "id": "b6af9e323c6520fc299a3a67484b6f9b2234185cb00ad1a0887f0d4e6a5e71c4",
-   "text": "Widget Configuration > Script Tag Attributes > Inline Mode\n\n```html\n<div id=\"chat-container\" style=\"width: 400px; height: 500px;\"></div>\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js\"\n  data-api-url=\"https://your-api.com/chat\"\n  data-mode=\"inline\"\n  data-container=\"#chat-container\"\n  data-brand-name=\"Support Bot\"\n  data-welcome-message=\"Hi! How can I help you today?\"\n></script>\n```\n\nIn inline mode, the chat panel fills the container element. You control the size via the container's CSS.",
+   "text": "Widget Configuration > Script Tag Attributes > Inline Mode\n\n```html\n<div id=\"chat-container\" style=\"width: 400px; height: 500px;\"></div>\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js\"\n  data-api-url=\"https://your-api.com/chat\"\n  data-mode=\"inline\"\n  data-container=\"#chat-container\"\n  data-brand-name=\"Support Bot\"\n  data-welcome-message=\"Hi! How can I help you today?\"\n></script>\n```\n\nIn inline mode, the chat panel fills the container element. You control the size via the container's CSS.",
    "source": {
     "id": "https://chat.codercops.com/widget/configuration/",
     "url": "https://chat.codercops.com/widget/configuration/",
@@ -2157,7 +2187,7 @@
   },
   {
    "id": "ba1fcf6e43cbbab8953b72097e82e67030ffe863caa92b74afd8214b7bd948b7",
-   "text": "Installation > Widget (Client-Side) > CDN (Recommended)\n\nThe simplest way — no build step required:\n\n```html\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js\"\n  data-api-url=\"https://your-api.com/chat\"\n></script>\n```\n\n`chatcops.min.js` is a small loader (about 3 kB) that draws the chat button. The rest of the chat (`chatcops.panel.js`, next to it) downloads when the visitor hovers or clicks the button, or when the chat has to open on its own. So pages where nobody opens the chat only pay for the button. Parts that only some sites use, the pre-chat form and Turnstile, are separate files in `dist/chunks/` and download only on sites that turn them on.",
+   "text": "Installation > Widget (Client-Side) > CDN (Recommended)\n\nThe simplest way, with no build step:\n\n```html\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js\"\n  data-api-url=\"https://your-api.com/chat\"\n></script>\n```\n\n`@1` in the URL gets every 1.x release, with fixes and new features, but never 2.0, whose breaking changes wait for you to upgrade. Pin an exact version (`@1.0.0`) to change nothing until you choose to. A URL without a version follows npm's `latest`, so a new major reaches your site the day it's published.\n\n`chatcops.min.js` is a small loader (under 5 kB gzipped) that draws the chat button. The rest of the chat (`chatcops.panel.js`, next to it) downloads when the visitor hovers or clicks the button, or when the chat has to open on its own. So pages where nobody opens the chat only pay for the button. Parts that only some sites use, the pre-chat form and Turnstile, are separate files in `dist/chunks/` and download only on sites that turn them on.",
    "source": {
     "id": "https://chat.codercops.com/getting-started/installation/",
     "url": "https://chat.codercops.com/getting-started/installation/",
@@ -2247,12 +2277,12 @@
   },
   {
    "id": "c088de2186ff1ce4ba24723152526fbaef9e33c69a39a74dbb37ae255707e6ea",
-   "text": "Widget Configuration > Programmatic Configuration > Streaming inactivity timeout\n\nSet `timeout` in `ChatCops.init()` to change the inactivity timeout in milliseconds.\nThe default is `30000` (30 seconds). It starts when a request begins and restarts\nwhenever a nonempty stream chunk arrives, including heartbeat comments, partial\nSSE events and malformed data. It measures received transport activity, not the\ntime between displayed text updates or the total response duration.\n\nA response can stream for longer than the timeout as long as chunks keep arriving.\nA request that never responds, or a stream that stops sending data, fails with a\ntimeout error. Use a larger value for backends with longer silent periods. This\noption is available through programmatic configuration.",
+   "text": "Widget Configuration > Programmatic Configuration > Privacy policy link\n\nAdd `privacyUrl` (or `data-privacy-url` on the script tag) to show a \"Privacy\" link in the header's \"More options\" menu (`⋯`), opening your site's privacy policy in a new tab:\n\n```typescript\nChatCops.init({\n  apiUrl: '/api/chat',\n  privacyUrl: 'https://example.com/privacy',\n});\n```\n\nOnly `https:` and `http:` URLs are accepted. Invalid or unsafe URLs (such as `javascript:`) are omitted.",
    "source": {
     "id": "https://chat.codercops.com/widget/configuration/",
     "url": "https://chat.codercops.com/widget/configuration/",
     "title": "Widget Configuration",
-    "section": "Programmatic Configuration > Streaming inactivity timeout"
+    "section": "Programmatic Configuration > Privacy policy link"
    }
   },
   {
@@ -2336,7 +2366,7 @@
   },
   {
    "id": "c5192fe97aa365cd3860352e231fe48c1ff246f5c27e7a5983a088e7d3c2fea1",
-   "text": "API Reference > Auto-Initialization > Popup (default)\n\n```html\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js\"\n  data-api-url=\"https://your-api.com/chat\"\n  data-accent=\"#6366f1\"\n></script>\n```",
+   "text": "API Reference > Auto-Initialization > Popup (default)\n\n```html\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js\"\n  data-api-url=\"https://your-api.com/chat\"\n  data-accent=\"#6366f1\"\n></script>\n```",
    "source": {
     "id": "https://chat.codercops.com/widget/api/",
     "url": "https://chat.codercops.com/widget/api/",
@@ -2466,12 +2496,12 @@
   },
   {
    "id": "ce7ade04d7b72116faac83e650c58ecfd9281bd9336fdfa076d94dbc3cd3e24b",
-   "text": "Widget Configuration > Inline Mode Behavior\n\nWhen using `mode: 'inline'`:\n\n- The chat panel renders inside the specified container element\n- No floating action button (FAB) is created\n- No welcome bubble is shown\n- The panel is visible immediately (no toggle needed)\n- `autoOpen` is ignored (always open)\n- The panel fills 100% width and height of the container\n- Mobile responsive overrides do not apply — the container controls sizing\n- `open()` and `close()` still work programmatically",
+   "text": "Widget Configuration > WidgetConfig Interface\n\nSee the [pre-chat form guide](/widget/pre-chat-form) for field behavior, validation, and how answers are sent to the server. The form is configured with JavaScript; it has no `data-*` attributes.",
    "source": {
     "id": "https://chat.codercops.com/widget/configuration/",
     "url": "https://chat.codercops.com/widget/configuration/",
     "title": "Widget Configuration",
-    "section": "Inline Mode Behavior"
+    "section": "WidgetConfig Interface"
    }
   },
   {
@@ -2516,7 +2546,7 @@
   },
   {
    "id": "d3c45242d663dc98f5e6aaf2dbe14790b9dbf9be92cf15330dd7ddae1d50bcdd",
-   "text": "Quick Start > 1. Add the Widget\n\nDrop a single `<script>` tag into your HTML. The widget auto-initializes and appears as a floating button in the bottom-right corner.\n\n```html\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js\"\n  data-api-url=\"https://your-api.com/chat\"\n  data-accent=\"#6366f1\"\n></script>\n```\n\nThe widget accepts configuration via `data-*` attributes:\n\n| Attribute | Description | Default |\n|-----------|-------------|---------|\n| `data-api-url` | Your server endpoint (required) | — |\n| `data-accent` | Primary accent color | `#6366f1` |\n| `data-brand-name` | Name shown in chat header | `\"AI Assistant\"` |\n| `data-welcome-message` | First message from the bot | — |\n| `data-position` | `bottom-right` or `bottom-left` | `bottom-right` |",
+   "text": "Quick Start > 1. Add the Widget\n\nDrop a single `<script>` tag into your HTML. The widget auto-initializes and appears as a floating button in the bottom-right corner.\n\n```html\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js\"\n  data-api-url=\"https://your-api.com/chat\"\n  data-accent=\"#6366f1\"\n></script>\n```\n\nThe widget accepts configuration via `data-*` attributes:\n\n| Attribute | Description | Default |\n|-----------|-------------|---------|\n| `data-api-url` | Your server endpoint (required) | — |\n| `data-accent` | Primary accent color | `#6366f1` |\n| `data-brand-name` | Name shown in chat header | `\"AI Assistant\"` |\n| `data-welcome-message` | First message from the bot | — |\n| `data-position` | `bottom-right` or `bottom-left` | `bottom-right` |",
    "source": {
     "id": "https://chat.codercops.com/getting-started/quick-start/",
     "url": "https://chat.codercops.com/getting-started/quick-start/",
@@ -2683,7 +2713,7 @@
   },
   {
    "id": "df9e67d40d51018715c304777a05ea56ef956985852aaf297eeb4c1665a48711",
-   "text": "Vercel Edge Full Example > Widget in Next.js Layout\n\n```tsx\n// app/layout.tsx\nimport Script from 'next/script';\n\nexport default function RootLayout({ children }) {\n  return (\n    <html>\n      <body>\n        {children}\n        <Script\n          src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js\"\n          data-api-url=\"/api/chat\"\n          data-accent=\"#6366f1\"\n          data-brand-name=\"Support\"\n          strategy=\"lazyOnload\"\n        />\n      </body>\n    </html>\n  );\n}\n```",
+   "text": "Vercel Edge Full Example > Widget in Next.js Layout\n\n```tsx\n// app/layout.tsx\nimport Script from 'next/script';\n\nexport default function RootLayout({ children }) {\n  return (\n    <html>\n      <body>\n        {children}\n        <Script\n          src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js\"\n          data-api-url=\"/api/chat\"\n          data-accent=\"#6366f1\"\n          data-brand-name=\"Support\"\n          strategy=\"lazyOnload\"\n        />\n      </body>\n    </html>\n  );\n}\n```",
    "source": {
     "id": "https://chat.codercops.com/examples/vercel-full/",
     "url": "https://chat.codercops.com/examples/vercel-full/",
@@ -2803,7 +2833,7 @@
   },
   {
    "id": "e9d082648506cf60d394292ca330c9ff022f11d96aaf4909f7c7b1f3e5f84234",
-   "text": "Security > A production config > The widget\n\nWith `turnstile` on the server, give the widget the site key. Nothing else changes, since the widget handles sessions on its own:\n\n```html\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js\"\n  data-api-url=\"https://acme.com/api/chat\"\n  data-turnstile-site-key=\"0x4AAAAAAA...\"\n></script>\n```",
+   "text": "Security > A production config > The widget\n\nWith `turnstile` on the server, give the widget the site key. Nothing else changes, since the widget handles sessions on its own:\n\n```html\n<script\n  src=\"https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js\"\n  data-api-url=\"https://acme.com/api/chat\"\n  data-turnstile-site-key=\"0x4AAAAAAA...\"\n></script>\n```",
    "source": {
     "id": "https://chat.codercops.com/server/security/",
     "url": "https://chat.codercops.com/server/security/",

@@ -8,7 +8,7 @@ Embeddable AI chatbot widget. Zero dependencies, Shadow DOM isolated, ~13KB gzip
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js"
   data-api-url="https://your-api.com/chat"
   data-accent="#6366f1">
 </script>
@@ -130,7 +130,7 @@ All configuration can be set via `data-*` attributes:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js"
   data-api-url="/chat"
   data-mode="popup"
   data-accent="#6366f1"
