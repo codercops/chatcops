@@ -18,7 +18,7 @@ import { createProvider } from '@chatcops/core';
 const provider = await createProvider({
   type: 'claude',       // 'claude' | 'openai' | 'gemini'
   apiKey: process.env.ANTHROPIC_API_KEY,
-  model: 'claude-haiku-4-5-20251001', // optional
+  model: 'claude-haiku-5-5', // optional
 });
 
 // Streaming
@@ -36,7 +36,7 @@ const response = await provider.chatSync({
 });
 ```
 
-Default models: `claude-haiku-4-5-20251001` (Claude), `gpt-4o-mini` (OpenAI), `gemini-2.0-flash` (Gemini).
+Default models: `claude-haiku-5-5` (Claude), `gpt-5-mini` (OpenAI), `gemini-3.5-flash-lite` (Gemini).
 
 ## Tools
 
