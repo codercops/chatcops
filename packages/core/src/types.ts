@@ -215,6 +215,10 @@ export type ProviderToolExecutor = (call: ProviderToolCall) => Promise<ToolResul
 export interface WebhookConfig {
   url: string;
   events: string[];
+  /** Maximum time to wait for one delivery attempt, in milliseconds (default 5000). */
+  timeoutMs?: number;
+  /** Total delivery attempts, including the initial request (default 3). */
+  maxAttempts?: number;
   /** Signs each delivery; check it with `verifyWebhook` from `@chatcops/server`. */
   secret?: string;
   /**

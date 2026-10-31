@@ -74,6 +74,67 @@ describe('webhook envelope and signature', () => {
 });
 
 describe('webhook retries', () => {
+  it('keeps the default timeout and three total attempts when overrides are omitted', async () => {
+    vi.useFakeTimers();
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout');
+    const calls = captureFetch([
+      new Response('', { status: 500 }),
+      new Response('', { status: 500 }),
+      new Response('', { status: 200 }),
+    ]);
+    const dispatcher = new WebhookDispatcher([{ url: 'https://hooks.test/defaults', events: ['*'] }]);
+
+    const done = dispatcher.dispatch('lead:captured', {});
+    await vi.runAllTimersAsync();
+    await done;
+
+    expect(calls).toHaveLength(3);
+    expect(timeoutSpy.mock.calls.map(([timeoutMs]) => timeoutMs)).toEqual([5000, 5000, 5000]);
+  });
+
+  it('applies each webhook timeout to every attempt and stops at its own attempt limit', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout');
+    const attempts = new Map<string, number>();
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+      const endpoint = String(url);
+      const attempt = (attempts.get(endpoint) ?? 0) + 1;
+      attempts.set(endpoint, attempt);
+      return new Response('', { status: 500 });
+    });
+    const dispatcher = new WebhookDispatcher([
+      { url: 'https://hooks.test/single', events: ['*'], timeoutMs: 100, maxAttempts: 1 },
+      { url: 'https://hooks.test/retry', events: ['*'], timeoutMs: 200, maxAttempts: 2 },
+    ]);
+
+    const done = dispatcher.dispatch('lead:captured', {});
+    await vi.runAllTimersAsync();
+    await done;
+
+    expect(attempts.get('https://hooks.test/single')).toBe(1);
+    expect(attempts.get('https://hooks.test/retry')).toBe(2);
+    expect(timeoutSpy.mock.calls.map(([timeoutMs]) => timeoutMs)).toEqual([100, 200, 200]);
+  });
+
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 2_147_483_648])(
+    'rejects invalid timeoutMs value %s',
+    (timeoutMs) => {
+      expect(() => new WebhookDispatcher([{ url: 'https://hooks.test/lead', events: ['*'], timeoutMs }])).toThrow(
+        'webhook.timeoutMs must be an integer between 1 and 2147483647'
+      );
+    }
+  );
+
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])(
+    'rejects invalid maxAttempts value %s',
+    (maxAttempts) => {
+      expect(() => new WebhookDispatcher([{ url: 'https://hooks.test/lead', events: ['*'], maxAttempts }])).toThrow(
+        'webhook.maxAttempts must be a positive safe integer'
+      );
+    }
+  );
+
   it('retries 429 and waits for Retry-After, capped at 10 seconds', async () => {
     vi.useFakeTimers();
     const calls = captureFetch([

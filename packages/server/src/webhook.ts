@@ -15,8 +15,9 @@ export const SIGNATURE_HEADER = 'X-ChatCops-Signature';
 /** Signatures older than this are rejected by `verifyWebhook` by default. */
 export const DEFAULT_SIGNATURE_TOLERANCE_SEC = 300;
 
-const MAX_ATTEMPTS = 3;
+const DEFAULT_MAX_ATTEMPTS = 3;
 const MAX_RETRY_AFTER_MS = 10_000;
+const MAX_TIMEOUT_MS = 2_147_483_647;
 
 /**
  * Throws when a webhook URL isn't safe to call from a server: anything other
@@ -92,6 +93,7 @@ export class WebhookDispatcher {
   constructor(configs: WebhookConfig[], timeoutMs: number = DEFAULT_WEBHOOK_TIMEOUT_MS, logger: Logger = consoleLogger()) {
     this.logger = logger;
     for (const config of configs) {
+      validateDeliveryOptions(config);
       assertSafeWebhookUrl(config.url, config.allowPrivateNetwork);
     }
     this.configs = configs;
@@ -115,8 +117,10 @@ export class WebhookDispatcher {
 
   private async send(config: WebhookConfig, envelope: WebhookEvent, body: string): Promise<void> {
     let lastProblem = '';
+    const maxAttempts = config.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
+    const timeoutMs = config.timeoutMs ?? this.timeoutMs;
 
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       let retryAfterMs: number | undefined;
       try {
         const headers: Record<string, string> = {
@@ -134,7 +138,7 @@ export class WebhookDispatcher {
           body,
           // A redirect could point anywhere, including a private address.
           redirect: 'manual',
-          signal: AbortSignal.timeout(this.timeoutMs),
+          signal: AbortSignal.timeout(timeoutMs),
         });
 
         if (response.ok) return;
@@ -147,7 +151,7 @@ export class WebhookDispatcher {
         lastProblem = error instanceof Error ? error.name : 'network error';
       }
 
-      if (attempt < MAX_ATTEMPTS) {
+      if (attempt < maxAttempts) {
         await new Promise((r) => setTimeout(r, retryAfterMs ?? 2 ** (attempt - 1) * 1000));
       }
     }
@@ -158,6 +162,15 @@ export class WebhookDispatcher {
       `Webhook delivery failed: ${envelope.type} (${envelope.id}) to ${new URL(config.url).origin}: ${lastProblem}`,
       { webhookEvent: envelope.type, deliveryId: envelope.id }
     );
+  }
+}
+
+function validateDeliveryOptions(config: WebhookConfig): void {
+  if (config.timeoutMs !== undefined && (!Number.isSafeInteger(config.timeoutMs) || config.timeoutMs < 1 || config.timeoutMs > MAX_TIMEOUT_MS)) {
+    throw new Error(`webhook.timeoutMs must be an integer between 1 and ${MAX_TIMEOUT_MS}`);
+  }
+  if (config.maxAttempts !== undefined && (!Number.isSafeInteger(config.maxAttempts) || config.maxAttempts < 1)) {
+    throw new Error('webhook.maxAttempts must be a positive safe integer');
   }
 }
 

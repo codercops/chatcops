@@ -999,6 +999,8 @@ export interface VoyageRerankerOptions {
 export interface WebhookConfig {
     url: string;
     events: string[];
+    timeoutMs?: number;
+    maxAttempts?: number;
     secret?: string;
     allowPrivateNetwork?: boolean;
 }
