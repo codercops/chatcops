@@ -178,7 +178,7 @@ The pre-chat form's answers are saved with the conversation, so they expire with
 
 ### Waiting for cookie consent
 
-A site under a strict consent policy can hold the chat back until the visitor accepts functional cookies. Set `waitForConsent` (or `data-wait-for-consent` on the script tag) and the launcher shows as usual, but opening the chat shows a notice instead of the conversation: "Chat is available once you accept functional cookies." While it waits, the widget reads and writes no `localStorage` or `sessionStorage`, not even to check, and it makes no request to your chat server. The welcome bubble stays hidden too, since it remembers that it was shown.
+A site under a strict consent policy can hold the chat back until the visitor accepts functional cookies. Set `waitForConsent` (or `data-wait-for-consent="true"` on the script tag) and the launcher shows as usual, but opening the chat shows a notice instead of the conversation: "Chat is available once you accept functional cookies." While it waits, the widget reads and writes no `localStorage` or `sessionStorage`, not even to check, and it makes no request to your chat server. The welcome bubble stays hidden too, since it remembers that it was shown.
 
 ```typescript
 declare const consentBanner: { open(): void };
@@ -380,7 +380,7 @@ See the [pre-chat form guide](/widget/pre-chat-form) for field behavior, validat
 | `data-dir` | `dir` | Text direction: `'ltr'`, `'rtl'` or `'auto'` |
 | `data-persistence` | `persistence` | `'local'`, `'session'` or `'none'` |
 | `data-history-ttl-days` | `historyTtlDays` | Days a saved conversation is kept |
-| `data-wait-for-consent` | `waitForConsent` | Wait for `ChatCops.setConsent(true)` before using storage or the API. `"false"` turns it off |
+| `data-wait-for-consent` | `waitForConsent` | `"true"` or an empty value enables consent waiting; `"false"` disables it. Other values are ignored |
 | `data-privacy-url` | `privacyUrl` | Privacy policy link in header menu (https: or http: only) |
 | `data-turnstile-site-key` | `turnstileSiteKey` | Cloudflare Turnstile site key, when the server checks Turnstile |
 | `data-user-token` | `userToken` | Signed token for a signed-in visitor, when the server has `identity` set |

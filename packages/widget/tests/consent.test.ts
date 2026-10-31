@@ -461,6 +461,8 @@ describe('data-wait-for-consent', () => {
     [{ waitForConsent: '' }, true],
     [{ waitForConsent: 'true' }, true],
     [{ waitForConsent: 'false' }, false],
+    [{ waitForConsent: 'flase' }, undefined],
+    [{ waitForConsent: 'yes' }, undefined],
     [{}, undefined],
   ])('reads %j as %s', (data, expected) => {
     expect(configFromScript(script(data))?.waitForConsent).toBe(expected);
