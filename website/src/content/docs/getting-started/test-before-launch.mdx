@@ -5,11 +5,13 @@ description: Write conversations your bot has to get right, record the API calls
 
 A change to a system prompt, an updated model version, or a new documentation page can quietly break answers that used to be accurate: quoting the wrong tier price, hallucinating unsupported features, or forgetting to capture contact details.
 
-`chatcops test` runs test conversations (called **evals**) against your bot in YAML, checks that every reply satisfies your assertions, and reports failures clearly. With `--record` and `--replay`, you record real model responses once into cassettes and replay them on every pull request for free—without spending API tokens or exposing production keys in CI.
+`chatcops test` runs test conversations (called **evals**) against your bot in YAML, checks that every reply satisfies your assertions, and reports failures clearly. With `--record` and `--replay`, you record real model responses once into cassettes and replay them on every pull request for free, without spending API tokens or exposing production keys in CI.
 
 ## The bot config
 
 `chatcops test` reads the `server` configuration from `chatcops.config.ts`. It runs tests in process against the exact same provider, system prompt, tools, and knowledge base you use in production. Each test starts with fresh in-memory storage, so your real conversation store is never touched.
+
+Give your bot the core facts it needs to know, such as plan prices and how to handle customer support issues:
 
 ```typescript
 import { LeadCaptureTool } from '@chatcops/core';
@@ -18,11 +20,16 @@ import { defineConfig } from '@chatcops/cli';
 export default defineConfig({
   server: {
     provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
-    systemPrompt: 'You are the helpful AI assistant for Acme. You answer questions about pricing, help visitors find the right plan, capture sales leads, and politely decline off-topic requests.',
+    systemPrompt:
+      'You are the helpful AI assistant for Acme. You answer questions about pricing, help visitors find the right plan, capture sales leads, and politely decline off-topic requests.\n\n' +
+      'Plans: Starter is $29 a month, and Pro is $79 a month.\n' +
+      'Support: If a customer reports a damaged order or requests a refund, apologize sincerely, ask for their name and email, and use the capture_lead tool to record their contact details for a replacement.',
     tools: [new LeadCaptureTool()],
   },
 });
 ```
+
+You can put facts in `systemPrompt` or pass them via `knowledge`, for example with `new FAQKnowledgeSource([{ question: 'How much do plans cost?', answer: 'Starter is $29 a month and Pro is $79 a month.' }])` (imported from `@chatcops/core`).
 
 Keep your configuration loading safely when an API key is missing from the environment: during replay, `chatcops test` uses placeholder keys because no network calls are made.
 
@@ -79,21 +86,21 @@ The command streams each turn, checks your assertions, and outputs a summary:
 ```text
 ChatCops evaluations
 ────────────────────────────────────────
-Model: claude-3-5-sonnet-20241022
-Judge: gemini-3.5-flash-lite
+Model: claude-haiku-5-5
+Judge: gemini:gemini-3.5-flash-lite
 Mode: live
 
 evals/launch.chat.yaml
-  ✓ quotes Starter and Pro plan pricing  812 ms
-  ✓ captures a sales lead  1140 ms
-  ✓ politely declines off-topic requests  650 ms
+  ✓ quotes Starter and Pro plan pricing  1.42 s
+  ✓ captures a sales lead  1.98 s
+  ✓ politely declines off-topic requests  1.21 s
 
 Summary
 ────────────────────────────────────────
 3 passed, 0 failed. Judged by gemini:gemini-3.5-flash-lite.
 Assertions: 4 passed, 0 failed
-Bot tokens: 420 input + 160 output = 580 total
-Elapsed: 2.6s
+Bot tokens: 732 input + 128 output = 860 total
+Elapsed: 2.15 s
 ```
 
 `chatcops test` exits `0` when every test passes, `1` when an assertion fails, and `2` if a config error occurs (such as a typo in an assertion name).
@@ -104,14 +111,14 @@ When a test fails, `chatcops test` prints the failed turn number, the assertion 
 
 ```text
 evals/launch.chat.yaml
-  ✗ quotes Starter and Pro plan pricing  750 ms
-      ✗ turn 1: the reply doesn't contain "$79"
-      reply: The Starter plan is $29 a month, and the Pro plan is $99 a month.
+  ✗ quotes Starter and Pro plan pricing  2.09 s
+      ✗ turn 1: the reply doesn't contain "Starter", "$29", "Pro", "$79"
+      reply: I'd be happy to help with pricing. I don't have Acme's plan details in front of me...
 
-1 passed, 1 failed.
+2 passed, 1 failed. Judged by gemini:gemini-3.5-flash-lite.
 ```
 
-Here the model hallucinated an outdated price of `$99` instead of `$79`. You can refine your system prompt or add FAQ knowledge chunks to correct it before proceeding.
+Here the model had not been given the pricing details in its system prompt or knowledge base, so it declined to guess. Adding the facts to `systemPrompt` (or via an `FAQKnowledgeSource`) lets the test pass.
 
 ## 3. Record calls into cassettes
 
@@ -178,7 +185,7 @@ Because `CI=true` triggers `--replay`, the entire test suite executes in millise
 
 ## 5. Add a simulated visitor
 
-Some user interactions cannot be scripted turn by turn. For example, a customer with a damaged product might only share their email address after the bot acknowledges their frustration and apologizes.
+Some user interactions cannot be scripted turn by turn. For example, a customer with a damaged product might only share their contact details after the bot acknowledges their frustration and apologizes.
 
 Instead of writing static `turns`, use `simulate`. A second model (the judge model) plays the visitor based on a `persona` instructions prompt:
 
@@ -195,7 +202,7 @@ tests:
       stopWhen: lead-captured
     expect:
       - lead-captured: { email: jordan@example.com }
-      - judge: { rubric: "Apologizes sincerely, offers a replacement, and captures contact information.", threshold: 0.7 }
+      - judge: { rubric: "Confirms the visitor's details were passed on and says what happens next, without arguing.", threshold: 0.7 }
 ```
 
 Key fields in `simulate`:
@@ -203,7 +210,7 @@ Key fields in `simulate`:
 - `persona`: Instructions describing who the visitor is, their emotional state, and when they should reveal information.
 - `maxTurns`: The maximum number of turns the visitor model will take (1 to 20).
 - `stopWhen: lead-captured`: Concludes the conversation as soon as the assistant successfully captures a lead.
-- `expect`: Evaluated against the full transcript of the simulated conversation. You can verify tool calls, captured leads, or use `judge` to score the assistant's overall tone and helpfulness.
+- `expect`: Evaluated against the conversation transcript. The judge grades only the assistant's last reply, using earlier turns as context. Because apologizing and offering a replacement happened in earlier turns, the rubric here evaluates the final response confirming that the details were recorded and explaining next steps.
 
 Simulated visitor turns are recorded by `--record` and replayed by `--replay` just like standard turns. In CI, the recorded conversation plays back identically without making model calls.
 
