@@ -111,6 +111,7 @@ export default defineConfig({
             { label: 'Quick Start', slug: 'getting-started/quick-start' },
             { label: 'Installation', slug: 'getting-started/installation' },
             { label: 'Index Your Site', slug: 'getting-started/index-your-site' },
+            { label: 'Test Before Launch', slug: 'getting-started/test-before-launch' },
             { label: 'Upgrading from 0.5', slug: 'getting-started/upgrading' },
             { label: 'Upgrading to 1.0', slug: 'getting-started/upgrading-to-1' },
           ],
