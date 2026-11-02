@@ -205,6 +205,10 @@
   text-decoration: underline;
 }
 
+.cc-message-user .cc-message-content {
+  white-space: pre-wrap;
+}
+
 .cc-message-user a {
   color: var(--cc-on-accent);
 }
