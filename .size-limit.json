@@ -34,5 +34,11 @@
     "path": "packages/widget/dist/chatcops.esm.js",
     "limit": "32 KB",
     "gzip": true
+  },
+  {
+    "name": "react (@chatcops/react)",
+    "path": "packages/react/dist/index.js",
+    "limit": "1 KB",
+    "gzip": true
   }
 ]
