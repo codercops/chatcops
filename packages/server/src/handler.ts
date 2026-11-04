@@ -4,6 +4,7 @@ import {
   ConversationManager,
   AnalyticsCollector,
   ANALYTICS_EVENTS,
+  checkAnswered,
   BufferedEventSink,
   statsFromSink,
   type AnalyticsStats,
@@ -337,6 +338,7 @@ export function createChatHandler(config: ChatCopsServerConfig) {
     // changes per request goes in the context after it.
     const context: string[] = [];
     let sources: RetrievedChunk[] = [];
+    const retrieving = config.knowledge?.some((source) => source.retrieve) ?? false;
     if (config.knowledge?.length) {
       const found = await knowledgeContext(config.knowledge, req.message, historyBefore(conversationMessages, req), signal);
       if (found.context) context.push(found.context);
@@ -396,8 +398,11 @@ export function createChatHandler(config: ChatCopsServerConfig) {
           });
         pendingWebhooks.add(delivery);
       },
-      onPersist: async (message, { final }) => {
-        const complete = message.status === 'complete';
+      onPersist: async (persisted, { final }) => {
+        const complete = persisted.status === 'complete';
+        // A finished reply records whether it answered, for an answer rate
+        // and a list of questions the knowledge doesn't cover (F-11).
+        const message = final && complete && persisted.content ? withAnswerVerdict(persisted, sources, retrieving) : persisted;
         if (!saved) {
           if (final && !message.content && !message.parts?.length) return;
           // A reply the visitor walked away from is kept, marked `aborted`,
@@ -621,3 +626,15 @@ function findLastIndex<T>(array: T[], predicate: (item: T) => boolean): number {
   return -1;
 }
 
+/** The reply with `answered` (and `unansweredReason` when it didn't) in its metadata. */
+function withAnswerVerdict(message: ChatMessage, sources: RetrievedChunk[], retrieving: boolean): ChatMessage {
+  const verdict = checkAnswered({
+    reply: message.content,
+    ...(retrieving ? { retrieval: { chunks: sources.length } } : {}),
+    cited: message.parts?.filter((part) => part.type === 'source').length ?? 0,
+  });
+  return {
+    ...message,
+    metadata: { ...message.metadata, answered: verdict.answered, ...(verdict.reason ? { unansweredReason: verdict.reason } : {}) },
+  };
+}
