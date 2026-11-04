@@ -1,3 +1,4 @@
+import domino from '@mixmark-io/domino';
 import { Readability, isProbablyReaderable } from '@mozilla/readability';
 import { parseHTML } from 'linkedom';
 import TurndownService from 'turndown';
@@ -35,6 +36,17 @@ turndown.use(gfm);
 // Images and link targets are noise for search; the link text stays.
 turndown.addRule('no-images', { filter: 'img', replacement: () => '' });
 turndown.addRule('link-text', { filter: 'a', replacement: (content) => content });
+
+/**
+ * Markdown from an HTML fragment. turndown gets an element domino parsed,
+ * not a string: given a string, its browser build (the one Workers bundles
+ * pick) parses with the page's `document`, and a Worker has none. domino is
+ * the parser turndown's Node build uses anyway, so the output is the same.
+ */
+function toMarkdown(html: string): string {
+  const document = domino.createDocument(`<!doctype html><html><body>${html}</body></html>`);
+  return turndown.turndown(document.body as unknown as HTMLElement);
+}
 
 /**
  * The readable content of an HTML page as Markdown. Hidden elements and
@@ -77,7 +89,7 @@ export function extractHtml(html: string, url: string, selector?: string): Extra
     ...(title ? { title } : {}),
     ...(lang ? { lang } : {}),
     ...(description ? { description } : {}),
-    markdown: tidy(turndown.turndown(contentHtml)),
+    markdown: tidy(toMarkdown(contentHtml)),
   };
 }
 
