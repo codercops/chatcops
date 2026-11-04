@@ -37,7 +37,7 @@
     "@chatcops/ingest": "workspace:^",
     "@chatcops/server": "workspace:^",
     "yaml": "^2.6.0",
-    "zod": "^3.24.0"
+    "zod": "^4.6.6"
   },
   "peerDependencies": {
     "@chatcops/core": "workspace:^"
