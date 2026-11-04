@@ -4,3 +4,5 @@ export { BufferedEventSink, statsFromSink } from './sink.js';
 export { ANALYTICS_EVENTS } from './names.js';
 export { redactPII } from './redact.js';
 export type { RedactOptions } from './redact.js';
+export { checkAnswered } from './unanswered.js';
+export type { AnswerCheck, AnswerVerdict, UnansweredReason } from './unanswered.js';
