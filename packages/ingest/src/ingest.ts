@@ -79,11 +79,14 @@ export async function ingest(config: IngestConfig): Promise<IngestStats> {
     return pending;
   }
 
-  const send: typeof fetch = async (input, init) => {
-    const url = String(input);
-    const rules = config.respectRobots === false ? undefined : await policy(url);
-    return scheduled(url, init, rules?.crawlDelay);
-  };
+  const send: typeof fetch = Object.assign(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const rules = config.respectRobots === false ? undefined : await policy(url);
+      return scheduled(url, init, rules?.crawlDelay);
+    },
+    { policy }
+  );
 
   if (embedder.dimensions !== store.dimensions) {
     throw new Error(
@@ -102,7 +105,15 @@ export async function ingest(config: IngestConfig): Promise<IngestStats> {
     );
   }
 
-  const found = await discover(config.sources, { fetch: send, userAgent, timeoutMs, include: config.include, exclude: config.exclude });
+  const found = await discover(config.sources, {
+    fetch: send,
+    userAgent,
+    timeoutMs,
+    include: config.include,
+    exclude: config.exclude,
+    concurrency: config.concurrency,
+    respectRobots: config.respectRobots,
+  });
   if (config.maxPages !== undefined && config.maxPages >= 0 && found.pages.length > config.maxPages) {
     found.pages = found.pages.slice(0, Math.floor(config.maxPages));
     // Pages left out aren't removed pages, so pruning a partial run isn't safe either.
@@ -133,6 +144,10 @@ export async function ingest(config: IngestConfig): Promise<IngestStats> {
     if (page.file) {
       const source = await readFile(page.file, 'utf8');
       const doc = /\.html?$/i.test(page.file) ? extractHtml(source, page.url, selectorFor(page.url)) : extractMarkdown(source, page.url);
+      return { kind: 'page', doc };
+    }
+    if (page.html !== undefined) {
+      const doc = extractHtml(page.html, page.url, selectorFor(page.url));
       return { kind: 'page', doc };
     }
     if (config.respectRobots !== false) {

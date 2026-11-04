@@ -1,6 +1,7 @@
 import { readdir } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 import { gunzipSync } from 'node:zlib';
+import { robotsFor, type Robots } from './robots.js';
 import type { DiscoveredPage, IngestSource } from './types.js';
 
 /** Sitemap indexes can point at more indexes; this many levels is plenty. */
@@ -13,6 +14,10 @@ export interface DiscoverOptions {
   timeoutMs: number;
   include?: string[];
   exclude?: string[];
+  /** Pages fetched at once during crawl. Default 4. */
+  concurrency?: number;
+  /** Obey robots.txt during crawl. Default true. */
+  respectRobots?: boolean;
 }
 
 export interface Discovery {
@@ -35,6 +40,8 @@ export async function discover(sources: IngestSource[], options: DiscoverOptions
       for (const url of source.urls) add({ url });
     } else if (source.type === 'sitemap') {
       await readSitemap(source.url, options, 0, new Set(), add, errors);
+    } else if (source.type === 'crawl') {
+      await crawlSite(source, options, add, errors);
     } else {
       try {
         for (const page of await readDirectory(source.path, source.baseUrl)) add(page);
@@ -101,6 +108,190 @@ async function readDirectory(path: string, baseUrl: string): Promise<DiscoveredP
       return { url: new URL(route, base).href, file };
     })
     .sort((a, b) => a.url.localeCompare(b.url));
+}
+
+const DEFAULT_CRAWL_DEPTH = 3;
+const DEFAULT_CRAWL_PAGES = 500;
+
+/**
+ * Crawl a site breadth-first from `url`, following same-origin `<a href>`
+ * links. `maxDepth` is link hops from the start (depth 0); the start counts
+ * toward `maxPages`. Other origins, `mailto:`, `tel:`, fragment-only links
+ * and non-HTML responses are skipped. Robots.txt is respected when
+ * `respectRobots` is not false. Already-fetched HTML is stored on each page
+ * so extraction doesn't fetch again.
+ */
+async function crawlSite(
+  source: Extract<IngestSource, { type: 'crawl' }>,
+  options: DiscoverOptions,
+  add: (page: DiscoveredPage) => void,
+  errors: string[]
+): Promise<void> {
+  const maxDepth = source.maxDepth ?? DEFAULT_CRAWL_DEPTH;
+  const maxPages = source.maxPages ?? DEFAULT_CRAWL_PAGES;
+  if (maxPages <= 0) return;
+
+  const startUrl = normalizeUrl(source.url);
+  if (!startUrl) {
+    errors.push(`${source.url}: not a valid URL`);
+    return;
+  }
+
+  // Apply existing include/exclude rules before fetching, including the starting URL.
+  if (!matches(startUrl, options.include, options.exclude)) {
+    return;
+  }
+
+  const origin = new URL(startUrl).origin;
+  const respectRobots = options.respectRobots !== false;
+  const concurrency = Math.max(1, options.concurrency ?? 4);
+
+  const policies = new Map<string, Promise<Robots>>();
+  async function getRobots(urlOrOrigin: string): Promise<Robots | undefined> {
+    if (!respectRobots) return undefined;
+    const fetchWithPolicy = options.fetch as typeof fetch & { policy?: (url: string) => Promise<Robots> };
+    if (typeof fetchWithPolicy.policy === 'function') {
+      return fetchWithPolicy.policy(urlOrOrigin);
+    }
+    const o = new URL(urlOrOrigin).origin;
+    let pending = policies.get(o);
+    if (!pending) {
+      pending = robotsFor(o, ((input, init) =>
+        options.fetch(String(input), {
+          ...init,
+          headers: { 'user-agent': options.userAgent, ...(init?.headers as Record<string, string>) },
+          signal: AbortSignal.timeout(options.timeoutMs),
+        })) as typeof fetch).then((rules) => {
+        if (rules.unavailable) errors.push(`${o}/robots.txt unavailable (${rules.unavailable})`);
+        return rules;
+      });
+      policies.set(o, pending);
+    }
+    return pending;
+  }
+
+  let robots: Robots | undefined;
+  if (respectRobots) {
+    try {
+      robots = await getRobots(startUrl);
+    } catch {
+      robots = undefined;
+    }
+    if (robots && !robots.allowed(startUrl)) {
+      return;
+    }
+  }
+
+  const seen = new Set<string>();
+  seen.add(startUrl);
+
+  let currentLevel = [startUrl];
+  let depth = 0;
+  let count = 0;
+
+  while (currentLevel.length > 0 && depth <= maxDepth && count < maxPages) {
+    const nextLevel: string[] = [];
+    let nextIndex = 0;
+    let inFlight = 0;
+    const waiters: Array<() => void> = [];
+    const notifyWaiters = () => {
+      while (waiters.length > 0) waiters.shift()?.();
+    };
+
+    const isLastDepth = depth >= maxDepth;
+
+    async function worker(): Promise<void> {
+      while (true) {
+        if (count >= maxPages) return;
+        if (nextIndex >= currentLevel.length) return;
+
+        if (count + inFlight >= maxPages) {
+          if (inFlight === 0) return;
+          await new Promise<void>((resolve) => waiters.push(resolve));
+          continue;
+        }
+
+        const url = currentLevel[nextIndex++];
+        inFlight++;
+
+        try {
+          if (robots && !robots.allowed(url)) continue;
+
+          let response: Response;
+          try {
+            response = await options.fetch(url, {
+              headers: { 'user-agent': options.userAgent, accept: 'text/html,application/xhtml+xml' },
+              signal: AbortSignal.timeout(options.timeoutMs),
+              redirect: 'follow',
+            });
+          } catch (error) {
+            errors.push(`${url}: ${message(error)}`);
+            continue;
+          }
+
+          if (!response.ok) {
+            errors.push(`${url}: HTTP ${response.status}`);
+            continue;
+          }
+
+          const type = response.headers.get('content-type') ?? '';
+          if (type && !/html/i.test(type)) continue;
+
+          const html = await response.text();
+          count++;
+          add({ url, html });
+
+          if (!isLastDepth) {
+            for (const href of extractLinks(html, url, origin)) {
+              const normalized = normalizeUrl(href);
+              if (!normalized || seen.has(normalized)) continue;
+              if (!matches(normalized, options.include, options.exclude)) continue;
+              if (robots && !robots.allowed(normalized)) continue;
+              seen.add(normalized);
+              nextLevel.push(normalized);
+            }
+          }
+        } finally {
+          inFlight--;
+          notifyWaiters();
+        }
+      }
+    }
+
+    const workerCount = Math.min(concurrency, currentLevel.length);
+    await Promise.all(Array.from({ length: workerCount }, worker));
+
+    currentLevel = nextLevel;
+    depth++;
+  }
+}
+
+/** Same-origin `<a href>` links on a page, resolved and filtered. */
+function extractLinks(html: string, baseUrl: string, origin: string): string[] {
+  const links: string[] = [];
+  const anchorRegex = /<a\s+[^>]*?(?<=\s)href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>/gi;
+  for (const match of html.matchAll(anchorRegex)) {
+    const raw = match[1] ?? match[2] ?? match[3];
+    if (!raw) continue;
+    const clean = raw.replace(/&amp;/g, '&').trim();
+    if (!clean) continue;
+    // Skip mailto:, tel:, and other non-http(s) schemes.
+    if (/^(mailto|tel|javascript|data|blob):/i.test(clean)) continue;
+    // Skip fragment-only links.
+    if (clean.startsWith('#')) continue;
+
+    let resolved: URL;
+    try {
+      resolved = new URL(clean, baseUrl);
+    } catch {
+      continue;
+    }
+    if (resolved.protocol !== 'http:' && resolved.protocol !== 'https:') continue;
+    // Same origin only.
+    if (resolved.origin !== origin) continue;
+    links.push(resolved.href);
+  }
+  return links;
 }
 
 /** The URL without its fragment, or undefined when it isn't http(s). */
