@@ -20,10 +20,14 @@ function countersOf(options?: Parameters<typeof memoryStorage>[0]): CounterStore
 describe('createRateLimiter', () => {
   it('throws on invalid rule', () => {
     const counters = countersOf();
-    expect(() => createRateLimiter(counters, { limit: 0, windowMs: 1000 })).toThrow('limit must be greater than 0');
-    expect(() => createRateLimiter(counters, { limit: -1, windowMs: 1000 })).toThrow('limit must be greater than 0');
-    expect(() => createRateLimiter(counters, { limit: 5, windowMs: 0 })).toThrow('windowMs must be greater than 0');
-    expect(() => createRateLimiter(counters, { limit: 5, windowMs: -1 })).toThrow('windowMs must be greater than 0');
+    expect(() => createRateLimiter(counters, { limit: 0, windowMs: 1000 })).toThrow('limit must be a finite number greater than 0');
+    expect(() => createRateLimiter(counters, { limit: -1, windowMs: 1000 })).toThrow('limit must be a finite number greater than 0');
+    expect(() => createRateLimiter(counters, { limit: Number.NaN, windowMs: 1000 })).toThrow('limit must be a finite number greater than 0');
+    expect(() => createRateLimiter(counters, { limit: Number.POSITIVE_INFINITY, windowMs: 1000 })).toThrow('limit must be a finite number greater than 0');
+    expect(() => createRateLimiter(counters, { limit: 5, windowMs: 0 })).toThrow('windowMs must be a finite number greater than 0');
+    expect(() => createRateLimiter(counters, { limit: 5, windowMs: -1 })).toThrow('windowMs must be a finite number greater than 0');
+    expect(() => createRateLimiter(counters, { limit: 5, windowMs: Number.NaN })).toThrow('windowMs must be a finite number greater than 0');
+    expect(() => createRateLimiter(counters, { limit: 5, windowMs: Number.POSITIVE_INFINITY })).toThrow('windowMs must be a finite number greater than 0');
   });
 
   it('allows exactly limit requests and blocks the next one', async () => {
