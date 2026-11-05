@@ -45,6 +45,15 @@ describe('cohereReranker', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
+  it('returns no results and makes no request for non-finite topN values', async () => {
+    const send = vi.fn(async () => json({ results: [] }));
+    const reranker = cohereReranker({ apiKey: 'k', fetch: send });
+    expect(await reranker.rerank('q', chunks, Number.NaN)).toEqual([]);
+    expect(await reranker.rerank('q', chunks, Infinity)).toEqual([]);
+    expect(await reranker.rerank('q', chunks, -Infinity)).toEqual([]);
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it('surfaces client API errors without retrying', async () => {
     const send = vi.fn(async () => json({ message: 'Invalid model' }, 400));
     const reranker = cohereReranker({ apiKey: 'k', fetch: send });
