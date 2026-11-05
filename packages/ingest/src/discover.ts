@@ -18,6 +18,8 @@ export interface DiscoverOptions {
   concurrency?: number;
   /** Obey robots.txt during crawl. Default true. */
   respectRobots?: boolean;
+  /** Limit total pages discovered. */
+  maxPages?: number;
 }
 
 export interface Discovery {
@@ -73,7 +75,10 @@ async function readSitemap(
       headers: { 'user-agent': options.userAgent },
       signal: AbortSignal.timeout(options.timeoutMs),
     });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.ok) {
+      await cancelBody(response);
+      throw new Error(`HTTP ${response.status}`);
+    }
     const bytes = new Uint8Array(await response.arrayBuffer());
     // gzip's magic number; some servers send .xml.gz without saying so.
     xml = (bytes[0] === 0x1f && bytes[1] === 0x8b ? gunzipSync(bytes) : Buffer.from(bytes)).toString('utf8');
@@ -113,6 +118,14 @@ async function readDirectory(path: string, baseUrl: string): Promise<DiscoveredP
 const DEFAULT_CRAWL_DEPTH = 3;
 const DEFAULT_CRAWL_PAGES = 500;
 
+async function cancelBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // A failed cleanup should not prevent crawling from continuing.
+  }
+}
+
 /**
  * Crawl a site breadth-first from `url`, following same-origin `<a href>`
  * links. `maxDepth` is link hops from the start (depth 0); the start counts
@@ -128,8 +141,14 @@ async function crawlSite(
   errors: string[]
 ): Promise<void> {
   const maxDepth = source.maxDepth ?? DEFAULT_CRAWL_DEPTH;
-  const maxPages = source.maxPages ?? DEFAULT_CRAWL_PAGES;
-  if (maxPages <= 0) return;
+  let effectiveMaxPages = source.maxPages ?? DEFAULT_CRAWL_PAGES;
+  if (options.maxPages !== undefined && options.maxPages >= 0) {
+    effectiveMaxPages = Math.min(effectiveMaxPages, Math.floor(options.maxPages));
+  }
+  if (effectiveMaxPages <= 0) {
+    errors.push(`stopped at --max-pages ${effectiveMaxPages}`);
+    return;
+  }
 
   const startUrl = normalizeUrl(source.url);
   if (!startUrl) {
@@ -139,12 +158,12 @@ async function crawlSite(
 
   // Apply existing include/exclude rules before fetching, including the starting URL.
   if (!matches(startUrl, options.include, options.exclude)) {
+    errors.push(`${startUrl}: does not match include/exclude rules`);
     return;
   }
 
-  const origin = new URL(startUrl).origin;
-  const respectRobots = options.respectRobots !== false;
   const concurrency = Math.max(1, options.concurrency ?? 4);
+  const respectRobots = options.respectRobots !== false;
 
   const policies = new Map<string, Promise<Robots>>();
   async function getRobots(urlOrOrigin: string): Promise<Robots | undefined> {
@@ -170,27 +189,97 @@ async function crawlSite(
     return pending;
   }
 
+  let startResponse: Response;
+  try {
+    startResponse = await options.fetch(startUrl, {
+      headers: { 'user-agent': options.userAgent, accept: 'text/html,application/xhtml+xml' },
+      signal: AbortSignal.timeout(options.timeoutMs),
+      redirect: 'follow',
+    });
+  } catch (error) {
+    errors.push(`${startUrl}: ${message(error)}`);
+    return;
+  }
+
+  const canonicalStartUrl = normalizeUrl(startResponse.url || startUrl) ?? (startResponse.url || startUrl);
+
+  if (!startResponse.ok) {
+    await cancelBody(startResponse);
+    errors.push(`${canonicalStartUrl}: HTTP ${startResponse.status}`);
+    return;
+  }
+
+  const startType = startResponse.headers.get('content-type') ?? '';
+  if (startType && !/html/i.test(startType)) {
+    await cancelBody(startResponse);
+    const mediaType = startType.split(';')[0].trim();
+    errors.push(`${canonicalStartUrl}: not HTML${mediaType ? ` (${mediaType})` : ''}`);
+    return;
+  }
+
+  if (!matches(canonicalStartUrl, options.include, options.exclude)) {
+    await cancelBody(startResponse);
+    errors.push(`${canonicalStartUrl}: does not match include/exclude rules`);
+    return;
+  }
+
+  const origin = new URL(canonicalStartUrl).origin;
+
   let robots: Robots | undefined;
   if (respectRobots) {
     try {
-      robots = await getRobots(startUrl);
+      robots = await getRobots(canonicalStartUrl);
     } catch {
       robots = undefined;
     }
-    if (robots && !robots.allowed(startUrl)) {
+    if (robots && !robots.allowed(canonicalStartUrl)) {
+      await cancelBody(startResponse);
+      errors.push(`${canonicalStartUrl}: disallowed by robots.txt`);
       return;
     }
   }
 
+  let startHtml: string;
+  try {
+    startHtml = await startResponse.text();
+  } catch (error) {
+    errors.push(`${canonicalStartUrl}: ${message(error)}`);
+    return;
+  }
+
   const seen = new Set<string>();
   seen.add(startUrl);
+  seen.add(canonicalStartUrl);
 
-  let currentLevel = [startUrl];
-  let depth = 0;
-  let count = 0;
+  add({ url: canonicalStartUrl, html: startHtml });
+  let count = 1;
 
-  while (currentLevel.length > 0 && depth <= maxDepth && count < maxPages) {
+  let currentLevel: string[] = [];
+  if (maxDepth > 0) {
+    for (const href of extractLinks(startHtml, canonicalStartUrl, origin)) {
+      const normalized = normalizeUrl(href);
+      if (!normalized || seen.has(normalized)) continue;
+      if (!matches(normalized, options.include, options.exclude)) continue;
+      if (robots && !robots.allowed(normalized)) continue;
+      seen.add(normalized);
+      currentLevel.push(normalized);
+    }
+  }
+
+  if (count >= effectiveMaxPages) {
+    if (currentLevel.length > 0) {
+      errors.push(`stopped at --max-pages ${effectiveMaxPages}`);
+    }
+    return;
+  }
+
+  let depth = 1;
+  while (currentLevel.length > 0 && depth <= maxDepth && count < effectiveMaxPages) {
     const nextLevel: string[] = [];
+    const isLastDepth = depth >= maxDepth;
+    const pagesByPosition: Array<DiscoveredPage | undefined> = new Array(currentLevel.length);
+    const linksByPosition: string[][] = Array.from({ length: currentLevel.length }, () => []);
+
     let nextIndex = 0;
     let inFlight = 0;
     const waiters: Array<() => void> = [];
@@ -198,20 +287,19 @@ async function crawlSite(
       while (waiters.length > 0) waiters.shift()?.();
     };
 
-    const isLastDepth = depth >= maxDepth;
-
     async function worker(): Promise<void> {
       while (true) {
-        if (count >= maxPages) return;
+        if (count >= effectiveMaxPages) return;
         if (nextIndex >= currentLevel.length) return;
 
-        if (count + inFlight >= maxPages) {
+        if (count + inFlight >= effectiveMaxPages) {
           if (inFlight === 0) return;
           await new Promise<void>((resolve) => waiters.push(resolve));
           continue;
         }
 
-        const url = currentLevel[nextIndex++];
+        const index = nextIndex++;
+        const url = currentLevel[index];
         inFlight++;
 
         try {
@@ -229,27 +317,67 @@ async function crawlSite(
             continue;
           }
 
+          const canonicalUrl = normalizeUrl(response.url || url) ?? (response.url || url);
+
           if (!response.ok) {
-            errors.push(`${url}: HTTP ${response.status}`);
+            await cancelBody(response);
+            errors.push(`${canonicalUrl}: HTTP ${response.status}`);
+            continue;
+          }
+
+          let finalOrigin: string;
+          try {
+            finalOrigin = new URL(canonicalUrl).origin;
+          } catch {
+            await cancelBody(response);
+            continue;
+          }
+
+          // Skip subsequent pages whose final redirected URL is outside the established crawl origin.
+          if (finalOrigin !== origin) {
+            await cancelBody(response);
+            seen.add(canonicalUrl);
+            continue;
+          }
+
+          // If same-origin redirect target was already seen, skip.
+          if (canonicalUrl !== url && seen.has(canonicalUrl)) {
+            await cancelBody(response);
+            continue;
+          }
+
+          if (!matches(canonicalUrl, options.include, options.exclude)) {
+            await cancelBody(response);
+            seen.add(canonicalUrl);
+            continue;
+          }
+
+          if (robots && !robots.allowed(canonicalUrl)) {
+            await cancelBody(response);
+            seen.add(canonicalUrl);
             continue;
           }
 
           const type = response.headers.get('content-type') ?? '';
-          if (type && !/html/i.test(type)) continue;
+          if (type && !/html/i.test(type)) {
+            await cancelBody(response);
+            continue;
+          }
 
-          const html = await response.text();
+          let html: string;
+          try {
+            html = await response.text();
+          } catch (error) {
+            errors.push(`${canonicalUrl}: ${message(error)}`);
+            continue;
+          }
+
+          seen.add(canonicalUrl);
+          pagesByPosition[index] = { url: canonicalUrl, html };
           count++;
-          add({ url, html });
 
           if (!isLastDepth) {
-            for (const href of extractLinks(html, url, origin)) {
-              const normalized = normalizeUrl(href);
-              if (!normalized || seen.has(normalized)) continue;
-              if (!matches(normalized, options.include, options.exclude)) continue;
-              if (robots && !robots.allowed(normalized)) continue;
-              seen.add(normalized);
-              nextLevel.push(normalized);
-            }
+            linksByPosition[index] = extractLinks(html, canonicalUrl, origin);
           }
         } finally {
           inFlight--;
@@ -261,8 +389,35 @@ async function crawlSite(
     const workerCount = Math.min(concurrency, currentLevel.length);
     await Promise.all(Array.from({ length: workerCount }, worker));
 
+    for (let i = 0; i < currentLevel.length; i++) {
+      const page = pagesByPosition[i];
+      if (page) {
+        add(page);
+      }
+      if (!isLastDepth) {
+        for (const href of linksByPosition[i]) {
+          const normalized = normalizeUrl(href);
+          if (!normalized || seen.has(normalized)) continue;
+          if (!matches(normalized, options.include, options.exclude)) continue;
+          if (robots && !robots.allowed(normalized)) continue;
+          seen.add(normalized);
+          nextLevel.push(normalized);
+        }
+      }
+    }
+
+    const previousLength = currentLevel.length;
     currentLevel = nextLevel;
     depth++;
+
+    if (count >= effectiveMaxPages) {
+      if (nextIndex < previousLength || currentLevel.length > 0) {
+        if (!errors.includes(`stopped at --max-pages ${effectiveMaxPages}`)) {
+          errors.push(`stopped at --max-pages ${effectiveMaxPages}`);
+        }
+      }
+      break;
+    }
   }
 }
 

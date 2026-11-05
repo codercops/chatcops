@@ -164,7 +164,7 @@ async function runIngest(values: Values, io: Io): Promise<number> {
     if (values.crawl) cliSources.push({ type: 'crawl', url: values.crawl });
     if (values.source?.length) cliSources.push(...values.source.map((source) => toSource(source, values['base-url'], io.cwd)));
     const sources = cliSources.length ? cliSources : loaded.config.ingest?.sources;
-    if (!sources?.length) throw new ConfigError('Nothing to ingest: pass --source, or set ingest.sources in the config.');
+    if (!sources?.length) throw new ConfigError('Nothing to ingest: pass --source, --crawl, or set ingest.sources in the config.');
 
     // A model only runs with --contextualize, so a run never spends on one by surprise: the config holds which.
     if (values.contextualize && !loaded.config.ingest?.contextualize) {

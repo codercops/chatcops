@@ -144,7 +144,7 @@ Network sources respect `robots.txt` by default, using the `ChatCopsBot` group o
 | `{ type: 'sitemap', url }` | A sitemap, a sitemap index, or a gzipped one (`.xml.gz`) |
 | `{ type: 'urls', urls }` | The pages you list |
 | `{ type: 'directory', path, baseUrl }` | Local `.md`, `.mdx` and `.html` files, cited as if published under `baseUrl` |
-| `{ type: 'crawl', url, maxDepth?, maxPages? }` | Crawl a site breadth-first from `url`, following same-origin links (defaults: `maxDepth: 3`, `maxPages: 500`) |
+| `{ type: 'crawl', url, maxDepth?, maxPages? }` | Crawl a site breadth-first from `url`, following same-origin links (defaults: `maxDepth: 3`, `maxPages: 500`). `maxDepth` counts link hops from the starting URL; depth 0 means only the starting URL. `include` and `exclude` also control which crawl links are followed, including the starting URL. For example, `include: ['https://example.com/docs/**']` with `url: 'https://example.com/'` discovers nothing because the starting URL does not match `include`. |
 
 The rest of the config:
 

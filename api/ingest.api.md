@@ -38,6 +38,7 @@ export interface DiscoverOptions {
     exclude?: string[];
     concurrency?: number;
     respectRobots?: boolean;
+    maxPages?: number;
 }
 
 export interface Discovery {

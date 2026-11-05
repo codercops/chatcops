@@ -251,6 +251,22 @@ export default {
     expect(await run(['ingest', '--source', './docs'], cwd)).toMatchObject({ code: EXIT.unusable, stderr: expect.stringContaining('needs --base-url') });
   });
 
+  it('errors when nothing to ingest without source or crawl flags', async () => {
+    const cwd = project({
+      shared: 'no-sources',
+      body: `import { memoryStorage, memoryVectors } from '@chatcops/core';
+export default {
+  storage: { ...memoryStorage(), vectors: memoryVectors({ dimensions: 4 }) },
+  embedder: { id: 'test:fake@4', dimensions: 4, async embed() { return []; } },
+  ingest: {},
+};`,
+    });
+    expect(await run(['ingest'], cwd)).toMatchObject({
+      code: EXIT.unusable,
+      stderr: expect.stringContaining('Nothing to ingest: pass --source, --crawl, or set ingest.sources in the config.'),
+    });
+  });
+
   it('ingests with --crawl and crawl: source', async () => {
     site.set('/crawl/cli/start', '<!doctype html><html><body><main><h1>Start</h1><p>Start with <a href="/crawl/cli/sub">Sub</a></p></main></body></html>');
     site.set('/crawl/cli/sub', '<!doctype html><html><body><main><h1>Sub</h1><p>Sub content</p></main></body></html>');
