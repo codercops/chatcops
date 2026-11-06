@@ -233,7 +233,8 @@ export default defineConfig({
 | `--filter <text>` | Only tests whose name contains the text, or `tag:<name>` for a tag |
 | `--repeat <n>` | Run every test n times, instead of each test's own `repeat` |
 | `--concurrency <n>` | Tests run at once. Default 4. |
-| `--reporter <name>` | `pretty` (the default) or `json`, which prints one JSON object with every turn's reply, tool calls, sources and token usage. Repeatable. |
+| `--reporter <name[=file]>` | `pretty` (the default), `json` (every turn's reply, tool calls, sources and token usage), or `junit` (JUnit XML for CI). Repeatable, with each name used once. Add `=file` to write that reporter to a file. |
+| `--output <file>` | Write a single reporter's complete output to a file instead of stdout. Also works with the default reporter. |
 | `--json` | The same as `--reporter json` |
 | `--judge-model <provider:model>` | The judge for `judge` assertions: `gemini`, `openai` or `claude`, with a model id or without one for the default |
 | `--max-cost <usd>` | Stop starting turns once the run has spent this much. Needs `prices`. |
@@ -283,6 +284,38 @@ A few things to know about recordings:
 - Headers aren't saved, and neither are query parameters like `key` or `api_key`. API keys usually travel in one of those, so they stay out of the files. The request and response bodies are saved, which means your system prompt and the replies are in the files, so treat them like the rest of your code. Request bodies stay readable JSON, so a re-recording's diff shows what you changed. Responses over 4 kB, such as a streamed reply with one event per token, are saved gzipped in base64, which keeps the files about a tenth of the size.
 - `repeat` records every run, and replay plays them back in the same order.
 - Replays answer at once, so `latency` in a replayed run is not the real latency.
+
+### JUnit reports for CI
+
+Write a JUnit report for a CI test report integration:
+
+```bash
+npx chatcops test --reporter junit --output evals.xml
+```
+
+To keep the readable summary in the terminal and save XML separately, give the JUnit reporter a destination:
+
+```bash
+npx chatcops test --reporter pretty --reporter junit=evals.xml
+```
+
+File paths are relative to the current folder. Parent folders are created as needed, and an existing report is replaced after reporting finishes. Paths containing `=` work: only the first `=` separates the reporter name from its destination. Each reporter name can be used once, and file destinations must differ. `--output` is a shortcut for one reporter; it cannot be combined with multiple reporters or `name=file`. A file write error exits 2, after all reporters have finished and any recordings have been saved.
+
+JUnit groups tests by eval file. Each test's time is the sum of its turns' latencies across all repeats, in seconds. The aggregate pass-rate verdict decides whether the testcase passed. A failed test with any execution error gets an `<error>`; other failed tests get a `<failure>` with the assertion reasons, turn numbers and replies.
+
+For example, GitLab CI can display the report even when an eval fails (record the API calls first so CI can replay them):
+
+```yaml
+evals:
+  image: node:22
+  script:
+    - npm ci
+    - npx chatcops test --reporter junit --output evals.xml
+  artifacts:
+    when: always
+    reports:
+      junit: evals.xml
+```
 
 ### GitHub Actions
 

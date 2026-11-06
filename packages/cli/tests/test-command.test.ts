@@ -1,10 +1,11 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EXIT, main } from '../src/index.js';
 import { check, unknownAssertions } from '../src/test/assertions/index.js';
 import { matchesFilter } from '../src/test/load.js';
 import type { TurnResult } from '../src/test/types.js';
+import { REPORTERS } from '../src/test/reporters/index.js';
 
 const TMP = resolve(__dirname, '.tmp-test');
 
@@ -322,9 +323,106 @@ tests:
     expect(both.stdout).toContain('  ✓ says hello');
     expect(JSON.parse(both.stdout.trim().split('\n').at(-1) ?? '')).toMatchObject({ passed: 2 });
     const unknown = await run(['test', '--reporter', 'html'], dir);
-    expect(unknown.stderr).toContain("--reporter html doesn't exist. Use one of: pretty, json.");
+    expect(unknown.stderr).toContain("--reporter html doesn't exist. Use one of: pretty, json, junit.");
     expect(unknown.code).toBe(EXIT.unusable);
     expect((await run(['test', '--json', '--reporter', 'json'], dir)).stderr).toContain('not both');
+  });
+
+  it('writes JUnit to --output relative to io.cwd and replaces existing files without stdout duplication', async () => {
+    const dir = project({ 'evals/pricing.chat.yaml': PRICING, 'evals.xml': 'old contents' });
+    const result = await run(['test', '--reporter', 'junit', '--output', 'evals.xml'], dir);
+    expect(result).toEqual({ code: EXIT.ok, stdout: '', stderr: '' });
+    const xml = readFileSync(join(dir, 'evals.xml'), 'utf8');
+    expect(xml).toMatch(/^<\?xml version="1.0" encoding="UTF-8"\?>/);
+    expect(xml).toContain('<testsuites tests="2" failures="0" errors="0"');
+    expect(xml).toContain('name="quotes the team price"');
+    expect(xml).not.toContain('old contents');
+    expect(xml).toMatch(/<\/testsuites>\n$/);
+  });
+
+  it('routes reporters independently and splits destinations on the first equals sign', async () => {
+    const dir = project({ 'evals/pricing.chat.yaml': PRICING });
+    const mixed = await run(['test', '--reporter', 'pretty', '--reporter', 'junit=report=evals.xml'], dir);
+    expect(mixed.code).toBe(EXIT.ok);
+    expect(mixed.stdout).toContain('2 passed, 0 failed.');
+    expect(mixed.stdout).not.toContain('<testsuites');
+    expect(readFileSync(join(dir, 'report=evals.xml'), 'utf8')).toContain('<testsuites');
+    const files = await run(['test', '--reporter', 'json=evals.json', '--reporter', 'junit=evals.xml'], dir);
+    expect(files.code).toBe(EXIT.ok);
+    expect(files.stdout).toBe('');
+    expect(JSON.parse(readFileSync(join(dir, 'evals.json'), 'utf8'))).toMatchObject({ passed: 2, failed: 0 });
+    expect(readFileSync(join(dir, 'evals.xml'), 'utf8')).toContain('</testsuites>');
+  });
+
+  it('supports --output with the default reporter and --json', async () => {
+    const dir = project({ 'evals/pricing.chat.yaml': PRICING });
+    expect((await run(['test', '--output', 'pretty.txt'], dir)).stdout).toBe('');
+    expect(readFileSync(join(dir, 'pretty.txt'), 'utf8')).toContain('2 passed, 0 failed.');
+    expect((await run(['test', '--json', '--output', 'evals.json'], dir)).code).toBe(EXIT.ok);
+    expect(JSON.parse(readFileSync(join(dir, 'evals.json'), 'utf8')).passed).toBe(2);
+  });
+
+  it('buffers onResult and asynchronous onEnd output before writing the file', async () => {
+    const dir = project({ 'evals/pricing.chat.yaml': PRICING });
+    REPORTERS.set('buffer-test', (output) => ({
+      onResult(result) { output.write(`${result.test}\n`); },
+      async onEnd() { await Promise.resolve(); output.write('done\n'); },
+    }));
+    try {
+      expect((await run(['test', '--reporter', 'buffer-test=buffer.txt'], dir)).stdout).toBe('');
+      const text = readFileSync(join(dir, 'buffer.txt'), 'utf8');
+      expect(text).toContain('quotes the team price\n');
+      expect(text).toContain('says hello\n');
+      expect(text).toMatch(/done\n$/);
+    } finally {
+      REPORTERS.delete('buffer-test');
+    }
+  });
+
+  it('writes reports for failed evals and creates missing parent folders', async () => {
+    const dir = project({ 'evals/pricing.chat.yaml': PRICING.replace('contains: "$19"', 'contains: "$29"') });
+    const failed = await run(['test', '--reporter', 'junit=failed.xml'], dir);
+    expect(failed.code).toBe(EXIT.problems);
+    expect(failed.stdout).toBe('');
+    expect(readFileSync(join(dir, 'failed.xml'), 'utf8')).toContain('<failure message="Assertion failed">');
+    const nested = await run(['test', '--reporter', 'junit', '--output', 'missing/report.xml'], dir);
+    expect(nested.code).toBe(EXIT.problems);
+    expect(nested.stdout).toBe('');
+    expect(nested.stderr).toBe('');
+    expect(readFileSync(join(dir, 'missing/report.xml'), 'utf8')).toContain('</testsuites>');
+  });
+
+  it('finishes later reporters before reporting a file write error', async () => {
+    const dir = project({ 'evals/pricing.chat.yaml': PRICING });
+    const unwritable = await run(['test', '--reporter', 'junit=evals', '--reporter', 'pretty'], dir);
+    expect(unwritable.code).toBe(EXIT.unusable);
+    expect(unwritable.stdout).toContain('2 passed, 0 failed.');
+    expect(unwritable.stderr).toContain('Cannot write report to');
+  });
+
+  it.each([
+    [['--reporter', ''], 'needs a name'],
+    [['--reporter', '=report.xml'], 'needs a name'],
+    [['--reporter', 'junit='], 'must not be empty'],
+    [['--output', ''], 'must not be empty'],
+    [['--reporter', 'html=report.xml'], "doesn't exist"],
+    [['--reporter', 'junit', '--reporter', 'json', '--output', 'report.xml'], 'single reporter'],
+    [['--reporter', 'junit=a.xml', '--output', 'b.xml'], 'not both'],
+    [['--reporter', 'junit', '--reporter', 'junit=a.xml'], 'more than once'],
+    [['--reporter', 'junit=a.xml', '--reporter', 'json=./a.xml'], 'different output files'],
+  ])('rejects invalid reporter destinations %j', async (args, message) => {
+    const dir = project({ 'evals/pricing.chat.yaml': PRICING });
+    const result = await run(['test', ...args], dir);
+    expect(result.code).toBe(EXIT.unusable);
+    expect(result.stderr).toContain(message);
+    expect(result.stdout).toBe('');
+  });
+
+  it('lists JUnit and output destinations in help', async () => {
+    const help = await run(['test', '--help'], TMP);
+    expect(help.stdout).toContain('junit');
+    expect(help.stdout).toContain('--output <file>');
+    expect(help.stdout).toContain('name=file');
   });
 
   it('loads module eval files', async () => {
