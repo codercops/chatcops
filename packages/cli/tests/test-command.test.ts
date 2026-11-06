@@ -379,17 +379,25 @@ tests:
     }
   });
 
-  it('writes reports for failed evals and reports output errors with exit 2', async () => {
+  it('writes reports for failed evals and creates missing parent folders', async () => {
     const dir = project({ 'evals/pricing.chat.yaml': PRICING.replace('contains: "$19"', 'contains: "$29"') });
     const failed = await run(['test', '--reporter', 'junit=failed.xml'], dir);
     expect(failed.code).toBe(EXIT.problems);
     expect(failed.stdout).toBe('');
     expect(readFileSync(join(dir, 'failed.xml'), 'utf8')).toContain('<failure message="Assertion failed">');
-    const unwritable = await run(['test', '--reporter', 'junit', '--output', 'missing/report.xml'], dir);
+    const nested = await run(['test', '--reporter', 'junit', '--output', 'missing/report.xml'], dir);
+    expect(nested.code).toBe(EXIT.problems);
+    expect(nested.stdout).toBe('');
+    expect(nested.stderr).toBe('');
+    expect(readFileSync(join(dir, 'missing/report.xml'), 'utf8')).toContain('</testsuites>');
+  });
+
+  it('finishes later reporters before reporting a file write error', async () => {
+    const dir = project({ 'evals/pricing.chat.yaml': PRICING });
+    const unwritable = await run(['test', '--reporter', 'junit=evals', '--reporter', 'pretty'], dir);
     expect(unwritable.code).toBe(EXIT.unusable);
-    expect(unwritable.stdout).toBe('');
+    expect(unwritable.stdout).toContain('2 passed, 0 failed.');
     expect(unwritable.stderr).toContain('Cannot write report to');
-    expect(unwritable.stderr).toContain('report.xml');
   });
 
   it.each([

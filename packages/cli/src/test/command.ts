@@ -1,6 +1,6 @@
 import { performance } from 'node:perf_hooks';
-import { relative, resolve } from 'node:path';
-import { writeFile } from 'node:fs/promises';
+import { dirname, relative, resolve } from 'node:path';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { createProvider, isAIProvider, type AIProvider, type ProviderConfig } from '@chatcops/core';
 import type { ChatCopsServerConfig } from '@chatcops/server';
 import { ConfigError, type ChatCopsCliConfig } from '../config.js';
@@ -146,21 +146,23 @@ export async function runTests(
     ...(judge ? { judge: judge.id } : {}),
     ...(priced.length ? { costUsd: priced.reduce((a, b) => a + b, 0) } : {}),
   };
-  for (const { reporter, file, chunks } of reporters) {
-    await reporter.onEnd?.(results, summary);
-    if (file !== undefined) {
-      try {
-        await writeFile(file, chunks.join(''), 'utf8');
-      } catch (error) {
-        throw new ConfigError(`Cannot write report to "${file}": ${(error as Error).message}`);
-      }
-    }
-  }
+  for (const { reporter } of reporters) await reporter.onEnd?.(results, summary);
   if (cassettes?.mode === 'record') {
     const written = await cassettes.save(
       fixtures.map((job) => ({ path: job.path ?? job.file, ran: job.tests.map((t) => t.name), all: job.fixture.tests.map((t) => t.name) }))
     );
     for (const file of written) io.stderr.write(`Saved ${relative(io.cwd, file)}\n`);
+  }
+  // Preserve terminal summaries and recordings even if a report file cannot be written.
+  for (const { file, chunks } of reporters) {
+    if (file !== undefined) {
+      try {
+        await mkdir(dirname(file), { recursive: true });
+        await writeFile(file, chunks.join(''), 'utf8');
+      } catch (error) {
+        throw new ConfigError(`Cannot write report to "${file}": ${(error as Error).message}`);
+      }
+    }
   }
   return results.some((result) => !result.pass) ? EXIT.problems : EXIT.ok;
 }

@@ -61,7 +61,7 @@ Test options:
   --reporter <name[=file]>  pretty (default), json or junit. Repeatable; each name once.
   --output <file>       Write a single reporter to a file instead of stdout (replaces the file).
                         With several reporters, use name=file; file destinations must differ.
-                        Do not combine --output with name=file. Parent folders must exist.
+                        Do not combine --output with name=file. Parent folders are created.
   --json                Same as --reporter json
   --record              Call the APIs and save what they answer to __cassettes__
   --replay              Answer every API call from __cassettes__ (the default when CI is set)
