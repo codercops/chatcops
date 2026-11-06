@@ -12,12 +12,12 @@ Two things apply to every example on this page:
 
 ## Next.js (App Router)
 
-Create `app/api/chat/route.ts`:
+Create `app/api/chat/[[...path]]/route.ts`:
 
 ```typescript
-import { chatcopsVercelHandler } from '@chatcops/server';
+import { chatcopsNext } from '@chatcops/server/next';
 
-const handler = chatcopsVercelHandler({
+export const { POST, OPTIONS } = chatcopsNext({
   provider: {
     type: 'claude',
     apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -26,19 +26,14 @@ const handler = chatcopsVercelHandler({
   allowedOrigins: ['*'],
   sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
 });
-
-export const POST = handler;
-export const OPTIONS = handler;
+export const runtime = 'nodejs';
 ```
 
-The widget gets its session token from `/api/chat/session`, so add `app/api/chat/session/route.ts` with the same handler:
+The catch-all route answers both the chat endpoint at `/api/chat` and the session endpoint at `/api/chat/session`. The widget's `data-api-url` is then `/api/chat` on the same site, or the full URL from another origin.
 
-```typescript
-// docs-check: skip, re-exports the route file above
-export { POST, OPTIONS } from '../route';
-```
+The double brackets in `[[...path]]` (an optional catch-all route) are required: single brackets (`[...path]`) only match paths with at least one segment after `/api/chat`, so `/api/chat` itself would return a 404.
 
-The widget's `data-api-url` is then `/api/chat` on the same site, or the full URL from another origin.
+> **Older setups:** Older code used two route files with `chatcopsVercelHandler`: `app/api/chat/route.ts` and `app/api/chat/session/route.ts` (re-exporting `POST` and `OPTIONS` from the first). The single catch-all route replaces both.
 
 ## Hono
 

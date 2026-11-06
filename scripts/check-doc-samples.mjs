@@ -16,7 +16,7 @@ const blocks = [];
 // which type-checking can't see. Flags a handler built from an object literal that
 // has neither, or a full `ChatCopsServerConfig` that has neither, unless it spreads
 // another config in.
-const handlerCall = /\b(chatcopsMiddleware|chatcopsVercelHandler|chatcopsCloudflareHandler|chatcopsAiSdkHandler|createChatHandler)\(\s*\{|:\s*(ChatCopsServerConfig)\s*=\s*\{/g;
+const handlerCall = /\b(chatcopsMiddleware|chatcopsVercelHandler|chatcopsNext|chatcopsCloudflareHandler|chatcopsAiSdkHandler|createChatHandler)\(\s*\{|:\s*(ChatCopsServerConfig)\s*=\s*\{/g;
 function missingSessionConfig(code) {
   const lines = [];
   for (const match of code.matchAll(handlerCall)) {
