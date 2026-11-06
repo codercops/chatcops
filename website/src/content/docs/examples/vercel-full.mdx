@@ -57,14 +57,14 @@ Add `api/chat/session.ts` with `export { default, config } from '../chat';`, so 
 
 ## Next.js Integration
 
-If using Next.js, place the file at `app/api/chat/route.ts`:
+For Next.js (App Router), create a single catch-all route at `app/api/chat/[[...path]]/route.ts` with `chatcopsNext()` (see [Fetch runtimes](/server/fetch-runtimes/#nextjs-app-router)):
 
 ```typescript
-import { chatcopsVercelHandler } from '@chatcops/server';
+import { chatcopsNext } from '@chatcops/server/next';
 
 export const runtime = 'edge';
 
-const handler = chatcopsVercelHandler({
+export const { POST, OPTIONS } = chatcopsNext({
   provider: {
     type: 'openai',
     apiKey: process.env.OPENAI_API_KEY!,
@@ -73,13 +73,9 @@ const handler = chatcopsVercelHandler({
   allowedOrigins: ['*'],
   sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
 });
-
-export const POST = handler;
-// The handler answers the CORS preflight, so a widget on another origin needs OPTIONS too.
-export const OPTIONS = handler;
 ```
 
-Then `app/api/chat/session/route.ts`, for the session token: `export { POST, OPTIONS } from '../route';`.
+The single catch-all route answers both the chat requests at `/api/chat` and session requests at `/api/chat/session`, so no second route file is needed.
 
 More runtimes (Hono, Bun, Deno) are in [Next.js, Hono, Bun and Deno](/server/fetch-runtimes/).
 
