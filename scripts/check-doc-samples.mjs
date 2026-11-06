@@ -142,6 +142,7 @@ try {
     '@chatcops/store-upstash-vector': [packagePath('store-upstash-vector')],
     '@chatcops/ingest': [packagePath('ingest')],
     '@chatcops/cli': [packagePath('cli')],
+    '@chatcops/react': [packagePath('react')],
     express: [join(root, 'packages', 'server', 'node_modules', '@types', 'express', 'index.d.ts')],
     '@neondatabase/serverless': [join(root, 'packages', 'store-postgres', 'node_modules', '@neondatabase', 'serverless')],
     '@upstash/vector': [join(root, 'packages', 'store-upstash-vector', 'node_modules', '@upstash', 'vector')],

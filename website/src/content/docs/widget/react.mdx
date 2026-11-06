@@ -1,0 +1,140 @@
+---
+title: React
+description: React component and hooks for the ChatCops widget.
+---
+
+The `@chatcops/react` package provides a `<ChatCops>` component and `useChatCops()` hook for React and Next.js applications. It manages widget initialization, prop updates, event subscriptions, cleanup on unmount, and React StrictMode development safely without touching `window` on the server.
+
+## Installation
+
+Install `@chatcops/react` along with `@chatcops/widget`:
+
+```bash
+npm install @chatcops/react @chatcops/widget
+```
+
+## Quick Start
+
+In Next.js (App Router), root layouts (`app/layout.tsx`) are server components by default so they can export `metadata`. Define a small client component to hold your interactive callbacks:
+
+```tsx
+// app/chat.tsx
+'use client';
+
+import { ChatCops } from '@chatcops/react';
+
+export function Chat() {
+  return (
+    <ChatCops
+      apiUrl="/api/chat"
+      branding={{ name: 'Acme' }}
+      onLeadCaptured={(lead) => console.log('Lead captured:', lead)}
+    />
+  );
+}
+```
+
+Then render `<Chat />` from your root layout:
+
+```tsx
+// app/layout.tsx
+import type { Metadata } from 'next';
+import { Chat } from './chat';
+
+export const metadata: Metadata = {
+  title: 'My App',
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        {children}
+        <Chat />
+      </body>
+    </html>
+  );
+}
+```
+
+If you do not need function or event props, `<ChatCops>` can also be placed directly in a server component:
+
+```tsx
+import { ChatCops } from '@chatcops/react';
+
+export default function Layout({ children }: { children: React.ReactNode }) {
+  return (
+    <div>
+      {children}
+      <ChatCops apiUrl="/api/chat" branding={{ name: 'Acme' }} />
+    </div>
+  );
+}
+```
+
+Trigger actions anywhere in your application using `useChatCops()`:
+
+```tsx
+'use client';
+
+import { useChatCops } from '@chatcops/react';
+
+export function AskProductButton({ productName }: { productName: string }) {
+  const chat = useChatCops();
+
+  return (
+    <button onClick={() => chat.send(`Is ${productName} in stock?`)}>
+      Ask about this product
+    </button>
+  );
+}
+```
+
+## `<ChatCops>` Component
+
+`<ChatCops>` renders nothing (`null`) to the DOM. It loads `@chatcops/widget` dynamically in an effect on the client, making it safe for Server-Side Rendering (SSR).
+
+> **Important**: Render only one `<ChatCops>` component per page. A second instance replaces the first, matching `ChatCops.init()` behavior.
+
+### Props
+
+`<ChatCops>` accepts all options from `WidgetConfig` (such as `apiUrl`, `branding`, `theme`, `mode`, `container`, `welcomeMessage`, `placeholder`, `suggestions`, `disclosure`, `privacyUrl`, `waitForConsent`), plus callback event props:
+
+| Prop | Type | Description |
+| :--- | :--- | :--- |
+| `apiUrl` | `string` | URL of your ChatCops server endpoint (required). |
+| `branding` | `{ name?, avatar?, subtitle? }` | Bot name, avatar URL, and subtitle. |
+| `theme` | `ThemeConfig` | Accent colors, position (`bottom-right`, `bottom-left`), font family, border radius. |
+| `onOpen` | `() => void` | Fires when the chat window opens. |
+| `onClose` | `() => void` | Fires when the chat window closes. |
+| `onMessage` | `(message: MessageData) => void` | Fires on visitor messages and assistant replies. |
+| `onError` | `(error: Error) => void` | Fires when an error occurs during chat. |
+| `onLeadCaptured` | `(lead?: Record<string, unknown>) => void` | Fires when a visitor submits lead details. |
+| `onPreChatSubmit` | `(data: Record<string, string>) => void` | Fires when the pre-chat form is submitted. |
+
+### Prop Updates
+
+When props change:
+
+- Props supported by `update()` (`branding`, `welcomeMessage`, `suggestions`, `placeholder`, `strings`, `theme` color tokens, `privacyUrl`, `disclosure`) are applied smoothly via `ChatCops.update()`. Removing an update prop (such as setting `welcomeMessage` back to `undefined`) restores the widget's default.
+- Function props (`userToken`, `onConsentRequest`) and event handlers are kept in refs: changing an inline arrow function prop on re-render never restarts the widget or resubscribes listeners.
+- Any other prop change (or removing a field from `branding`, `strings`, or `theme`) starts the widget over with `ChatCops.init()`, which closes the panel and stops a reply in progress.
+
+## `useChatCops()` Hook
+
+`useChatCops()` returns an object with helper methods to control the widget:
+
+```tsx
+const chat = useChatCops();
+```
+
+| Method | Type | Description |
+| :--- | :--- | :--- |
+| `chat.open()` | `() => void` | Opens the chat panel. |
+| `chat.close()` | `() => void` | Closes the chat panel. |
+| `chat.toggle()` | `() => void` | Toggles the chat panel open or closed. |
+| `chat.send(text, options?)` | `(text: string, options?: { open?: boolean }) => Promise<void>` | Sends a message as the visitor. Opens the chat by default unless `open: false` is passed. Resolves when the assistant reply finishes streaming. |
+| `chat.update(changes)` | `(changes: WidgetUpdate) => void` | Updates theme, branding, or strings on the active chat. |
+
+Before the widget bundle has loaded on the client, these methods safely do nothing (`send()` returns a resolved promise).
+
