@@ -1,6 +1,6 @@
 {
   "name": "@chatcops/react",
-  "version": "1.1.1",
+  "version": "0.1.0",
   "description": "React component and hooks for ChatCops",
   "private": true,
   "type": "module",

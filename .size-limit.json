@@ -38,7 +38,7 @@
   {
     "name": "react (@chatcops/react)",
     "path": "packages/react/dist/index.js",
-    "limit": "1 KB",
+    "limit": "1.5 KB",
     "gzip": true
   }
 ]

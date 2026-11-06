@@ -108,7 +108,7 @@ describe('@chatcops/react', () => {
     );
 
     await waitFor(() => {
-      expect(mockWidget.init).toHaveBeenCalled();
+      expect(mockWidget.init).toHaveBeenCalledTimes(1);
     });
 
     for (const event of ['open', 'close', 'message', 'error', 'leadCaptured', 'preChatSubmit']) {
@@ -121,7 +121,7 @@ describe('@chatcops/react', () => {
     const { unmount } = render(<ChatCops apiUrl="/api/chat" />);
 
     await waitFor(() => {
-      expect(mockWidget.init).toHaveBeenCalled();
+      expect(mockWidget.init).toHaveBeenCalledTimes(1);
     });
 
     unmount();
@@ -130,6 +130,183 @@ describe('@chatcops/react', () => {
     for (const event of ['open', 'close', 'message', 'error', 'leadCaptured', 'preChatSubmit']) {
       expect(mockWidget.getHandlers(event).size).toBe(0);
     }
+  });
+
+  it('unmounting before the module loads drops the late init and does not call init()', async () => {
+    mockWidget.init.mockClear();
+    mockWidget.destroy.mockClear();
+    const { unmount } = render(<ChatCops apiUrl="/api/chat" />);
+    unmount();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(mockWidget.init).not.toHaveBeenCalled();
+  });
+
+  it('re-rendering with a new inline userToken leaves init at one call', async () => {
+    let tokenValue = 'tok1';
+    const { rerender } = render(
+      <ChatCops apiUrl="/api/chat" userToken={async () => tokenValue} />,
+    );
+    await waitFor(() => {
+      expect(mockWidget.init).toHaveBeenCalledTimes(1);
+    });
+
+    const passedConfig = mockWidget.init.mock.calls[0]?.[0] as { userToken: () => Promise<string> };
+    expect(typeof passedConfig.userToken).toBe('function');
+    expect(await passedConfig.userToken()).toBe('tok1');
+
+    mockWidget.init.mockClear();
+    mockWidget.update.mockClear();
+
+    tokenValue = 'tok2';
+    rerender(<ChatCops apiUrl="/api/chat" userToken={async () => tokenValue} />);
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(mockWidget.init).not.toHaveBeenCalled();
+    expect(mockWidget.update).not.toHaveBeenCalled();
+    expect(await passedConfig.userToken()).toBe('tok2');
+  });
+
+  it('moving container to another element inits again', async () => {
+    const el1 = document.createElement('div');
+    const el2 = document.createElement('div');
+    const { rerender } = render(<ChatCops apiUrl="/api/chat" container={el1} />);
+
+    await waitFor(() => {
+      expect(mockWidget.init).toHaveBeenCalledTimes(1);
+    });
+
+    mockWidget.init.mockClear();
+
+    // Same container does not re-init
+    rerender(<ChatCops apiUrl="/api/chat" container={el1} />);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(mockWidget.init).not.toHaveBeenCalled();
+
+    // Different container inits again
+    rerender(<ChatCops apiUrl="/api/chat" container={el2} />);
+
+    await waitFor(() => {
+      expect(mockWidget.init).toHaveBeenCalledTimes(1);
+      expect(mockWidget.init).toHaveBeenCalledWith(expect.objectContaining({ container: el2 }));
+    });
+  });
+
+  it('string userToken changing inits again', async () => {
+    const { rerender } = render(<ChatCops apiUrl="/api/chat" userToken="tok-1" />);
+    await waitFor(() => {
+      expect(mockWidget.init).toHaveBeenCalledTimes(1);
+    });
+
+    mockWidget.init.mockClear();
+
+    rerender(<ChatCops apiUrl="/api/chat" userToken="tok-2" />);
+    await waitFor(() => {
+      expect(mockWidget.init).toHaveBeenCalledTimes(1);
+      expect(mockWidget.init).toHaveBeenCalledWith(expect.objectContaining({ userToken: 'tok-2' }));
+    });
+  });
+
+  it('onConsentRequest function wrapper works and survives re-renders', async () => {
+    const fn1 = vi.fn();
+    const { rerender } = render(<ChatCops apiUrl="/api/chat" onConsentRequest={fn1} />);
+    await waitFor(() => {
+      expect(mockWidget.init).toHaveBeenCalledTimes(1);
+    });
+
+    const passedConfig = mockWidget.init.mock.calls[0]?.[0] as { onConsentRequest: () => void };
+    expect(typeof passedConfig.onConsentRequest).toBe('function');
+    passedConfig.onConsentRequest();
+    expect(fn1).toHaveBeenCalledTimes(1);
+
+    mockWidget.init.mockClear();
+    const fn2 = vi.fn();
+    rerender(<ChatCops apiUrl="/api/chat" onConsentRequest={fn2} />);
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(mockWidget.init).not.toHaveBeenCalled();
+
+    passedConfig.onConsentRequest();
+    expect(fn2).toHaveBeenCalledTimes(1);
+  });
+
+  it('theme or strings losing a field inits again, and no-op re-render does nothing', async () => {
+    const { rerender } = render(
+      <ChatCops
+        apiUrl="/api/chat"
+        theme={{ tokens: { primary: '#000', radius: '8px' } }}
+        strings={{ openChat: 'Chat' }}
+      />,
+    );
+    await waitFor(() => {
+      expect(mockWidget.init).toHaveBeenCalledTimes(1);
+    });
+
+    mockWidget.init.mockClear();
+    mockWidget.update.mockClear();
+
+    // Identical props: no update, no init
+    rerender(
+      <ChatCops
+        apiUrl="/api/chat"
+        theme={{ tokens: { primary: '#000', radius: '8px' } }}
+        strings={{ openChat: 'Chat' }}
+      />,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(mockWidget.init).not.toHaveBeenCalled();
+    expect(mockWidget.update).not.toHaveBeenCalled();
+
+    // Strings losing a field
+    rerender(
+      <ChatCops
+        apiUrl="/api/chat"
+        theme={{ tokens: { primary: '#000', radius: '8px' } }}
+      />,
+    );
+    await waitFor(() => {
+      expect(mockWidget.init).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('removing welcomeMessage calls update({ welcomeMessage: undefined })', async () => {
+    const { rerender } = render(<ChatCops apiUrl="/api/chat" welcomeMessage="Hi" />);
+    await waitFor(() => {
+      expect(mockWidget.init).toHaveBeenCalledTimes(1);
+    });
+
+    mockWidget.init.mockClear();
+    mockWidget.update.mockClear();
+
+    rerender(<ChatCops apiUrl="/api/chat" />);
+
+    await waitFor(() => {
+      expect(mockWidget.update).toHaveBeenCalledWith({ welcomeMessage: undefined });
+    });
+    expect(mockWidget.init).not.toHaveBeenCalled();
+  });
+
+  it('branding losing avatar calls init()', async () => {
+    const { rerender } = render(
+      <ChatCops apiUrl="/api/chat" branding={{ name: 'Acme', avatar: '/a.png' }} />,
+    );
+    await waitFor(() => {
+      expect(mockWidget.init).toHaveBeenCalledTimes(1);
+    });
+
+    mockWidget.init.mockClear();
+    mockWidget.update.mockClear();
+
+    rerender(<ChatCops apiUrl="/api/chat" branding={{ name: 'Acme' }} />);
+
+    await waitFor(() => {
+      expect(mockWidget.init).toHaveBeenCalledTimes(1);
+      expect(mockWidget.init).toHaveBeenCalledWith(
+        expect.objectContaining({
+          branding: { name: 'Acme' },
+        }),
+      );
+    });
+    expect(mockWidget.update).not.toHaveBeenCalled();
   });
 
   it('a branding change calls update() and not init()', async () => {
@@ -262,7 +439,7 @@ describe('@chatcops/react', () => {
 
     const { rerender } = render(<ChatCops apiUrl="/api/chat" onLeadCaptured={lead1} />);
     await waitFor(() => {
-      expect(mockWidget.init).toHaveBeenCalled();
+      expect(mockWidget.init).toHaveBeenCalledTimes(1);
     });
 
     const initialOnCalls = mockWidget.on.mock.calls.length;
@@ -297,7 +474,7 @@ describe('@chatcops/react', () => {
     );
 
     await waitFor(() => {
-      expect(mockWidget.init).toHaveBeenCalled();
+      expect(mockWidget.init).toHaveBeenCalledTimes(1);
     });
 
     act(() => {
@@ -332,7 +509,7 @@ describe('@chatcops/react', () => {
 
     const { getByText } = render(<TestApp />);
     await waitFor(() => {
-      expect(mockWidget.init).toHaveBeenCalled();
+      expect(mockWidget.init).toHaveBeenCalledTimes(1);
     });
 
     act(() => {

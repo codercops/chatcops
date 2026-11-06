@@ -15,25 +15,59 @@ npm install @chatcops/react @chatcops/widget
 
 ## Quick Start
 
-In Next.js (App Router) or any React app, place `<ChatCops>` in your root layout:
+In Next.js (App Router), root layouts (`app/layout.tsx`) are server components by default so they can export `metadata`. Define a small client component to hold your interactive callbacks:
 
 ```tsx
+// app/chat.tsx
 'use client';
 
-import { ChatCops, useChatCops } from '@chatcops/react';
+import { ChatCops } from '@chatcops/react';
+
+export function Chat() {
+  return (
+    <ChatCops
+      apiUrl="/api/chat"
+      branding={{ name: 'Acme' }}
+      onLeadCaptured={(lead) => console.log('Lead captured:', lead)}
+    />
+  );
+}
+```
+
+Then render `<Chat />` from your root layout:
+
+```tsx
+// app/layout.tsx
+import type { Metadata } from 'next';
+import { Chat } from './chat';
+
+export const metadata: Metadata = {
+  title: 'My App',
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
         {children}
-        <ChatCops
-          apiUrl="/api/chat"
-          branding={{ name: 'Acme' }}
-          onLeadCaptured={(lead) => console.log('Lead captured:', lead)}
-        />
+        <Chat />
       </body>
     </html>
+  );
+}
+```
+
+If you do not need function or event props, `<ChatCops>` can also be placed directly in a server component:
+
+```tsx
+import { ChatCops } from '@chatcops/react';
+
+export default function Layout({ children }: { children: React.ReactNode }) {
+  return (
+    <div>
+      {children}
+      <ChatCops apiUrl="/api/chat" branding={{ name: 'Acme' }} />
+    </div>
   );
 }
 ```
@@ -82,9 +116,9 @@ export function AskProductButton({ productName }: { productName: string }) {
 
 When props change:
 
-- Props supported by `update()` (`branding`, `welcomeMessage`, `suggestions`, `placeholder`, `strings`, `theme` color tokens, `privacyUrl`, `disclosure`) are applied smoothly via `ChatCops.update()`.
-- Changing structural props such as `apiUrl`, `mode`, `container`, or `theme.position` destroys the previous widget and re-initializes cleanly.
-- Event handlers are kept in refs: changing an inline arrow function prop on re-render never resubscribes listeners or recreates the widget.
+- Props supported by `update()` (`branding`, `welcomeMessage`, `suggestions`, `placeholder`, `strings`, `theme` color tokens, `privacyUrl`, `disclosure`) are applied smoothly via `ChatCops.update()`. Removing an update prop (such as setting `welcomeMessage` back to `undefined`) restores the widget's default.
+- Function props (`userToken`, `onConsentRequest`) and event handlers are kept in refs: changing an inline arrow function prop on re-render never restarts the widget or resubscribes listeners.
+- Any other prop change (or removing a field from `branding`, `strings`, or `theme`) starts the widget over with `ChatCops.init()`, which closes the panel and stops a reply in progress.
 
 ## `useChatCops()` Hook
 
