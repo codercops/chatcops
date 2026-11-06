@@ -1,5 +1,6 @@
 import { performance } from 'node:perf_hooks';
-import { relative } from 'node:path';
+import { relative, resolve } from 'node:path';
+import { writeFile } from 'node:fs/promises';
 import { createProvider, isAIProvider, type AIProvider, type ProviderConfig } from '@chatcops/core';
 import type { ChatCopsServerConfig } from '@chatcops/server';
 import { ConfigError, type ChatCopsCliConfig } from '../config.js';
@@ -47,12 +48,32 @@ export async function runTests(
   }
   if (!fixtures.length) throw new ConfigError(`No tests match --filter ${values.filter}.`);
 
-  const reporters = (values.reporter?.length ? values.reporter : [values.json ? 'json' : 'pretty']).map((name) => {
-    const reporter = REPORTERS.get(name);
-    if (!reporter) throw new ConfigError(`--reporter ${name} doesn't exist. Use one of: ${[...REPORTERS.keys()].join(', ')}.`);
-    return reporter(io.stdout, { verbose: values.verbose === true, env: io.env ?? process.env });
-  });
   if (values.json && values.reporter?.length) throw new ConfigError('Use --reporter json, or --json, not both.');
+  const selected = values.reporter?.length ? values.reporter : [values.json ? 'json' : 'pretty'];
+  if (values.output !== undefined && selected.length !== 1) throw new ConfigError('--output needs a single reporter. Use --reporter name=file for multiple reporters.');
+  const names = new Set<string>();
+  const destinations = new Set<string>();
+  const reporters = selected.map((selection) => {
+    const separator = selection.indexOf('=');
+    const name = separator === -1 ? selection : selection.slice(0, separator);
+    if (!name.trim()) throw new ConfigError('--reporter needs a name.');
+    const factory = REPORTERS.get(name);
+    if (!factory) throw new ConfigError(`--reporter ${name} doesn't exist. Use one of: ${[...REPORTERS.keys()].join(', ')}.`);
+    if (names.has(name)) throw new ConfigError(`--reporter ${name} was given more than once.`);
+    names.add(name);
+    if (separator !== -1 && values.output !== undefined) throw new ConfigError('Use --output or --reporter name=file, not both.');
+    const destination = separator === -1 ? values.output : selection.slice(separator + 1);
+    if (destination !== undefined && !destination.trim()) throw new ConfigError('The reporter output path must not be empty.');
+    const file = destination === undefined ? undefined : resolve(io.cwd, destination);
+    if (file !== undefined) {
+      const key = process.platform === 'win32' ? file.toLowerCase() : file;
+      if (destinations.has(key)) throw new ConfigError(`Reporters must use different output files: ${destination}.`);
+      destinations.add(key);
+    }
+    const chunks: string[] = [];
+    const output = file === undefined ? io.stdout : { write: (text: string) => chunks.push(text) };
+    return { reporter: factory(output, { verbose: values.verbose === true, env: io.env ?? process.env }), file, chunks };
+  });
 
   // Started here so a missing key fails now, not as provider_unavailable on
   // every turn, and so turns can be priced by the model id.
@@ -103,7 +124,7 @@ export async function runTests(
     ...(concurrency !== undefined ? { concurrency } : {}),
     ...(repeat !== undefined ? { repeat } : {}),
     onResult: (result) => {
-      for (const reporter of reporters) reporter.onResult?.(result);
+      for (const { reporter } of reporters) reporter.onResult?.(result);
     },
   });
   const elapsedMs = performance.now() - started;
@@ -125,7 +146,16 @@ export async function runTests(
     ...(judge ? { judge: judge.id } : {}),
     ...(priced.length ? { costUsd: priced.reduce((a, b) => a + b, 0) } : {}),
   };
-  for (const reporter of reporters) await reporter.onEnd?.(results, summary);
+  for (const { reporter, file, chunks } of reporters) {
+    await reporter.onEnd?.(results, summary);
+    if (file !== undefined) {
+      try {
+        await writeFile(file, chunks.join(''), 'utf8');
+      } catch (error) {
+        throw new ConfigError(`Cannot write report to "${file}": ${(error as Error).message}`);
+      }
+    }
+  }
   if (cassettes?.mode === 'record') {
     const written = await cassettes.save(
       fixtures.map((job) => ({ path: job.path ?? job.file, ran: job.tests.map((t) => t.name), all: job.fixture.tests.map((t) => t.name) }))

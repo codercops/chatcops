@@ -58,7 +58,10 @@ Test options:
   --repeat <n>          Run each test n times
   --concurrency <n>     Tests run at once (default 4)
   --verbose             Show assertion details for every test
-  --reporter <name>     pretty (default) or json. Repeatable.
+  --reporter <name[=file]>  pretty (default), json or junit. Repeatable; each name once.
+  --output <file>       Write a single reporter to a file instead of stdout (replaces the file).
+                        With several reporters, use name=file; file destinations must differ.
+                        Do not combine --output with name=file. Parent folders must exist.
   --json                Same as --reporter json
   --record              Call the APIs and save what they answer to __cassettes__
   --replay              Answer every API call from __cassettes__ (the default when CI is set)
@@ -139,6 +142,7 @@ function parse(argv: string[]) {
       repeat: { type: 'string' },
       verbose: { type: 'boolean' },
       reporter: { type: 'string', multiple: true },
+      output: { type: 'string' },
       record: { type: 'boolean' },
       live: { type: 'boolean' },
       'judge-model': { type: 'string' },
