@@ -45,13 +45,19 @@ describe('cohereReranker', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
-  it('returns no results and makes no request for non-finite topN values', async () => {
+  it('returns no results and makes no request for NaN and -Infinity topN values', async () => {
     const send = vi.fn(async () => json({ results: [] }));
     const reranker = cohereReranker({ apiKey: 'k', fetch: send });
     expect(await reranker.rerank('q', chunks, Number.NaN)).toEqual([]);
-    expect(await reranker.rerank('q', chunks, Infinity)).toEqual([]);
     expect(await reranker.rerank('q', chunks, -Infinity)).toEqual([]);
     expect(send).not.toHaveBeenCalled();
+  });
+
+  it('asks for no more than available documents when topN is Infinity', async () => {
+    const send = vi.fn(async () => json({ results: [] }));
+    const reranker = cohereReranker({ apiKey: 'k', fetch: send });
+    await reranker.rerank('q', chunks, Infinity);
+    expect(JSON.parse(String((send.mock.calls[0] as unknown as [string, RequestInit])[1].body))).toMatchObject({ top_n: 3 });
   });
 
   it('surfaces client API errors without retrying', async () => {
