@@ -113,12 +113,37 @@ describe('discover', () => {
       expect(res.pages).toHaveLength(2);
       expect(res.pages[0].url).toBe(`${site.url}/crawl/mp/start`);
       expect(res.pages[1].url).toBe(`${site.url}/crawl/mp/a`);
-      expect(res.errors).toEqual(['stopped at --max-pages 2']);
+      expect(res.errors).toEqual([`${site.url}/crawl/mp/start: crawl stopped at maxPages 2`]);
       const requests = site.requests.slice(before);
       expect(requests).toContain('/crawl/mp/start');
       expect(requests).toContain('/crawl/mp/a');
       expect(requests).not.toContain('/crawl/mp/b');
       expect(requests).not.toContain('/crawl/mp/c');
+
+      const globalRes = await discover([{ type: 'crawl', url: `${site.url}/crawl/mp/start` }], {
+        ...discoverOptions(),
+        maxPages: 2,
+      });
+      expect(globalRes.pages).toHaveLength(2);
+      expect(globalRes.pages[0].url).toBe(`${site.url}/crawl/mp/start`);
+      expect(globalRes.pages[1].url).toBe(`${site.url}/crawl/mp/a`);
+      expect(globalRes.errors).toEqual(['stopped at --max-pages 2']);
+
+      // Source limit responsible when lower than global limit
+      const sourceWins = await discover(
+        [{ type: 'crawl', url: `${site.url}/crawl/mp/start`, maxPages: 2 }],
+        { ...discoverOptions(), maxPages: 3 }
+      );
+      expect(sourceWins.pages).toHaveLength(2);
+      expect(sourceWins.errors).toEqual([`${site.url}/crawl/mp/start: crawl stopped at maxPages 2`]);
+
+      // Global limit responsible when lower than source limit
+      const globalWins = await discover(
+        [{ type: 'crawl', url: `${site.url}/crawl/mp/start`, maxPages: 3 }],
+        { ...discoverOptions(), maxPages: 2 }
+      );
+      expect(globalWins.pages).toHaveLength(2);
+      expect(globalWins.errors).toEqual(['stopped at --max-pages 2']);
     } finally {
       for (const p of ['/crawl/mp/start', '/crawl/mp/a', '/crawl/mp/b', '/crawl/mp/c']) site.remove(p);
     }
@@ -311,6 +336,7 @@ describe('discover', () => {
       const blockedRes = await discover([{ type: 'crawl', url: `${site.url}/crawl/startfail/blocked` }], discoverOptions());
       expect(blockedRes.pages).toEqual([]);
       expect(blockedRes.errors).toContainEqual(expect.stringMatching(/disallowed by robots\.txt/));
+      expect(site.requests).not.toContain('/crawl/startfail/blocked');
     } finally {
       site.remove('/robots.txt');
     }
@@ -321,6 +347,20 @@ describe('discover', () => {
     expect(nonHtmlRes.errors).toContainEqual(expect.stringMatching(/not HTML \(application\/pdf\)/));
 
     for (const p of ['/crawl/startfail/excluded', '/crawl/startfail/blocked', '/crawl/startfail/file.pdf']) site.remove(p);
+  });
+
+  it('disallows starting page when redirect destination is disallowed by robots.txt', async () => {
+    site.set('/robots.txt', 'User-agent: *\nDisallow: /crawl/redir/blocked', 'text/plain');
+    site.set('/crawl/redir/allowed-start', '', 'text/plain', 302, { location: `${site.url}/crawl/redir/blocked` });
+    site.set('/crawl/redir/blocked', '<p>Blocked landing</p>');
+    try {
+      const res = await discover([{ type: 'crawl', url: `${site.url}/crawl/redir/allowed-start` }], discoverOptions());
+      expect(res.pages).toEqual([]);
+      expect(res.errors).toContain(`${site.url}/crawl/redir/blocked: disallowed by robots.txt`);
+    } finally {
+      site.remove('/robots.txt');
+      for (const p of ['/crawl/redir/allowed-start', '/crawl/redir/blocked']) site.remove(p);
+    }
   });
 
   it('preserves deterministic BFS ordering under concurrent responses regardless of network timing', async () => {

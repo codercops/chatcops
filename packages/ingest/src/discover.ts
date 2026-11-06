@@ -18,7 +18,7 @@ export interface DiscoverOptions {
   concurrency?: number;
   /** Obey robots.txt during crawl. Default true. */
   respectRobots?: boolean;
-  /** Limit total pages discovered. */
+  /** Caps the number of pages discovered per crawl source, not sitemap or URL-list sources. */
   maxPages?: number;
 }
 
@@ -141,12 +141,16 @@ async function crawlSite(
   errors: string[]
 ): Promise<void> {
   const maxDepth = source.maxDepth ?? DEFAULT_CRAWL_DEPTH;
-  let effectiveMaxPages = source.maxPages ?? DEFAULT_CRAWL_PAGES;
-  if (options.maxPages !== undefined && options.maxPages >= 0) {
-    effectiveMaxPages = Math.min(effectiveMaxPages, Math.floor(options.maxPages));
-  }
+  const sourceLimit = source.maxPages ?? DEFAULT_CRAWL_PAGES;
+  const globalLimit = options.maxPages !== undefined && options.maxPages >= 0 ? Math.floor(options.maxPages) : undefined;
+  const isGlobalLimit = globalLimit !== undefined && globalLimit <= sourceLimit;
+  const effectiveMaxPages = isGlobalLimit ? globalLimit : sourceLimit;
+  const capMessage = isGlobalLimit
+    ? `stopped at --max-pages ${effectiveMaxPages}`
+    : `${source.url}: crawl stopped at maxPages ${effectiveMaxPages}`;
+
   if (effectiveMaxPages <= 0) {
-    errors.push(`stopped at --max-pages ${effectiveMaxPages}`);
+    errors.push(capMessage);
     return;
   }
 
@@ -187,6 +191,19 @@ async function crawlSite(
       policies.set(o, pending);
     }
     return pending;
+  }
+
+  if (respectRobots) {
+    let startRobots: Robots | undefined;
+    try {
+      startRobots = await getRobots(startUrl);
+    } catch {
+      startRobots = undefined;
+    }
+    if (startRobots && !startRobots.allowed(startUrl)) {
+      errors.push(`${startUrl}: disallowed by robots.txt`);
+      return;
+    }
   }
 
   let startResponse: Response;
@@ -268,7 +285,7 @@ async function crawlSite(
 
   if (count >= effectiveMaxPages) {
     if (currentLevel.length > 0) {
-      errors.push(`stopped at --max-pages ${effectiveMaxPages}`);
+      errors.push(capMessage);
     }
     return;
   }
@@ -412,8 +429,8 @@ async function crawlSite(
 
     if (count >= effectiveMaxPages) {
       if (nextIndex < previousLength || currentLevel.length > 0) {
-        if (!errors.includes(`stopped at --max-pages ${effectiveMaxPages}`)) {
-          errors.push(`stopped at --max-pages ${effectiveMaxPages}`);
+        if (!errors.includes(capMessage)) {
+          errors.push(capMessage);
         }
       }
       break;
