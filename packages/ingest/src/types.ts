@@ -6,7 +6,9 @@ export type IngestSource =
   /** Pages listed by hand. */
   | { type: 'urls'; urls: string[] }
   /** Local `.md`, `.mdx` and `.html` files, published under `baseUrl`. */
-  | { type: 'directory'; path: string; baseUrl: string };
+  | { type: 'directory'; path: string; baseUrl: string }
+  /** Crawl a site starting at `url`, following same-origin links. */
+  | { type: 'crawl'; url: string; maxDepth?: number; maxPages?: number };
 
 export interface IngestConfig {
   /** Names the index, so a new one can be built next to the old. Default `default`. */
@@ -67,6 +69,8 @@ export interface DiscoveredPage {
   url: string;
   /** For directory sources: the file to read instead of fetching. */
   file?: string;
+  /** For crawl sources: the HTML already fetched during discovery, so extraction doesn't fetch again. */
+  html?: string;
 }
 
 export interface ExtractedDoc {

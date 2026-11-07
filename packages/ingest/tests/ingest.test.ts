@@ -75,6 +75,336 @@ describe('discover', () => {
     }
   });
 
+  it('crawls breadth-first and respects maxDepth', async () => {
+    site.set('/crawl/bfs/start', '<a href="/crawl/bfs/a">A</a><a href="/crawl/bfs/b">B</a>');
+    site.set('/crawl/bfs/a', '<a href="/crawl/bfs/c">C</a>');
+    site.set('/crawl/bfs/b', '<a href="/crawl/bfs/d">D</a>');
+    site.set('/crawl/bfs/c', '<a href="/crawl/bfs/e">E</a>');
+    site.set('/crawl/bfs/d', '<p>D</p>');
+    site.set('/crawl/bfs/e', '<p>E</p>');
+    try {
+      const depth0 = await discover([{ type: 'crawl', url: `${site.url}/crawl/bfs/start`, maxDepth: 0 }], discoverOptions());
+      expect(depth0.pages.map((p) => p.url.replace(site.url, ''))).toEqual(['/crawl/bfs/start']);
+
+      const depth1 = await discover([{ type: 'crawl', url: `${site.url}/crawl/bfs/start`, maxDepth: 1 }], discoverOptions());
+      expect(depth1.pages.map((p) => p.url.replace(site.url, ''))).toEqual(['/crawl/bfs/start', '/crawl/bfs/a', '/crawl/bfs/b']);
+
+      const depth2 = await discover([{ type: 'crawl', url: `${site.url}/crawl/bfs/start`, maxDepth: 2 }], discoverOptions());
+      expect(depth2.pages.map((p) => p.url.replace(site.url, ''))).toEqual([
+        '/crawl/bfs/start',
+        '/crawl/bfs/a',
+        '/crawl/bfs/b',
+        '/crawl/bfs/c',
+        '/crawl/bfs/d',
+      ]);
+    } finally {
+      for (const p of ['/crawl/bfs/start', '/crawl/bfs/a', '/crawl/bfs/b', '/crawl/bfs/c', '/crawl/bfs/d', '/crawl/bfs/e']) site.remove(p);
+    }
+  });
+
+  it('limits crawl with maxPages counting the start page', async () => {
+    site.set('/crawl/mp/start', '<a href="/crawl/mp/a">A</a><a href="/crawl/mp/b">B</a><a href="/crawl/mp/c">C</a>');
+    site.set('/crawl/mp/a', '<p>A</p>');
+    site.set('/crawl/mp/b', '<p>B</p>');
+    site.set('/crawl/mp/c', '<p>C</p>');
+    const before = site.requests.length;
+    try {
+      const res = await discover([{ type: 'crawl', url: `${site.url}/crawl/mp/start`, maxPages: 2 }], discoverOptions());
+      expect(res.pages).toHaveLength(2);
+      expect(res.pages[0].url).toBe(`${site.url}/crawl/mp/start`);
+      expect(res.pages[1].url).toBe(`${site.url}/crawl/mp/a`);
+      expect(res.errors).toEqual([`${site.url}/crawl/mp/start: crawl stopped at maxPages 2`]);
+      const requests = site.requests.slice(before);
+      expect(requests).toContain('/crawl/mp/start');
+      expect(requests).toContain('/crawl/mp/a');
+      expect(requests).not.toContain('/crawl/mp/b');
+      expect(requests).not.toContain('/crawl/mp/c');
+
+      const globalRes = await discover([{ type: 'crawl', url: `${site.url}/crawl/mp/start` }], {
+        ...discoverOptions(),
+        maxPages: 2,
+      });
+      expect(globalRes.pages).toHaveLength(2);
+      expect(globalRes.pages[0].url).toBe(`${site.url}/crawl/mp/start`);
+      expect(globalRes.pages[1].url).toBe(`${site.url}/crawl/mp/a`);
+      expect(globalRes.errors).toEqual(['stopped at --max-pages 2']);
+
+      // Source limit responsible when lower than global limit
+      const sourceWins = await discover(
+        [{ type: 'crawl', url: `${site.url}/crawl/mp/start`, maxPages: 2 }],
+        { ...discoverOptions(), maxPages: 3 }
+      );
+      expect(sourceWins.pages).toHaveLength(2);
+      expect(sourceWins.errors).toEqual([`${site.url}/crawl/mp/start: crawl stopped at maxPages 2`]);
+
+      // Global limit responsible when lower than source limit
+      const globalWins = await discover(
+        [{ type: 'crawl', url: `${site.url}/crawl/mp/start`, maxPages: 3 }],
+        { ...discoverOptions(), maxPages: 2 }
+      );
+      expect(globalWins.pages).toHaveLength(2);
+      expect(globalWins.errors).toEqual(['stopped at --max-pages 2']);
+    } finally {
+      for (const p of ['/crawl/mp/start', '/crawl/mp/a', '/crawl/mp/b', '/crawl/mp/c']) site.remove(p);
+    }
+  });
+
+  it('skips cross-origin links, mailto, tel, fragments, and non-HTML responses while deduplicating', async () => {
+    site.set(
+      '/crawl/filter/start',
+      `<a href="https://other.example.com/other">External</a>
+       <a href="mailto:team@acme.test">Mail</a>
+       <a href="tel:+123456789">Tel</a>
+       <a href="#">Top</a>
+       <a href="#section">Section</a>
+       <a href="/crawl/filter/target#frag1">Target with frag</a>
+       <a href="/crawl/filter/target#frag2">Target with frag2</a>
+       <a href="/crawl/filter/target">Target bare</a>
+       <a href="/files/manual.pdf">PDF file</a>`
+    );
+    site.set('/crawl/filter/target', '<p>Target page</p>');
+    const before = site.requests.length;
+    try {
+      const res = await discover([{ type: 'crawl', url: `${site.url}/crawl/filter/start` }], discoverOptions());
+      expect(res.pages.map((p) => p.url.replace(site.url, ''))).toEqual(['/crawl/filter/start', '/crawl/filter/target']);
+      const requests = site.requests.slice(before);
+      expect(requests.filter((r) => r === '/crawl/filter/target')).toHaveLength(1);
+      expect(requests).toContain('/files/manual.pdf');
+      expect(requests).not.toContain('/other');
+    } finally {
+      for (const p of ['/crawl/filter/start', '/crawl/filter/target']) site.remove(p);
+    }
+  });
+
+  it('applies exclude rules before fetching, including the starting URL', async () => {
+    site.set('/crawl/ex/start', '<a href="/crawl/ex/keep">Keep</a><a href="/crawl/ex/skip">Skip</a>');
+    site.set('/crawl/ex/keep', '<p>Keep</p>');
+    site.set('/crawl/ex/skip', '<p>Skip</p>');
+    const before = site.requests.length;
+    try {
+      const res = await discover([{ type: 'crawl', url: `${site.url}/crawl/ex/start` }], {
+        ...discoverOptions(),
+        exclude: ['**/skip'],
+      });
+      expect(res.pages.map((p) => p.url.replace(site.url, ''))).toEqual(['/crawl/ex/start', '/crawl/ex/keep']);
+      expect(site.requests.slice(before)).not.toContain('/crawl/ex/skip');
+
+      const startExcluded = await discover([{ type: 'crawl', url: `${site.url}/crawl/ex/skip` }], {
+        ...discoverOptions(),
+        exclude: ['**/skip'],
+      });
+      expect(startExcluded.pages).toEqual([]);
+      expect(site.requests.slice(before)).not.toContain('/crawl/ex/skip');
+    } finally {
+      for (const p of ['/crawl/ex/start', '/crawl/ex/keep', '/crawl/ex/skip']) site.remove(p);
+    }
+  });
+
+  it('respects robots disallow rules during crawl', async () => {
+    site.set('/robots.txt', 'User-agent: *\nDisallow: /crawl/rb/blocked', 'text/plain');
+    site.set('/crawl/rb/start', '<a href="/crawl/rb/allowed">Allowed</a><a href="/crawl/rb/blocked">Blocked</a>');
+    site.set('/crawl/rb/allowed', '<p>Allowed</p>');
+    site.set('/crawl/rb/blocked', '<p>Blocked</p>');
+    const before = site.requests.length;
+    try {
+      const res = await discover([{ type: 'crawl', url: `${site.url}/crawl/rb/start` }], discoverOptions());
+      expect(res.pages.map((p) => p.url.replace(site.url, ''))).toEqual(['/crawl/rb/start', '/crawl/rb/allowed']);
+      expect(site.requests.slice(before)).not.toContain('/crawl/rb/blocked');
+
+      // Start page blocked terminates crawl immediately
+      const blockedStart = await discover([{ type: 'crawl', url: `${site.url}/crawl/rb/blocked` }], discoverOptions());
+      expect(blockedStart.pages).toEqual([]);
+    } finally {
+      site.remove('/robots.txt');
+      for (const p of ['/crawl/rb/start', '/crawl/rb/allowed', '/crawl/rb/blocked']) site.remove(p);
+    }
+  });
+
+  it('filters cross-origin links without requesting other origin and leaves errors empty', async () => {
+    const other = await fixtureSite();
+    site.set('/crawl/cross/start', `<a href="${other.url}/external">Other</a><a href="/crawl/cross/local">Local</a>`);
+    site.set('/crawl/cross/local', '<p>Local page</p>');
+    other.set('/external', '<p>External page</p>');
+    try {
+      const res = await discover([{ type: 'crawl', url: `${site.url}/crawl/cross/start` }], discoverOptions());
+      expect(res.pages.map((p) => p.url.replace(site.url, ''))).toEqual(['/crawl/cross/start', '/crawl/cross/local']);
+      expect(other.requests).toEqual([]);
+      expect(res.errors).toEqual([]);
+    } finally {
+      await other.close();
+      for (const p of ['/crawl/cross/start', '/crawl/cross/local']) site.remove(p);
+    }
+  });
+
+  it('establishes origin and robots policy from homepage redirect to another origin', async () => {
+    const targetSite = await fixtureSite();
+    targetSite.set('/robots.txt', 'User-agent: *\nDisallow: /crawl/blocked-on-target', 'text/plain');
+    site.set('/crawl/home', '', 'text/plain', 302, { location: `${targetSite.url}/crawl/landing` });
+    targetSite.set(
+      '/crawl/landing',
+      '<a href="/crawl/sub">Subpage</a><a href="/crawl/blocked-on-target">Blocked</a><a href="https://example.com/other">Offsite</a>'
+    );
+    targetSite.set('/crawl/sub', '<p>Subpage content</p>');
+    targetSite.set('/crawl/blocked-on-target', '<p>Blocked content</p>');
+    try {
+      const res = await discover([{ type: 'crawl', url: `${site.url}/crawl/home` }], discoverOptions());
+      expect(res.pages.map((p) => p.url.replace(targetSite.url, ''))).toEqual(['/crawl/landing', '/crawl/sub']);
+      expect(targetSite.requests).not.toContain('/crawl/blocked-on-target');
+      expect(res.errors).toEqual([]);
+    } finally {
+      site.remove('/crawl/home');
+      await targetSite.close();
+    }
+  });
+
+  it('resolves relative links against canonical URL after trailing-slash redirect', async () => {
+    site.set('/crawl/docs', '', 'text/plain', 301, { location: `${site.url}/crawl/docs/` });
+    site.set('/crawl/docs/', '<a href="guide">Guide</a>');
+    site.set('/crawl/docs/guide', '<p>Guide content</p>');
+    site.set('/crawl/guide', '<p>Root guide</p>');
+    try {
+      const res = await discover([{ type: 'crawl', url: `${site.url}/crawl/docs` }], discoverOptions());
+      expect(res.pages.map((p) => p.url.replace(site.url, ''))).toEqual(['/crawl/docs/', '/crawl/docs/guide']);
+      expect(res.errors).toEqual([]);
+      expect(site.requests).not.toContain('/crawl/guide');
+    } finally {
+      for (const p of ['/crawl/docs', '/crawl/docs/', '/crawl/docs/guide', '/crawl/guide']) site.remove(p);
+    }
+  });
+
+  it('skips subsequent pages when same-origin link redirects outside crawl origin', async () => {
+    const external = await fixtureSite();
+    site.set('/crawl/out/start', '<a href="/crawl/out/leave">Leave</a><a href="/crawl/out/stay">Stay</a>');
+    site.set('/crawl/out/leave', '', 'text/plain', 302, { location: `${external.url}/external-secret` });
+    site.set('/crawl/out/stay', '<p>Stayed</p>');
+    external.set('/external-secret', '<p>Secret external content</p>');
+    try {
+      const res = await discover([{ type: 'crawl', url: `${site.url}/crawl/out/start` }], discoverOptions());
+      expect(res.pages.map((p) => p.url.replace(site.url, ''))).toEqual(['/crawl/out/start', '/crawl/out/stay']);
+      expect(res.pages.some((p) => p.html?.includes('Secret external content'))).toBe(false);
+      expect(res.errors).toEqual([]);
+    } finally {
+      await external.close();
+      for (const p of ['/crawl/out/start', '/crawl/out/leave', '/crawl/out/stay']) site.remove(p);
+    }
+  });
+
+  it('handles body-read failures without aborting the crawl', async () => {
+    site.set('/crawl/fail/start', '<a href="/crawl/fail/broken">Broken</a><a href="/crawl/fail/good">Good</a>');
+    site.set('/crawl/fail/broken', '<p>Placeholder</p>');
+    site.set('/crawl/fail/good', '<p>Good content</p>');
+    const failingUrl = `${site.url}/crawl/fail/broken`;
+    const wrappedFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === failingUrl) {
+        const stream = new ReadableStream({
+          start(controller) {
+            controller.error(new Error('failing-stream body read error'));
+          },
+        });
+        const res = new Response(stream, { status: 200, headers: { 'content-type': 'text/html' } });
+        Object.defineProperty(res, 'url', { value: failingUrl });
+        return res;
+      }
+      return fetch(input, init);
+    };
+
+    try {
+      const res = await discover([{ type: 'crawl', url: `${site.url}/crawl/fail/start` }], {
+        ...discoverOptions(),
+        fetch: wrappedFetch as typeof fetch,
+      });
+      expect(res.pages.map((p) => p.url.replace(site.url, ''))).toEqual(['/crawl/fail/start', '/crawl/fail/good']);
+      expect(res.errors).toContainEqual(expect.stringContaining('failing-stream body read error'));
+    } finally {
+      for (const p of ['/crawl/fail/start', '/crawl/fail/broken', '/crawl/fail/good']) site.remove(p);
+    }
+  });
+
+  it('reports crawl startup failures for include/exclude, robots disallow, and non-HTML responses', async () => {
+    site.set('/crawl/startfail/excluded', '<p>Excluded</p>');
+    const excludedRes = await discover([{ type: 'crawl', url: `${site.url}/crawl/startfail/excluded` }], {
+      ...discoverOptions(),
+      exclude: ['**/excluded'],
+    });
+    expect(excludedRes.pages).toEqual([]);
+    expect(excludedRes.errors).toContainEqual(expect.stringMatching(/does not match include\/exclude rules/));
+
+    site.set('/robots.txt', 'User-agent: *\nDisallow: /crawl/startfail/blocked', 'text/plain');
+    site.set('/crawl/startfail/blocked', '<p>Blocked</p>');
+    try {
+      const blockedRes = await discover([{ type: 'crawl', url: `${site.url}/crawl/startfail/blocked` }], discoverOptions());
+      expect(blockedRes.pages).toEqual([]);
+      expect(blockedRes.errors).toContainEqual(expect.stringMatching(/disallowed by robots\.txt/));
+      expect(site.requests).not.toContain('/crawl/startfail/blocked');
+    } finally {
+      site.remove('/robots.txt');
+    }
+
+    site.set('/crawl/startfail/file.pdf', '%PDF-1.4', 'application/pdf');
+    const nonHtmlRes = await discover([{ type: 'crawl', url: `${site.url}/crawl/startfail/file.pdf` }], discoverOptions());
+    expect(nonHtmlRes.pages).toEqual([]);
+    expect(nonHtmlRes.errors).toContainEqual(expect.stringMatching(/not HTML \(application\/pdf\)/));
+
+    for (const p of ['/crawl/startfail/excluded', '/crawl/startfail/blocked', '/crawl/startfail/file.pdf']) site.remove(p);
+  });
+
+  it('disallows starting page when redirect destination is disallowed by robots.txt', async () => {
+    site.set('/robots.txt', 'User-agent: *\nDisallow: /crawl/redir/blocked', 'text/plain');
+    site.set('/crawl/redir/allowed-start', '', 'text/plain', 302, { location: `${site.url}/crawl/redir/blocked` });
+    site.set('/crawl/redir/blocked', '<p>Blocked landing</p>');
+    try {
+      const res = await discover([{ type: 'crawl', url: `${site.url}/crawl/redir/allowed-start` }], discoverOptions());
+      expect(res.pages).toEqual([]);
+      expect(res.errors).toContain(`${site.url}/crawl/redir/blocked: disallowed by robots.txt`);
+    } finally {
+      site.remove('/robots.txt');
+      for (const p of ['/crawl/redir/allowed-start', '/crawl/redir/blocked']) site.remove(p);
+    }
+  });
+
+  it('preserves deterministic BFS ordering under concurrent responses regardless of network timing', async () => {
+    site.set('/crawl/det/start', '<a href="/crawl/det/a">A</a><a href="/crawl/det/b">B</a>');
+    site.set('/crawl/det/a', '<a href="/crawl/det/a1">A1</a><a href="/crawl/det/a2">A2</a>');
+    site.set('/crawl/det/b', '<a href="/crawl/det/b1">B1</a><a href="/crawl/det/b2">B2</a>');
+    site.set('/crawl/det/a1', '<p>A1</p>');
+    site.set('/crawl/det/a2', '<p>A2</p>');
+    site.set('/crawl/det/b1', '<p>B1</p>');
+    site.set('/crawl/det/b2', '<p>B2</p>');
+
+    const fetchWithInvertedTiming = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/crawl/det/a')) {
+        await new Promise((r) => setTimeout(r, 50));
+      } else if (url.endsWith('/crawl/det/b')) {
+        await new Promise((r) => setTimeout(r, 5));
+      }
+      return fetch(input, init);
+    };
+
+    try {
+      const res = await discover([{ type: 'crawl', url: `${site.url}/crawl/det/start` }], {
+        ...discoverOptions(),
+        concurrency: 4,
+        fetch: fetchWithInvertedTiming as typeof fetch,
+      });
+      expect(res.pages.map((p) => p.url.replace(site.url, ''))).toEqual([
+        '/crawl/det/start',
+        '/crawl/det/a',
+        '/crawl/det/b',
+        '/crawl/det/a1',
+        '/crawl/det/a2',
+        '/crawl/det/b1',
+        '/crawl/det/b2',
+      ]);
+      expect(res.errors).toEqual([]);
+    } finally {
+      for (const p of ['/crawl/det/start', '/crawl/det/a', '/crawl/det/b', '/crawl/det/a1', '/crawl/det/a2', '/crawl/det/b1', '/crawl/det/b2']) {
+        site.remove(p);
+      }
+    }
+  });
+
   it('turns globs into anchored patterns', () => {
     expect(globToRegExp('https://acme.test/docs/*').test('https://acme.test/docs/a')).toBe(true);
     expect(globToRegExp('https://acme.test/docs/*').test('https://acme.test/docs/a/b')).toBe(false);
@@ -325,6 +655,67 @@ describe('ingest', () => {
       expect(hit).toMatchObject({ text: 'Install\n\nRun `npm i chatcops`.', source: { url: 'https://docs.acme.test/install', title: 'Install' } });
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('crawls and extracts pages with exactly one page fetch per URL and reuses cached HTML', async () => {
+    const pageHtml = (title: string, body: string) =>
+      `<!doctype html><html><head><title>${title}</title></head><body><main><h1>${title}</h1><p>${body}</p></main></body></html>`;
+    site.set('/crawl/ingest/start', pageHtml('Start', 'Start page with <a href="/crawl/ingest/a">Link A</a> and <a href="/crawl/ingest/b">Link B</a>.'));
+    site.set('/crawl/ingest/a', pageHtml('Page A', 'Content for page A with valuable info.'));
+    site.set('/crawl/ingest/b', pageHtml('Page B', 'Content for page B with useful details.'));
+    const before = site.requests.length;
+    const { config } = setup({ sources: [{ type: 'crawl', url: `${site.url}/crawl/ingest/start` }] });
+    try {
+      const stats = await ingest(config);
+      expect(stats.indexed).toBe(3);
+      const requests = site.requests.slice(before);
+      // Exactly one fetch per page URL across discovery + extraction
+      expect(requests.filter((r) => r === '/crawl/ingest/start')).toHaveLength(1);
+      expect(requests.filter((r) => r === '/crawl/ingest/a')).toHaveLength(1);
+      expect(requests.filter((r) => r === '/crawl/ingest/b')).toHaveLength(1);
+
+      // Second run: contentHash matches, everything unchanged, 0 embeds
+      const rerun = await ingest(config);
+      expect(rerun.unchanged).toBe(3);
+      expect(rerun.embedded).toBe(0);
+    } finally {
+      for (const p of ['/crawl/ingest/start', '/crawl/ingest/a', '/crawl/ingest/b']) site.remove(p);
+    }
+  });
+
+  it('protects existing indexed pages from prune when discovery is partial or encounters startup errors', async () => {
+    const pageHtml = (title: string, body: string) =>
+      `<!doctype html><html><head><title>${title}</title></head><body><main><h1>${title}</h1><p>${body}</p></main></body></html>`;
+    site.set('/crawl/prune/start', pageHtml('Start', '<a href="/crawl/prune/p1">P1</a><a href="/crawl/prune/p2">P2</a>'));
+    site.set('/crawl/prune/p1', pageHtml('P1', 'Content P1'));
+    site.set('/crawl/prune/p2', pageHtml('P2', 'Content P2'));
+
+    const { config } = setup({
+      sources: [{ type: 'crawl', url: `${site.url}/crawl/prune/start` }],
+      prune: true,
+    });
+
+    try {
+      const initial = await ingest(config);
+      expect(initial.indexed).toBe(3);
+      expect(initial.pruned).toBe(0);
+
+      // Re-run with maxPages: 2, prune enabled -> partial discovery must protect p2
+      const partial = await ingest({ ...config, maxPages: 2 });
+      expect(partial.errors).toContain('stopped at --max-pages 2');
+      expect(partial.pruned).toBe(0);
+      expect(partial.pruneSkipped).toBeDefined();
+
+      // Re-run with startup failure (e.g. start page disallowed by robots) -> must protect all indexed pages
+      site.set('/robots.txt', 'User-agent: *\nDisallow: /crawl/prune/start', 'text/plain');
+      const startupFail = await ingest(config);
+      expect(startupFail.errors.length).toBeGreaterThan(0);
+      expect(startupFail.pruned).toBe(0);
+      expect(startupFail.pruneSkipped).toBeDefined();
+    } finally {
+      site.remove('/robots.txt');
+      for (const p of ['/crawl/prune/start', '/crawl/prune/p1', '/crawl/prune/p2']) site.remove(p);
     }
   });
 });

@@ -27,6 +27,7 @@ export declare function discover(sources: IngestSource[], options: DiscoverOptio
 export interface DiscoveredPage {
     url: string;
     file?: string;
+    html?: string;
 }
 
 export interface DiscoverOptions {
@@ -35,6 +36,9 @@ export interface DiscoverOptions {
     timeoutMs: number;
     include?: string[];
     exclude?: string[];
+    concurrency?: number;
+    respectRobots?: boolean;
+    maxPages?: number;
 }
 
 export interface Discovery {
@@ -114,6 +118,11 @@ export type IngestSource = {
     baseUrl: string;
     path: string;
     type: 'directory';
+} | {
+    maxDepth?: number;
+    maxPages?: number;
+    type: 'crawl';
+    url: string;
 };
 
 export interface IngestStats {
