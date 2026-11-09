@@ -17,6 +17,11 @@ export declare function chatcopsCloudflareHandler(config: ChatCopsServerConfig):
 
 export declare function chatcopsMiddleware(config: ChatCopsServerConfig): (req: Request, res: Response, _next: NextFunction) => Promise<void>;
 
+export declare function chatcopsNext(config: ChatCopsServerConfig): {
+    OPTIONS: (req: Request) => Promise<Response>;
+    POST: (req: Request) => Promise<Response>;
+};
+
 export interface ChatCopsServerConfig {
     provider: ProviderConfig | AIProvider;
     systemPrompt: string;
@@ -221,6 +226,15 @@ export declare function chatcopsMiddleware(config: ChatCopsServerConfig): (req: 
 
 ```ts
 export declare function chatcopsVercelHandler(config: ChatCopsServerConfig): (req: Request) => Promise<Response>;
+```
+
+## `@chatcops/server/next`
+
+```ts
+export declare function chatcopsNext(config: ChatCopsServerConfig): {
+    OPTIONS: (req: Request) => Promise<Response>;
+    POST: (req: Request) => Promise<Response>;
+};
 ```
 
 ## `@chatcops/server/cloudflare`

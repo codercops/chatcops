@@ -14,6 +14,7 @@ export {
 } from './webhook.js';
 export { chatcopsMiddleware, chatcopsAnalyticsHandler } from './adapters/express.js';
 export { chatcopsVercelHandler } from './adapters/vercel.js';
+export { chatcopsNext } from './adapters/next.js';
 export { chatcopsCloudflareHandler } from './adapters/cloudflare.js';
 export { chatcopsAiSdkHandler } from './adapters/ai-sdk.js';
 export { ServerAnalytics } from './analytics/server.js';
