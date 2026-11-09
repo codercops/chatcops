@@ -3,7 +3,7 @@ title: Next.js, Hono, Bun, Deno, Astro, Nuxt and SvelteKit
 description: Run ChatCops in any runtime built on the Fetch API — Next.js, Hono, Bun, Deno, Astro, Nuxt and SvelteKit.
 ---
 
-`chatcopsVercelHandler` is a plain `(request: Request) => Promise<Response>` function. It isn't tied to Vercel, so it works in any runtime that speaks the Fetch API: Next.js route handlers, Hono, Bun and Deno.
+`chatcopsVercelHandler` is a plain `(request: Request) => Promise<Response>` function. It isn't tied to Vercel, so it works in any runtime that speaks the Fetch API: Next.js route handlers, Hono, Bun, Deno, Astro, Nuxt and SvelteKit.
 
 Two things apply to every example on this page:
 
@@ -135,6 +135,8 @@ Create `src/pages/api/chat/[...path].ts`. The optional catch-all matches both
 `/api/chat` (the chat endpoint) and `/api/chat/session` (the session endpoint
 the widget calls first to get a token).
 
+Astro needs an adapter to render endpoints on demand: `npx astro add node`, or the adapter for your host.
+
 ```typescript
 import { chatcopsVercelHandler } from '@chatcops/server';
 import type { APIRoute } from 'astro';
@@ -192,7 +194,7 @@ const chat = chatcopsVercelHandler({
 
 export default defineEventHandler((event) => {
   const request = toWebRequest(event);
-  const ip = getRequestIP(event, { xForwardedFor: true }) ?? '';
+  const ip = getRequestIP(event) ?? '';
   const headers = new Headers(request.headers);
   headers.set('x-client-ip', ip);
   return chat(new Request(request, { headers }));
@@ -209,17 +211,18 @@ Create `src/routes/api/chat/[...path]/+server.ts`. The rest-parameter segment
 `[...path]` matches both `/api/chat` and `/api/chat/session`.
 
 ```typescript
+import { env } from '$env/dynamic/private';
 import { chatcopsVercelHandler } from '@chatcops/server';
 import type { RequestHandler } from '@sveltejs/kit';
 
 const chat = chatcopsVercelHandler({
   provider: {
     type: 'claude',
-    apiKey: import.meta.env.ANTHROPIC_API_KEY,
+    apiKey: env.ANTHROPIC_API_KEY!,
   },
   systemPrompt: 'You are a helpful assistant.',
   allowedOrigins: ['*'],
-  sessionSecrets: [import.meta.env.CHATCOPS_SESSION_SECRET],
+  sessionSecrets: [env.CHATCOPS_SESSION_SECRET!],
   clientIp: (req) => req.headers.get('x-client-ip'),
 });
 
@@ -301,7 +304,7 @@ Rate limits and the per-IP budget key on the visitor's IP. The handler only read
 | Cloudflare Workers (`chatcopsCloudflareHandler`) | `CF-Connecting-IP`. Nothing to set. |
 | Express | `req.ip`, which follows Express's `trust proxy` setting. Behind one proxy, call `app.set('trust proxy', 1)`. |
 | Astro | `context.clientAddress`, copied into `x-client-ip` by the route handler before calling the ChatCops handler. |
-| Nuxt / Nitro | `getRequestIP(event, { xForwardedFor: true })`, copied into `x-client-ip`. Trusts `X-Forwarded-For` only when `runtimeConfig.nitro.trustedProxy` is set. |
+| Nuxt / Nitro | `getRequestIP(event)`, copied into `x-client-ip`. Behind a proxy, read that proxy's header with `clientIp`, as in the "Anywhere else" example. |
 | SvelteKit | `event.getClientAddress()`, copied into `x-client-ip` by the route handler. |
 | Anywhere else | Your `clientIp` function. |
 
