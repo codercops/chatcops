@@ -42,7 +42,7 @@ export function renderMarkdown(input: string): string {
 
   // Code blocks (``` ... ```) — stashed before any markdown transformation so
   // their content stays literal and their newlines survive the <br> step.
-  html = html.replace(/```(?:\w*)\n?([\s\S]*?)```/g, (_match, code: string) => {
+  html = html.replace(/```(?:[^`\n]*\n)?([\s\S]*?)```/g, (_match, code: string) => {
     return stashHtml(`<pre><code>${code.trim()}</code></pre>`);
   });
 
