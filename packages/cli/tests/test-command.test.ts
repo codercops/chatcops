@@ -323,9 +323,44 @@ tests:
     expect(both.stdout).toContain('  ✓ says hello');
     expect(JSON.parse(both.stdout.trim().split('\n').at(-1) ?? '')).toMatchObject({ passed: 2 });
     const unknown = await run(['test', '--reporter', 'html'], dir);
-    expect(unknown.stderr).toContain("--reporter html doesn't exist. Use one of: pretty, json, junit.");
+    expect(unknown.stderr).toContain("--reporter html doesn't exist. Use one of: pretty, json, junit, github.");
     expect(unknown.code).toBe(EXIT.unusable);
     expect((await run(['test', '--json', '--reporter', 'json'], dir)).stderr).toContain('not both');
+  });
+
+  it('annotates the original YAML line after filtering and supports other reporter destinations', async () => {
+    const yaml = PRICING.replace('name: says hello', 'name: "refunds: 30 days, no receipt"').replace('contains: [Hello]', 'contains: [missing]');
+    const dir = project({ 'evals/pricing.chat.yaml': yaml });
+    const result = await run([
+      'test', '--filter', 'refunds', '--reporter', 'pretty', '--reporter', 'github',
+      '--reporter', 'junit=evals.xml', '--reporter', 'json=evals.json',
+    ], dir);
+    expect(result.code).toBe(EXIT.problems);
+    expect(result.stdout).toContain('0 passed, 1 failed.');
+    expect(result.stdout.match(/^::error .*$/gm)).toEqual([
+      '::error file=evals/pricing.chat.yaml,line=11,title=refunds%3A 30 days%2C no receipt::Run 1, turn 1: the reply doesn\'t contain "missing"',
+    ]);
+    expect(readFileSync(join(dir, 'evals.xml'), 'utf8')).toContain('<testsuites tests="1" failures="1"');
+    const json = JSON.parse(readFileSync(join(dir, 'evals.json'), 'utf8'));
+    expect(Object.keys(json.results[0]).sort()).toEqual(['durationMs', 'fixture', 'pass', 'passRate', 'runs', 'test']);
+  });
+
+  it('annotates a module eval execution error on stdout without a source line', async () => {
+    const dir = project({
+      'evals/module.chat.mjs': `export default { version: 1, name: 'Module', tests: [{ name: 'provider down', turns: [{ user: 'boom' }] }] };`,
+    });
+    const result = await run(['test', 'evals/*.chat.mjs', '--reporter', 'github'], dir);
+    expect(result.code).toBe(EXIT.problems);
+    expect(result.stdout).toMatch(/^::error file=evals\/module\.chat\.mjs,title=provider down::Run 1: turn 1 failed: /);
+  });
+
+  it('reports an actionable CLI error for an unwritable GitHub summary and finishes other reporters', async () => {
+    const dir = project({ 'evals/pricing.chat.yaml': PRICING });
+    const result = await run(['test', '--reporter', 'github', '--reporter', 'pretty', '--reporter', 'junit=evals.xml'], dir, { GITHUB_STEP_SUMMARY: dir });
+    expect(result.code).toBe(EXIT.unusable);
+    expect(result.stderr).toContain(`Cannot append GitHub Actions summary to "${dir}"`);
+    expect(result.stdout).toContain('2 passed, 0 failed.');
+    expect(readFileSync(join(dir, 'evals.xml'), 'utf8')).toContain('<testsuites tests="2" failures="0"');
   });
 
   it('writes JUnit to --output relative to io.cwd and replaces existing files without stdout duplication', async () => {
@@ -410,6 +445,9 @@ tests:
     [['--reporter', 'junit=a.xml', '--output', 'b.xml'], 'not both'],
     [['--reporter', 'junit', '--reporter', 'junit=a.xml'], 'more than once'],
     [['--reporter', 'junit=a.xml', '--reporter', 'json=./a.xml'], 'different output files'],
+    [['--reporter', 'github=annotations.txt'], 'requires stdout'],
+    [['--reporter', 'github', '--output', 'annotations.txt'], 'requires stdout'],
+    [['--reporter', 'github', '--reporter', 'github'], 'more than once'],
   ])('rejects invalid reporter destinations %j', async (args, message) => {
     const dir = project({ 'evals/pricing.chat.yaml': PRICING });
     const result = await run(['test', ...args], dir);

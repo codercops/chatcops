@@ -2,9 +2,10 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { globToRegExp } from '@chatcops/ingest';
-import { parse as parseYaml } from 'yaml';
+import { isAlias, isNode, isSeq, LineCounter, parseDocument } from 'yaml';
 import { z } from 'zod';
 import { ConfigError } from '../config.js';
+import { sourceLines } from './source-lines.js';
 import type { Assertion, Fixture, TestCase } from './types.js';
 
 export const DEFAULT_PATTERN = 'evals/**/*.chat.yaml';
@@ -74,9 +75,25 @@ const fixtureSchema = z
 /** A fixture file, checked, with defaults applied to each test. */
 export async function loadFixture(file: string): Promise<Fixture> {
   let raw: unknown;
+  let lines: Array<number | undefined> = [];
   try {
     if (/\.ya?ml$/i.test(file)) {
-      raw = parseYaml(await readFile(file, 'utf8'));
+      const counter = new LineCounter();
+      const document = parseDocument(await readFile(file, 'utf8'), { lineCounter: counter, keepSourceTokens: true });
+      for (const warning of document.warnings) process.emitWarning(warning);
+      if (document.errors.length) throw document.errors[0];
+      raw = document.toJS();
+      const node = document.get('tests', true);
+      const tests = isAlias(node) ? node.resolve(document) : node;
+      if (isSeq(tests)) {
+        const blockItems = tests.srcToken?.type === 'block-seq' ? tests.srcToken.items : undefined;
+        lines = tests.items.map((item, index) => {
+          // A block entry can put the dash on a line of its own.
+          const dash = blockItems?.[index]?.start.find((token) => token.type === 'seq-item-ind');
+          const start = dash?.offset ?? (isNode(item) ? item.range?.[0] : undefined);
+          return start === undefined ? undefined : counter.linePos(start).line;
+        });
+      }
     } else {
       raw = ((await import(pathToFileURL(file).href)) as { default?: unknown }).default;
     }
@@ -89,7 +106,13 @@ export async function loadFixture(file: string): Promise<Fixture> {
     throw new ConfigError(`${file} isn't a valid eval file:\n${issues.join('\n')}`);
   }
   const fixture = parsed.data as Fixture;
-  return { ...fixture, tests: fixture.tests.map((test) => withDefaults(test, fixture.defaults)) };
+  const tests = fixture.tests.map((test, index) => {
+    const loaded = withDefaults(test, fixture.defaults);
+    const line = lines[index];
+    if (line !== undefined) sourceLines.set(loaded, line);
+    return loaded;
+  });
+  return { ...fixture, tests };
 }
 
 function withDefaults(test: TestCase, defaults: Fixture['defaults']): TestCase {

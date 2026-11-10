@@ -59,7 +59,8 @@ Test options:
   --repeat <n>          Run each test n times
   --concurrency <n>     Tests run at once (default 4)
   --verbose             Show assertion details for every test
-  --reporter <name[=file]>  pretty (default), json or junit. Repeatable; each name once.
+  --reporter <name[=file]>  pretty (default), json, junit or github. Repeatable; each name once.
+                        github writes annotations to stdout and cannot use a file destination.
   --output <file>       Write a single reporter to a file instead of stdout (replaces the file).
                         With several reporters, use name=file; file destinations must differ.
                         Do not combine --output with name=file. Parent folders are created.

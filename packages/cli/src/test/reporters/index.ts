@@ -3,6 +3,7 @@ import type { TestResult } from '../types.js';
 import { jsonReporter } from './json.js';
 import { prettyReporter } from './pretty.js';
 import { junitReporter } from './junit.js';
+import { githubReporter } from './github.js';
 
 /** Where a reporter writes: stdout, unless the reporter is given a file. */
 export interface ReporterOutput {
@@ -40,4 +41,5 @@ export const REPORTERS = new Map<string, ReporterFactory>([
   ['pretty', prettyReporter],
   ['json', jsonReporter],
   ['junit', junitReporter],
+  ['github', githubReporter],
 ]);
