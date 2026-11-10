@@ -233,8 +233,8 @@ export default defineConfig({
 | `--filter <text>` | Only tests whose name contains the text, or `tag:<name>` for a tag |
 | `--repeat <n>` | Run every test n times, instead of each test's own `repeat` |
 | `--concurrency <n>` | Tests run at once. Default 4. |
-| `--reporter <name[=file]>` | `pretty` (the default), `json` (every turn's reply, tool calls, sources and token usage), or `junit` (JUnit XML for CI). Repeatable, with each name used once. Add `=file` to write that reporter to a file. |
-| `--output <file>` | Write a single reporter's complete output to a file instead of stdout. Also works with the default reporter. |
+| `--reporter <name[=file]>` | `pretty` (the default), `json` (every turn's reply, tool calls, sources and token usage), `junit` (JUnit XML for CI), or `github` (GitHub Actions annotations and job summary). Repeatable, with each name used once. Add `=file` to write a reporter other than `github` to a file. |
+| `--output <file>` | Write a single reporter's complete output to a file instead of stdout. Also works with the default reporter. The `github` reporter requires stdout. |
 | `--json` | The same as `--reporter json` |
 | `--judge-model <provider:model>` | The judge for `judge` assertions: `gemini`, `openai` or `claude`, with a model id or without one for the default |
 | `--max-cost <usd>` | Stop starting turns once the run has spent this much. Needs `prices`. |
@@ -319,6 +319,10 @@ evals:
 
 ### GitHub Actions
 
+Run `npx chatcops test --reporter github` to emit one workflow error annotation per failed eval, including the source line for YAML fixtures. When GitHub Actions sets `GITHUB_STEP_SUMMARY`, the reporter appends a Markdown table with every test's outcome and pass rate. With the variable unset, it emits annotations only. If the summary cannot be written, the CLI reports its path and exits 2.
+
+GitHub Actions reads workflow commands from stdout. The CLI rejects both `--reporter github=file` and `--reporter github --output file`. You can combine `github` with `pretty` on stdout or with a separate file reporter such as `--reporter junit=evals.xml`.
+
 ```yaml
 name: Evals
 on: [pull_request]
@@ -330,7 +334,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: npm ci
-      - run: npx chatcops test
+      - run: npx chatcops test --reporter pretty --reporter github
 ```
 
 ## Unit tests with a scripted model
