@@ -108,6 +108,22 @@ const entries = (dir: string) =>
     .map((line) => JSON.parse(line));
 
 describe('chatcops test --record and --replay', () => {
+  it('saves recordings even when writing the report fails', async () => {
+    const dir = project({ 'evals/pricing.chat.yaml': PRICING });
+    const recorded = await run(['test', '--record', '--output', 'evals'], dir);
+    expect(recorded.code).toBe(EXIT.unusable);
+    expect(recorded.stderr).toContain('Cannot write report to');
+    expect(recorded.stderr).toContain(`Saved ${join('evals', '__cassettes__', 'pricing.chat.jsonl')}`);
+    expect(existsSync(cassetteOf(dir))).toBe(true);
+    expect(entries(dir)).toHaveLength(3);
+    expect(hits).toHaveLength(3);
+
+    hits = [];
+    const replayed = await run(['test', '--replay'], dir);
+    expect(replayed.code).toBe(EXIT.ok);
+    expect(hits).toHaveLength(0);
+  });
+
   it('records each call, then replays them without the network', async () => {
     const dir = project({ 'evals/pricing.chat.yaml': PRICING });
     const recorded = await run(['test', '--record'], dir);

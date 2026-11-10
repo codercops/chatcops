@@ -30,6 +30,10 @@
       "types": "./dist/adapters/vercel.d.ts",
       "import": "./dist/adapters/vercel.js"
     },
+    "./next": {
+      "types": "./dist/adapters/next.d.ts",
+      "import": "./dist/adapters/next.js"
+    },
     "./cloudflare": {
       "types": "./dist/adapters/cloudflare.d.ts",
       "import": "./dist/adapters/cloudflare.js"

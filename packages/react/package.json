@@ -1,0 +1,58 @@
+{
+  "name": "@chatcops/react",
+  "version": "0.1.0",
+  "description": "React component and hooks for ChatCops",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "peerDependencies": {
+    "@chatcops/widget": "workspace:^",
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "@chatcops/widget": {
+      "optional": false
+    },
+    "react": {
+      "optional": false
+    }
+  },
+  "devDependencies": {
+    "@chatcops/widget": "workspace:*",
+    "@testing-library/react": "^16.2.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "happy-dom": "^20.14.5",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.11"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codercops/chatcops.git",
+    "directory": "packages/react"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  }
+}
+

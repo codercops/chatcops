@@ -34,8 +34,9 @@ Usage:
   chatcops test [files...] [options]        Run eval files against your bot
 
 Ingest options:
-  --source <url|path>   A sitemap (.xml, .xml.gz), a page URL, or a folder of .md/.mdx/.html
-                        files (with --base-url). Repeatable. Replaces the config's sources.
+  --source <url|path>   A sitemap (.xml, .xml.gz), crawl:<url>, a page URL, or a folder of
+                        .md/.mdx/.html files (with --base-url). Repeatable. Replaces the config's sources.
+  --crawl <url>         Crawl same-origin pages starting at url. Replaces the config's sources.
   --base-url <url>      Where a folder source is published
   --index <name>        Index name (default "default")
   --dry-run             Discover, extract and chunk; write and embed nothing
@@ -58,7 +59,10 @@ Test options:
   --repeat <n>          Run each test n times
   --concurrency <n>     Tests run at once (default 4)
   --verbose             Show assertion details for every test
-  --reporter <name>     pretty (default) or json. Repeatable.
+  --reporter <name[=file]>  pretty (default), json or junit. Repeatable; each name once.
+  --output <file>       Write a single reporter to a file instead of stdout (replaces the file).
+                        With several reporters, use name=file; file destinations must differ.
+                        Do not combine --output with name=file. Parent folders are created.
   --json                Same as --reporter json
   --record              Call the APIs and save what they answer to __cassettes__
   --replay              Answer every API call from __cassettes__ (the default when CI is set)
@@ -125,6 +129,7 @@ function parse(argv: string[]) {
     options: {
       config: { type: 'string' },
       source: { type: 'string', multiple: true },
+      crawl: { type: 'string' },
       'base-url': { type: 'string' },
       index: { type: 'string' },
       'dry-run': { type: 'boolean' },
@@ -139,6 +144,7 @@ function parse(argv: string[]) {
       repeat: { type: 'string' },
       verbose: { type: 'boolean' },
       reporter: { type: 'string', multiple: true },
+      output: { type: 'string' },
       record: { type: 'boolean' },
       live: { type: 'boolean' },
       'judge-model': { type: 'string' },
@@ -158,8 +164,11 @@ async function runIngest(values: Values, io: Io): Promise<number> {
   const loaded = await loadConfig(io.cwd, values.config);
   try {
     const target = indexConfig(loaded);
-    const sources = values.source?.length ? values.source.map((source) => toSource(source, values['base-url'], io.cwd)) : loaded.config.ingest?.sources;
-    if (!sources?.length) throw new ConfigError('Nothing to ingest: pass --source, or set ingest.sources in the config.');
+    const cliSources: IngestSource[] = [];
+    if (values.crawl) cliSources.push({ type: 'crawl', url: values.crawl });
+    if (values.source?.length) cliSources.push(...values.source.map((source) => toSource(source, values['base-url'], io.cwd)));
+    const sources = cliSources.length ? cliSources : loaded.config.ingest?.sources;
+    if (!sources?.length) throw new ConfigError('Nothing to ingest: pass --source, --crawl, or set ingest.sources in the config.');
 
     // A model only runs with --contextualize, so a run never spends on one by surprise: the config holds which.
     if (values.contextualize && !loaded.config.ingest?.contextualize) {
@@ -221,6 +230,9 @@ async function runSearch(question: string, values: Values, io: Io): Promise<numb
 
 /** A `--source` value: a sitemap URL, a page URL, or a folder (with `--base-url`). */
 export function toSource(value: string, baseUrl: string | undefined, cwd: string): IngestSource {
+  if (/^crawl:https?:\/\//i.test(value)) {
+    return { type: 'crawl', url: value.slice('crawl:'.length) };
+  }
   if (/^https?:\/\//i.test(value)) {
     return /\.xml(\.gz)?(\?.*)?$/i.test(value) ? { type: 'sitemap', url: value } : { type: 'urls', urls: [value] };
   }

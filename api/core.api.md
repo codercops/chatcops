@@ -49,6 +49,22 @@ export interface AnalyticsStats {
     eventCounts: Record<string, number>;
 }
 
+export interface AnswerCheck {
+    reply: string;
+    retrieval?: {
+        chunks: number;
+        minScore?: number;
+        topScore?: number;
+    };
+    cited?: number;
+    phrases?: string[];
+}
+
+export interface AnswerVerdict {
+    answered: boolean;
+    reason?: UnansweredReason;
+}
+
 export interface AppendOptions {
     expectedVersion?: number;
     metadata?: Record<string, unknown>;
@@ -169,6 +185,8 @@ export interface ChatTool {
     execute(input: Record<string, unknown>, context?: ToolContext): Promise<ToolResult>;
     emits?(result: ToolResult): MessagePart[];
 }
+
+export declare function checkAnswered(input: AnswerCheck): AnswerVerdict;
 
 export declare class CitationParser {
     constructor(count: number);
@@ -938,6 +956,8 @@ export interface TurnResult {
     finishReason: WireFinishReason;
     error?: unknown;
 }
+
+export type UnansweredReason = 'refusal' | 'no_retrieval' | 'no_citation';
 
 export declare function uniqueChunks(chunks: RetrievedChunk[]): RetrievedChunk[];
 

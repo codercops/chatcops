@@ -16,7 +16,7 @@ const blocks = [];
 // which type-checking can't see. Flags a handler built from an object literal that
 // has neither, or a full `ChatCopsServerConfig` that has neither, unless it spreads
 // another config in.
-const handlerCall = /\b(chatcopsMiddleware|chatcopsVercelHandler|chatcopsCloudflareHandler|chatcopsAiSdkHandler|createChatHandler)\(\s*\{|:\s*(ChatCopsServerConfig)\s*=\s*\{/g;
+const handlerCall = /\b(chatcopsMiddleware|chatcopsVercelHandler|chatcopsNext|chatcopsCloudflareHandler|chatcopsAiSdkHandler|createChatHandler)\(\s*\{|:\s*(ChatCopsServerConfig)\s*=\s*\{/g;
 function missingSessionConfig(code) {
   const lines = [];
   for (const match of code.matchAll(handlerCall)) {
@@ -142,6 +142,7 @@ try {
     '@chatcops/store-upstash-vector': [packagePath('store-upstash-vector')],
     '@chatcops/ingest': [packagePath('ingest')],
     '@chatcops/cli': [packagePath('cli')],
+    '@chatcops/react': [packagePath('react')],
     express: [join(root, 'packages', 'server', 'node_modules', '@types', 'express', 'index.d.ts')],
     '@neondatabase/serverless': [join(root, 'packages', 'store-postgres', 'node_modules', '@neondatabase', 'serverless')],
     '@upstash/vector': [join(root, 'packages', 'store-upstash-vector', 'node_modules', '@upstash', 'vector')],
