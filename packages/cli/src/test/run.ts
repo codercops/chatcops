@@ -5,6 +5,7 @@ import { ConfigError } from '../config.js';
 import { check } from './assertions/index.js';
 import type { Cassettes } from './cassette.js';
 import { costOf, dollars, type Prices, type Spend } from './cost.js';
+import { sourceLines } from './source-lines.js';
 import type { Assertion, Fixture, Judge, TestCase, TestResult, TestRunResult, TurnResult } from './types.js';
 
 export interface RunOptions {
@@ -82,7 +83,10 @@ async function runTest(
   for (let run = 1; run <= repeat; run++) runs.push(await once(run));
   const passed = runs.filter((result) => result.pass).length;
   const passRate = passed / runs.length;
-  return { fixture, test: test.name, runs, passRate, pass: passRate >= (test.passRate ?? 1) };
+  const result = { fixture, test: test.name, runs, passRate, pass: passRate >= (test.passRate ?? 1) };
+  const line = sourceLines.get(test);
+  if (line !== undefined) sourceLines.set(result, line);
+  return result;
 }
 
 async function runOnce(
