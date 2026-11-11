@@ -121,6 +121,42 @@ describe('rate limits on the storage counters', () => {
       'maxRequests must be greater than 0'
     );
   });
+
+  it('refuses a windowMs that is not a finite number greater than 0', () => {
+    for (const bad of [0, -1, -60_000, Number.NaN, Infinity, -Infinity]) {
+      expect(
+        () =>
+          createChatHandler({
+            allowAnonymous: true,
+            provider: scriptedProvider([]),
+            systemPrompt: 'x',
+            rateLimit: { maxRequests: 10, windowMs: bad },
+          }),
+        `expected windowMs: ${bad} to throw`
+      ).toThrow('windowMs must be a finite number greater than 0');
+    }
+  });
+
+  it('accepts valid positive finite windowMs and the default', () => {
+    expect(() => {
+      const handler = createChatHandler({
+        allowAnonymous: true,
+        provider: scriptedProvider([]),
+        systemPrompt: 'x',
+        rateLimit: { maxRequests: 10, windowMs: 5000 },
+      });
+      handler.cleanup();
+    }).not.toThrow();
+
+    expect(() => {
+      const handler = createChatHandler({
+        allowAnonymous: true,
+        provider: scriptedProvider([]),
+        systemPrompt: 'x',
+      });
+      handler.cleanup();
+    }).not.toThrow();
+  });
 });
 
 describe('budgets', () => {
