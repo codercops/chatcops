@@ -597,8 +597,7 @@
     /* Both sides are 0, so this is the same in either direction. */
     border-radius: 0;
     border: none;
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-block: env(safe-area-inset-top) env(safe-area-inset-bottom);
   }
 
 

@@ -1,9 +1,8 @@
 import { renderMarkdown } from '../markdown.js';
 
-const svg = (d: string) => `<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="${d}"/></svg>`;
-const RETRY_ICON = svg('M17.65 6.35A7.96 7.96 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z');
-const REGENERATE_ICON = svg('M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0020 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 004 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z');
-const COPY_ICON = svg('M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z');
+const RETRY_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M17.65 6.35A7.96 7.96 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>';
+const REGENERATE_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0020 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 004 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>';
+const COPY_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>';
 
 export type MessageStatus = 'streaming' | 'complete' | 'error';
 export type MessageErrorType = 'rate_limit' | 'network' | 'provider_error' | 'timeout' | 'budget' | 'budget_daily' | 'unavailable' | 'cut_off';
@@ -128,7 +127,7 @@ export class Messages {
     this.removeTyping();
     if (msg.role === 'user') this.removeSuggestions();
     const el = this.container.appendChild(this.createMessageElement(msg));
-    this.showPill(msg.role === 'user' || this.nearBottom());
+    msg.role === 'user' || this.nearBottom() ? this.scrollToBottom() : this.pill.classList.remove('cc-hidden');
     return el;
   }
 
@@ -142,7 +141,7 @@ export class Messages {
     this.endStream(msg.id);
     const follow = this.nearBottom();
     this.renderMessageElement(el, msg);
-    this.showPill(follow);
+    follow ? this.scrollToBottom() : this.pill.classList.remove('cc-hidden');
   }
 
   /** Takes the reply's text so far, and renders what changed on the next frame. */
@@ -185,7 +184,7 @@ export class Messages {
       stream.committed = boundary;
     }
     stream.tail.innerHTML = renderMarkdown(stream.text.slice(stream.committed));
-    this.showPill(follow);
+    follow ? this.scrollToBottom() : this.pill.classList.remove('cc-hidden');
   }
 
   private endStream(id: string): void {
@@ -300,10 +299,6 @@ export class Messages {
     if (!visible) this.pill.classList.add('cc-hidden');
   }
 
-  private showPill(follow = false): void {
-    follow ? this.scrollToBottom() : this.pill.classList.remove('cc-hidden');
-  }
-
   private findMessage(id: string): HTMLDivElement | null {
     for (const el of this.container.children) {
       if ((el as HTMLElement).dataset?.id === id) return el as HTMLDivElement;
@@ -404,16 +399,17 @@ export class Messages {
 
   private copyReply(messageId: string): void {
     const text = this.findMessage(messageId)?.querySelector<HTMLElement>('.cc-message-content')?.innerText.trim();
-    const version = this.announcementVersion;
-    const announce = (m: string) => {
-      if (version === this.announcementVersion) this.announcement.textContent = m;
+    const v = this.announcementVersion;
+    const fail = () => {
+      if (v === this.announcementVersion) this.announcement.textContent = this.actions?.copyFailureLabel ?? 'Could not copy reply.';
     };
-    const fail = this.actions?.copyFailureLabel ?? 'Could not copy reply.';
     !text || !navigator.clipboard?.writeText
-      ? announce(fail)
+      ? fail()
       : navigator.clipboard.writeText(text)
-          .then(() => announce(this.actions?.copySuccessLabel ?? 'Reply copied.'))
-          .catch(() => announce(fail));
+          .then(() => {
+            if (v === this.announcementVersion) this.announcement.textContent = this.actions?.copySuccessLabel ?? 'Reply copied.';
+          })
+          .catch(fail);
   }
 
   private ensureActionsContainer(msgEl: HTMLDivElement): HTMLDivElement {
