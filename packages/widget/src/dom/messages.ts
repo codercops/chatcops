@@ -86,8 +86,12 @@ export class Messages {
     const pill = document.createElement('button');
     pill.type = 'button';
     pill.className = 'cc-pill cc-hidden';
-    pill.textContent = this.actions?.newReply ?? 'New reply ↓';
-    pill.onclick = () => this.scrollToBottom(true);
+    pill.textContent = this.actions?.newReply ?? 'New reply';
+    pill.onclick = () => {
+      const r = pill.getRootNode() as Document;
+      if (r.activeElement === pill) r.querySelector<HTMLElement>('.cc-input')?.focus();
+      this.scrollToBottom(true);
+    };
     container.onscroll = () => {
       if (this.nearBottom()) pill.classList.add('cc-hidden');
     };
@@ -124,10 +128,11 @@ export class Messages {
   }
 
   addMessage(msg: MessageData): HTMLDivElement {
+    const follow = msg.role === 'user' || this.nearBottom();
     this.removeTyping();
     if (msg.role === 'user') this.removeSuggestions();
     const el = this.container.appendChild(this.createMessageElement(msg));
-    msg.role === 'user' || this.nearBottom() ? this.scrollToBottom() : this.pill.classList.remove('cc-hidden');
+    follow ? this.scrollToBottom() : this.pill.classList.remove('cc-hidden');
     return el;
   }
 

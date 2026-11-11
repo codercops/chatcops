@@ -18,7 +18,7 @@
   opacity: 0;
   transform: translateY(16px) scale(0.95);
   pointer-events: none;
-  transition: 0.2s;
+  transition: opacity 0.2s, transform 0.2s;
 }
 
 .cc-panel.cc-visible {
@@ -112,7 +112,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: 0.15s;
+  transition: background 0.15s;
   color: var(--cc-text-secondary);
 }
 
@@ -306,7 +306,8 @@
 .cc-consent-btn,
 .cc-message-retry,
 .cc-message-regenerate,
-.cc-message-copy {
+.cc-message-copy,
+.cc-pill {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -318,11 +319,10 @@
   font-family: var(--cc-font);
   font-size: 12px;
   cursor: pointer;
-  transition: 0.15s;
+  transition: background 0.15s, color 0.15s, opacity 0.15s;
 }
 
 .cc-consent-btn:hover,
-.cc-message-retry:hover,
 .cc-message-regenerate:hover,
 .cc-message-copy:hover,
 .cc-pill:hover {
@@ -358,6 +358,7 @@
 
 .cc-message-retry:hover {
   background: color-mix(in srgb, var(--cc-danger) 10%, transparent);
+  color: var(--cc-danger);
 }
 
 /* Typing indicator */
@@ -412,7 +413,7 @@
   outline: none;
   max-height: 96px;
   overflow-y: auto;
-  transition: 0.15s;
+  transition: border-color 0.15s;
 }
 
 .cc-input:focus {
@@ -434,7 +435,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: 0.15s;
+  transition: background 0.15s, opacity 0.15s;
 }
 
 .cc-send-btn:hover {
@@ -493,7 +494,7 @@
   opacity: 0;
   transform: translateY(8px);
   pointer-events: none;
-  transition: 0.3s;
+  transition: opacity 0.3s, transform 0.3s;
 }
 
 .cc-bubble.cc-visible {
@@ -565,9 +566,11 @@
   padding: 10px 16px;
   border-radius: 99px;
   box-shadow: var(--cc-shadow);
-  border: 1px solid var(--cc-border);
-  font: 13px inherit;
-  cursor: pointer;
+  font-size: 13px;
+}
+
+.cc-pill::after {
+  content: " ↓" / "";
 }
 
 

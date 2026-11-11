@@ -625,6 +625,7 @@ export class Widget {
       copyLabel: l.copyButton,
       copySuccessLabel: l.copySuccess,
       copyFailureLabel: l.copyFailure,
+      newReply: l.newReply,
     };
   }
 

@@ -158,16 +158,16 @@ describe('streaming replies', () => {
       expect(button).not.toBeNull();
       expect(button.tagName).toBe('BUTTON');
       expect(button.type).toBe('button');
-      expect(button.textContent).toBe('New reply ↓');
+      expect(button.textContent).toBe('New reply');
       expect(button.classList.contains('cc-hidden')).toBe(true);
       expect(button.getAttribute('aria-live')).toBeNull();
       expect(button.getAttribute('role')).toBeNull();
       expect(button.getAttribute('aria-label')).toBeNull();
 
       const customParent = document.createElement('div');
-      new Messages(customParent, { newReply: 'Nouveaux messages ↓' });
+      new Messages(customParent, { newReply: 'Nouveaux messages' });
       const customPill = customParent.querySelector('.cc-pill') as HTMLButtonElement;
-      expect(customPill.textContent).toBe('Nouveaux messages ↓');
+      expect(customPill.textContent).toBe('Nouveaux messages');
     });
 
     it('shows the pill when text arrives while scrolled up, and not when at the bottom', async () => {
@@ -258,6 +258,28 @@ describe('streaming replies', () => {
       expect(pill().classList.contains('cc-hidden')).toBe(true);
       expect(smoothScrollCalled).toBe(false);
       expect(scrollTop).toBe(1000);
+    });
+
+    it('moves focus to the message input when clicked while focused', () => {
+      const input = document.createElement('textarea');
+      input.className = 'cc-input';
+      parent.appendChild(input);
+
+      const el = log();
+      let scrollTop = 200;
+      Object.defineProperty(el, 'scrollHeight', { configurable: true, get: () => 1000 });
+      Object.defineProperty(el, 'clientHeight', { configurable: true, get: () => 400 });
+      Object.defineProperty(el, 'scrollTop', { configurable: true, get: () => scrollTop, set: (v: number) => (scrollTop = v) });
+
+      messages.updateMessage(reply('Hello'));
+      expect(pill().classList.contains('cc-hidden')).toBe(false);
+
+      pill().focus();
+      expect(document.activeElement).toBe(pill());
+
+      pill().click();
+      expect(pill().classList.contains('cc-hidden')).toBe(true);
+      expect(document.activeElement).toBe(input);
     });
   });
 });
