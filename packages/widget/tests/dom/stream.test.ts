@@ -149,4 +149,115 @@ describe('streaming replies', () => {
     await frame();
     expect(text()).toBe('One two');
   });
+
+  describe('new reply pill', () => {
+    const pill = () => parent.querySelector('.cc-pill') as HTMLButtonElement;
+
+    it('creates a button without redundant live region announcements and uses default or custom text', () => {
+      const button = pill();
+      expect(button).not.toBeNull();
+      expect(button.tagName).toBe('BUTTON');
+      expect(button.type).toBe('button');
+      expect(button.textContent).toBe('New reply ↓');
+      expect(button.classList.contains('cc-hidden')).toBe(true);
+      expect(button.getAttribute('aria-live')).toBeNull();
+      expect(button.getAttribute('role')).toBeNull();
+      expect(button.getAttribute('aria-label')).toBeNull();
+
+      const customParent = document.createElement('div');
+      new Messages(customParent, { newReply: 'Nouveaux messages ↓' });
+      const customPill = customParent.querySelector('.cc-pill') as HTMLButtonElement;
+      expect(customPill.textContent).toBe('Nouveaux messages ↓');
+    });
+
+    it('shows the pill when text arrives while scrolled up, and not when at the bottom', async () => {
+      const el = log();
+      let scrollTop = 580;
+      Object.defineProperty(el, 'scrollHeight', { configurable: true, get: () => 1000 });
+      Object.defineProperty(el, 'clientHeight', { configurable: true, get: () => 400 });
+      Object.defineProperty(el, 'scrollTop', { configurable: true, get: () => scrollTop, set: (v: number) => (scrollTop = v) });
+
+      // When near bottom, pill stays hidden
+      messages.updateMessage(reply('At bottom'));
+      expect(pill().classList.contains('cc-hidden')).toBe(true);
+
+      // Scroll up
+      scrollTop = 200;
+      messages.updateMessage(reply('Text arrives while scrolled up'));
+      expect(pill().classList.contains('cc-hidden')).toBe(false);
+
+      // Streaming chunks keep pill visible
+      messages.updateMessage(reply('Text arrives while scrolled up more'));
+      await frame();
+      expect(pill().classList.contains('cc-hidden')).toBe(false);
+
+      // addMessage also shows pill when scrolled up
+      pill().classList.add('cc-hidden');
+      messages.addMessage({ id: 'r-next', role: 'assistant', content: 'Another reply' });
+      expect(pill().classList.contains('cc-hidden')).toBe(false);
+    });
+
+    it('hides the pill when scrolled down by hand', () => {
+      const el = log();
+      let scrollTop = 200;
+      Object.defineProperty(el, 'scrollHeight', { configurable: true, get: () => 1000 });
+      Object.defineProperty(el, 'clientHeight', { configurable: true, get: () => 400 });
+      Object.defineProperty(el, 'scrollTop', { configurable: true, get: () => scrollTop, set: (v: number) => (scrollTop = v) });
+
+      messages.updateMessage(reply('Hello'));
+      expect(pill().classList.contains('cc-hidden')).toBe(false);
+
+      // Scroll by hand close to the bottom
+      scrollTop = 600;
+      el.dispatchEvent(new Event('scroll'));
+      expect(pill().classList.contains('cc-hidden')).toBe(true);
+    });
+
+    it('scrolls to bottom and hides on click, respecting prefers-reduced-motion', async () => {
+      const el = log();
+      let scrollTop = 200;
+      let smoothScrollCalled = false;
+      Object.defineProperty(el, 'scrollHeight', { configurable: true, get: () => 1000 });
+      Object.defineProperty(el, 'clientHeight', { configurable: true, get: () => 400 });
+      Object.defineProperty(el, 'scrollTop', { configurable: true, get: () => scrollTop, set: (v: number) => (scrollTop = v) });
+      el.scrollTo = vi.fn().mockImplementation((options: ScrollToOptions) => {
+        if (options.behavior === 'smooth') {
+          smoothScrollCalled = true;
+          scrollTop = options.top as number;
+        }
+      });
+
+      // Default (no reduced motion): smooth scrolls
+      messages.updateMessage(reply('Hello'));
+      expect(pill().classList.contains('cc-hidden')).toBe(false);
+
+      pill().click();
+      expect(pill().classList.contains('cc-hidden')).toBe(true);
+      expect(smoothScrollCalled).toBe(true);
+      expect(scrollTop).toBe(1000);
+
+      // With prefers-reduced-motion: reduce: jumps immediately
+      smoothScrollCalled = false;
+      scrollTop = 200;
+      window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+        matches: query.includes('prefers-reduced-motion: reduce'),
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }));
+
+      messages.updateMessage(reply('Hello reduced motion'));
+      await frame();
+      expect(pill().classList.contains('cc-hidden')).toBe(false);
+
+      pill().click();
+      expect(pill().classList.contains('cc-hidden')).toBe(true);
+      expect(smoothScrollCalled).toBe(false);
+      expect(scrollTop).toBe(1000);
+    });
+  });
 });

@@ -18,7 +18,7 @@
   opacity: 0;
   transform: translateY(16px) scale(0.95);
   pointer-events: none;
-  transition: opacity 0.2s, transform 0.2s;
+  transition: 0.2s;
 }
 
 .cc-panel.cc-visible {
@@ -156,7 +156,6 @@
   max-width: 85%;
   padding: 10px 14px;
   border-radius: var(--cc-radius);
-  word-wrap: break-word;
   overflow-wrap: break-word;
   font-size: 14px;
   line-height: 1.5;
@@ -319,32 +318,28 @@
   font-family: var(--cc-font);
   font-size: 12px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, opacity 0.15s;
+  transition: 0.15s;
 }
 
 .cc-consent-btn:hover,
 .cc-message-retry:hover,
 .cc-message-regenerate:hover,
-.cc-message-copy:hover {
+.cc-message-copy:hover,
+.cc-pill:hover {
   background: var(--cc-bg-input);
   color: var(--cc-text);
 }
 
-.cc-message-retry svg,
-.cc-message-regenerate svg,
-.cc-message-copy svg {
-  fill: currentColor;
-}
 
 .cc-message-regenerate {
   opacity: 0;
 }
 
-.cc-message:hover .cc-message-regenerate {
-  opacity: 1;
+.cc-message-actions svg {
+  fill: currentColor;
 }
 
-/* Keep regenerate available to keyboard and touch users */
+.cc-message:hover .cc-message-regenerate,
 .cc-message:focus-within .cc-message-regenerate,
 .cc-message-regenerate:focus-visible {
   opacity: 1;
@@ -356,7 +351,6 @@
   }
 }
 
-
 .cc-message-retry {
   border-color: var(--cc-danger);
   color: var(--cc-danger);
@@ -364,7 +358,6 @@
 
 .cc-message-retry:hover {
   background: color-mix(in srgb, var(--cc-danger) 10%, transparent);
-  color: var(--cc-danger);
 }
 
 /* Typing indicator */
@@ -441,7 +434,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: background 0.15s, opacity 0.15s;
+  transition: 0.15s;
 }
 
 .cc-send-btn:hover {
@@ -500,7 +493,7 @@
   opacity: 0;
   transform: translateY(8px);
   pointer-events: none;
-  transition: opacity 0.3s, transform 0.3s;
+  transition: 0.3s;
 }
 
 .cc-bubble.cc-visible {
@@ -561,6 +554,22 @@
   white-space: nowrap;
 }
 
+.cc-pill {
+  position: absolute;
+  bottom: 100px;
+  inset-inline: 0;
+  margin-inline: auto;
+  width: fit-content;
+  padding: 6px 14px;
+  font: 13px inherit;
+  color: var(--cc-text);
+  background: var(--cc-surface-raised);
+  border: 1px solid var(--cc-border);
+  border-radius: 99px;
+  box-shadow: var(--cc-shadow);
+  cursor: pointer;
+}
+
 /* Messages wrapper (only present when pre-chat form is enabled) */
 .cc-messages-wrapper {
   flex: 1;
@@ -617,6 +626,7 @@
 .cc-message-copy:focus-visible,
 .cc-bubble-trigger:focus-visible,
 .cc-bubble-close:focus-visible,
+.cc-pill:focus-visible,
 .cc-input:focus-visible {
   outline: 2px solid transparent;
   box-shadow: var(--cc-focus-ring);
