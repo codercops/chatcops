@@ -63,11 +63,11 @@ export class Messages {
   private typingEl: HTMLDivElement | null = null;
   private suggestionsEl: HTMLDivElement | null = null;
   private disclosureEl: HTMLElement | null = null;
-  private actions?: MessageActions;
+  private actions: MessageActions;
   private announcementVersion = 0;
   private pill: HTMLButtonElement;
 
-  constructor(parent: HTMLElement, actions?: MessageActions, options: { streamIntervalMs?: number } = {}) {
+  constructor(parent: HTMLElement, actions: MessageActions = {}, options: { streamIntervalMs?: number } = {}) {
     this.actions = actions;
     this.streamIntervalMs = options.streamIntervalMs ?? STREAM_INTERVAL_MS;
     const container = document.createElement('div');
@@ -86,7 +86,7 @@ export class Messages {
     const pill = document.createElement('button');
     pill.type = 'button';
     pill.className = 'cc-pill cc-hidden';
-    pill.textContent = this.actions?.newReply ?? 'New reply';
+    pill.textContent = this.actions.newReply ?? 'New reply';
     pill.onclick = () => {
       const r = pill.getRootNode() as Document;
       if (r.activeElement === pill) r.querySelector<HTMLElement>('.cc-input')?.focus();
@@ -208,7 +208,7 @@ export class Messages {
     const dot = '<div class="cc-typing-dot" aria-hidden="true"></div>';
     this.typingEl = this.container.appendChild(document.createElement('div'));
     this.typingEl.className = 'cc-typing';
-    this.typingEl.innerHTML = `<span class="cc-sr-only">${this.escapeHtml(this.actions?.typingLabel ?? 'Typing...')}</span>${dot}${dot}${dot}`;
+    this.typingEl.innerHTML = `<span class="cc-sr-only">${this.escapeHtml(this.actions.typingLabel ?? 'Typing...')}</span>${dot}${dot}${dot}`;
     this.scrollToBottom();
   }
 
@@ -288,13 +288,13 @@ export class Messages {
   showRegenerateButton(messageId: string): void {
     this.clearRegenerateButtons();
     const msgEl = this.findMessage(messageId);
-    if (this.actions?.onRegenerate && msgEl?.classList.contains('cc-message-assistant')) {
+    if (this.actions.onRegenerate && msgEl?.classList.contains('cc-message-assistant')) {
       this.createActionButton(
         this.ensureActionsContainer(msgEl),
         'cc-message-regenerate',
         this.actions.regenerateLabel ?? 'Regenerate',
         REGENERATE_ICON,
-        () => this.actions?.onRegenerate?.(messageId),
+        () => this.actions.onRegenerate?.(messageId),
       );
     }
   }
@@ -348,7 +348,7 @@ export class Messages {
       if (safe.length) {
         const nav = el.appendChild(document.createElement('nav'));
         nav.className = 'cc-message-sources';
-        nav.setAttribute('aria-label', this.actions?.sourcesLabel ?? 'Sources');
+        nav.setAttribute('aria-label', this.actions.sourcesLabel ?? 'Sources');
         const ol = nav.appendChild(document.createElement('ol'));
         for (const { url, title } of safe) {
           const a = ol.appendChild(document.createElement('li')).appendChild(document.createElement('a'));
@@ -376,7 +376,7 @@ export class Messages {
 
   private createActionsContainer(msg: MessageData): HTMLDivElement | null {
     const canCopy = msg.role === 'assistant' && msg.id !== 'welcome' && msg.status !== 'streaming' && msg.status !== 'error' && msg.content.trim();
-    const canRetry = msg.status === 'error' && this.actions?.onRetry;
+    const canRetry = msg.status === 'error' && this.actions.onRetry;
     if (!canCopy && !canRetry) return null;
 
     const actions = document.createElement('div');
@@ -385,7 +385,7 @@ export class Messages {
       this.createActionButton(
         actions,
         'cc-message-copy',
-        this.actions?.copyLabel ?? 'Copy reply',
+        this.actions.copyLabel ?? 'Copy reply',
         COPY_ICON,
         () => this.copyReply(msg.id),
       );
@@ -394,9 +394,9 @@ export class Messages {
       this.createActionButton(
         actions,
         'cc-message-retry',
-        this.actions?.retryLabel ?? 'Retry',
+        this.actions.retryLabel ?? 'Retry',
         RETRY_ICON,
-        () => this.actions?.onRetry?.(msg.id),
+        () => this.actions.onRetry?.(msg.id),
       );
     }
     return actions;
@@ -406,13 +406,13 @@ export class Messages {
     const text = this.findMessage(messageId)?.querySelector<HTMLElement>('.cc-message-content')?.innerText.trim();
     const v = this.announcementVersion;
     const fail = () => {
-      if (v === this.announcementVersion) this.announcement.textContent = this.actions?.copyFailureLabel ?? 'Could not copy reply.';
+      if (v === this.announcementVersion) this.announcement.textContent = this.actions.copyFailureLabel ?? 'Could not copy reply.';
     };
     !text || !navigator.clipboard?.writeText
       ? fail()
       : navigator.clipboard.writeText(text)
           .then(() => {
-            if (v === this.announcementVersion) this.announcement.textContent = this.actions?.copySuccessLabel ?? 'Reply copied.';
+            if (v === this.announcementVersion) this.announcement.textContent = this.actions.copySuccessLabel ?? 'Reply copied.';
           })
           .catch(fail);
   }
