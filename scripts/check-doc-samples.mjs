@@ -125,6 +125,11 @@ try {
     'declare module "next/server" { export const NextResponse: any; export type NextRequest = any; }',
     'declare module "hono" { export class Hono { on(methods: string | string[], path: string, handler: (context: { req: { raw: Request } }) => unknown): void; } }',
     'declare module "node-cron" { export function schedule(expression: string, callback: () => void): unknown; }',
+    'declare module "astro" { export type APIRoute = (context: { request: Request; clientAddress: string; params: Record<string, string | undefined> }) => Response | Promise<Response>; }',
+    'declare module "h3" { export interface H3Event { node: { req: { socket: { remoteAddress?: string } } } } export function defineEventHandler(handler: (event: H3Event) => Response | Promise<Response>): unknown; export function toWebRequest(event: H3Event): Request; export function getRequestIP(event: H3Event, options?: { xForwardedFor?: boolean }): string | undefined; }',
+    'declare module "@sveltejs/kit" { export interface RequestEvent { request: Request; getClientAddress(): string; params: Record<string, string> } export type RequestHandler = (event: RequestEvent) => Response | Promise<Response>; }',
+    'declare module "$env/dynamic/private" { export const env: Record<string, string | undefined>; }',
+    'interface ImportMeta { env: Record<string, string>; }',
     '',
   ].join('\n'), 'utf8');
 

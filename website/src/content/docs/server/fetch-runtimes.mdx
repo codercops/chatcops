@@ -1,9 +1,9 @@
 ---
-title: Next.js, Hono, Bun and Deno
-description: Run ChatCops in any runtime built on the Fetch API.
+title: Next.js, Hono, Bun, Deno, Astro, Nuxt and SvelteKit
+description: Run ChatCops in any runtime built on the Fetch API — Next.js, Hono, Bun, Deno, Astro, Nuxt and SvelteKit.
 ---
 
-`chatcopsVercelHandler` is a plain `(request: Request) => Promise<Response>` function. It isn't tied to Vercel, so it works in any runtime that speaks the Fetch API: Next.js route handlers, Hono, Bun and Deno.
+`chatcopsVercelHandler` is a plain `(request: Request) => Promise<Response>` function. It isn't tied to Vercel, so it works in any runtime that speaks the Fetch API: Next.js route handlers, Hono, Bun, Deno, Astro, Nuxt and SvelteKit.
 
 Two things apply to every example on this page:
 
@@ -129,6 +129,119 @@ Deno.serve({ port: 8000 }, (req, info) => {
 
 Run it with `deno run --allow-net --allow-env --allow-read --allow-sys server.ts`. Pin the version in the `npm:` specifier as above. Deno also skips npm versions published in the last 24 hours by default, so right after a ChatCops release it may resolve the previous version for a day.
 
+## Astro
+
+Create `src/pages/api/chat/[...path].ts`. The optional catch-all matches both
+`/api/chat` (the chat endpoint) and `/api/chat/session` (the session endpoint
+the widget calls first to get a token).
+
+Astro needs an adapter to render endpoints on demand: `npx astro add node`, or the adapter for your host.
+
+```typescript
+import { chatcopsVercelHandler } from '@chatcops/server';
+import type { APIRoute } from 'astro';
+
+const chat = chatcopsVercelHandler({
+  provider: {
+    type: 'claude',
+    apiKey: import.meta.env.ANTHROPIC_API_KEY,
+  },
+  systemPrompt: 'You are a helpful assistant.',
+  allowedOrigins: ['*'],
+  sessionSecrets: [import.meta.env.CHATCOPS_SESSION_SECRET],
+  clientIp: (req) => req.headers.get('x-client-ip'),
+});
+
+export const prerender = false;
+
+export const POST: APIRoute = (context) => {
+  const headers = new Headers(context.request.headers);
+  headers.set('x-client-ip', context.clientAddress);
+  return chat(new Request(context.request, { headers }));
+};
+
+export const OPTIONS: APIRoute = (context) => {
+  const headers = new Headers(context.request.headers);
+  headers.set('x-client-ip', context.clientAddress);
+  return chat(new Request(context.request, { headers }));
+};
+```
+
+`context.clientAddress` is the visitor's IP. Copying it into `x-client-ip`
+before the call keeps parity with the Bun and Deno patterns: `set()` overwrites
+any header the visitor might have sent themselves, so they can't pick their own
+rate-limit key. See [The visitor's IP](#the-visitors-ip) for other approaches.
+
+## Nuxt
+
+Create `server/api/chat/[...path].ts`. Nuxt's file-based router matches both
+`/api/chat` and `/api/chat/session` from one file.
+
+```typescript
+import { chatcopsVercelHandler } from '@chatcops/server';
+import { defineEventHandler, getRequestIP, toWebRequest } from 'h3';
+
+const chat = chatcopsVercelHandler({
+  provider: {
+    type: 'claude',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  },
+  systemPrompt: 'You are a helpful assistant.',
+  allowedOrigins: ['*'],
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+  clientIp: (req) => req.headers.get('x-client-ip'),
+});
+
+export default defineEventHandler((event) => {
+  const request = toWebRequest(event);
+  const ip = getRequestIP(event) ?? '';
+  const headers = new Headers(request.headers);
+  headers.set('x-client-ip', ip);
+  return chat(new Request(request, { headers }));
+});
+```
+
+`toWebRequest` converts a Nitro `H3Event` into a standard `Request`. The
+handler returns a standard `Response`, which Nitro streams back to the client.
+For the visitor's IP, see [The visitor's IP](#the-visitors-ip).
+
+## SvelteKit
+
+Create `src/routes/api/chat/[...path]/+server.ts`. The rest-parameter segment
+`[...path]` matches both `/api/chat` and `/api/chat/session`.
+
+```typescript
+import { env } from '$env/dynamic/private';
+import { chatcopsVercelHandler } from '@chatcops/server';
+import type { RequestHandler } from '@sveltejs/kit';
+
+const chat = chatcopsVercelHandler({
+  provider: {
+    type: 'claude',
+    apiKey: env.ANTHROPIC_API_KEY!,
+  },
+  systemPrompt: 'You are a helpful assistant.',
+  allowedOrigins: ['*'],
+  sessionSecrets: [env.CHATCOPS_SESSION_SECRET!],
+  clientIp: (req) => req.headers.get('x-client-ip'),
+});
+
+export const POST: RequestHandler = ({ request, getClientAddress }) => {
+  const headers = new Headers(request.headers);
+  headers.set('x-client-ip', getClientAddress());
+  return chat(new Request(request, { headers }));
+};
+
+export const OPTIONS: RequestHandler = ({ request, getClientAddress }) => {
+  const headers = new Headers(request.headers);
+  headers.set('x-client-ip', getClientAddress());
+  return chat(new Request(request, { headers }));
+};
+```
+
+`event.getClientAddress()` returns the visitor's IP. For other ways to get it,
+see [The visitor's IP](#the-visitors-ip).
+
 ## Node's http module, Fastify, Koa
 
 A server that gives you Node's `req` and `res` instead of a `Request` can still use the same handler: turn the request into a `Request`, and stream the `Response` back. This works for `node:http` as below, and for Fastify (`request.raw`, `reply.raw`) or Koa (`ctx.req`, `ctx.res`) the same way.
@@ -190,6 +303,9 @@ Rate limits and the per-IP budget key on the visitor's IP. The handler only read
 | Vercel | Vercel's own headers (`x-vercel-forwarded-for`, `x-real-ip`, `x-forwarded-for`), which Vercel overwrites. Nothing to set. |
 | Cloudflare Workers (`chatcopsCloudflareHandler`) | `CF-Connecting-IP`. Nothing to set. |
 | Express | `req.ip`, which follows Express's `trust proxy` setting. Behind one proxy, call `app.set('trust proxy', 1)`. |
+| Astro | `context.clientAddress`, copied into `x-client-ip` by the route handler before calling the ChatCops handler. |
+| Nuxt / Nitro | `getRequestIP(event)`, copied into `x-client-ip`. Behind a proxy, read that proxy's header with `clientIp`, as in the "Anywhere else" example. |
+| SvelteKit | `event.getClientAddress()`, copied into `x-client-ip` by the route handler. |
 | Anywhere else | Your `clientIp` function. |
 
 Anywhere else, set `clientIp` to read the header your host or proxy sets:
@@ -206,7 +322,7 @@ const handler = chatcopsVercelHandler({
 });
 ```
 
-Bun and Deno have no proxy in front, so the examples above copy the socket address into a header and read that. With Hono, do the same in the route with Hono's `getConnInfo`, or read your proxy's header.
+Bun and Deno have no proxy in front, so the examples above copy the socket address into a header and read that. Astro and SvelteKit expose the IP on the route context (`context.clientAddress` and `event.getClientAddress()`), and the examples above copy it into `x-client-ip` the same way. With Hono, do the same in the route with Hono's `getConnInfo`, or read your proxy's header.
 
 Without a way to tell the IP, per-IP limits are skipped and the server logs one warning saying so. Visitors never share one limit: that used to happen with an `"unknown"` key, where one busy visitor could use up the limit for everyone.
 
