@@ -71,11 +71,12 @@ export class Messages {
   constructor(parent: HTMLElement, actions?: MessageActions, options: { streamIntervalMs?: number } = {}) {
     this.actions = actions;
     this.streamIntervalMs = options.streamIntervalMs ?? STREAM_INTERVAL_MS;
-    this.container = document.createElement('div');
-    this.container.className = 'cc-messages';
-    this.container.setAttribute('role', 'log');
-    this.container.setAttribute('aria-live', 'polite');
-    parent.appendChild(this.container);
+    const container = document.createElement('div');
+    this.container = container;
+    container.className = 'cc-messages';
+    container.setAttribute('role', 'log');
+    container.setAttribute('aria-live', 'polite');
+    parent.appendChild(container);
 
     this.announcement = document.createElement('div');
     this.announcement.className = 'cc-reply-announcement cc-sr-only';
@@ -87,15 +88,8 @@ export class Messages {
     pill.type = 'button';
     pill.className = 'cc-pill cc-hidden';
     pill.textContent = this.actions?.newReply ?? 'New reply ↓';
-    pill.onclick = () => {
-      if (matchMedia?.('(prefers-reduced-motion: reduce)')?.matches || !this.container.scrollTo) {
-        this.scrollToBottom();
-      } else {
-        this.pill.classList.add('cc-hidden');
-        this.container.scrollTo({ top: this.container.scrollHeight, behavior: 'smooth' });
-      }
-    };
-    this.container.onscroll = () => {
+    pill.onclick = () => this.scrollToBottom(true);
+    container.onscroll = () => {
       if (this.nearBottom()) pill.classList.add('cc-hidden');
     };
     parent.appendChild(pill);
@@ -124,22 +118,17 @@ export class Messages {
     const el = this.findMessage(id);
     el?.querySelector('.cc-message-waiting')?.remove();
     if (!el || !note) return;
-    const waiting = document.createElement('div');
+    const waiting = el.appendChild(document.createElement('div'));
     waiting.className = 'cc-message-waiting';
     waiting.textContent = note;
-    el.appendChild(waiting);
     this.announcement.textContent = note;
   }
 
   addMessage(msg: MessageData): HTMLDivElement {
-    // The visitor's own message always brings the log down; a reply only
-    // when they haven't scrolled up to read.
-    const follow = msg.role === 'user' || this.nearBottom();
     this.removeTyping();
     if (msg.role === 'user') this.removeSuggestions();
-    const el = this.createMessageElement(msg);
-    this.container.appendChild(el);
-    follow ? this.scrollToBottom() : this.showPill();
+    const el = this.container.appendChild(this.createMessageElement(msg));
+    this.showPill(msg.role === 'user' || this.nearBottom());
     return el;
   }
 
@@ -147,13 +136,12 @@ export class Messages {
     const el = this.findMessage(msg.id);
     if (!el) return;
     if (msg.role === 'assistant' && msg.status === 'streaming' && el.dataset.status === 'streaming') {
-      this.stream(el, msg);
-      return;
+      return this.stream(el, msg);
     }
     this.endStream(msg.id);
     const follow = this.nearBottom();
     this.renderMessageElement(el, msg);
-    follow ? this.scrollToBottom() : this.showPill();
+    this.showPill(follow);
   }
 
   /** Takes the reply's text so far, and renders what changed on the next frame. */
@@ -168,9 +156,7 @@ export class Messages {
       content.replaceChildren(tail);
       stream = { text: msg.content, committed: 0, tail, renderedAt: 0 };
       this.streams.set(msg.id, stream);
-      // The first text shows at once; what follows is batched per frame.
-      this.renderStream(stream);
-      return;
+      return this.renderStream(stream);
     }
     stream.text = msg.content;
     if (stream.frame === undefined) this.schedule(stream);
@@ -197,7 +183,7 @@ export class Messages {
       stream.committed = boundary;
     }
     stream.tail.innerHTML = renderMarkdown(stream.text.slice(stream.committed));
-    follow ? this.scrollToBottom() : this.showPill();
+    this.showPill(follow);
   }
 
   private endStream(id: string): void {
@@ -214,10 +200,9 @@ export class Messages {
   showTyping(): void {
     if (this.typingEl) return;
     const dot = '<div class="cc-typing-dot" aria-hidden="true"></div>';
-    this.typingEl = document.createElement('div');
+    this.typingEl = this.container.appendChild(document.createElement('div'));
     this.typingEl.className = 'cc-typing';
     this.typingEl.innerHTML = `<span class="cc-sr-only">${this.escapeHtml(this.actions?.typingLabel ?? 'Typing...')}</span>${dot}${dot}${dot}`;
-    this.container.appendChild(this.typingEl);
     this.scrollToBottom();
   }
 
@@ -228,21 +213,20 @@ export class Messages {
 
   showSuggestions(suggestions: string[], label: string, onSelect: (suggestion: string) => void): void {
     this.removeSuggestions();
-    if (suggestions.length === 0) return;
+    if (!suggestions.length) return;
 
-    const group = document.createElement('div');
+    const group = this.container.appendChild(document.createElement('div'));
     group.className = 'cc-suggestions';
     group.setAttribute('role', 'group');
     group.setAttribute('aria-label', label);
-    for (const suggestion of suggestions) {
+    for (const text of suggestions) {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'cc-suggestion';
-      button.textContent = suggestion;
-      button.onclick = () => onSelect(suggestion);
+      button.textContent = text;
+      button.onclick = () => onSelect(text);
       group.appendChild(button);
     }
-    this.container.appendChild(group);
     this.suggestionsEl = group;
   }
 
@@ -274,12 +258,12 @@ export class Messages {
     note.setAttribute('role', 'note');
     note.textContent = text;
     if (learnMore && /^https?:\/\//i.test(learnMore.url)) {
-      const link = document.createElement('a');
-      link.href = learnMore.url;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      link.textContent = learnMore.label;
-      note.append(' ', link);
+      const a = document.createElement('a');
+      a.href = learnMore.url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = learnMore.label;
+      note.append(' ', a);
     }
     this.disclosureEl = note;
     this.container.prepend(note);
@@ -291,9 +275,7 @@ export class Messages {
   }
 
   clearRegenerateButtons(): void {
-    this.container.querySelectorAll('.cc-message-regenerate').forEach((button) => {
-      button.remove();
-    });
+    for (const b of this.container.querySelectorAll('.cc-message-regenerate')) b.remove();
     this.cleanupEmptyActionContainers();
   }
 
@@ -301,12 +283,13 @@ export class Messages {
     this.clearRegenerateButtons();
     const msgEl = this.findMessage(messageId);
     if (this.actions?.onRegenerate && msgEl?.classList.contains('cc-message-assistant')) {
-      this.ensureActionsContainer(msgEl).appendChild(this.createActionButton(
+      this.createActionButton(
+        this.ensureActionsContainer(msgEl),
         'cc-message-regenerate',
         this.actions.regenerateLabel ?? 'Regenerate',
         REGENERATE_ICON,
         () => this.actions?.onRegenerate?.(messageId),
-      ));
+      );
     }
   }
 
@@ -315,8 +298,8 @@ export class Messages {
     if (!visible) this.pill.classList.add('cc-hidden');
   }
 
-  private showPill(): void {
-    this.pill.classList.remove('cc-hidden');
+  private showPill(follow = false): void {
+    follow ? this.scrollToBottom() : this.pill.classList.remove('cc-hidden');
   }
 
   private findMessage(id: string): HTMLDivElement | null {
@@ -326,8 +309,12 @@ export class Messages {
     return null;
   }
 
-  private scrollToBottom(): void {
-    this.container.scrollTop = this.container.scrollHeight;
+  private scrollToBottom(smooth = false): void {
+    if (smooth && !matchMedia?.('(prefers-reduced-motion: reduce)')?.matches && this.container.scrollTo) {
+      this.container.scrollTo({ top: this.container.scrollHeight, behavior: 'smooth' });
+    } else {
+      this.container.scrollTop = this.container.scrollHeight;
+    }
     this.pill.classList.add('cc-hidden');
   }
 
@@ -350,48 +337,39 @@ export class Messages {
 
     el.innerHTML = '';
 
-    const content = document.createElement('div');
+    const content = el.appendChild(document.createElement('div'));
     content.className = 'cc-message-content';
     content.innerHTML = msg.role === 'assistant' ? renderMarkdown(msg.content) : this.escapeHtml(msg.content);
-    el.appendChild(content);
 
     if (msg.role === 'assistant' && msg.sources?.length) {
-      const safeUrls = msg.sources.filter((s) => typeof s.url === 'string' && /^https?:\/\//i.test(s.url));
-      if (safeUrls.length) {
-        const nav = document.createElement('nav');
+      const safe = msg.sources.filter((s) => typeof s.url === 'string' && /^https?:\/\//i.test(s.url));
+      if (safe.length) {
+        const nav = el.appendChild(document.createElement('nav'));
         nav.className = 'cc-message-sources';
         nav.setAttribute('aria-label', this.actions?.sourcesLabel ?? 'Sources');
-        const ol = document.createElement('ol');
-        for (const source of safeUrls) {
-          const a = document.createElement('a');
-          a.href = source.url;
+        const ol = nav.appendChild(document.createElement('ol'));
+        for (const { url, title } of safe) {
+          const a = ol.appendChild(document.createElement('li')).appendChild(document.createElement('a'));
+          a.href = url;
           a.target = '_blank';
           a.rel = 'noopener noreferrer';
           try {
-            a.textContent = source.title ?? new URL(source.url).hostname;
+            a.textContent = title ?? new URL(url).hostname;
           } catch {
-            a.textContent = source.title ?? source.url;
+            a.textContent = title ?? url;
           }
-          const li = document.createElement('li');
-          li.appendChild(a);
-          ol.appendChild(li);
         }
-        nav.appendChild(ol);
-        el.appendChild(nav);
       }
     }
 
     if (msg.status === 'error' && msg.errorText) {
-      const note = document.createElement('div');
+      const note = el.appendChild(document.createElement('div'));
       note.className = 'cc-message-error-note';
       note.textContent = msg.errorText;
-      el.appendChild(note);
     }
 
     const actions = this.createActionsContainer(msg);
-    if (actions) {
-      el.appendChild(actions);
-    }
+    if (actions) el.appendChild(actions);
   }
 
   private createActionsContainer(msg: MessageData): HTMLDivElement | null {
@@ -402,65 +380,60 @@ export class Messages {
     const actions = document.createElement('div');
     actions.className = 'cc-message-actions';
     if (canCopy) {
-      actions.appendChild(this.createActionButton(
+      this.createActionButton(
+        actions,
         'cc-message-copy',
         this.actions?.copyLabel ?? 'Copy reply',
         COPY_ICON,
         () => this.copyReply(msg.id),
-      ));
+      );
     }
     if (canRetry) {
-      actions.appendChild(this.createActionButton(
+      this.createActionButton(
+        actions,
         'cc-message-retry',
         this.actions?.retryLabel ?? 'Retry',
         RETRY_ICON,
         () => this.actions?.onRetry?.(msg.id),
-      ));
+      );
     }
     return actions;
   }
 
-  /** Start the clipboard write in the click handler so it keeps user activation. */
   private copyReply(messageId: string): void {
     const text = this.findMessage(messageId)?.querySelector<HTMLElement>('.cc-message-content')?.innerText.trim();
     const version = this.announcementVersion;
-    const announce = (message: string) => {
-      if (version === this.announcementVersion) this.announcement.textContent = message;
+    const announce = (m: string) => {
+      if (version === this.announcementVersion) this.announcement.textContent = m;
     };
     const fail = this.actions?.copyFailureLabel ?? 'Could not copy reply.';
-
-    if (!text || !navigator.clipboard?.writeText) {
-      announce(fail);
-      return;
-    }
-    navigator.clipboard.writeText(text)
-      .then(() => announce(this.actions?.copySuccessLabel ?? 'Reply copied.'))
-      .catch(() => announce(fail));
+    !text || !navigator.clipboard?.writeText
+      ? announce(fail)
+      : navigator.clipboard.writeText(text)
+          .then(() => announce(this.actions?.copySuccessLabel ?? 'Reply copied.'))
+          .catch(() => announce(fail));
   }
 
   private ensureActionsContainer(msgEl: HTMLDivElement): HTMLDivElement {
-    let actions = msgEl.querySelector<HTMLDivElement>('.cc-message-actions');
-    if (!actions) {
-      actions = document.createElement('div');
-      actions.className = 'cc-message-actions';
-      msgEl.appendChild(actions);
+    let el = msgEl.querySelector<HTMLDivElement>('.cc-message-actions');
+    if (!el) {
+      el = msgEl.appendChild(document.createElement('div'));
+      el.className = 'cc-message-actions';
     }
-    return actions;
+    return el;
   }
 
   private cleanupEmptyActionContainers(): void {
-    this.container.querySelectorAll('.cc-message-actions:empty').forEach((el) => {
-      el.remove();
-    });
+    for (const el of this.container.querySelectorAll('.cc-message-actions:empty')) el.remove();
   }
 
-  private createActionButton(className: string, label: string, icon: string, onClick: () => void): HTMLButtonElement {
+  private createActionButton(parent: HTMLElement, className: string, label: string, icon: string, onClick: () => void): void {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = className;
     button.innerHTML = `${icon}<span>${this.escapeHtml(label)}</span>`;
     button.onclick = onClick;
-    return button;
+    parent.appendChild(button);
   }
 
   private escapeHtml(text: string): string {
