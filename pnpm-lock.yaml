@@ -54,8 +54,8 @@ importers:
         specifier: ^2.6.0
         version: 2.9.1
       zod:
-        specifier: ^3.24.0
-        version: 3.25.76
+        specifier: ^4.6.6
+        version: 4.6.7
     devDependencies:
       '@chatcops/core':
         specifier: workspace:^
@@ -74,16 +74,16 @@ importers:
     dependencies:
       '@anthropic-ai/sdk':
         specifier: ^1.2.0
-        version: 1.2.0(zod@3.25.76)
+        version: 1.2.0(zod@4.6.7)
       '@google/genai':
         specifier: ^2.30.0
         version: 2.30.0
       openai:
         specifier: ^7.39.0
-        version: 7.39.0(undici@8.11.2)(ws@8.22.2)(zod@3.25.76)
+        version: 7.39.0(undici@8.11.2)(ws@8.22.2)(zod@4.6.7)
       zod:
-        specifier: ^3.24.0
-        version: 3.25.76
+        specifier: ^4.6.6
+        version: 4.6.7
     devDependencies:
       typescript:
         specifier: ^5.7.0
@@ -165,15 +165,15 @@ importers:
         specifier: ^4.0.0 || ^5.0.0
         version: 5.2.1
       zod:
-        specifier: ^3.24.0
-        version: 3.25.76
+        specifier: ^4.6.6
+        version: 4.6.7
     devDependencies:
       '@types/express':
         specifier: ^5.0.0
         version: 5.0.6
       ai:
         specifier: 7.0.122
-        version: 7.0.122(zod@3.25.76)
+        version: 7.0.122(zod@4.6.7)
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
@@ -4931,11 +4931,8 @@ packages:
   youch@4.1.0-beta.10:
     resolution: {integrity: sha512-rLfVLB4FgQneDr0dv1oddCVZmKjcJ6yX6mS4pU82Mq/Dt9a3cLZQ62pDBL4AUO+uVrCvtWz3ZFUL2HFAFJ/BXQ==}
 
-  zod@3.25.76:
-    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
-
-  zod@4.6.5:
-    resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
+  zod@4.6.7:
+    resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
 
   zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
@@ -4944,33 +4941,33 @@ snapshots:
 
   '@acemir/cssom@0.9.32': {}
 
-  '@ai-sdk/gateway@4.0.100(zod@3.25.76)':
+  '@ai-sdk/gateway@4.0.100(zod@4.6.7)':
     dependencies:
       '@ai-sdk/provider': 4.0.19
-      '@ai-sdk/provider-utils': 5.0.51(zod@3.25.76)
+      '@ai-sdk/provider-utils': 5.0.51(zod@4.6.7)
       '@vercel/oidc': 3.2.0
-      zod: 3.25.76
+      zod: 4.6.7
 
-  '@ai-sdk/provider-utils@5.0.51(zod@3.25.76)':
+  '@ai-sdk/provider-utils@5.0.51(zod@4.6.7)':
     dependencies:
       '@ai-sdk/provider': 4.0.19
       '@standard-schema/spec': 1.1.0
       '@workflow/serde': 4.1.0
       eventsource-parser: 3.1.1
       undici: 7.29.1
-      zod: 3.25.76
+      zod: 4.6.7
 
   '@ai-sdk/provider@4.0.19':
     dependencies:
       json-schema: 0.4.0
 
-  '@anthropic-ai/sdk@1.2.0(zod@3.25.76)':
+  '@anthropic-ai/sdk@1.2.0(zod@4.6.7)':
     dependencies:
       '@opentelemetry/api': 1.9.1
       json-schema-to-ts: 3.1.1
       standardwebhooks: 1.1.1
     optionalDependencies:
-      zod: 3.25.76
+      zod: 4.6.7
 
   '@astrojs/cloudflare@14.3.3(@types/node@26.6.6)(astro@7.3.5(@astrojs/markdown-remark@7.3.1)(@types/node@26.6.6)(@upstash/redis@1.39.0)(@vercel/functions@2.2.13)(ioredis@5.11.1)(jiti@2.7.0)(terser@5.46.0)(yaml@2.9.1))(esbuild@0.28.1)(jiti@2.7.0)(terser@5.46.0)(wrangler@4.146.0(@types/node@26.6.6))(yaml@2.9.1)':
     dependencies:
@@ -5137,7 +5134,7 @@ snapshots:
   '@astrojs/sitemap@3.7.4':
     dependencies:
       sitemap: 9.0.1
-      zod: 4.6.5
+      zod: 4.6.7
 
   '@astrojs/starlight@0.42.5(@astrojs/markdown-remark@7.3.1)(astro@7.3.5(@astrojs/markdown-remark@7.3.1)(@types/node@26.6.6)(@upstash/redis@1.39.0)(@vercel/functions@2.2.13)(ioredis@5.11.1)(jiti@2.7.0)(terser@5.46.0)(yaml@2.9.1))(typescript@5.9.3)':
     dependencies:
@@ -6751,12 +6748,12 @@ snapshots:
 
   agent-base@7.1.4: {}
 
-  ai@7.0.122(zod@3.25.76):
+  ai@7.0.122(zod@4.6.7):
     dependencies:
-      '@ai-sdk/gateway': 4.0.100(zod@3.25.76)
+      '@ai-sdk/gateway': 4.0.100(zod@4.6.7)
       '@ai-sdk/provider': 4.0.19
-      '@ai-sdk/provider-utils': 5.0.51(zod@3.25.76)
-      zod: 3.25.76
+      '@ai-sdk/provider-utils': 5.0.51(zod@4.6.7)
+      zod: 4.6.7
 
   am-i-vibing@0.4.0:
     dependencies:
@@ -6863,7 +6860,7 @@ snapshots:
       vitefu: 1.1.2(vite@8.3.7(@types/node@26.6.6)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.46.0)(yaml@2.9.1))
       xxhash-wasm: 1.1.0
       yargs-parser: 22.0.0
-      zod: 4.6.5
+      zod: 4.6.7
     optionalDependencies:
       '@astrojs/markdown-remark': 7.3.1
       sharp: 0.35.5(@types/node@26.6.6)
@@ -8807,11 +8804,11 @@ snapshots:
       regex: 6.1.0
       regex-recursion: 6.0.2
 
-  openai@7.39.0(undici@8.11.2)(ws@8.22.2)(zod@3.25.76):
+  openai@7.39.0(undici@8.11.2)(ws@8.22.2)(zod@4.6.7):
     optionalDependencies:
       undici: 8.11.2
       ws: 8.22.2
-      zod: 3.25.76
+      zod: 4.6.7
 
   outdent@0.5.0: {}
 
@@ -10069,8 +10066,6 @@ snapshots:
       cookie: 1.1.1
       youch-core: 0.3.3
 
-  zod@3.25.76: {}
-
-  zod@4.6.5: {}
+  zod@4.6.7: {}
 
   zwitch@2.0.4: {}
