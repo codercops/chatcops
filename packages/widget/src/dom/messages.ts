@@ -136,7 +136,8 @@ export class Messages {
     const el = this.findMessage(msg.id);
     if (!el) return;
     if (msg.role === 'assistant' && msg.status === 'streaming' && el.dataset.status === 'streaming') {
-      return this.stream(el, msg);
+      this.stream(el, msg);
+      return;
     }
     this.endStream(msg.id);
     const follow = this.nearBottom();
@@ -156,7 +157,8 @@ export class Messages {
       content.replaceChildren(tail);
       stream = { text: msg.content, committed: 0, tail, renderedAt: 0 };
       this.streams.set(msg.id, stream);
-      return this.renderStream(stream);
+      this.renderStream(stream);
+      return;
     }
     stream.text = msg.content;
     if (stream.frame === undefined) this.schedule(stream);
