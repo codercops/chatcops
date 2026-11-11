@@ -63,6 +63,9 @@ export async function runTests(
     names.add(name);
     if (separator !== -1 && values.output !== undefined) throw new ConfigError('Use --output or --reporter name=file, not both.');
     const destination = separator === -1 ? values.output : selection.slice(separator + 1);
+    if (name === 'github' && destination !== undefined) {
+      throw new ConfigError('The github reporter requires stdout for GitHub Actions annotations. Omit its file destination.');
+    }
     if (destination !== undefined && !destination.trim()) throw new ConfigError('The reporter output path must not be empty.');
     const file = destination === undefined ? undefined : resolve(io.cwd, destination);
     if (file !== undefined) {
@@ -146,7 +149,17 @@ export async function runTests(
     ...(judge ? { judge: judge.id } : {}),
     ...(priced.length ? { costUsd: priced.reduce((a, b) => a + b, 0) } : {}),
   };
-  for (const { reporter } of reporters) await reporter.onEnd?.(results, summary);
+  let reporterFailed = false;
+  for (const { reporter, file } of reporters) {
+    try {
+      await reporter.onEnd?.(results, summary);
+    } catch (error) {
+      if (file !== undefined || !(error instanceof ConfigError)) throw error;
+      // A summary write error must not prevent other reports or cassette saves.
+      io.stderr.write(`${error.message}\n`);
+      reporterFailed = true;
+    }
+  }
   if (cassettes?.mode === 'record') {
     const written = await cassettes.save(
       fixtures.map((job) => ({ path: job.path ?? job.file, ran: job.tests.map((t) => t.name), all: job.fixture.tests.map((t) => t.name) }))
@@ -164,6 +177,7 @@ export async function runTests(
       }
     }
   }
+  if (reporterFailed) return EXIT.unusable;
   return results.some((result) => !result.pass) ? EXIT.problems : EXIT.ok;
 }
 
