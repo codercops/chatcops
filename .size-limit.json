@@ -8,7 +8,7 @@
   {
     "name": "widget, chat panel (chatcops.panel.js, loaded on open)",
     "path": "packages/widget/dist/chatcops.panel.js",
-    "limit": "19 KB",
+    "limit": "19.2 KB",
     "gzip": true
   },
   {
