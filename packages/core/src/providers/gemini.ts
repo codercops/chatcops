@@ -178,6 +178,9 @@ export class GeminiProvider implements AIProvider {
     if (!config.apiKey?.trim()) throw new Error('gemini requires apiKey');
     this.ai = new GoogleGenAI({
       apiKey: config.apiKey,
+      // @google/genai 3 defaults to v1, which doesn't have the -latest model aliases.
+      // Stay on v1beta, where every request so far was recorded and checked.
+      apiVersion: 'v1beta',
       ...(config.baseURL || config.fetch
         ? {
             httpOptions: {

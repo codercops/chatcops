@@ -76,8 +76,8 @@ importers:
         specifier: ^1.2.0
         version: 1.2.0(zod@3.25.76)
       '@google/genai':
-        specifier: ^2.30.0
-        version: 2.30.0
+        specifier: ^3.2.0
+        version: 3.2.0
       openai:
         specifier: ^7.39.0
         version: 7.39.0(undici@8.11.2)(ws@8.22.2)(zod@3.25.76)
@@ -1177,9 +1177,9 @@ packages:
   '@fontsource/playfair-display@5.2.8':
     resolution: {integrity: sha512-fUEhib70SszNhQVsGbUMSsWJhr7Je0rdeuZdtGpDNu0GKF1xJM8QhpI/y0pckU25GcChXm9TLOmeZupkvvZo2g==}
 
-  '@google/genai@2.30.0':
-    resolution: {integrity: sha512-Gkv1ix8iZey/V3WF4lHaRS8C71P533jenDT/lA+fdPTCfXYfmCVHvo+0H5jTgzonqsmROQG7QpzLJkpoP/x7bg==}
-    engines: {node: '>=20.0.0'}
+  '@google/genai@3.2.0':
+    resolution: {integrity: sha512-AyT5kezsBpxRr8ljz7RmfhrxfjTse0aIDv7DGoNmk6lyta0A13AEOiGpw7VFcrYSmXq8HtkbWYBAeqqdALv6gw==}
+    engines: {node: '>=22.0.0'}
     peerDependencies:
       '@modelcontextprotocol/sdk': ^1.25.2
     peerDependenciesMeta:
@@ -5721,12 +5721,12 @@ snapshots:
 
   '@fontsource/playfair-display@5.2.8': {}
 
-  '@google/genai@2.30.0':
+  '@google/genai@3.2.0':
     dependencies:
       google-auth-library: 10.9.1
       p-retry: 4.6.2
       protobufjs: 7.6.6
-      ws: 8.21.0
+      ws: 8.22.2
     transitivePeerDependencies:
       - bufferutil
       - supports-color
