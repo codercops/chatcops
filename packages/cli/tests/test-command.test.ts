@@ -1,6 +1,10 @@
+import { createServer } from 'node:http';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { encodeSSE, type WirePart } from '@chatcops/core';
+import { scriptedProvider, textStep } from '@chatcops/core/testing/provider';
+import { createChatHandler, type ChatCopsServerConfig } from '@chatcops/server';
 import { EXIT, main } from '../src/index.js';
 import { check, unknownAssertions } from '../src/test/assertions/index.js';
 import { matchesFilter } from '../src/test/load.js';
@@ -90,7 +94,110 @@ tests:
           - contains: [Hello]
 `;
 
+async function httpChatServer(config: ChatCopsServerConfig): Promise<{ url: string; close: () => Promise<void> }> {
+  const chat = createChatHandler(config);
+  const server = createServer(async (request, response) => {
+    const body = await new Promise<string>((resolve, reject) => {
+      let text = '';
+      request.setEncoding('utf8');
+      request.on('data', (chunk) => { text += chunk; });
+      request.on('end', () => resolve(text));
+      request.on('error', reject);
+    });
+    const start = await chat.startChat(JSON.parse(body), '127.0.0.1', { format: 'v1' });
+    if (!start.ok) {
+      response.writeHead(start.status, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ error: start.error }));
+      return;
+    }
+    response.writeHead(200, { 'content-type': 'text/event-stream' });
+    for await (const part of start.parts as AsyncIterable<WirePart>) response.write(encodeSSE(part));
+    response.end('data: [DONE]\n\n');
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('test server did not start');
+  return {
+    url: `http://127.0.0.1:${address.port}/chat`,
+    close: async () => {
+      chat.cleanup();
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    },
+  };
+}
+
 describe('chatcops test', () => {
+  it('runs multi-turn tests over HTTP without a config and keeps the conversation id', async () => {
+    const seen: string[] = [];
+    const scripted = scriptedProvider([textStep('first'), textStep('second')]);
+    const bot = {
+      ...scripted,
+      async *step(input: Parameters<typeof scripted.step>[0]) {
+        seen.push(input.conversationId);
+        yield* scripted.step(input);
+      },
+    };
+    const http = await httpChatServer({ allowAnonymous: true, provider: bot, systemPrompt: 'test', budgets: false });
+    try {
+      const dir = project({
+        'evals/http.chat.yaml': `version: 1
+name: HTTP
+tests:
+  - name: keeps state
+    turns:
+      - user: first
+        expect: [{ contains: first }]
+      - user: second
+        expect: [{ contains: second }]
+`,
+      });
+      rmSync(join(dir, 'chatcops.config.mjs'));
+      const result = await run(['test', '--url', http.url, '--header', 'Authorization: Bearer secret', '--concurrency', '1'], dir);
+      expect(result.code).toBe(EXIT.ok);
+      expect(result.stdout).toContain('1 passed, 0 failed.');
+      expect(new Set(seen).size).toBe(1);
+    } finally {
+      await http.close();
+    }
+  });
+
+  it('records HTTP error parts and refused requests as turn failures', async () => {
+    const errorHttp = await httpChatServer({ allowAnonymous: true, provider: scriptedProvider([new Error('down')]), systemPrompt: 'test', budgets: false });
+    try {
+      const dir = project({ 'evals/http-error.chat.yaml': `version: 1\nname: HTTP Error\ntests:\n  - name: error\n    turns:\n      - user: fail\n` });
+      const result = await run(['test', '--url', errorHttp.url], dir);
+      expect(result.code).toBe(EXIT.problems);
+      expect(result.stdout).toContain('provider_error');
+    } finally {
+      await errorHttp.close();
+    }
+
+    const refusedHttp = await httpChatServer({
+      allowAnonymous: true,
+      provider: scriptedProvider([textStep('one')]),
+      systemPrompt: 'test',
+      rateLimit: { maxRequests: 1, windowMs: 60_000 },
+      budgets: false,
+    });
+    try {
+      const dir = project({
+        'evals/http-refused.chat.yaml': `version: 1
+name: HTTP Refused
+tests:
+  - name: refused
+    turns:
+      - user: one
+      - user: two
+`,
+      });
+      const result = await run(['test', '--url', refusedHttp.url], dir);
+      expect(result.code).toBe(EXIT.problems);
+      expect(result.stdout).toContain('rate_limited');
+    } finally {
+      await refusedHttp.close();
+    }
+  });
+
   it('runs every eval file and exits 0 when all pass', async () => {
     const dir = project({ 'evals/pricing.chat.yaml': PRICING });
     const { code, stdout } = await run(['test'], dir);

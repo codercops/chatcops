@@ -34,6 +34,14 @@ export default defineConfig({
 
 Tests run in process, through the same request path the server uses, so knowledge, tools, page context and locale all work as they do in production. Each test starts with fresh in-memory storage; your real conversation store is never touched.
 
+To run the evals against a deployed server instead, pass its chat URL:
+
+```bash
+npx chatcops test --url https://example.com/chat --header "Authorization: Bearer $CHAT_TOKEN" --concurrency 1
+```
+
+`--header` is repeatable for headers such as authorization. The request uses protocol v1 and keeps the same `conversationId` across turns. A server config is not needed with `--url`, but tool mocks cannot run over HTTP. Use `--concurrency 1` when the server's rate limit applies to the test client.
+
 ## Eval files
 
 By default the command runs every `evals/**/*.chat.yaml` file. Pass globs to pick others:
