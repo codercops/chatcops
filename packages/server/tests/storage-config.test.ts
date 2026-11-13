@@ -118,8 +118,23 @@ describe('rate limits on the storage counters', () => {
 
   it('still refuses a limit of zero', () => {
     expect(() => createChatHandler({ allowAnonymous: true, provider: scriptedProvider([]), systemPrompt: 'x', rateLimit: { maxRequests: 0, windowMs: 1000 } })).toThrow(
-      'maxRequests must be greater than 0'
+      'rateLimit.maxRequests must be a finite number greater than 0'
     );
+  });
+
+  it('refuses a maxRequests that is not a finite number greater than 0', () => {
+    for (const bad of [Number.NaN, Infinity, -Infinity]) {
+      expect(
+        () =>
+          createChatHandler({
+            allowAnonymous: true,
+            provider: scriptedProvider([]),
+            systemPrompt: 'x',
+            rateLimit: { maxRequests: bad, windowMs: 1000 },
+          }),
+        `expected maxRequests: ${bad} to throw`
+      ).toThrow('rateLimit.maxRequests must be a finite number greater than 0');
+    }
   });
 
   it('refuses a windowMs that is not a finite number greater than 0', () => {
@@ -133,7 +148,7 @@ describe('rate limits on the storage counters', () => {
             rateLimit: { maxRequests: 10, windowMs: bad },
           }),
         `expected windowMs: ${bad} to throw`
-      ).toThrow('windowMs must be a finite number greater than 0');
+      ).toThrow('rateLimit.windowMs must be a finite number greater than 0');
     }
   });
 
