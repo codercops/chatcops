@@ -80,11 +80,13 @@ export function reciprocalRankFusion(lists: ScoredRecord[][], k = 60): Retrieved
 }
 
 function plan(query: RetrievalQuery, options: VectorRetrieverOptions) {
-  const topK = Math.max(1, Math.floor(query.topK ?? DEFAULT_TOP_K));
+  const topKValue = typeof query.topK === 'number' && Number.isFinite(query.topK) ? query.topK : DEFAULT_TOP_K;
+  const topK = Math.max(1, Math.floor(topKValue));
+  const candidates = typeof options.candidates === 'number' && Number.isFinite(options.candidates) ? options.candidates : DEFAULT_CANDIDATES;
   return {
     text: retrievalQueryText(query.text, query.history),
     topK,
-    candidates: Math.max(topK, options.candidates ?? DEFAULT_CANDIDATES),
+    candidates: Math.max(topK, candidates),
   };
 }
 
