@@ -82,6 +82,7 @@ export interface Reporter {
 }
 
 export type ReporterFactory = (output: ReporterOutput, options: {
+    cwd?: string;
     env?: Record<string, string | undefined>;
     verbose?: boolean;
 }) => Reporter;

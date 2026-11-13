@@ -1,15 +1,18 @@
 import { appendFile } from 'node:fs/promises';
-import { sep } from 'node:path';
+import { relative, resolve, sep } from 'node:path';
 import { ConfigError } from '../../config.js';
 import { sourceLines } from '../source-lines.js';
 import type { TestResult } from '../types.js';
 import type { ReporterFactory } from './index.js';
 
-export const githubReporter: ReporterFactory = (output, { env }) => ({
+export const githubReporter: ReporterFactory = (output, { cwd = process.cwd(), env }) => ({
   async onEnd(results) {
     for (const result of results) {
       if (result.pass) continue;
-      const file = escapeProperty(result.fixture.split(sep).join('/'));
+      const fixture = env?.GITHUB_WORKSPACE
+        ? relative(env.GITHUB_WORKSPACE, resolve(cwd, result.fixture)).split(sep).join('/')
+        : result.fixture.split(sep).join('/');
+      const file = escapeProperty(fixture);
       const title = escapeProperty(result.test);
       const line = sourceLines.get(result);
       const location = line === undefined ? '' : `,line=${line}`;
