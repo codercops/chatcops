@@ -94,7 +94,10 @@ tests:
           - contains: [Hello]
 `;
 
-async function httpChatServer(config: ChatCopsServerConfig): Promise<{ url: string; close: () => Promise<void> }> {
+async function httpChatServer(
+  config: ChatCopsServerConfig,
+  onRequest?: (body: { conversationId?: string }) => void
+): Promise<{ url: string; close: () => Promise<void> }> {
   const chat = createChatHandler(config);
   const server = createServer(async (request, response) => {
     const body = await new Promise<string>((resolve, reject) => {
@@ -104,7 +107,9 @@ async function httpChatServer(config: ChatCopsServerConfig): Promise<{ url: stri
       request.on('end', () => resolve(text));
       request.on('error', reject);
     });
-    const start = await chat.startChat(JSON.parse(body), '127.0.0.1', { format: 'v1' });
+    const parsed = JSON.parse(body) as { conversationId?: string };
+    onRequest?.(parsed);
+    const start = await chat.startChat(parsed, '127.0.0.1', { format: 'v1' });
     if (!start.ok) {
       response.writeHead(start.status, { 'content-type': 'application/json' });
       response.end(JSON.stringify({ error: start.error }));
@@ -129,15 +134,10 @@ async function httpChatServer(config: ChatCopsServerConfig): Promise<{ url: stri
 describe('chatcops test', () => {
   it('runs multi-turn tests over HTTP without a config and keeps the conversation id', async () => {
     const seen: string[] = [];
-    const scripted = scriptedProvider([textStep('first'), textStep('second')]);
-    const bot = {
-      ...scripted,
-      async *step(input: Parameters<typeof scripted.step>[0]) {
-        seen.push(input.conversationId);
-        yield* scripted.step(input);
-      },
-    };
-    const http = await httpChatServer({ allowAnonymous: true, provider: bot, systemPrompt: 'test', budgets: false });
+    const http = await httpChatServer(
+      { allowAnonymous: true, provider: scriptedProvider([textStep('first'), textStep('second')]), systemPrompt: 'test', budgets: false },
+      (body) => seen.push(body.conversationId ?? '')
+    );
     try {
       const dir = project({
         'evals/http.chat.yaml': `version: 1

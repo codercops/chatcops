@@ -108,15 +108,23 @@ async function runOnce(
   const context = { fixture: path, ...(options.judge ? { judge: options.judge } : {}) };
   // Usage on `finish` is what usage assertions read.
   // In process, so there's no browser to get session tokens for: requests go straight to the handler.
-  const handler = options.url
-    ? undefined
-    : createChatHandler({
-        ...server,
-        allowAnonymous: true,
-        exposeUsage: true,
-        storage: memoryStorage(),
-        tools: withMocks(server?.tools ?? [], test.mocks?.tools),
-      });
+  let handler;
+  if (options.url) {
+    handler = undefined;
+  } else {
+    if (!server) {
+      result.pass = false;
+      result.error = 'missing server config';
+      return result;
+    }
+    handler = createChatHandler({
+      ...server,
+      allowAnonymous: true,
+      exposeUsage: true,
+      storage: memoryStorage(),
+      tools: withMocks(server.tools ?? [], test.mocks?.tools),
+    });
+  }
   const conversationId = `eval-${randomUUID()}`;
   const conversation: TurnResult[] = [];
 

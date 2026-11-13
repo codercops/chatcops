@@ -105,7 +105,10 @@ export interface RunOptions {
     prices?: Prices;
     spend?: Spend;
     url?: string;
-    headers?: Array<[string, string]>;
+    headers?: Array<[
+        string,
+        string
+    ]>;
 }
 
 export interface TestCase {
