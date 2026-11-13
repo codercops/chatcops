@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { isAIProvider, memoryStorage, type ChatTool, type ToolResult, type WirePart } from '@chatcops/core';
-import { createChatHandler, type ChatCopsServerConfig } from '@chatcops/server';
+import { createChatHandler, type ChatCopsServerConfig, type ChatHandler } from '@chatcops/server';
 import { ConfigError } from '../config.js';
 import { check } from './assertions/index.js';
 import type { Cassettes } from './cassette.js';
@@ -108,7 +108,7 @@ async function runOnce(
   const context = { fixture: path, ...(options.judge ? { judge: options.judge } : {}) };
   // Usage on `finish` is what usage assertions read.
   // In process, so there's no browser to get session tokens for: requests go straight to the handler.
-  let handler;
+  let handler: ChatHandler | undefined;
   if (options.url) {
     handler = undefined;
   } else {
