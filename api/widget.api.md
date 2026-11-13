@@ -227,6 +227,7 @@ export interface WidgetLocaleStrings {
     moreButton: string;
     downloadTranscript: string;
     privacy: string;
+    newReply: string;
 }
 
 export type WidgetTokenName = (typeof TOKEN_NAMES)[number];

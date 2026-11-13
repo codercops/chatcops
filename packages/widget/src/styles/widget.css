@@ -156,7 +156,6 @@
   max-width: 85%;
   padding: 10px 14px;
   border-radius: var(--cc-radius);
-  word-wrap: break-word;
   overflow-wrap: break-word;
   font-size: 14px;
   line-height: 1.5;
@@ -307,7 +306,8 @@
 .cc-consent-btn,
 .cc-message-retry,
 .cc-message-regenerate,
-.cc-message-copy {
+.cc-message-copy,
+.cc-pill {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -323,28 +323,23 @@
 }
 
 .cc-consent-btn:hover,
-.cc-message-retry:hover,
 .cc-message-regenerate:hover,
-.cc-message-copy:hover {
+.cc-message-copy:hover,
+.cc-pill:hover {
   background: var(--cc-bg-input);
   color: var(--cc-text);
 }
 
-.cc-message-retry svg,
-.cc-message-regenerate svg,
-.cc-message-copy svg {
-  fill: currentColor;
-}
 
 .cc-message-regenerate {
   opacity: 0;
 }
 
-.cc-message:hover .cc-message-regenerate {
-  opacity: 1;
+.cc-message-actions svg {
+  fill: currentColor;
 }
 
-/* Keep regenerate available to keyboard and touch users */
+.cc-message:hover .cc-message-regenerate,
 .cc-message:focus-within .cc-message-regenerate,
 .cc-message-regenerate:focus-visible {
   opacity: 1;
@@ -355,7 +350,6 @@
     opacity: 1;
   }
 }
-
 
 .cc-message-retry {
   border-color: var(--cc-danger);
@@ -561,6 +555,26 @@
   white-space: nowrap;
 }
 
+.cc-pill {
+  position: absolute;
+  bottom: 84px;
+  inset-inline: 0;
+  margin-inline: auto;
+  width: fit-content;
+  background: var(--cc-surface-raised);
+  color: var(--cc-text);
+  padding: 10px 16px;
+  border-radius: 99px;
+  box-shadow: var(--cc-shadow);
+  font-size: 13px;
+}
+
+.cc-pill::after {
+  content: " ↓" / "";
+}
+
+
+
 /* Messages wrapper (only present when pre-chat form is enabled) */
 .cc-messages-wrapper {
   flex: 1;
@@ -586,21 +600,15 @@
     /* Both sides are 0, so this is the same in either direction. */
     border-radius: 0;
     border: none;
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-block: env(safe-area-inset-top) env(safe-area-inset-bottom);
   }
 
-  .cc-panel.cc-left:not(.cc-inline) {
-    /* Physical placement: preserve the site's bottom-left choice. */
-    left: 0;
-  }
 
   .cc-input {
     font-size: 16px;
   }
 
   .cc-bubble {
-    bottom: 84px;
     inset-inline: 16px;
     max-width: none;
   }
@@ -617,6 +625,7 @@
 .cc-message-copy:focus-visible,
 .cc-bubble-trigger:focus-visible,
 .cc-bubble-close:focus-visible,
+.cc-pill:focus-visible,
 .cc-input:focus-visible {
   outline: 2px solid transparent;
   box-shadow: var(--cc-focus-ring);
