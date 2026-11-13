@@ -18,9 +18,9 @@ function failure(test = 'refunds: 30 days, no receipt'): TestResult {
   return { fixture, test, runs: [run], pass: false, passRate: 0 };
 }
 
-async function report(results: TestResult[], env: Record<string, string> = {}) {
+async function report(results: TestResult[], env: Record<string, string> = {}, cwd = dir) {
   const lines: string[] = [];
-  await githubReporter({ write: (line) => lines.push(line) }, { env }).onEnd?.(results, { mode: 'live', elapsedMs: 1, costIncomplete: false });
+  await githubReporter({ write: (line) => lines.push(line) }, { cwd, env }).onEnd?.(results, { mode: 'live', elapsedMs: 1, costIncomplete: false });
   return lines;
 }
 
@@ -71,6 +71,13 @@ it('appends a table with both aggregate verdicts and escapes Markdown cells', as
 it('only emits annotations when the summary variable is unset', async () => {
   expect(await report([failure()])).toHaveLength(1);
   expect(await report([{ ...failure(), pass: true, passRate: 1 }])).toEqual([]);
+});
+
+it('resolves annotation files from the GitHub workspace', async () => {
+  const site = join(dir, 'site');
+  expect(await report([failure()], { GITHUB_WORKSPACE: dir }, site)).toEqual([
+    '::error file=site/evals/pricing.chat.yaml,title=refunds%3A 30 days%2C no receipt::Run 1, turn 1: Expected $29\n',
+  ]);
 });
 
 it('reports the summary path if appending fails', async () => {

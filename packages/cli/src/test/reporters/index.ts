@@ -31,7 +31,10 @@ export interface Reporter {
   onEnd?(results: TestResult[], summary: RunSummary): void | Promise<void>;
 }
 
-export type ReporterFactory = (output: ReporterOutput, options: { verbose?: boolean; env?: Record<string, string | undefined> }) => Reporter;
+export type ReporterFactory = (
+  output: ReporterOutput,
+  options: { cwd?: string; verbose?: boolean; env?: Record<string, string | undefined> }
+) => Reporter;
 
 /**
  * The reporters `--reporter` can name. To add one, write it in its own file

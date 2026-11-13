@@ -75,7 +75,7 @@ export async function runTests(
     }
     const chunks: string[] = [];
     const output = file === undefined ? io.stdout : { write: (text: string) => chunks.push(text) };
-    return { reporter: factory(output, { verbose: values.verbose === true, env: io.env ?? process.env }), file, chunks };
+    return { reporter: factory(output, { cwd: io.cwd, verbose: values.verbose === true, env: io.env ?? process.env }), file, chunks };
   });
 
   // Started here so a missing key fails now, not as provider_unavailable on
