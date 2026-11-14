@@ -40,7 +40,7 @@ To run the evals against a deployed server instead, pass its chat URL:
 npx chatcops test --url https://example.com/chat --header "Authorization: Bearer $CHAT_TOKEN" --concurrency 1
 ```
 
-`--header` is repeatable for headers such as authorization. The request uses protocol v1 and keeps the same `conversationId` across turns. A server config is not needed with `--url`, but tool mocks cannot run over HTTP. Use `--concurrency 1` when the server's rate limit applies to the test client.
+`--header` is repeatable for headers such as `Origin`; headers are sent to both the session request and chat requests. When session tokens are enabled, the CLI mints a token for each test run and uses the returned conversation id for every turn. A server config is not needed with `--url`, but tool mocks cannot run over HTTP. Use `--concurrency 1` when the server's rate limit applies to the test client. `--url` is always live, even when `CI` is set, and cannot be combined with `--record` or `--replay`. A server with Turnstile enabled cannot be tested this way because minting a session token requires a Turnstile token.
 
 ## Eval files
 

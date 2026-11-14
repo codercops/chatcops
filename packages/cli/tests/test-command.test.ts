@@ -2,9 +2,8 @@ import { createServer } from 'node:http';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { encodeSSE, type WirePart } from '@chatcops/core';
 import { scriptedProvider, textStep } from '@chatcops/core/testing/provider';
-import { createChatHandler, type ChatCopsServerConfig } from '@chatcops/server';
+import { chatcopsVercelHandler, type ChatCopsServerConfig } from '@chatcops/server';
 import { EXIT, main } from '../src/index.js';
 import { check, unknownAssertions } from '../src/test/assertions/index.js';
 import { matchesFilter } from '../src/test/load.js';
@@ -96,9 +95,9 @@ tests:
 
 async function httpChatServer(
   config: ChatCopsServerConfig,
-  onRequest?: (body: { conversationId?: string }) => void
+  onRequest?: (request: Request, body: { conversationId?: string }) => void
 ): Promise<{ url: string; close: () => Promise<void> }> {
-  const chat = createChatHandler(config);
+  const chat = chatcopsVercelHandler(config);
   const server = createServer(async (request, response) => {
     const body = await new Promise<string>((resolve, reject) => {
       let text = '';
@@ -108,16 +107,27 @@ async function httpChatServer(
       request.on('error', reject);
     });
     const parsed = JSON.parse(body) as { conversationId?: string };
-    onRequest?.(parsed);
-    const start = await chat.startChat(parsed, '127.0.0.1', { format: 'v1' });
-    if (!start.ok) {
-      response.writeHead(start.status, { 'content-type': 'application/json' });
-      response.end(JSON.stringify({ error: start.error }));
-      return;
+    const headers = new Headers();
+    for (const [name, value] of Object.entries(request.headers)) {
+      if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(', ') : value);
     }
-    response.writeHead(200, { 'content-type': 'text/event-stream' });
-    for await (const part of start.parts as AsyncIterable<WirePart>) response.write(encodeSSE(part));
-    response.end('data: [DONE]\n\n');
+    const fetchRequest = new Request(`http://${request.headers.host}${request.url}`, {
+      method: request.method,
+      headers,
+      body: body || undefined,
+    });
+    onRequest?.(fetchRequest, parsed);
+    const fetchResponse = await chat(fetchRequest);
+    response.writeHead(fetchResponse.status, Object.fromEntries(fetchResponse.headers));
+    if (fetchResponse.body) {
+      const reader = fetchResponse.body.getReader();
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        response.write(chunk.value);
+      }
+    }
+    response.end();
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
@@ -125,7 +135,6 @@ async function httpChatServer(
   return {
     url: `http://127.0.0.1:${address.port}/chat`,
     close: async () => {
-      chat.cleanup();
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     },
   };
@@ -136,7 +145,7 @@ describe('chatcops test', () => {
     const seen: string[] = [];
     const http = await httpChatServer(
       { allowAnonymous: true, provider: scriptedProvider([textStep('first'), textStep('second')]), systemPrompt: 'test', budgets: false },
-      (body) => seen.push(body.conversationId ?? '')
+      (_, body) => seen.push(body.conversationId ?? '')
     );
     try {
       const dir = project({
@@ -151,11 +160,56 @@ tests:
         expect: [{ contains: second }]
 `,
       });
+
       rmSync(join(dir, 'chatcops.config.mjs'));
       const result = await run(['test', '--url', http.url, '--header', 'Authorization: Bearer secret', '--concurrency', '1'], dir);
       expect(result.code).toBe(EXIT.ok);
       expect(result.stdout).toContain('1 passed, 0 failed.');
       expect(new Set(seen).size).toBe(1);
+    } finally {
+      await http.close();
+    }
+  });
+
+  it('mints a session token and sends configured headers on every HTTP request', async () => {
+    const seen: Array<{ path: string; authorization: string | null; origin: string | null }> = [];
+    const http = await httpChatServer(
+      {
+        sessionSecrets: ['12345678901234567890123456789012'],
+        provider: scriptedProvider([textStep('hello')]),
+        systemPrompt: 'test',
+        budgets: false,
+      },
+      (request) => seen.push({ path: new URL(request.url).pathname, authorization: request.headers.get('authorization'), origin: request.headers.get('origin') })
+    );
+    try {
+      const dir = project({
+        'evals/session.chat.yaml': `version: 1
+name: Session
+tests:
+  - name: session
+    turns:
+      - user: hi
+        expect: [{ contains: hello }]
+`,
+      });
+      const result = await run(['test', '--url', http.url, '--header', 'Origin: https://example.com'], dir);
+      expect(result.code).toBe(EXIT.ok);
+      expect(seen).toEqual([
+        { path: '/chat/session', authorization: null, origin: 'https://example.com' },
+        { path: '/chat', authorization: expect.stringMatching(/^Bearer /), origin: 'https://example.com' },
+      ]);
+    } finally {
+      await http.close();
+    }
+  });
+
+  it('keeps --url live under CI and rejects cassette flags', async () => {
+    const http = await httpChatServer({ allowAnonymous: true, provider: scriptedProvider([textStep('hello')]), systemPrompt: 'test', budgets: false });
+    try {
+      const dir = project({ 'evals/live.chat.yaml': `version: 1\nname: Live\ntests:\n  - name: live\n    turns: [{ user: hi, expect: [{ contains: hello }] }]\n` });
+      expect((await run(['test', '--url', http.url], dir, { CI: 'true' })).code).toBe(EXIT.ok);
+      expect((await run(['test', '--url', http.url, '--record'], dir)).stderr).toContain('--record and --replay cannot be used with --url.');
     } finally {
       await http.close();
     }
@@ -177,6 +231,7 @@ tests:
       provider: scriptedProvider([textStep('one')]),
       systemPrompt: 'test',
       rateLimit: { maxRequests: 1, windowMs: 60_000 },
+      clientIp: () => '127.0.0.1',
       budgets: false,
     });
     try {

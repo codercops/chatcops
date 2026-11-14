@@ -125,7 +125,15 @@ async function runOnce(
       tools: withMocks(server.tools ?? [], test.mocks?.tools),
     });
   }
-  const conversationId = `eval-${randomUUID()}`;
+  let conversationId = `eval-${randomUUID()}`;
+  let authorization: string | undefined;
+  if (options.url) {
+    const session = await createHttpSession(options.url, options.headers, conversationId);
+    if (session) {
+      authorization = session.token;
+      conversationId = session.conversationId;
+    }
+  }
   const conversation: TurnResult[] = [];
 
   /** Stops the run when `--max-cost` is reached. */
@@ -146,7 +154,7 @@ async function runOnce(
       ...(test.userData ? { userData: test.userData } : {}),
     };
     const turn = options.url
-      ? await sendHttpTurn(options.url, options.headers, body)
+      ? await sendHttpTurn(options.url, options.headers, authorization, body)
       : await (handler ? sendTurn(handler, body) : Promise.reject(new Error('missing chat handler')));
     Object.assign(turn, extra);
     if (options.model) turn.model = options.model;
@@ -259,14 +267,50 @@ export async function sendTurn(handler: ReturnType<typeof createChatHandler>, bo
   return turn;
 }
 
-async function sendHttpTurn(url: string, headers: Array<[string, string]> | undefined, body: Record<string, unknown>): Promise<TurnResult> {
+async function createHttpSession(
+  url: string,
+  headers: Array<[string, string]> | undefined,
+  conversationId: string
+): Promise<{ token: string; conversationId: string } | undefined> {
+  let response: Response;
+  try {
+    const sessionUrl = new URL(url);
+    sessionUrl.pathname = `${sessionUrl.pathname.replace(/\/$/, '')}/session`;
+    response = await fetch(sessionUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...Object.fromEntries(headers ?? []) },
+      body: JSON.stringify({ conversationId }),
+    });
+  } catch (error) {
+    throw new Error(`session request failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (response.status === 404) return undefined;
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`session request failed (${response.status}): ${body}`);
+  }
+  const body = (await response.json()) as { token?: string; conversationId?: string };
+  if (!body.token || !body.conversationId) throw new Error('session request returned an invalid response.');
+  return { token: body.token, conversationId: body.conversationId };
+}
+
+async function sendHttpTurn(
+  url: string,
+  headers: Array<[string, string]> | undefined,
+  authorization: string | undefined,
+  body: Record<string, unknown>
+): Promise<TurnResult> {
   const started = performance.now();
   const turn: TurnResult = { user: String(body.message), text: '', toolCalls: [], sources: [], leads: [], latencyMs: 0 };
   let response: Response;
   try {
     response = await fetch(url, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', ...Object.fromEntries(headers ?? []) },
+      headers: {
+        'content-type': 'application/json',
+        ...Object.fromEntries(headers ?? []),
+        ...(authorization ? { authorization: `Bearer ${authorization}` } : {}),
+      },
       body: JSON.stringify({ protocol: 1, ...body }),
     });
   } catch (error) {

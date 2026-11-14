@@ -103,14 +103,25 @@ export async function main(argv: string[], io: Io): Promise<number> {
     if (command === 'ingest') return await runIngest(values, io);
     if (command === 'search') return await runSearch(rest.join(' '), values, io);
     if (command === 'test') {
-      const cassettes = new Cassettes(cassetteMode(values, io.env ?? process.env));
+      const url = values.url;
+      if (url && (values.record || values.replay)) throw new ConfigError('--record and --replay cannot be used with --url.');
+      const cassettes = url ? undefined : new Cassettes(cassetteMode(values, io.env ?? process.env));
       // Before the config loads, so the providers and embedders it creates use it.
-      const uninstall = cassettes.mode === 'live' ? () => {} : cassettes.install();
+      const uninstall = !cassettes || cassettes.mode === 'live' ? () => {} : cassettes.install();
       try {
-        const url = values.url;
         const headers = values.header?.map(parseHeader);
         if (url) {
-          return await runTests(undefined, rest, values, io, cassettes, undefined, { url, headers });
+          let loaded: Awaited<ReturnType<typeof loadConfig>> | undefined;
+          try {
+            loaded = await loadConfig(io.cwd, values.config);
+          } catch (error) {
+            if (values.config || !(error instanceof ConfigError) || !error.message.startsWith('No config file found.')) throw error;
+          }
+          try {
+            return await runTests(undefined, rest, values, io, cassettes, loaded?.config ?? {}, { url, headers });
+          } finally {
+            await loaded?.close();
+          }
         }
         const loaded = await loadConfig(io.cwd, values.config);
         try {

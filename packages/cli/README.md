@@ -43,6 +43,8 @@ tests:
 
 Options: `--filter` (a name, or `tag:<name>`), `--repeat`, `--concurrency`, `--verbose`, `--reporter pretty|json` (repeatable), `--json`. The pretty report groups tests by file and includes run duration, assertion counts, available bot-token usage and total elapsed time. By default, assertion details are shown for failed tests; `--verbose` shows them for every test. `--record` saves every API call the tests make to `__cassettes__/` next to the eval files, and `--replay` answers them from there. Replay is the default when `CI` is set, so CI needs no API keys. `judge` assertions have a model from another provider grade a reply against a rubric (`--judge-model` to choose it), and with `prices` in the config, `--max-cost` stops a run once it has spent that much. It exits 0 when all tests passed, 1 when some failed, 2 when it couldn't run. See [Testing your bot](https://chat.codercops.com/core/testing/).
 
+Use `--url <chat-url>` to test a deployed server live. The CLI requests a session token for each test run when the server has session tokens enabled, and sends repeated `--header "Name: value"` headers to both the session and chat requests. A server with Turnstile enabled cannot be tested this way because minting a session requires a Turnstile token. `--url` does not record or replay cassettes, even when `CI` is set; `--record` and `--replay` are rejected.
+
 To inspect failure formatting without calling a live AI provider, build the CLI and run its deterministic fake-provider demo from the repository root:
 
 ```bash
