@@ -15,12 +15,13 @@ import { REPORTERS } from './reporters/index.js';
 
 /** `chatcops test`: finds and checks the eval files, runs them, reports. Exit 0 all passed, 1 some failed, 2 couldn't run. */
 export async function runTests(
-  server: ChatCopsServerConfig,
+  server: ChatCopsServerConfig | undefined,
   patterns: string[],
   values: Values,
   io: Io,
   cassettes?: Cassettes,
-  cli: Pick<ChatCopsCliConfig, 'judge' | 'prices'> = {}
+  cli: Pick<ChatCopsCliConfig, 'judge' | 'prices'> = {},
+  http?: { url: string; headers?: Array<[string, string]> }
 ): Promise<number> {
   const mode = cassettes?.mode ?? 'live';
   const maxCost = positiveNumber(values['max-cost'], '--max-cost');
@@ -38,7 +39,7 @@ export async function runTests(
     if (unknown.length) throw new ConfigError(`${relative(io.cwd, file)} uses assertions that don't exist: ${unknown.join(', ')}`);
     for (const test of fixture.tests) {
       try {
-        withMocks(server.tools ?? [], test.mocks?.tools);
+        if (server) withMocks(server.tools ?? [], test.mocks?.tools);
       } catch (error) {
         throw new ConfigError(`${relative(io.cwd, file)} > ${test.name}: ${(error as Error).message}`);
       }
@@ -80,11 +81,14 @@ export async function runTests(
 
   // Started here so a missing key fails now, not as provider_unavailable on
   // every turn, and so turns can be priced by the model id.
-  let bot: AIProvider;
-  try {
-    bot = isAIProvider(server.provider) ? server.provider : await createProvider((mode === 'replay' ? withoutKeys(server) : server).provider as ProviderConfig);
-  } catch (error) {
-    throw new ConfigError(`The server config's provider can't start: ${(error as Error).message}`);
+  let bot: AIProvider | undefined;
+  if (!http) {
+    if (!server) throw new ConfigError('chatcops test needs a server config, or pass --url.');
+    try {
+      bot = isAIProvider(server.provider) ? server.provider : await createProvider((mode === 'replay' ? withoutKeys(server) : server).provider as ProviderConfig);
+    } catch (error) {
+      throw new ConfigError(`The server config's provider can't start: ${(error as Error).message}`);
+    }
   }
 
   // A simulated visitor is played by the judge model too.
@@ -93,7 +97,7 @@ export async function runTests(
     ? await resolveJudge({
         ...(cli.judge ? { configured: cli.judge } : {}),
         ...(values['judge-model'] ? { flag: values['judge-model'] } : {}),
-        botProvider: isAIProvider(server.provider) ? server.provider.name : server.provider.type,
+        botProvider: server ? (isAIProvider(server.provider) ? server.provider.name : server.provider.type) : 'http',
         env: io.env ?? process.env,
         mode,
         ...(cli.prices ? { prices: cli.prices } : {}),
@@ -102,7 +106,7 @@ export async function runTests(
   if (judge) io.stderr.write(`Judge: ${judge.id}\n`);
 
   if (maxCost !== undefined && mode !== 'replay') {
-    const unpriced = [bot.model, ...(judge ? [judge.model] : [])].filter((model) => !model || !cli.prices?.[model]);
+    const unpriced = [bot?.model, ...(judge ? [judge.model] : [])].filter((model) => !model || !cli.prices?.[model]);
     if (unpriced.length) {
       throw new ConfigError(
         `--max-cost needs a price for every model the run uses, and there's none for ${unpriced.map((m) => m ?? 'a provider with no model id').join(', ')}. Add them to \`prices\` in the config, in US dollars per million tokens.`
@@ -119,9 +123,10 @@ export async function runTests(
 
   const started = performance.now();
   const results = await runFixtures(server, fixtures, {
+    ...(http ?? {}),
     ...(cassettes ? { cassettes } : {}),
     ...(judge ? { judge } : {}),
-    ...(bot.model ? { model: bot.model } : {}),
+    ...(bot?.model ? { model: bot.model } : {}),
     ...(cli.prices ? { prices: cli.prices } : {}),
     spend,
     ...(concurrency !== undefined ? { concurrency } : {}),
@@ -143,7 +148,7 @@ export async function runTests(
     );
   const summary = {
     mode,
-    ...(bot.model ? { model: bot.model } : {}),
+    ...(bot?.model ? { model: bot.model } : {}),
     elapsedMs,
     costIncomplete,
     ...(judge ? { judge: judge.id } : {}),

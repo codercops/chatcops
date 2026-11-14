@@ -1,6 +1,9 @@
+import { createServer } from 'node:http';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { scriptedProvider, textStep } from '@chatcops/core/testing/provider';
+import { chatcopsVercelHandler, type ChatCopsServerConfig } from '@chatcops/server';
 import { EXIT, main } from '../src/index.js';
 import { check, unknownAssertions } from '../src/test/assertions/index.js';
 import { matchesFilter } from '../src/test/load.js';
@@ -90,7 +93,166 @@ tests:
           - contains: [Hello]
 `;
 
+async function httpChatServer(
+  config: ChatCopsServerConfig,
+  onRequest?: (request: Request, body: { conversationId?: string }) => void
+): Promise<{ url: string; close: () => Promise<void> }> {
+  const chat = chatcopsVercelHandler(config);
+  const server = createServer(async (request, response) => {
+    const body = await new Promise<string>((resolve, reject) => {
+      let text = '';
+      request.setEncoding('utf8');
+      request.on('data', (chunk) => { text += chunk; });
+      request.on('end', () => resolve(text));
+      request.on('error', reject);
+    });
+    const parsed = JSON.parse(body) as { conversationId?: string };
+    const headers = new Headers();
+    for (const [name, value] of Object.entries(request.headers)) {
+      if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(', ') : value);
+    }
+    const fetchRequest = new Request(`http://${request.headers.host}${request.url}`, {
+      method: request.method,
+      headers,
+      body: body || undefined,
+    });
+    onRequest?.(fetchRequest, parsed);
+    const fetchResponse = await chat(fetchRequest);
+    response.writeHead(fetchResponse.status, Object.fromEntries(fetchResponse.headers));
+    if (fetchResponse.body) {
+      const reader = fetchResponse.body.getReader();
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        response.write(chunk.value);
+      }
+    }
+    response.end();
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('test server did not start');
+  return {
+    url: `http://127.0.0.1:${address.port}/chat`,
+    close: async () => {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    },
+  };
+}
+
 describe('chatcops test', () => {
+  it('runs multi-turn tests over HTTP without a config and keeps the conversation id', async () => {
+    const seen: string[] = [];
+    const http = await httpChatServer(
+      { allowAnonymous: true, provider: scriptedProvider([textStep('first'), textStep('second')]), systemPrompt: 'test', budgets: false },
+      (_, body) => seen.push(body.conversationId ?? '')
+    );
+    try {
+      const dir = project({
+        'evals/http.chat.yaml': `version: 1
+name: HTTP
+tests:
+  - name: keeps state
+    turns:
+      - user: first
+        expect: [{ contains: first }]
+      - user: second
+        expect: [{ contains: second }]
+`,
+      });
+
+      rmSync(join(dir, 'chatcops.config.mjs'));
+      const result = await run(['test', '--url', http.url, '--header', 'Authorization: Bearer secret', '--concurrency', '1'], dir);
+      expect(result.code).toBe(EXIT.ok);
+      expect(result.stdout).toContain('1 passed, 0 failed.');
+      expect(new Set(seen).size).toBe(1);
+    } finally {
+      await http.close();
+    }
+  });
+
+  it('mints a session token and sends configured headers on every HTTP request', async () => {
+    const seen: Array<{ path: string; authorization: string | null; origin: string | null }> = [];
+    const http = await httpChatServer(
+      {
+        sessionSecrets: ['12345678901234567890123456789012'],
+        provider: scriptedProvider([textStep('hello')]),
+        systemPrompt: 'test',
+        budgets: false,
+      },
+      (request) => seen.push({ path: new URL(request.url).pathname, authorization: request.headers.get('authorization'), origin: request.headers.get('origin') })
+    );
+    try {
+      const dir = project({
+        'evals/session.chat.yaml': `version: 1
+name: Session
+tests:
+  - name: session
+    turns:
+      - user: hi
+        expect: [{ contains: hello }]
+`,
+      });
+      const result = await run(['test', '--url', http.url, '--header', 'Origin: https://example.com'], dir);
+      expect(result.code).toBe(EXIT.ok);
+      expect(seen).toEqual([
+        { path: '/chat/session', authorization: null, origin: 'https://example.com' },
+        { path: '/chat', authorization: expect.stringMatching(/^Bearer /), origin: 'https://example.com' },
+      ]);
+    } finally {
+      await http.close();
+    }
+  });
+
+  it('keeps --url live under CI and rejects cassette flags', async () => {
+    const http = await httpChatServer({ allowAnonymous: true, provider: scriptedProvider([textStep('hello')]), systemPrompt: 'test', budgets: false });
+    try {
+      const dir = project({ 'evals/live.chat.yaml': `version: 1\nname: Live\ntests:\n  - name: live\n    turns: [{ user: hi, expect: [{ contains: hello }] }]\n` });
+      expect((await run(['test', '--url', http.url], dir, { CI: 'true' })).code).toBe(EXIT.ok);
+      expect((await run(['test', '--url', http.url, '--record'], dir)).stderr).toContain('--record and --replay cannot be used with --url.');
+    } finally {
+      await http.close();
+    }
+  });
+
+  it('records HTTP error parts and refused requests as turn failures', async () => {
+    const errorHttp = await httpChatServer({ allowAnonymous: true, provider: scriptedProvider([new Error('down')]), systemPrompt: 'test', budgets: false });
+    try {
+      const dir = project({ 'evals/http-error.chat.yaml': `version: 1\nname: HTTP Error\ntests:\n  - name: error\n    turns:\n      - user: fail\n` });
+      const result = await run(['test', '--url', errorHttp.url], dir);
+      expect(result.code).toBe(EXIT.problems);
+      expect(result.stdout).toContain('provider_error');
+    } finally {
+      await errorHttp.close();
+    }
+
+    const refusedHttp = await httpChatServer({
+      allowAnonymous: true,
+      provider: scriptedProvider([textStep('one')]),
+      systemPrompt: 'test',
+      rateLimit: { maxRequests: 1, windowMs: 60_000 },
+      clientIp: () => '127.0.0.1',
+      budgets: false,
+    });
+    try {
+      const dir = project({
+        'evals/http-refused.chat.yaml': `version: 1
+name: HTTP Refused
+tests:
+  - name: refused
+    turns:
+      - user: one
+      - user: two
+`,
+      });
+      const result = await run(['test', '--url', refusedHttp.url], dir);
+      expect(result.code).toBe(EXIT.problems);
+      expect(result.stdout).toContain('rate_limited');
+    } finally {
+      await refusedHttp.close();
+    }
+  });
+
   it('runs every eval file and exits 0 when all pass', async () => {
     const dir = project({ 'evals/pricing.chat.yaml': PRICING });
     const { code, stdout } = await run(['test'], dir);

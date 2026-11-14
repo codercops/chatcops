@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { isAIProvider, memoryStorage, type ChatTool, type ToolResult, type WirePart } from '@chatcops/core';
-import { createChatHandler, type ChatCopsServerConfig } from '@chatcops/server';
+import { createChatHandler, type ChatCopsServerConfig, type ChatHandler } from '@chatcops/server';
 import { ConfigError } from '../config.js';
 import { check } from './assertions/index.js';
 import type { Cassettes } from './cassette.js';
@@ -24,6 +24,10 @@ export interface RunOptions {
   prices?: Prices;
   /** Stops starting turns once `--max-cost` is reached. */
   spend?: Spend;
+  /** Sends turns to a ChatCops HTTP endpoint instead of an in-process handler. */
+  url?: string;
+  /** Headers sent with HTTP turns. */
+  headers?: Array<[string, string]>;
 }
 
 /** An eval file to run: `file` as reported, `path` on disk (for its cassette). */
@@ -40,11 +44,11 @@ export interface FixtureJob {
  * in-memory storage for every run and the fixture's tool mocks.
  */
 export async function runFixtures(
-  server: ChatCopsServerConfig,
+  server: ChatCopsServerConfig | undefined,
   fixtures: FixtureJob[],
   options: RunOptions = {}
 ): Promise<TestResult[]> {
-  if (options.cassettes?.mode === 'replay') server = withoutKeys(server);
+  if (options.cassettes?.mode === 'replay' && server) server = withoutKeys(server);
   const jobs = fixtures.flatMap(({ file, path, tests }) => tests.map((test) => ({ file, path: path ?? file, test })));
   const results: TestResult[] = new Array(jobs.length);
   let next = 0;
@@ -90,17 +94,46 @@ async function runTest(
 }
 
 async function runOnce(
-  server: ChatCopsServerConfig,
+  server: ChatCopsServerConfig | undefined,
   { file, path, test, run }: { file: string; path: string; test: TestCase; run: number },
   options: RunOptions
 ): Promise<TestRunResult> {
   const result: TestRunResult = { fixture: file, test: test.name, run, pass: true, turns: [] };
+  if (options.url && test.mocks?.tools && Object.keys(test.mocks.tools).length) {
+    result.pass = false;
+    result.error = 'mocks cannot run over HTTP';
+    return result;
+  }
   const { spend } = options;
   const context = { fixture: path, ...(options.judge ? { judge: options.judge } : {}) };
   // Usage on `finish` is what usage assertions read.
   // In process, so there's no browser to get session tokens for: requests go straight to the handler.
-  const handler = createChatHandler({ ...server, allowAnonymous: true, exposeUsage: true, storage: memoryStorage(), tools: withMocks(server.tools ?? [], test.mocks?.tools) });
-  const conversationId = `eval-${randomUUID()}`;
+  let handler: ChatHandler | undefined;
+  if (options.url) {
+    handler = undefined;
+  } else {
+    if (!server) {
+      result.pass = false;
+      result.error = 'missing server config';
+      return result;
+    }
+    handler = createChatHandler({
+      ...server,
+      allowAnonymous: true,
+      exposeUsage: true,
+      storage: memoryStorage(),
+      tools: withMocks(server.tools ?? [], test.mocks?.tools),
+    });
+  }
+  let conversationId = `eval-${randomUUID()}`;
+  let authorization: string | undefined;
+  if (options.url) {
+    const session = await createHttpSession(options.url, options.headers, conversationId);
+    if (session) {
+      authorization = session.token;
+      conversationId = session.conversationId;
+    }
+  }
   const conversation: TurnResult[] = [];
 
   /** Stops the run when `--max-cost` is reached. */
@@ -113,13 +146,16 @@ async function runOnce(
 
   /** One exchange: sends the message, collects the reply and checks it. Undefined when the run has to stop. */
   const exchange = async (message: string, expects: Assertion[], extra: Partial<TurnResult> = {}): Promise<TurnResult | undefined> => {
-    const turn = await sendTurn(handler, {
+    const body = {
       conversationId,
       message,
       ...(test.locale ? { locale: test.locale } : {}),
       ...(test.pageContext ? { pageContext: test.pageContext } : {}),
       ...(test.userData ? { userData: test.userData } : {}),
-    });
+    };
+    const turn = options.url
+      ? await sendHttpTurn(options.url, options.headers, authorization, body)
+      : await (handler ? sendTurn(handler, body) : Promise.reject(new Error('missing chat handler')));
     Object.assign(turn, extra);
     if (options.model) turn.model = options.model;
     const costUsd = costOf(options.model, turn.usage, options.prices);
@@ -220,18 +256,7 @@ export async function sendTurn(handler: ReturnType<typeof createChatHandler>, bo
     return turn;
   }
   try {
-    for await (const part of start.parts as AsyncIterable<WirePart>) {
-      if (part.type === 'text-delta') turn.text += part.delta;
-      else if (part.type === 'tool-call') turn.toolCalls.push({ name: part.toolName, input: part.input });
-      else if (part.type === 'source') turn.sources.push({ url: part.url, ...(part.title ? { title: part.title } : {}) });
-      else if (part.type === 'lead-captured') turn.leads.push(part.lead as Record<string, unknown>);
-      else if (part.type === 'error') turn.error = part.code;
-      else if (part.type === 'finish') {
-        turn.finishReason = part.reason;
-        if (part.usage) turn.usage = { inputTokens: part.usage.inputTokens, outputTokens: part.usage.outputTokens };
-        turn.latencyMs = performance.now() - started;
-      }
-    }
+    await collectParts(start.parts as AsyncIterable<WirePart>, turn, started);
   } catch (error) {
     // The server's HTTP layer turns this into an internal_error part; in
     // process it arrives as a throw, such as a knowledge source that failed.
@@ -240,6 +265,97 @@ export async function sendTurn(handler: ReturnType<typeof createChatHandler>, bo
   }
   if (!turn.latencyMs) turn.latencyMs = performance.now() - started;
   return turn;
+}
+
+async function createHttpSession(
+  url: string,
+  headers: Array<[string, string]> | undefined,
+  conversationId: string
+): Promise<{ token: string; conversationId: string } | undefined> {
+  let response: Response;
+  try {
+    const sessionUrl = new URL(url);
+    sessionUrl.pathname = `${sessionUrl.pathname.replace(/\/$/, '')}/session`;
+    response = await fetch(sessionUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...Object.fromEntries(headers ?? []) },
+      body: JSON.stringify({ conversationId }),
+    });
+  } catch (error) {
+    throw new Error(`session request failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (response.status === 404) return undefined;
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`session request failed (${response.status}): ${body}`);
+  }
+  const body = (await response.json()) as { token?: string; conversationId?: string };
+  if (!body.token || !body.conversationId) throw new Error('session request returned an invalid response.');
+  return { token: body.token, conversationId: body.conversationId };
+}
+
+async function sendHttpTurn(
+  url: string,
+  headers: Array<[string, string]> | undefined,
+  authorization: string | undefined,
+  body: Record<string, unknown>
+): Promise<TurnResult> {
+  const started = performance.now();
+  const turn: TurnResult = { user: String(body.message), text: '', toolCalls: [], sources: [], leads: [], latencyMs: 0 };
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...Object.fromEntries(headers ?? []),
+        ...(authorization ? { authorization: `Bearer ${authorization}` } : {}),
+      },
+      body: JSON.stringify({ protocol: 1, ...body }),
+    });
+  } catch (error) {
+    turn.error = `network_error: ${error instanceof Error ? error.message : String(error)}`;
+    turn.latencyMs = performance.now() - started;
+    return turn;
+  }
+  if (!response.ok) {
+    try {
+      const body = (await response.json()) as { error?: { code?: string; message?: string } };
+      const error = body.error;
+      turn.error = error?.message ? `${error.code ?? 'http_error'}: ${error.message}` : error?.code ?? `http_${response.status}`;
+    } catch {
+      turn.error = `http_${response.status}`;
+    }
+    turn.latencyMs = performance.now() - started;
+    return turn;
+  }
+  try {
+    const text = await response.text();
+    const parts = text
+      .split(/\r?\n\r?\n/)
+      .filter((frame) => frame.startsWith('data: {'))
+      .map((frame) => JSON.parse(frame.slice(6)) as WirePart);
+    await collectParts(parts, turn, started);
+  } catch (error) {
+    turn.error = `internal_error: ${error instanceof Error ? error.message : String(error)}`;
+  }
+  if (!turn.latencyMs) turn.latencyMs = performance.now() - started;
+  return turn;
+}
+
+async function collectParts(parts: AsyncIterable<WirePart> | Iterable<WirePart>, turn: TurnResult, started: number): Promise<void> {
+  for await (const part of parts) {
+    if (part.type === 'text-delta') turn.text += part.delta;
+    else if (part.type === 'tool-call') turn.toolCalls.push({ name: part.toolName, input: part.input });
+    else if (part.type === 'source') turn.sources.push({ url: part.url, ...(part.title ? { title: part.title } : {}) });
+    else if (part.type === 'lead-captured') turn.leads.push(part.lead as Record<string, unknown>);
+    else if (part.type === 'error') turn.error = part.code;
+    else if (part.type === 'finish') {
+      turn.finishReason = part.reason;
+      if (part.usage) turn.usage = { inputTokens: part.usage.inputTokens, outputTokens: part.usage.outputTokens };
+      turn.latencyMs = performance.now() - started;
+    }
+  }
 }
 
 /** The config's tools, with mocked ones answering their fixed result instead of running. */

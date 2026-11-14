@@ -68,6 +68,8 @@ Test options:
   --record              Call the APIs and save what they answer to __cassettes__
   --replay              Answer every API call from __cassettes__ (the default when CI is set)
   --live                Call the APIs, even when CI is set
+  --url <url>           Send test turns to an HTTP ChatCops server instead of the local config
+  --header <name: value>  Add an HTTP header (repeatable)
   --judge-model <p:m>   The judge for judge assertions, as provider:model (gemini, openai, claude)
   --max-cost <usd>      Stop starting turns once the run has spent this (needs prices in the config)
 
@@ -101,10 +103,26 @@ export async function main(argv: string[], io: Io): Promise<number> {
     if (command === 'ingest') return await runIngest(values, io);
     if (command === 'search') return await runSearch(rest.join(' '), values, io);
     if (command === 'test') {
-      const cassettes = new Cassettes(cassetteMode(values, io.env ?? process.env));
+      const url = values.url;
+      if (url && (values.record || values.replay)) throw new ConfigError('--record and --replay cannot be used with --url.');
+      const cassettes = url ? undefined : new Cassettes(cassetteMode(values, io.env ?? process.env));
       // Before the config loads, so the providers and embedders it creates use it.
-      const uninstall = cassettes.mode === 'live' ? () => {} : cassettes.install();
+      const uninstall = !cassettes || cassettes.mode === 'live' ? () => {} : cassettes.install();
       try {
+        const headers = values.header?.map(parseHeader);
+        if (url) {
+          let loaded: Awaited<ReturnType<typeof loadConfig>> | undefined;
+          try {
+            loaded = await loadConfig(io.cwd, values.config);
+          } catch (error) {
+            if (values.config || !(error instanceof ConfigError) || !error.message.startsWith('No config file found.')) throw error;
+          }
+          try {
+            return await runTests(undefined, rest, values, io, cassettes, loaded?.config ?? {}, { url, headers });
+          } finally {
+            await loaded?.close();
+          }
+        }
         const loaded = await loadConfig(io.cwd, values.config);
         try {
           return await runTests(serverConfig(loaded), rest, values, io, cassettes, loaded.config);
@@ -146,6 +164,8 @@ function parse(argv: string[]) {
       verbose: { type: 'boolean' },
       reporter: { type: 'string', multiple: true },
       output: { type: 'string' },
+      url: { type: 'string' },
+      header: { type: 'string', multiple: true },
       record: { type: 'boolean' },
       live: { type: 'boolean' },
       'judge-model': { type: 'string' },
@@ -155,6 +175,15 @@ function parse(argv: string[]) {
       version: { type: 'boolean', short: 'v' },
     },
   });
+}
+
+function parseHeader(value: string): [string, string] {
+  const separator = value.indexOf(':');
+  if (separator <= 0) throw new ConfigError('--header must be in the form "Name: value".');
+  const name = value.slice(0, separator).trim();
+  const headerValue = value.slice(separator + 1).trim();
+  if (!name || !headerValue) throw new ConfigError('--header must be in the form "Name: value".');
+  return [name, headerValue];
 }
 
 export type Values = ReturnType<typeof parse>['values'];
