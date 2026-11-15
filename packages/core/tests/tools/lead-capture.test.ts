@@ -114,6 +114,68 @@ describe('LeadCaptureTool', () => {
     errorSpy.mockRestore();
   });
 
+  it('rejects a blank name', async () => {
+    const onCapture = vi.fn();
+    const tool = new LeadCaptureTool(onCapture);
+    const result = await tool.execute({
+      name: '',
+      email: 'john@example.com',
+      projectDetails: 'Need a website',
+    });
+    expect(result.success).toBe(false);
+    expect(result.message).toContain('name: Required');
+    expect(onCapture).not.toHaveBeenCalled();
+  });
+
+  it('rejects a whitespace-only name', async () => {
+    const tool = new LeadCaptureTool();
+    const result = await tool.execute({
+      name: '   ',
+      email: 'john@example.com',
+      projectDetails: 'Need a website',
+    });
+    expect(result.success).toBe(false);
+    expect(result.message).toContain('name: Required');
+  });
+
+  it('rejects a blank projectDetails', async () => {
+    const tool = new LeadCaptureTool();
+    const result = await tool.execute({
+      name: 'John',
+      email: 'john@example.com',
+      projectDetails: '',
+    });
+    expect(result.success).toBe(false);
+    expect(result.message).toContain('projectDetails: Required');
+  });
+
+  it('names every field that is wrong', async () => {
+    const tool = new LeadCaptureTool();
+    const result = await tool.execute({
+      name: '',
+      email: 'not-an-email',
+      projectDetails: '   ',
+    });
+    expect(result.success).toBe(false);
+    expect(result.message).toContain('name: Required');
+    expect(result.message).toContain('email: Invalid email');
+    expect(result.message).toContain('projectDetails: Required');
+  });
+
+  it('trims values with surrounding spaces in the captured lead', async () => {
+    const tool = new LeadCaptureTool();
+    const result = await tool.execute({
+      name: '  John Doe  ',
+      email: '  john@example.com  ',
+      projectDetails: '  Need a website  ',
+    });
+    expect(result.success).toBe(true);
+    expect(result.data).toMatchObject({
+      name: 'John Doe',
+      email: 'john@example.com',
+      projectDetails: 'Need a website',
+    });
+  });
   it('handles optional fields', async () => {
     const tool = new LeadCaptureTool();
     const result = await tool.execute({
