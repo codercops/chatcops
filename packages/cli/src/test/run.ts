@@ -130,6 +130,11 @@ async function runOnce(
   if (options.url) {
     const session = await createHttpSession(options.url, options.headers, conversationId);
     if (session) {
+      if (options.headers?.some(([name]) => name.toLowerCase() === 'authorization')) {
+        result.pass = false;
+        result.error = 'session token uses the Authorization header; remove --header Authorization.';
+        return result;
+      }
       authorization = session.token;
       conversationId = session.conversationId;
     }

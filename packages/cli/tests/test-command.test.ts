@@ -204,6 +204,33 @@ tests:
     }
   });
 
+  it('rejects an Authorization header when the server mints a session token', async () => {
+    const http = await httpChatServer(
+      {
+        sessionSecrets: ['12345678901234567890123456789012'],
+        provider: scriptedProvider([textStep('hello')]),
+        systemPrompt: 'test',
+        budgets: false,
+      },
+    );
+    try {
+      const dir = project({
+        'evals/session-header.chat.yaml': `version: 1
+name: Session header
+tests:
+  - name: session header
+    turns:
+      - user: hi
+`,
+      });
+      const result = await run(['test', '--url', http.url, '--header', 'Authorization: Bearer secret'], dir);
+      expect(result.code).toBe(EXIT.problems);
+      expect(result.stdout).toContain('session token uses the Authorization header');
+    } finally {
+      await http.close();
+    }
+  });
+
   it('keeps --url live under CI and rejects cassette flags', async () => {
     const http = await httpChatServer({ allowAnonymous: true, provider: scriptedProvider([textStep('hello')]), systemPrompt: 'test', budgets: false });
     try {
