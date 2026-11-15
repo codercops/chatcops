@@ -4,6 +4,7 @@ const zh: Partial<WidgetLocaleStrings> = {
   welcomeMessage: '今天我能为您做些什么？',
   inputPlaceholder: '输入消息…',
   sendButton: '发送',
+  stopButton: '停止',
   closeButton: '关闭',
   openChat: '打开聊天',
   defaultName: 'AI 助手',
@@ -28,6 +29,7 @@ const zh: Partial<WidgetLocaleStrings> = {
   preChatSubmit: '开始聊天',
   preChatRequired: '此字段为必填项。',
   preChatInvalidEmail: '请输入有效的电子邮件地址。',
+  messageWaiting: '你重新上线后将发送',
   retryButton: '重试',
   regenerateButton: '重新生成',
   copyButton: '复制回复',
@@ -38,6 +40,12 @@ const zh: Partial<WidgetLocaleStrings> = {
   sourcesLabel: '来源',
   disclosure: '您正在与 AI 助手聊天。它可能会出错。',
   disclosureLearnMore: '了解更多',
+  consentNotice: '接受功能性 Cookie 后即可使用聊天功能。',
+  consentButton: 'Cookie 设置',
+  moreButton: '更多选项',
+  downloadTranscript: '下载聊天记录',
+  privacy: '隐私',
+  newReply: '新回复',
 };
 
 export default zh;

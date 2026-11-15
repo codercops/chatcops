@@ -4,6 +4,7 @@ const ar: Partial<WidgetLocaleStrings> = {
   welcomeMessage: 'كيف يمكنني مساعدتك اليوم؟',
   inputPlaceholder: 'اكتب رسالة…',
   sendButton: 'إرسال',
+  stopButton: 'إيقاف',
   closeButton: 'إغلاق',
   openChat: 'فتح المحادثة',
   defaultName: 'مساعد الذكاء الاصطناعي',
@@ -28,6 +29,7 @@ const ar: Partial<WidgetLocaleStrings> = {
   preChatSubmit: 'ابدأ المحادثة',
   preChatRequired: 'هذا الحقل مطلوب.',
   preChatInvalidEmail: 'يُرجى إدخال عنوان بريد إلكتروني صالح.',
+  messageWaiting: 'سيُرسل عند عودتك إلى الاتصال بالإنترنت',
   retryButton: 'إعادة المحاولة',
   regenerateButton: 'إنشاء رد جديد',
   copyButton: 'نسخ الرد',
@@ -38,6 +40,12 @@ const ar: Partial<WidgetLocaleStrings> = {
   sourcesLabel: 'المصادر',
   disclosure: 'أنت تتحدث مع مساعد ذكاء اصطناعي. قد يرتكب أخطاء.',
   disclosureLearnMore: 'معرفة المزيد',
+  consentNotice: 'ستتوفر المحادثة بعد قبول ملفات تعريف الارتباط الوظيفية.',
+  consentButton: 'إعدادات ملفات تعريف الارتباط',
+  moreButton: 'مزيد من الخيارات',
+  downloadTranscript: 'تنزيل المحادثة',
+  privacy: 'الخصوصية',
+  newReply: 'رد جديد',
 };
 
 export default ar;
