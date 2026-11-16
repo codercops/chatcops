@@ -29,7 +29,7 @@ const zh: Partial<WidgetLocaleStrings> = {
   preChatSubmit: '开始聊天',
   preChatRequired: '此字段为必填项。',
   preChatInvalidEmail: '请输入有效的电子邮件地址。',
-  messageWaiting: '你重新上线后将发送',
+  messageWaiting: '您重新上线后将发送',
   retryButton: '重试',
   regenerateButton: '重新生成',
   copyButton: '复制回复',
