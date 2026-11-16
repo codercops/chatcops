@@ -33,6 +33,16 @@ function getChat() {
       request.headers.get('cf-connecting-ip') ??
       (import.meta.env.DEV ? request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() : undefined),
     rateLimit: { maxRequests: 10, windowMs: 60_000 },
+    // A docs answer is about 2,000 tokens in and 500 out (see the recordings
+    // in evals/__cassettes__). The daily cap allows roughly 2,000 answers
+    // across all visitors before the chat says it's out for the day (it
+    // resets at midnight UTC). The per-IP cap of about 100 answers is far
+    // more than one reader needs, and it keeps one script from using up the
+    // day for everyone, which the 2M-token default per IP would allow.
+    budgets: {
+      globalPerDay: { tokens: 5_000_000 },
+      perIpPerDay: { tokens: 250_000 },
+    },
     ...storageOptions(),
   });
   return chat;
