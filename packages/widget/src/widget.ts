@@ -718,6 +718,7 @@ export class Widget {
           fields: formConfig.fields,
           submitLabel: formConfig.submitLabel ?? this.locale.preChatSubmit,
           locale: this.locale,
+          autoFocus: !this.isInline,
           nonce: this.config.nonce,
           onSubmit: (data) => this.handlePreChatSubmit(data),
         });

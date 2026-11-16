@@ -16,6 +16,7 @@ afterEach(() => {
   widget?.destroy();
   widget = undefined;
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 describe('the pre-chat form chunk', () => {
@@ -41,6 +42,51 @@ describe('the pre-chat form chunk', () => {
     await vi.dynamicImportSettled();
 
     expect(box.querySelector('#chatcops-root')?.shadowRoot?.querySelector('.cc-prechat')).not.toBeNull();
+  });
+
+  it('does not focus an inline form, including after consent is granted', async () => {
+    vi.useFakeTimers();
+    const box = document.createElement('div');
+    document.body.appendChild(box);
+    widget = new Widget({
+      apiUrl: 'https://api.test/chat',
+      mode: 'inline',
+      container: box,
+      waitForConsent: true,
+      preChatForm,
+    });
+    widget.init();
+    widget.setConsent(true);
+    await vi.dynamicImportSettled();
+    vi.advanceTimersByTime(100);
+
+    expect(box.querySelector('#chatcops-root')?.shadowRoot?.activeElement).toBeNull();
+  });
+
+  it('still focuses the first field in a popup form', async () => {
+    vi.useFakeTimers();
+    widget = new Widget({ apiUrl: 'https://api.test/chat', preChatForm });
+    widget.init();
+    widget.open();
+    await vi.dynamicImportSettled();
+    vi.advanceTimersByTime(100);
+
+    expect(shadow()?.activeElement).toBe(shadow()?.querySelector('.cc-prechat-input'));
+  });
+
+  it('renames the inline region when branding is updated', () => {
+    const box = document.createElement('div');
+    document.body.appendChild(box);
+    widget = new Widget({ apiUrl: 'https://api.test/chat', mode: 'inline', container: box });
+    widget.init();
+
+    const panel = box.querySelector('#chatcops-root')?.shadowRoot?.querySelector('.cc-panel');
+    expect(panel?.getAttribute('role')).toBe('region');
+    expect(panel?.getAttribute('aria-label')).toBe('AI Assistant');
+
+    widget.update({ branding: { name: 'Support' } });
+
+    expect(panel?.getAttribute('aria-label')).toBe('Support');
   });
 
   it('adds nothing when the widget is destroyed while the form loads', async () => {

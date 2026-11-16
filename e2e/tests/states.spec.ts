@@ -34,6 +34,20 @@ async function start(page: Page, look: Look, extra: object = {}) {
   }, { apiUrl: '/api/chat', ...look.config, ...extra });
 }
 
+async function startInline(page: Page, look: Look, extra: object = {}) {
+  await page.emulateMedia({ colorScheme: look.config.theme.mode, reducedMotion: 'reduce' });
+  await page.goto('/inline.html');
+  await page.waitForFunction(() => typeof (window as unknown as { createInlineWidget?: unknown }).createInlineWidget === 'function');
+  await page.evaluate((config) => {
+    const win = window as unknown as {
+      inlineWidget: { destroy(): void };
+      createInlineWidget(config: object): void;
+    };
+    win.inlineWidget.destroy();
+    win.createInlineWidget(config);
+  }, { ...look.config, ...extra });
+}
+
 async function openChat(page: Page) {
   await page.locator(fab).click();
   await expect(page.locator(panel)).toHaveClass(/cc-visible/);
@@ -42,6 +56,13 @@ async function openChat(page: Page) {
 async function ask(page: Page, text: string) {
   await page.locator(input).fill(text);
   await page.locator(send).click();
+}
+
+async function expectInlineUnfocused(page: Page) {
+  await expect.poll(() => page.evaluate(() => {
+    const host = document.querySelector('.chatcops-root');
+    return document.activeElement !== host && host?.shadowRoot?.activeElement === null;
+  })).toBe(true);
 }
 
 /**
@@ -287,6 +308,43 @@ for (const look of looks) {
         await openChat(page);
         await ask(page, 'Hi there');
         await expect(page.locator('.cc-message-assistant').last()).toContainText('Hello from the test server.');
+        await expectAccessible(page);
+      });
+    });
+
+    test.describe('inline states', () => {
+      test('empty panel with suggestions', async ({ page }) => {
+        await startInline(page, look, { suggestions: ['Pricing', 'Talk to sales'] });
+        await expect(page.locator('.cc-suggestion')).toHaveCount(2);
+        await expectInlineUnfocused(page);
+        await expectAccessible(page);
+      });
+
+      test('reply with sources', async ({ page }) => {
+        await startInline(page, look);
+        await expectInlineUnfocused(page);
+        await ask(page, 'What does it cost, with sources?');
+        await expect(page.locator('.cc-message-sources a')).toHaveText(['Pricing']);
+        await expectAccessible(page);
+      });
+
+      test('error that can be retried', async ({ page }) => {
+        await startInline(page, look);
+        await expectInlineUnfocused(page);
+        await ask(page, 'Please fail midway');
+        await expect(page.locator('.cc-message-retry')).toBeVisible();
+        await expectAccessible(page);
+      });
+
+      test('pre-chat form does not take focus', async ({ page }) => {
+        await startInline(page, look, {
+          preChatForm: {
+            enabled: true,
+            fields: [{ name: 'name', label: 'Name', type: 'text', required: true }],
+          },
+        });
+        await expect(page.locator('.cc-prechat')).toBeVisible();
+        await expectInlineUnfocused(page);
         await expectAccessible(page);
       });
     });

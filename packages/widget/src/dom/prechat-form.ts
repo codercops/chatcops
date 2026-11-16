@@ -15,6 +15,7 @@ export interface PreChatFormOptions {
   fields: PreChatField[];
   submitLabel: string;
   locale: WidgetLocaleStrings;
+  autoFocus?: boolean;
   nonce?: string;
   onSubmit: (data: Record<string, string>) => void;
 }
@@ -70,7 +71,7 @@ export class PreChatForm {
     this.updateSubmitState();
 
     const firstInput = this.fieldElements.values().next().value;
-    if (firstInput) {
+    if (firstInput && options.autoFocus !== false) {
       setTimeout(() => firstInput.focus(), 100);
     }
   }
