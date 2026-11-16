@@ -4,6 +4,7 @@ const nl: Partial<WidgetLocaleStrings> = {
   welcomeMessage: 'Waarmee kan ik je vandaag helpen?',
   inputPlaceholder: 'Typ een bericht…',
   sendButton: 'Verzenden',
+  stopButton: 'Stoppen',
   closeButton: 'Sluiten',
   openChat: 'Chat openen',
   defaultName: 'AI-assistent',
@@ -28,6 +29,7 @@ const nl: Partial<WidgetLocaleStrings> = {
   preChatSubmit: 'Chat starten',
   preChatRequired: 'Dit veld is verplicht.',
   preChatInvalidEmail: 'Vul een geldig e-mailadres in.',
+  messageWaiting: 'Wordt verzonden zodra je weer online bent',
   retryButton: 'Opnieuw proberen',
   regenerateButton: 'Opnieuw genereren',
   copyButton: 'Antwoord kopiëren',
@@ -38,6 +40,12 @@ const nl: Partial<WidgetLocaleStrings> = {
   sourcesLabel: 'Bronnen',
   disclosure: 'Je chat met een AI-assistent. Deze kan fouten maken.',
   disclosureLearnMore: 'Meer informatie',
+  consentNotice: 'De chat is beschikbaar zodra je functionele cookies accepteert.',
+  consentButton: 'Cookie-instellingen',
+  moreButton: 'Meer opties',
+  downloadTranscript: 'Transcript downloaden',
+  privacy: 'Privacy',
+  newReply: 'Nieuw antwoord',
 };
 
 export default nl;
