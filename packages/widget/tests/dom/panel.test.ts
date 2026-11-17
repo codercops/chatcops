@@ -178,7 +178,8 @@ describe('Panel', () => {
     const panel = createPanel({ inline: true, onClose });
     const el = root.querySelector('.cc-panel') as HTMLElement;
     expect(el.id).toBe('');
-    expect(el.hasAttribute('role')).toBe(false);
+    expect(el.getAttribute('role')).toBe('region');
+    expect(el.getAttribute('aria-label')).toBe('Test Bot');
     expect(el.hasAttribute('aria-modal')).toBe(false);
     expect(el.hasAttribute('inert')).toBe(false);
     expect(el.hasAttribute('aria-hidden')).toBe(false);

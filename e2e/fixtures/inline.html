@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ChatCops e2e host page, inline build</title>
+</head>
+<body>
+  <main>
+    <h1>Host page</h1>
+    <p>Content before the inline widget.</p>
+    <div id="inline-box" style="width: 400px; height: 600px"></div>
+  </main>
+  <script type="module">
+    import { Widget } from '/chatcops.esm.js';
+    window.createInlineWidget = (config = {}) => {
+      const inline = new Widget({ apiUrl: '/api/chat', mode: 'inline', container: '#inline-box', ...config });
+      inline.init();
+      window.inlineWidget = inline;
+    };
+    window.createInlineWidget();
+  </script>
+</body>
+</html>
