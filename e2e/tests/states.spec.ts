@@ -59,7 +59,8 @@ async function ask(page: Page, text: string) {
 }
 
 async function expectInlineUnfocused(page: Page) {
-  await expect.poll(() => page.evaluate(() => {
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => {
     const host = document.querySelector('.chatcops-root');
     return document.activeElement !== host && host?.shadowRoot?.activeElement === null;
   })).toBe(true);
