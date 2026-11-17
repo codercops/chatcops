@@ -4,6 +4,7 @@ const ja: Partial<WidgetLocaleStrings> = {
   welcomeMessage: '今日はどのようなお手伝いができますか？',
   inputPlaceholder: 'メッセージを入力…',
   sendButton: '送信',
+  stopButton: '停止',
   closeButton: '閉じる',
   openChat: 'チャットを開く',
   defaultName: 'AIアシスタント',
@@ -28,6 +29,7 @@ const ja: Partial<WidgetLocaleStrings> = {
   preChatSubmit: 'チャットを開始',
   preChatRequired: 'この項目は必須です。',
   preChatInvalidEmail: '有効なメールアドレスを入力してください。',
+  messageWaiting: 'オンラインに戻ると送信されます',
   retryButton: '再試行',
   regenerateButton: '再生成',
   copyButton: '回答をコピー',
@@ -38,6 +40,12 @@ const ja: Partial<WidgetLocaleStrings> = {
   sourcesLabel: '情報源',
   disclosure: 'AIアシスタントと会話しています。誤ることがあります。',
   disclosureLearnMore: '詳しく見る',
+  consentNotice: '機能性 Cookie に同意するとチャットを利用できます。',
+  consentButton: 'Cookie の設定',
+  moreButton: 'その他のオプション',
+  downloadTranscript: 'トランスクリプトをダウンロード',
+  privacy: 'プライバシー',
+  newReply: '新しい返信',
 };
 
 export default ja;
