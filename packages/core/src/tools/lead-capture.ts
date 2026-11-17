@@ -6,11 +6,11 @@ import type { ChatTool } from './base.js';
 export type LeadCaptureCallback = (lead: LeadData) => void | Promise<void>;
 
 const leadInputSchema = z.object({
-  name: z.string(),
-  email: z.string().email(),
-  company: z.string().optional(),
-  phone: z.string().optional(),
-  projectDetails: z.string(),
+  name: z.string().trim().min(1, 'Required'),
+  email: z.string().trim().email('Invalid email'),
+  company: z.string().trim().optional(),
+  phone: z.string().trim().optional(),
+  projectDetails: z.string().trim().min(1, 'Required'),
 });
 
 export class LeadCaptureTool implements ChatTool {
@@ -41,7 +41,7 @@ export class LeadCaptureTool implements ChatTool {
     if (!parsed.success) {
       return {
         success: false,
-        message: `Invalid lead data: ${parsed.error.issues.map((i) => i.message).join(', ')}`,
+        message: `Invalid lead data: ${parsed.error.issues.map((i) => `${i.path.join('.') || 'value'}: ${i.message}`).join(', ')}`,
       };
     }
 
