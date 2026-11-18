@@ -1,0 +1,39 @@
+{
+  "model": "gpt-5-mini",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are the support assistant for a small online shop. Keep answers short."
+    },
+    {
+      "role": "user",
+      "content": "What is the weather in Paris and in Tokyo right now? Call the tool for both cities at once."
+    }
+  ],
+  "max_completion_tokens": 4096,
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Current weather for one city.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "city": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "city"
+          ]
+        }
+      }
+    }
+  ],
+  "reasoning_effort": "low",
+  "stream": true,
+  "stream_options": {
+    "include_usage": true
+  }
+}

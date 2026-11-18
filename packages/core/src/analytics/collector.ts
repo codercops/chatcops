@@ -1,11 +1,12 @@
 import type { AnalyticsEvent } from '../types.js';
+import { ANALYTICS_EVENTS } from './names.js';
 
 const MAX_EVENTS = 1000;
 
 export interface AnalyticsStats {
   totalConversations: number;
   totalMessages: number;
-  leadsCapture: number;
+  leadsCaptured: number;
   averageMessagesPerConversation: number;
   eventCounts: Record<string, number>;
 }
@@ -22,24 +23,24 @@ export class AnalyticsCollector {
       this.events = this.events.slice(-MAX_EVENTS);
     }
 
-    if (type === 'conversation:started' && data?.conversationId) {
+    if (event.type === ANALYTICS_EVENTS.conversationStarted && data?.conversationId) {
       this.conversationIds.add(data.conversationId as string);
     }
   }
 
   getStats(): AnalyticsStats {
-    const eventCounts: Record<string, number> = {};
-    for (const event of this.events) {
-      eventCounts[event.type] = (eventCounts[event.type] ?? 0) + 1;
-    }
+    const counts = new Map<string, number>();
+    for (const event of this.events) counts.set(event.type, (counts.get(event.type) ?? 0) + 1);
+    const eventCounts = Object.fromEntries(counts);
 
     const totalConversations = this.conversationIds.size;
-    const totalMessages = (eventCounts['message:sent'] ?? 0) + (eventCounts['message:received'] ?? 0);
+    const totalMessages = (counts.get(ANALYTICS_EVENTS.messageSent) ?? 0) + (counts.get(ANALYTICS_EVENTS.messageReceived) ?? 0);
+    const leadsCaptured = counts.get(ANALYTICS_EVENTS.leadCaptured) ?? 0;
 
     return {
       totalConversations,
       totalMessages,
-      leadsCapture: eventCounts['lead:captured'] ?? 0,
+      leadsCaptured,
       averageMessagesPerConversation: totalConversations > 0 ? totalMessages / totalConversations : 0,
       eventCounts,
     };

@@ -8,6 +8,8 @@ ChatCops includes a lightweight analytics collector that tracks conversation met
 ## Enabling Analytics
 
 ```typescript
+import { chatcopsMiddleware } from '@chatcops/server';
+
 chatcopsMiddleware({
   provider: { type: 'claude', apiKey: '...' },
   systemPrompt: '...',
@@ -17,7 +19,7 @@ chatcopsMiddleware({
 
 ## Reading Stats with Express
 
-`chatcopsAnalyticsHandler` returns the stats for the traffic handled by `chatcopsMiddleware`. Pass the **same config object** to both so they share one handler and one `AnalyticsCollector`:
+`chatcopsAnalyticsHandler` returns the stats for the traffic handled by `chatcopsMiddleware`. Pass the **same config object** to both so they share one handler:
 
 ```typescript
 import express from 'express';
@@ -26,18 +28,35 @@ import { chatcopsMiddleware, chatcopsAnalyticsHandler } from '@chatcops/server';
 const config = {
   provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
   systemPrompt: 'You are a helpful assistant.',
-  cors: '*',
+  allowedOrigins: ['*'],
   analytics: true,
+  analyticsToken: process.env.CHATCOPS_ANALYTICS_TOKEN,
 };
 
 const app = express();
 app.use(express.json());
 
-app.all('/chat', chatcopsMiddleware(config));
+app.use('/chat', chatcopsMiddleware(config));
 app.get('/analytics', chatcopsAnalyticsHandler(config));
 
 app.listen(3001);
 ```
+
+When `analyticsToken` is set, requests must include a bearer token:
+
+```bash
+curl -H "Authorization: Bearer <token>" http://localhost:3001/analytics
+```
+
+When unset, the endpoint is public and logs a warning the first time it is hit.
+
+With a `storage` that has an event sink (`memoryStorage()`, Postgres, Redis, SQLite and Cloudflare stores all do), the server writes every event there too, and the endpoint counts from the store. Then the stats cover every server instance, not just the one answering. Pick the range with `from` and `to` in milliseconds. The default is the last 30 days:
+
+```bash
+curl -H "Authorization: Bearer <token>" "http://localhost:3001/analytics?from=1792368000000"
+```
+
+Without a store that can be queried, the stats come from the memory of the process that answers, which on serverless is one instance at a time. A range that isn't a number gets `400 {"error":"invalid_range"}`.
 
 `GET /analytics` responds with the aggregated stats (or `null` if `analytics` is not enabled):
 
@@ -45,9 +64,9 @@ app.listen(3001);
 {
   "totalConversations": 2,
   "totalMessages": 4,
-  "leadsCapture": 0,
+  "leadsCaptured": 0,
   "averageMessagesPerConversation": 2,
-  "eventCounts": { "conversation:started": 2, "message:sent": 2, "message:received": 2 }
+  "eventCounts": { "conversation.started": 2, "message.sent": 2, "message.received": 2 }
 }
 ```
 
@@ -57,10 +76,12 @@ When `analytics: true`, the server automatically tracks:
 
 | Event | When |
 |-------|------|
-| `conversation:started` | New conversation ID first seen |
-| `message:sent` | User sends a message |
-| `message:received` | AI responds |
-| `lead:captured` | Lead capture tool fires |
+| `conversation.started` | New conversation ID first seen |
+| `message.sent` | User sends a message |
+| `message.received` | AI responds |
+| `lead.captured` | Lead capture tool fires |
+
+`ANALYTICS_EVENTS` from `@chatcops/core` has these names, so code doesn't have to spell them. Before 0.8 they were `conversation:started`, `message:sent`, `message:received` and `lead:captured`. Stats still count events a store saved under those names, so totals carry on across the upgrade, but `track()` and `getEvents()` treat them as names of your own. Webhook event names, such as `lead:captured` in a webhook's `events`, are separate and didn't change.
 
 ## AnalyticsCollector API
 
@@ -70,21 +91,21 @@ import { AnalyticsCollector } from '@chatcops/core';
 const analytics = new AnalyticsCollector();
 
 // Track custom events
-analytics.track('custom:event', { key: 'value' });
+analytics.track('pricing.viewed', { plan: 'Team' });
 
 // Get aggregated stats
 const stats = analytics.getStats();
 // {
 //   totalConversations: 150,
 //   totalMessages: 2340,
-//   leadsCapture: 23,
+//   leadsCaptured: 23,
 //   averageMessagesPerConversation: 15.6,
-//   eventCounts: { 'conversation:started': 150, ... }
+//   eventCounts: { 'conversation.started': 150, ... }
 // }
 
 // Get raw events (optionally filter by type)
 const allEvents = analytics.getEvents();
-const leads = analytics.getEvents('lead:captured');
+const leads = analytics.getEvents('lead.captured');
 
 // Clear all events
 analytics.clear();
@@ -96,7 +117,7 @@ analytics.clear();
 interface AnalyticsStats {
   totalConversations: number;
   totalMessages: number;
-  leadsCapture: number;
+  leadsCaptured: number;
   averageMessagesPerConversation: number;
   eventCounts: Record<string, number>;
 }
@@ -110,20 +131,31 @@ interface AnalyticsEvent {
 
 ## Storage
 
-The built-in collector stores events in memory (max 1000 events). For production use, export events to your analytics platform:
+The built-in collector stores events in memory (max 1000 events). With `analytics: true` and a `storage`, the server already writes events to the store's sink, buffered and flushed as each reply ends. To do the same in your own code, use `BufferedEventSink`. It batches up to 50 events by default and flushes every 2 seconds. Call `flush()` when you need to wait for queued writes, such as before a process exits:
 
 ```typescript
-const collector = new AnalyticsCollector();
+import { BufferedEventSink, memoryStorage, statsFromSink } from '@chatcops/core';
 
-// Periodically flush to your analytics service
-setInterval(() => {
-  const events = collector.getEvents();
-  if (events.length > 0) {
-    sendToAnalytics(events);
-    collector.clear();
-  }
-}, 60_000); // Every minute
+const storage = memoryStorage();
+const eventSink = storage.events;
+if (!eventSink) throw new Error('Event storage is not configured');
+
+const analytics = new BufferedEventSink(eventSink, {
+  maxBatch: 50,
+  flushMs: 2000,
+});
+
+analytics.track('pricing.viewed', { plan: 'Team' });
+await analytics.flush();
+
+const now = Date.now();
+const stats = await statsFromSink(eventSink, {
+  from: now - 24 * 60 * 60 * 1000,
+  to: now,
+});
 ```
+
+Use a persistent `EventSink` implementation when events need to be shared across processes or survive restarts. Writes that fail are logged and dropped so analytics does not interrupt chat requests. `statsFromSink` requires the sink's optional `query` method; the range includes `from` and excludes `to`. It counts each `conversation:started` event as one conversation.
 
 ## Client-Side Events
 
@@ -131,11 +163,59 @@ Combine with widget events for full-stack analytics:
 
 ```typescript
 // Client-side
+declare const gtag: (command: 'event', eventName: string) => void;
 ChatCops.on('open', () => gtag('event', 'chat_opened'));
-ChatCops.on('message', (m) => {
+ChatCops.on('message', (...args: unknown[]) => {
+  const m = args[0] as { role: 'user' | 'assistant' };
   if (m.role === 'user') gtag('event', 'chat_message_sent');
 });
 
 // Server-side (automatic with analytics: true)
-// conversation:started, message:sent, message:received, lead:captured
+// conversation.started, message.sent, message.received, lead.captured
 ```
+
+## Whether a reply answered
+
+Each finished reply is saved with `metadata.answered` (`true` or `false`), and `metadata.unansweredReason` when it's `false`, so you can work out an answer rate and find the questions your knowledge doesn't cover. A reply counts as not answered when:
+
+- it says it doesn't know near its start ("I don't know", "I couldn't find", and the same in Spanish, French, German and Portuguese): `refusal`
+- a knowledge source that retrieves pages ran and found nothing: `no_retrieval`
+- retrieval found pages, but a reply longer than 20 words cited none of them: `no_citation`
+
+It's a heuristic built from those free signals, not a judgement of quality. `checkAnswered` from `@chatcops/core` is the same check, if you want to run it yourself:
+
+```typescript
+import { checkAnswered } from '@chatcops/core';
+
+checkAnswered({ reply: "Sorry, I couldn't find that.", retrieval: { chunks: 0 } });
+// { answered: false, reason: 'refusal' }
+```
+
+It also takes `phrases` (more ways your bot says it doesn't know) and, in `retrieval`, a `topScore` with a `minScore` to count weak retrieval as nothing found.
+
+## Redacting personal data
+
+`redactPII()` takes personal data out of text, so that what a visitor typed can be kept without it. Each kind is replaced with a tag:
+
+| Finds | Replaced with |
+|---|---|
+| Email addresses | `[email]` |
+| Phone numbers: `+` and 8 to 15 digits, or a local format with separators such as `(415) 555-0100` | `[phone]` |
+| Card numbers of 13 to 19 digits that pass the Luhn check | `[card]` |
+| IBANs that pass the mod-97 check | `[iban]` |
+| IPv4 and IPv6 addresses | `[ip]` |
+| Each of your own `patterns` | `[redacted]` |
+
+```typescript
+import { redactPII } from '@chatcops/core';
+
+redactPII('Mail jo@example.com or call 415-555-0100');
+// 'Mail [email] or call [phone]'
+
+redactPII('Order ORD-1042 shipped', { patterns: [/ORD-\d+/] });
+// 'Order [redacted] shipped'
+```
+
+Your `patterns` run first, and every match is replaced, whether or not the pattern has the `g` flag.
+
+It is best effort, not a guarantee. It leans towards leaving text alone, so a plain run of digits (`Order 12345678`), a price, a date, a time or a version number such as `1.1.1` is not touched, and neither is a card-like number that fails its check. It does not find names, street addresses or anything else written in free text, so don't rely on it as the only protection for sensitive data.

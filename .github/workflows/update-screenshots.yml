@@ -1,0 +1,73 @@
+name: Update screenshots
+
+# Makes the screenshot baselines in e2e/screenshots/ on CI's Linux Chromium,
+# the only place they're compared. Run it from the Actions tab on a branch
+# in this repo after a change to how the widget looks. For dev it opens a PR
+# instead, since dev only takes changes through PRs.
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Branch to update (a branch in this repo, or dev for a new PR)
+        required: true
+        default: dev
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build the widget and the server
+        run: pnpm --filter @chatcops/widget --filter "@chatcops/server..." build
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Make the screenshots
+        run: pnpm e2e visual.spec.ts --update-snapshots
+        env:
+          E2E_UPDATE_SCREENSHOTS: '1'
+
+      - name: Commit them
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ inputs.branch }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          git add e2e/screenshots
+          if git diff --cached --quiet; then
+            echo "The screenshots are up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "test(e2e): update screenshot baselines"
+          target="$BRANCH"
+          if [ "$BRANCH" = dev ] || [ "$BRANCH" = production ]; then
+            target="screenshots/$RUN_ID"
+            git push origin "HEAD:refs/heads/$target"
+            gh pr create --base "$BRANCH" --head "$target" \
+              --title "test(e2e): update screenshot baselines" \
+              --body "Made by the Update screenshots workflow, run $RUN_ID. Check the images in the Files tab before merging."
+          else
+            git push origin "HEAD:refs/heads/$target"
+          fi
+          # Pushes made with this workflow's token don't start CI on their own.
+          gh workflow run ci.yml --ref "$target"

@@ -1,9 +1,6 @@
-import type { WebhookConfig } from '@chatcops/core';
+import { consoleLogger, type Logger, type WebhookConfig } from '@chatcops/core';
 
-/**
- * The JSON body of every delivery. `event` and `timestamp` repeat `type` and
- * `created` for receivers written against the old format.
- */
+/** The JSON body of every delivery. */
 export interface WebhookEvent<T = unknown> {
   /** Unique per event, and the same on every retry, so receivers can drop duplicates. */
   id: string;
@@ -11,10 +8,6 @@ export interface WebhookEvent<T = unknown> {
   /** Milliseconds since the epoch. */
   created: number;
   data: T;
-  /** @deprecated Same as `type`. */
-  event: string;
-  /** @deprecated Same as `created`. */
-  timestamp: number;
 }
 
 export const DEFAULT_WEBHOOK_TIMEOUT_MS = 5000;
@@ -22,8 +15,10 @@ export const SIGNATURE_HEADER = 'X-ChatCops-Signature';
 /** Signatures older than this are rejected by `verifyWebhook` by default. */
 export const DEFAULT_SIGNATURE_TOLERANCE_SEC = 300;
 
-const MAX_ATTEMPTS = 3;
+const DEFAULT_MAX_ATTEMPTS = 3;
 const MAX_RETRY_AFTER_MS = 10_000;
+const MAX_TIMEOUT_MS = 2_147_483_647;
+const MAX_CONFIGURED_ATTEMPTS = 10;
 
 /**
  * Throws when a webhook URL isn't safe to call from a server: anything other
@@ -56,7 +51,8 @@ export function assertSafeWebhookUrl(rawUrl: string, allowPrivateNetwork = false
 }
 
 function isPrivateHost(hostname: string): boolean {
-  const host = hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  // A final dot is the DNS root label, so localhost. is still localhost.
+  const host = hostname.replace(/^\[|\]$/g, '').toLowerCase().replace(/\.$/, '');
   if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')) {
     return true;
   }
@@ -94,8 +90,12 @@ export class WebhookDispatcher {
   private configs: WebhookConfig[];
   private timeoutMs: number;
 
-  constructor(configs: WebhookConfig[], timeoutMs: number = DEFAULT_WEBHOOK_TIMEOUT_MS) {
+  private logger: Logger;
+
+  constructor(configs: WebhookConfig[], timeoutMs: number = DEFAULT_WEBHOOK_TIMEOUT_MS, logger: Logger = consoleLogger()) {
+    this.logger = logger;
     for (const config of configs) {
+      validateDeliveryOptions(config);
       assertSafeWebhookUrl(config.url, config.allowPrivateNetwork);
     }
     this.configs = configs;
@@ -106,14 +106,11 @@ export class WebhookDispatcher {
     const matching = this.configs.filter((c) => c.events.includes(event) || c.events.includes('*'));
     if (matching.length === 0) return;
 
-    const created = Date.now();
     const envelope: WebhookEvent = {
       id: `evt_${crypto.randomUUID()}`,
       type: event,
-      created,
+      created: Date.now(),
       data,
-      event,
-      timestamp: created,
     };
     const body = JSON.stringify(envelope);
 
@@ -122,8 +119,10 @@ export class WebhookDispatcher {
 
   private async send(config: WebhookConfig, envelope: WebhookEvent, body: string): Promise<void> {
     let lastProblem = '';
+    const maxAttempts = config.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
+    const timeoutMs = config.timeoutMs ?? this.timeoutMs;
 
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       let retryAfterMs: number | undefined;
       try {
         const headers: Record<string, string> = {
@@ -141,7 +140,7 @@ export class WebhookDispatcher {
           body,
           // A redirect could point anywhere, including a private address.
           redirect: 'manual',
-          signal: AbortSignal.timeout(this.timeoutMs),
+          signal: AbortSignal.timeout(timeoutMs),
         });
 
         if (response.ok) return;
@@ -154,23 +153,43 @@ export class WebhookDispatcher {
         lastProblem = error instanceof Error ? error.name : 'network error';
       }
 
-      if (attempt < MAX_ATTEMPTS) {
+      if (attempt < maxAttempts) {
         await new Promise((r) => setTimeout(r, retryAfterMs ?? 2 ** (attempt - 1) * 1000));
       }
     }
 
     // Never log the body or the secret; they can hold lead details.
-    console.error(
-      `[chatcops] Webhook delivery failed: ${envelope.type} (${envelope.id}) to ${new URL(config.url).origin}: ${lastProblem}`
+    this.logger.error(
+      'webhook_failed',
+      `Webhook delivery failed: ${envelope.type} (${envelope.id}) to ${new URL(config.url).origin}: ${lastProblem}`,
+      { webhookEvent: envelope.type, deliveryId: envelope.id }
     );
+  }
+}
+
+function validateDeliveryOptions(config: WebhookConfig): void {
+  if (config.timeoutMs !== undefined && (!Number.isSafeInteger(config.timeoutMs) || config.timeoutMs < 1 || config.timeoutMs > MAX_TIMEOUT_MS)) {
+    throw new Error(`webhook.timeoutMs must be an integer between 1 and ${MAX_TIMEOUT_MS}`);
+  }
+  if (
+    config.maxAttempts !== undefined &&
+    (!Number.isSafeInteger(config.maxAttempts) || config.maxAttempts < 1 || config.maxAttempts > MAX_CONFIGURED_ATTEMPTS)
+  ) {
+    throw new Error(`webhook.maxAttempts must be an integer between 1 and ${MAX_CONFIGURED_ATTEMPTS}`);
   }
 }
 
 function parseRetryAfter(value: string | null): number | undefined {
   if (!value) return undefined;
   const seconds = Number(value);
-  if (!Number.isFinite(seconds) || seconds < 0) return undefined;
-  return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
+  if (Number.isFinite(seconds)) return seconds >= 0 ? Math.min(seconds * 1000, MAX_RETRY_AFTER_MS) : undefined;
+  // An HTTP-date has day and month names. Without the check, Date.parse reads
+  // values like "120.5" or "-1 day" as dates long past, and the retry wouldn't wait.
+  if (!/[a-z]/i.test(value)) return undefined;
+
+  const retryAt = Date.parse(value);
+  if (Number.isNaN(retryAt)) return undefined;
+  return Math.min(Math.max(retryAt - Date.now(), 0), MAX_RETRY_AFTER_MS);
 }
 
 async function hmacHex(secret: string, message: string): Promise<string> {
@@ -195,7 +214,10 @@ export async function signWebhook(body: string, secret: string, timestampSec = M
 /**
  * Checks a delivery on the receiving side. Pass the raw request body exactly
  * as received (not re-serialized JSON) and the `X-ChatCops-Signature` header.
- * Returns false for a bad signature or one older than `toleranceSec`.
+ * Returns false for a bad signature or one more than `toleranceSec` seconds
+ * from now, in the past or the future (default 300; 0 allows only the same
+ * second). Throws a RangeError when `toleranceSec` is not a whole number of
+ * seconds, 0 or more.
  */
 export async function verifyWebhook(options: {
   body: string;
@@ -205,6 +227,11 @@ export async function verifyWebhook(options: {
   now?: number;
 }): Promise<boolean> {
   const { body, signature, secret, toleranceSec = DEFAULT_SIGNATURE_TOLERANCE_SEC } = options;
+  // A setting, not input: a wrong one throws instead of returning false, so it can't pass for a bad signature.
+  // NaN and Infinity would make the age check below never reject anything.
+  if (!Number.isSafeInteger(toleranceSec) || toleranceSec < 0) {
+    throw new RangeError(`verifyWebhook: toleranceSec must be a whole number of seconds, 0 or more (got ${String(toleranceSec)})`);
+  }
   if (!signature) return false;
 
   const parts = Object.fromEntries(

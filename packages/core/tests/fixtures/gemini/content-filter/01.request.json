@@ -1,0 +1,26 @@
+{
+  "contents": [
+    {
+      "parts": [
+        {
+          "text": "Say hello in five words."
+        }
+      ],
+      "role": "user"
+    }
+  ],
+  "systemInstruction": {
+    "parts": [
+      {
+        "text": "You are the support assistant for a small online shop. Keep answers short."
+      }
+    ],
+    "role": "user"
+  },
+  "generationConfig": {
+    "maxOutputTokens": 4096,
+    "thinkingConfig": {
+      "thinkingLevel": "LOW"
+    }
+  }
+}

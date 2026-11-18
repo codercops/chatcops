@@ -1,111 +1,8 @@
-:host {
-  --cc-accent: #6366f1;
-  --cc-accent-hover: #4f46e5;
-  /* Text and icons on accent backgrounds, and the accent shade that text sits on.
-     Both are recomputed from theme.accent so text always reaches WCAG AA 4.5:1. */
-  --cc-on-accent: #ffffff;
-  --cc-accent-contrast: #6164ec;
-  --cc-text: #ffffff;
-  --cc-bg: #0a0a0a;
-  --cc-bg-surface: #1a1a1a;
-  --cc-bg-input: #2a2a2a;
-  --cc-border: #333333;
-  --cc-text-secondary: #a0a0a0;
-  --cc-font: system-ui, -apple-system, sans-serif;
-  --cc-radius: 12px;
-  --cc-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  --cc-fab-size: 56px;
-  --cc-panel-width: 400px;
-  --cc-panel-height: 560px;
-
-  all: initial;
-  font-family: var(--cc-font);
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--cc-text);
-  -webkit-font-smoothing: antialiased;
-}
-
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-/* FAB */
-.cc-fab {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  width: var(--cc-fab-size);
-  height: var(--cc-fab-size);
-  border-radius: 50%;
-  background: var(--cc-accent);
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  z-index: 10000;
-  outline: none;
-}
-
-.cc-fab:hover {
-  transform: scale(1.05);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
-}
-
-.cc-fab:active {
-  transform: scale(0.95);
-}
-
-.cc-fab.cc-left {
-  right: auto;
-  left: 20px;
-}
-
-.cc-fab svg {
-  width: 24px;
-  height: 24px;
-  fill: var(--cc-on-accent);
-  transition: transform 0.3s ease;
-}
-
-.cc-fab.cc-open svg {
-  transform: rotate(90deg);
-}
-
-.cc-fab-badge {
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #ef4444;
-  border: 2px solid var(--cc-bg);
-  display: none;
-}
-
-.cc-fab-badge.cc-visible {
-  display: block;
-}
-
-@keyframes cc-pulse {
-  0%, 100% { box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3); }
-  50% { box-shadow: 0 4px 16px rgba(99, 102, 241, 0.5); }
-}
-
-.cc-fab.cc-pulse {
-  animation: cc-pulse 2s ease-in-out 3;
-}
-
 /* Panel */
 .cc-panel {
   position: fixed;
   bottom: 88px;
+  /* Physical placement: the site's default bottom-right choice stays on the right. */
   right: 20px;
   width: var(--cc-panel-width);
   height: var(--cc-panel-height);
@@ -121,7 +18,7 @@
   opacity: 0;
   transform: translateY(16px) scale(0.95);
   pointer-events: none;
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition: opacity 0.2s, transform 0.2s;
 }
 
 .cc-panel.cc-visible {
@@ -131,6 +28,7 @@
 }
 
 .cc-panel.cc-left {
+  /* Physical placement: the site's bottom-left choice stays on the left. */
   right: auto;
   left: 20px;
 }
@@ -139,8 +37,7 @@
 .cc-panel.cc-inline {
   position: relative;
   bottom: auto;
-  right: auto;
-  left: auto;
+  inset-inline: auto;
   width: 100%;
   height: 100%;
   max-height: 100%;
@@ -153,12 +50,9 @@
   visibility: hidden;
 }
 
-.cc-panel.cc-inline.cc-visible {
-  transform: none;
-}
-
 /* Panel header */
 .cc-header {
+  position: relative;
   display: flex;
   align-items: center;
   padding: 16px;
@@ -167,19 +61,19 @@
   flex-shrink: 0;
 }
 
-.cc-header-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  margin-right: 12px;
-  object-fit: cover;
-}
-
+.cc-header-avatar,
 .cc-header-avatar-placeholder {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  margin-right: 12px;
+  margin-inline-end: 12px;
+}
+
+.cc-header-avatar {
+  object-fit: cover;
+}
+
+.cc-header-avatar-placeholder {
   background: var(--cc-accent);
   display: flex;
   align-items: center;
@@ -207,7 +101,8 @@
   color: var(--cc-text-secondary);
 }
 
-.cc-header-close {
+.cc-header-close,
+.cc-header-more {
   width: 32px;
   height: 32px;
   border-radius: 8px;
@@ -217,17 +112,20 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s ease;
+  transition: background 0.15s;
+  color: var(--cc-text-secondary);
 }
 
-.cc-header-close:hover {
+.cc-header-close:hover,
+.cc-header-more:hover {
   background: var(--cc-bg-input);
 }
 
-.cc-header-close svg {
+.cc-header-close svg,
+.cc-header-more svg {
   width: 16px;
   height: 16px;
-  fill: var(--cc-text-secondary);
+  fill: currentColor;
 }
 
 /* Messages area */
@@ -258,7 +156,6 @@
   max-width: 85%;
   padding: 10px 14px;
   border-radius: var(--cc-radius);
-  word-wrap: break-word;
   overflow-wrap: break-word;
   font-size: 14px;
   line-height: 1.5;
@@ -271,14 +168,35 @@
   align-self: flex-end;
   background: var(--cc-accent-contrast);
   color: var(--cc-on-accent);
-  border-bottom-right-radius: 4px;
+  border-end-end-radius: 4px;
 }
 
 .cc-message-assistant {
   align-self: flex-start;
   background: var(--cc-bg-surface);
   color: var(--cc-text);
-  border-bottom-left-radius: 4px;
+  border-end-start-radius: 4px;
+}
+
+.cc-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 16px 12px;
+}
+
+.cc-suggestion {
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-radius);
+  padding: 8px 12px;
+  background: var(--cc-bg-surface);
+  color: var(--cc-text);
+  cursor: pointer;
+  font: inherit;
+}
+
+.cc-suggestion:hover {
+  border-color: var(--cc-accent);
 }
 
 .cc-message a {
@@ -286,8 +204,37 @@
   text-decoration: underline;
 }
 
+.cc-message-user .cc-message-content {
+  white-space: pre-wrap;
+}
+
 .cc-message-user a {
   color: var(--cc-on-accent);
+}
+
+.cc-disclosure {
+  margin-block-end: 4px;
+  padding: 8px 12px;
+  border: 1px solid var(--cc-border);
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--cc-text-secondary);
+}
+
+.cc-disclosure a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.cc-consent {
+  margin: auto;
+  padding: 24px;
+  text-align: center;
+  color: var(--cc-text-secondary);
+}
+
+.cc-consent-btn {
+  margin-top: 12px;
 }
 
 .cc-message-error-note {
@@ -296,8 +243,29 @@
   color: var(--cc-text-secondary);
 }
 
+.cc-message-waiting {
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.cc-message-sources {
+  margin-block-start: 8px;
+  font-size: 12px;
+  color: var(--cc-text-secondary);
+}
+
+.cc-message-sources ol {
+  margin: 0;
+  padding-inline-start: 1.2em;
+}
+
+.cc-message-sources a {
+  color: var(--cc-text-secondary);
+  text-decoration: underline;
+}
+
 .cc-message code {
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--cc-code-bg);
   padding: 1px 4px;
   border-radius: 4px;
   font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
@@ -305,7 +273,7 @@
 }
 
 .cc-message pre {
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--cc-pre-bg);
   padding: 8px 12px;
   border-radius: 8px;
   overflow-x: auto;
@@ -318,7 +286,7 @@
 }
 
 .cc-message ul, .cc-message ol {
-  padding-left: 20px;
+  padding-inline-start: 20px;
   margin: 4px 0;
 }
 
@@ -335,8 +303,11 @@
   align-items: center;
 }
 
+.cc-consent-btn,
 .cc-message-retry,
-.cc-message-regenerate {
+.cc-message-regenerate,
+.cc-message-copy,
+.cc-pill {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -348,29 +319,27 @@
   font-family: var(--cc-font);
   font-size: 12px;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+  transition: background 0.15s, color 0.15s, opacity 0.15s;
 }
 
-.cc-message-retry:hover,
-.cc-message-regenerate:hover {
+.cc-consent-btn:hover,
+.cc-message-regenerate:hover,
+.cc-message-copy:hover,
+.cc-pill:hover {
   background: var(--cc-bg-input);
   color: var(--cc-text);
 }
 
-.cc-message-retry svg,
-.cc-message-regenerate svg {
-  fill: currentColor;
-}
 
 .cc-message-regenerate {
   opacity: 0;
 }
 
-.cc-message:hover .cc-message-regenerate {
-  opacity: 1;
+.cc-message-actions svg {
+  fill: currentColor;
 }
 
-/* Keep regenerate available to keyboard and touch users */
+.cc-message:hover .cc-message-regenerate,
 .cc-message:focus-within .cc-message-regenerate,
 .cc-message-regenerate:focus-visible {
   opacity: 1;
@@ -382,15 +351,14 @@
   }
 }
 
-
 .cc-message-retry {
-  border-color: #ef4444;
-  color: #ef4444;
+  border-color: var(--cc-danger);
+  color: var(--cc-danger);
 }
 
 .cc-message-retry:hover {
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
+  background: color-mix(in srgb, var(--cc-danger) 10%, transparent);
+  color: var(--cc-danger);
 }
 
 /* Typing indicator */
@@ -402,7 +370,7 @@
   align-self: flex-start;
   background: var(--cc-bg-surface);
   border-radius: var(--cc-radius);
-  border-bottom-left-radius: 4px;
+  border-end-start-radius: 4px;
 }
 
 .cc-typing-dot {
@@ -445,13 +413,11 @@
   outline: none;
   max-height: 96px;
   overflow-y: auto;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s;
 }
 
 .cc-input:focus {
   border-color: var(--cc-accent);
-  outline: 2px solid var(--cc-accent);
-  outline-offset: 1px;
 }
 
 .cc-input::placeholder {
@@ -469,7 +435,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: background 0.15s ease, opacity 0.15s ease;
+  transition: background 0.15s, opacity 0.15s;
 }
 
 .cc-send-btn:hover {
@@ -485,6 +451,10 @@
   width: 16px;
   height: 16px;
   fill: var(--cc-on-accent);
+}
+
+:host([dir="rtl"]) .cc-send-btn svg {
+  transform: scaleX(-1);
 }
 
 /* Footer */
@@ -509,6 +479,7 @@
 .cc-bubble {
   position: fixed;
   bottom: 84px;
+  /* Physical placement: the site's default bottom-right choice stays on the right. */
   right: 20px;
   background: var(--cc-bg-surface);
   color: var(--cc-text);
@@ -523,8 +494,7 @@
   opacity: 0;
   transform: translateY(8px);
   pointer-events: none;
-  transition: opacity 0.3s ease, transform 0.3s ease;
-  cursor: pointer;
+  transition: opacity 0.3s, transform 0.3s;
 }
 
 .cc-bubble.cc-visible {
@@ -534,14 +504,30 @@
 }
 
 .cc-bubble.cc-left {
+  /* Physical placement: the site's bottom-left choice stays on the left. */
   right: auto;
   left: 20px;
+}
+
+.cc-bubble-trigger {
+  appearance: none;
+  display: block;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: start;
+  cursor: pointer;
 }
 
 .cc-bubble-close {
   position: absolute;
   top: -8px;
-  right: -8px;
+  inset-inline-end: -8px;
   width: 20px;
   height: 20px;
   border-radius: 50%;
@@ -569,6 +555,26 @@
   white-space: nowrap;
 }
 
+.cc-pill {
+  position: absolute;
+  bottom: 84px;
+  inset-inline: 0;
+  margin-inline: auto;
+  width: fit-content;
+  background: var(--cc-surface-raised);
+  color: var(--cc-text);
+  padding: 10px 16px;
+  border-radius: 99px;
+  box-shadow: var(--cc-shadow);
+  font-size: 13px;
+}
+
+.cc-pill::after {
+  content: " ↓" / "";
+}
+
+
+
 /* Messages wrapper (only present when pre-chat form is enabled) */
 .cc-messages-wrapper {
   flex: 1;
@@ -577,115 +583,8 @@
   min-height: 0;
 }
 
-/* Pre-chat form */
-.cc-prechat {
-  flex: 1;
-  overflow-y: auto;
-  padding: 24px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.cc-prechat-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--cc-text);
-}
-
-.cc-prechat-subtitle {
-  font-size: 13px;
-  color: var(--cc-text-secondary);
-  margin-top: -8px;
-}
-
-.cc-prechat-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.cc-prechat-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.cc-prechat-label {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--cc-text);
-}
-
-.cc-prechat-label .cc-required {
-  color: #ef4444;
-  margin-left: 2px;
-}
-
-.cc-prechat-input,
-.cc-prechat-select,
-.cc-prechat-textarea {
-  background: var(--cc-bg-input);
-  border: 1px solid var(--cc-border);
-  border-radius: 8px;
-  padding: 8px 12px;
-  color: var(--cc-text);
-  font-family: var(--cc-font);
-  font-size: 14px;
-  outline: none;
-  transition: border-color 0.15s ease;
-}
-
-.cc-prechat-input:focus,
-.cc-prechat-select:focus,
-.cc-prechat-textarea:focus {
-  border-color: var(--cc-accent);
-}
-
-.cc-prechat-select {
-  appearance: auto;
-}
-
-.cc-prechat-textarea {
-  resize: none;
-  line-height: 1.5;
-}
-
-.cc-prechat-error {
-  font-size: 12px;
-  color: #ef4444;
-  min-height: 0;
-}
-
-.cc-prechat-error:empty {
-  display: none;
-}
-
-.cc-prechat-submit {
-  background: var(--cc-accent-contrast);
-  color: var(--cc-on-accent);
-  border: none;
-  border-radius: 8px;
-  padding: 10px 16px;
-  font-family: var(--cc-font);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s ease;
-  margin-top: 8px;
-}
-
-.cc-prechat-submit:hover {
-  background: var(--cc-accent-hover);
-}
-
-.cc-prechat-submit:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 /* Mobile */
-@media (max-width: 768px) {
+@media (max-width: 640px) {
   .cc-fab.cc-open {
     display: none;
   }
@@ -693,41 +592,47 @@
   .cc-panel:not(.cc-inline) {
     width: 100%;
     height: 100%;
+    /* biome-ignore lint/suspicious/noDuplicateProperties: fallback */
+    height: 100dvh;
     max-height: 100%;
     bottom: 0;
-    right: 0;
-    left: 0;
+    inset-inline: 0;
+    /* Both sides are 0, so this is the same in either direction. */
     border-radius: 0;
     border: none;
+    padding-block: env(safe-area-inset-top) env(safe-area-inset-bottom);
   }
 
-  .cc-panel.cc-left:not(.cc-inline) {
-    left: 0;
+
+  .cc-input {
+    font-size: 16px;
   }
 
   .cc-bubble {
-    bottom: 84px;
-    right: 16px;
-    left: 16px;
+    inset-inline: 16px;
     max-width: none;
   }
 }
 
-/* Keyboard focus indicators */
-.cc-fab:focus-visible,
+/* Keyboard focus indicators (the launcher's are in launcher.css) */
 .cc-header-close:focus-visible,
+.cc-header-more:focus-visible,
+.cc-consent-btn:focus-visible,
 .cc-send-btn:focus-visible,
+.cc-suggestion:focus-visible,
 .cc-message-retry:focus-visible,
 .cc-message-regenerate:focus-visible,
+.cc-message-copy:focus-visible,
+.cc-bubble-trigger:focus-visible,
 .cc-bubble-close:focus-visible,
-.cc-prechat-submit:focus-visible {
-  outline: 2px solid var(--cc-accent);
-  outline-offset: 3px;
+.cc-pill:focus-visible,
+.cc-input:focus-visible {
+  outline: 2px solid transparent;
+  box-shadow: var(--cc-focus-ring);
 }
 
 /* Respect reduced-motion preferences */
 @media (prefers-reduced-motion: reduce) {
-  .cc-fab.cc-pulse,
   .cc-typing-dot {
     animation: none;
   }

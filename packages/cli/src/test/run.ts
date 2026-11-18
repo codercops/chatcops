@@ -1,0 +1,386 @@
+import { randomUUID } from 'node:crypto';
+import { isAIProvider, memoryStorage, type ChatTool, type ToolResult, type WirePart } from '@chatcops/core';
+import { createChatHandler, type ChatCopsServerConfig, type ChatHandler } from '@chatcops/server';
+import { ConfigError } from '../config.js';
+import { check } from './assertions/index.js';
+import type { Cassettes } from './cassette.js';
+import { costOf, dollars, type Prices, type Spend } from './cost.js';
+import { sourceLines } from './source-lines.js';
+import type { Assertion, Fixture, Judge, TestCase, TestResult, TestRunResult, TurnResult } from './types.js';
+
+export interface RunOptions {
+  /** Tests run at once. Default 4. */
+  concurrency?: number;
+  /** Overrides each test's `repeat`. */
+  repeat?: number;
+  /** Called as each test finishes. */
+  onResult?: (result: TestResult) => void;
+  /** Records or replays each test's HTTP calls. */
+  cassettes?: Cassettes;
+  /** For `judge` assertions. */
+  judge?: Judge;
+  /** The bot's model id, to price its turns. */
+  model?: string;
+  prices?: Prices;
+  /** Stops starting turns once `--max-cost` is reached. */
+  spend?: Spend;
+  /** Sends turns to a ChatCops HTTP endpoint instead of an in-process handler. */
+  url?: string;
+  /** Headers sent with HTTP turns. */
+  headers?: Array<[string, string]>;
+}
+
+/** An eval file to run: `file` as reported, `path` on disk (for its cassette). */
+export interface FixtureJob {
+  file: string;
+  path?: string;
+  fixture: Fixture;
+  tests: TestCase[];
+}
+
+/**
+ * Runs every test of the fixtures against the server config, in process: the
+ * real request path (knowledge, page context, locale, tools), with fresh
+ * in-memory storage for every run and the fixture's tool mocks.
+ */
+export async function runFixtures(
+  server: ChatCopsServerConfig | undefined,
+  fixtures: FixtureJob[],
+  options: RunOptions = {}
+): Promise<TestResult[]> {
+  if (options.cassettes?.mode === 'replay' && server) server = withoutKeys(server);
+  const jobs = fixtures.flatMap(({ file, path, tests }) => tests.map((test) => ({ file, path: path ?? file, test })));
+  const results: TestResult[] = new Array(jobs.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < jobs.length) {
+      const index = next++;
+      const { file, path, test } = jobs[index];
+      const started = performance.now();
+      results[index] = await runTest(file, test, options.repeat, (run) => {
+        const once = () => runOnce(server, { file, path, test, run }, options);
+        if (!options.cassettes) return once();
+        return options.cassettes.run(path, test.name, once).then(({ value, problems }) => {
+          if (problems.length) {
+            value.pass = false;
+            value.error = problems.length > 1 ? `${problems[0]} (and ${problems.length - 1} more)` : problems[0];
+          }
+          return value;
+        });
+      });
+      results[index].durationMs = performance.now() - started;
+      options.onResult?.(results[index]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(Math.max(1, options.concurrency ?? 4), jobs.length) }, worker));
+  return results;
+}
+
+async function runTest(
+  fixture: string,
+  test: TestCase,
+  repeatOverride: number | undefined,
+  once: (run: number) => Promise<TestRunResult>
+): Promise<TestResult> {
+  const repeat = repeatOverride ?? test.repeat ?? 1;
+  const runs: TestRunResult[] = [];
+  for (let run = 1; run <= repeat; run++) runs.push(await once(run));
+  const passed = runs.filter((result) => result.pass).length;
+  const passRate = passed / runs.length;
+  const result = { fixture, test: test.name, runs, passRate, pass: passRate >= (test.passRate ?? 1) };
+  const line = sourceLines.get(test);
+  if (line !== undefined) sourceLines.set(result, line);
+  return result;
+}
+
+async function runOnce(
+  server: ChatCopsServerConfig | undefined,
+  { file, path, test, run }: { file: string; path: string; test: TestCase; run: number },
+  options: RunOptions
+): Promise<TestRunResult> {
+  const result: TestRunResult = { fixture: file, test: test.name, run, pass: true, turns: [] };
+  if (options.url && test.mocks?.tools && Object.keys(test.mocks.tools).length) {
+    result.pass = false;
+    result.error = 'mocks cannot run over HTTP';
+    return result;
+  }
+  const { spend } = options;
+  const context = { fixture: path, ...(options.judge ? { judge: options.judge } : {}) };
+  // Usage on `finish` is what usage assertions read.
+  // In process, so there's no browser to get session tokens for: requests go straight to the handler.
+  let handler: ChatHandler | undefined;
+  if (options.url) {
+    handler = undefined;
+  } else {
+    if (!server) {
+      result.pass = false;
+      result.error = 'missing server config';
+      return result;
+    }
+    handler = createChatHandler({
+      ...server,
+      allowAnonymous: true,
+      exposeUsage: true,
+      storage: memoryStorage(),
+      tools: withMocks(server.tools ?? [], test.mocks?.tools),
+    });
+  }
+  let conversationId = `eval-${randomUUID()}`;
+  let authorization: string | undefined;
+  if (options.url) {
+    const session = await createHttpSession(options.url, options.headers, conversationId);
+    if (session) {
+      if (options.headers?.some(([name]) => name.toLowerCase() === 'authorization')) {
+        result.pass = false;
+        result.error = 'session token uses the Authorization header; remove --header Authorization.';
+        return result;
+      }
+      authorization = session.token;
+      conversationId = session.conversationId;
+    }
+  }
+  const conversation: TurnResult[] = [];
+
+  /** Stops the run when `--max-cost` is reached. */
+  const overBudget = (): boolean => {
+    if (!spend?.exceeded) return false;
+    result.pass = false;
+    result.error = `stopped before turn ${conversation.length + 1}: --max-cost ${dollars(spend.max ?? 0)} reached (${dollars(spend.spent)} spent)`;
+    return true;
+  };
+
+  /** One exchange: sends the message, collects the reply and checks it. Undefined when the run has to stop. */
+  const exchange = async (message: string, expects: Assertion[], extra: Partial<TurnResult> = {}): Promise<TurnResult | undefined> => {
+    const body = {
+      conversationId,
+      message,
+      ...(test.locale ? { locale: test.locale } : {}),
+      ...(test.pageContext ? { pageContext: test.pageContext } : {}),
+      ...(test.userData ? { userData: test.userData } : {}),
+    };
+    const turn = options.url
+      ? await sendHttpTurn(options.url, options.headers, authorization, body)
+      : await (handler ? sendTurn(handler, body) : Promise.reject(new Error('missing chat handler')));
+    Object.assign(turn, extra);
+    if (options.model) turn.model = options.model;
+    const costUsd = costOf(options.model, turn.usage, options.prices);
+    if (costUsd !== undefined) turn.costUsd = costUsd;
+    spend?.add(costUsd);
+    conversation.push(turn);
+    const checks = [];
+    for (const assertion of expects) {
+      const checked = await check(assertion, turn, conversation, context);
+      spend?.add(checked.costUsd);
+      checks.push(checked);
+    }
+    result.turns.push({ turn, results: checks });
+    if (checks.some((c) => !c.pass)) result.pass = false;
+    if (turn.error) {
+      result.pass = false;
+      result.error = `turn ${conversation.length} failed: ${turn.error}`;
+      return undefined;
+    }
+    return turn;
+  };
+
+  if (test.simulate) {
+    await simulateVisitor(test.simulate, options.judge, { result, conversation, spend, overBudget, exchange });
+    // Checked once, on the last turn, with the whole conversation. A run that stopped early has nothing to check.
+    const last = result.turns.at(-1);
+    if (last && !result.error) {
+      for (const assertion of test.expect ?? []) {
+        const checked = await check(assertion, last.turn, conversation, context);
+        spend?.add(checked.costUsd);
+        last.results.push(checked);
+        if (!checked.pass) result.pass = false;
+      }
+    }
+  } else {
+    for (const turnSpec of test.turns ?? []) {
+      if (overBudget() || !(await exchange(turnSpec.user, turnSpec.expect ?? []))) break;
+    }
+  }
+  return result;
+}
+
+/** A visitor message from the judge model that means it has nothing more to say. */
+const isDone = (message: string) => /^done\.?$/i.test(message);
+
+/**
+ * Plays a `simulate` test: the judge model writes the visitor's messages from
+ * the persona, one at a time, until `maxTurns`, until it answers only `DONE`,
+ * or until the bot has captured a lead when `stopWhen` says so.
+ */
+async function simulateVisitor(
+  { persona, maxTurns, stopWhen }: NonNullable<TestCase['simulate']>,
+  visitor: Judge | undefined,
+  run: {
+    result: TestRunResult;
+    conversation: TurnResult[];
+    spend: Spend | undefined;
+    overBudget: () => boolean;
+    exchange: (message: string, expects: Assertion[], extra?: Partial<TurnResult>) => Promise<TurnResult | undefined>;
+  }
+): Promise<void> {
+  const { result, conversation, spend } = run;
+  const fail = (error: string) => {
+    result.pass = false;
+    result.error = error;
+  };
+  if (!visitor) return fail('a simulate test needs a model to play the visitor: set `judge` in the config or pass --judge-model');
+  while (conversation.length < maxTurns) {
+    if (run.overBudget()) return;
+    let said: { message: string; costUsd?: number };
+    try {
+      said = await visitor.play(persona, conversation);
+    } catch (error) {
+      return fail(`the simulated visitor failed before turn ${conversation.length + 1}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    spend?.add(said.costUsd);
+    if (isDone(said.message)) {
+      const last = conversation.at(-1);
+      if (!last) return fail('the simulated visitor said DONE before sending a message');
+      if (said.costUsd !== undefined) last.visitorCostUsd = (last.visitorCostUsd ?? 0) + said.costUsd;
+      return;
+    }
+    if (!said.message) return fail(`the simulated visitor answered with nothing before turn ${conversation.length + 1}`);
+    const turn = await run.exchange(said.message, [], { simulated: true, ...(said.costUsd !== undefined ? { visitorCostUsd: said.costUsd } : {}) });
+    if (!turn) return;
+    if (stopWhen === 'lead-captured' && turn.toolCalls.some((call) => call.name === 'capture_lead')) return;
+  }
+}
+
+/** Sends one message and collects the reply's parts as a turn result. */
+export async function sendTurn(handler: ReturnType<typeof createChatHandler>, body: Record<string, unknown>): Promise<TurnResult> {
+  const started = performance.now();
+  const turn: TurnResult = { user: String(body.message), text: '', toolCalls: [], sources: [], leads: [], latencyMs: 0 };
+  const start = await handler.startChat(body, undefined, { format: 'v1' });
+  if (!start.ok) {
+    turn.error = start.error.message ? `${start.error.code}: ${start.error.message}` : start.error.code;
+    turn.latencyMs = performance.now() - started;
+    return turn;
+  }
+  try {
+    await collectParts(start.parts as AsyncIterable<WirePart>, turn, started);
+  } catch (error) {
+    // The server's HTTP layer turns this into an internal_error part; in
+    // process it arrives as a throw, such as a knowledge source that failed.
+    // It fails this test instead of stopping the whole run.
+    turn.error = `internal_error: ${error instanceof Error ? error.message : String(error)}`;
+  }
+  if (!turn.latencyMs) turn.latencyMs = performance.now() - started;
+  return turn;
+}
+
+async function createHttpSession(
+  url: string,
+  headers: Array<[string, string]> | undefined,
+  conversationId: string
+): Promise<{ token: string; conversationId: string } | undefined> {
+  let response: Response;
+  try {
+    const sessionUrl = new URL(url);
+    sessionUrl.pathname = `${sessionUrl.pathname.replace(/\/$/, '')}/session`;
+    response = await fetch(sessionUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...Object.fromEntries(headers ?? []) },
+      body: JSON.stringify({ conversationId }),
+    });
+  } catch (error) {
+    throw new Error(`session request failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (response.status === 404) return undefined;
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`session request failed (${response.status}): ${body}`);
+  }
+  const body = (await response.json()) as { token?: string; conversationId?: string };
+  if (!body.token || !body.conversationId) throw new Error('session request returned an invalid response.');
+  return { token: body.token, conversationId: body.conversationId };
+}
+
+async function sendHttpTurn(
+  url: string,
+  headers: Array<[string, string]> | undefined,
+  authorization: string | undefined,
+  body: Record<string, unknown>
+): Promise<TurnResult> {
+  const started = performance.now();
+  const turn: TurnResult = { user: String(body.message), text: '', toolCalls: [], sources: [], leads: [], latencyMs: 0 };
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...Object.fromEntries(headers ?? []),
+        ...(authorization ? { authorization: `Bearer ${authorization}` } : {}),
+      },
+      body: JSON.stringify({ protocol: 1, ...body }),
+    });
+  } catch (error) {
+    turn.error = `network_error: ${error instanceof Error ? error.message : String(error)}`;
+    turn.latencyMs = performance.now() - started;
+    return turn;
+  }
+  if (!response.ok) {
+    try {
+      const body = (await response.json()) as { error?: { code?: string; message?: string } };
+      const error = body.error;
+      turn.error = error?.message ? `${error.code ?? 'http_error'}: ${error.message}` : error?.code ?? `http_${response.status}`;
+    } catch {
+      turn.error = `http_${response.status}`;
+    }
+    turn.latencyMs = performance.now() - started;
+    return turn;
+  }
+  try {
+    const text = await response.text();
+    const parts = text
+      .split(/\r?\n\r?\n/)
+      .filter((frame) => frame.startsWith('data: {'))
+      .map((frame) => JSON.parse(frame.slice(6)) as WirePart);
+    await collectParts(parts, turn, started);
+  } catch (error) {
+    turn.error = `internal_error: ${error instanceof Error ? error.message : String(error)}`;
+  }
+  if (!turn.latencyMs) turn.latencyMs = performance.now() - started;
+  return turn;
+}
+
+async function collectParts(parts: AsyncIterable<WirePart> | Iterable<WirePart>, turn: TurnResult, started: number): Promise<void> {
+  for await (const part of parts) {
+    if (part.type === 'text-delta') turn.text += part.delta;
+    else if (part.type === 'tool-call') turn.toolCalls.push({ name: part.toolName, input: part.input });
+    else if (part.type === 'source') turn.sources.push({ url: part.url, ...(part.title ? { title: part.title } : {}) });
+    else if (part.type === 'lead-captured') turn.leads.push(part.lead as Record<string, unknown>);
+    else if (part.type === 'error') turn.error = part.code;
+    else if (part.type === 'finish') {
+      turn.finishReason = part.reason;
+      if (part.usage) turn.usage = { inputTokens: part.usage.inputTokens, outputTokens: part.usage.outputTokens };
+      turn.latencyMs = performance.now() - started;
+    }
+  }
+}
+
+/** The config's tools, with mocked ones answering their fixed result instead of running. */
+export function withMocks(tools: ChatTool[], mocks: Record<string, ToolResult> | undefined): ChatTool[] {
+  if (!mocks || !Object.keys(mocks).length) return tools;
+  const names = new Set(tools.map((tool) => tool.name));
+  const unknown = Object.keys(mocks).filter((name) => !names.has(name));
+  if (unknown.length) throw new ConfigError(`Mocks for tools the server config doesn't have: ${unknown.join(', ')}`);
+  return tools.map((tool) =>
+    mocks[tool.name] ? Object.assign(Object.create(tool) as ChatTool, { execute: async () => structuredClone(mocks[tool.name]) }) : tool
+  );
+}
+
+/**
+ * In replay nothing reaches the network, so CI needs no keys. The built-in
+ * providers refuse to start without one, so give them a stand-in. Headers
+ * aren't part of what a recording is matched on.
+ */
+export function withoutKeys(server: ChatCopsServerConfig): ChatCopsServerConfig {
+  const { provider } = server;
+  if (isAIProvider(provider) || provider.apiKey?.trim()) return server;
+  return { ...server, provider: { ...provider, apiKey: 'chatcops-replay' } };
+}

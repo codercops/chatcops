@@ -1,6 +1,7 @@
+import launcherStyles from '../styles/launcher.css?inline';
 import widgetStyles from '../styles/widget.css?inline';
 
-const HOST_ID = 'chatcops-root';
+export const HOST_ID = 'chatcops-root';
 
 /**
  * Creates the widget's host element and shadow root. The first widget on the
@@ -8,10 +9,34 @@ const HOST_ID = 'chatcops-root';
  * `chatcops-root-2`, `chatcops-root-3` and so on. Every host has the class
  * `chatcops-root`.
  */
-export function createShadowRoot(container?: HTMLElement): ShadowRoot {
+export interface ShadowOptions {
+  dir?: 'ltr' | 'rtl' | 'auto';
+  locale?: string;
+  nonce?: string;
+}
+
+const RTL_LANGUAGES = new Set(['ar', 'he', 'fa', 'ur']);
+
+/** Marks a registered language as right-to-left, or left-to-right. */
+export function setLanguageDirection(code: string, dir: 'ltr' | 'rtl'): void {
+  const language = code.toLowerCase().split(/[-_]/)[0];
+  if (dir === 'rtl') RTL_LANGUAGES.add(language);
+  else RTL_LANGUAGES.delete(language);
+}
+
+export function resolveDirection(configured: ShadowOptions['dir'], locale?: string): 'ltr' | 'rtl' | 'auto' {
+  if (configured) return configured;
+  const language = locale?.toLowerCase().split(/[-_]/)[0];
+  if (language && RTL_LANGUAGES.has(language)) return 'rtl';
+  return (document.dir || document.documentElement.dir) === 'rtl' ? 'rtl' : 'ltr';
+}
+
+export function createShadowRoot(container?: HTMLElement, options: ShadowOptions = {}): ShadowRoot {
   const host = document.createElement('div');
   host.id = nextHostId();
   host.className = HOST_ID;
+  host.dir = resolveDirection(options.dir, options.locale);
+  if (options.locale) host.lang = options.locale;
 
   if (container) {
     container.appendChild(host);
@@ -22,7 +47,8 @@ export function createShadowRoot(container?: HTMLElement): ShadowRoot {
   const shadow = host.attachShadow({ mode: 'open' });
 
   const style = document.createElement('style');
-  style.textContent = widgetStyles;
+  if (options.nonce) style.nonce = options.nonce;
+  style.textContent = launcherStyles + widgetStyles;
   shadow.appendChild(style);
 
   return shadow;
@@ -33,7 +59,7 @@ export function destroyShadowRoot(shadow?: ShadowRoot): void {
   shadow?.host.remove();
 }
 
-function nextHostId(): string {
+export function nextHostId(): string {
   if (!document.getElementById(HOST_ID)) return HOST_ID;
   let n = 2;
   while (document.getElementById(`${HOST_ID}-${n}`)) n += 1;

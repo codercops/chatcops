@@ -1,0 +1,198 @@
+---
+import { Icon } from '@astrojs/starlight/components';
+---
+
+<theme-toggle class="theme-toggle">
+	<button
+		type="button"
+		class="theme-toggle-btn"
+		aria-label="Switch to dark theme"
+		title="Switch to dark theme"
+	>
+		<Icon name="sun" size="1.2rem" class="sun" />
+		<Icon name="moon" size="1.2rem" class="moon" />
+	</button>
+</theme-toggle>
+
+<script is:inline>
+	(() => {
+		const isLight = document.documentElement.dataset.theme === 'light';
+		const label = isLight ? 'Switch to dark theme' : 'Switch to light theme';
+		document.querySelectorAll('.theme-toggle-btn').forEach((btn) => {
+			btn.setAttribute('aria-label', label);
+			btn.setAttribute('title', label);
+		});
+	})();
+</script>
+
+<script>
+	type Theme = 'auto' | 'dark' | 'light';
+
+	const storageKey = 'starlight-theme';
+
+	const parseTheme = (theme: unknown): Theme =>
+		theme === 'auto' || theme === 'dark' || theme === 'light' ? theme : 'auto';
+
+	const loadTheme = (): Theme => {
+		try {
+			if (typeof localStorage !== 'undefined') {
+				return parseTheme(localStorage.getItem(storageKey));
+			}
+		} catch {}
+		return 'auto';
+	};
+
+	const storeTheme = (theme: 'dark' | 'light'): void => {
+		try {
+			if (typeof localStorage !== 'undefined') {
+				localStorage.setItem(storageKey, theme);
+			}
+		} catch {}
+	};
+
+	const getPreferredColorScheme = (): 'dark' | 'light' =>
+		matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+
+	const getCurrentTheme = (): 'dark' | 'light' =>
+		document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+
+	function updateButtons(): void {
+		const isLight = getCurrentTheme() === 'light';
+		const label = isLight ? 'Switch to dark theme' : 'Switch to light theme';
+		document.querySelectorAll<HTMLButtonElement>('.theme-toggle-btn').forEach((btn) => {
+			btn.setAttribute('aria-label', label);
+			btn.setAttribute('title', label);
+		});
+	}
+
+	function setTheme(theme: 'dark' | 'light'): void {
+		document.documentElement.dataset.theme = theme;
+		storeTheme(theme);
+		updateButtons();
+	}
+
+	// React to system color scheme changes when visitor hasn't explicitly chosen a theme
+	matchMedia('(prefers-color-scheme: light)').addEventListener('change', (e) => {
+		if (loadTheme() === 'auto') {
+			document.documentElement.dataset.theme = e.matches ? 'light' : 'dark';
+			updateButtons();
+		}
+	});
+
+	// React to cross-tab storage changes
+	window.addEventListener('storage', (e) => {
+		if (e.key === storageKey) {
+			const saved = parseTheme(e.newValue);
+			document.documentElement.dataset.theme =
+				saved === 'auto' ? getPreferredColorScheme() : saved;
+			updateButtons();
+		}
+	});
+
+	// Keep buttons synced if theme attribute changes from anywhere
+	const observer = new MutationObserver(() => {
+		updateButtons();
+	});
+	observer.observe(document.documentElement, {
+		attributes: true,
+		attributeFilter: ['data-theme'],
+	});
+
+	class ThemeToggle extends HTMLElement {
+		constructor() {
+			super();
+			const button = this.querySelector<HTMLButtonElement>('.theme-toggle-btn');
+			button?.addEventListener('click', () => {
+				const current = getCurrentTheme();
+				const next = current === 'light' ? 'dark' : 'light';
+				setTheme(next);
+			});
+		}
+
+		connectedCallback() {
+			updateButtons();
+		}
+	}
+
+	if (!customElements.get('theme-toggle')) {
+		customElements.define('theme-toggle', ThemeToggle);
+	}
+</script>
+
+<style>
+	theme-toggle {
+		display: inline-flex;
+		align-items: center;
+	}
+
+	.theme-toggle-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 2.25rem;
+		height: 2.25rem;
+		padding: 0;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.5rem;
+		background-color: var(--sl-color-black);
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+		transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+	}
+
+	@media (max-width: 49.99rem) {
+		.theme-toggle-btn {
+			width: 2.75rem;
+			height: 2.75rem;
+			min-width: 44px;
+			min-height: 44px;
+		}
+	}
+
+	.theme-toggle-btn:hover {
+		border-color: var(--sl-color-gray-2);
+		color: var(--sl-color-white);
+		background-color: var(--sl-color-hairline-light, rgba(255, 255, 255, 0.05));
+	}
+
+	.theme-toggle-btn:focus:not(:focus-visible) {
+		outline: none;
+	}
+
+	.theme-toggle-btn:focus-visible {
+		outline: 2px solid var(--sl-color-accent);
+		outline-offset: 2px;
+	}
+
+	/* Theme-based icon visibility */
+	:global(:root[data-theme='light'] .theme-toggle .sun) {
+		display: block;
+	}
+	:global(:root[data-theme='light'] .theme-toggle .moon) {
+		display: none;
+	}
+
+	:global(:root[data-theme='dark'] .theme-toggle .sun) {
+		display: none;
+	}
+	:global(:root[data-theme='dark'] .theme-toggle .moon) {
+		display: block;
+	}
+
+	/* Fallbacks before data-theme attribute is set */
+	:global(:root:not([data-theme]) .theme-toggle .sun) {
+		display: none;
+	}
+	:global(:root:not([data-theme]) .theme-toggle .moon) {
+		display: block;
+	}
+
+	@media (prefers-color-scheme: light) {
+		:global(:root:not([data-theme]) .theme-toggle .sun) {
+			display: block;
+		}
+		:global(:root:not([data-theme]) .theme-toggle .moon) {
+			display: none;
+		}
+	}
+</style>

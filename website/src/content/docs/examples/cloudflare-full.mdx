@@ -3,23 +3,35 @@ title: Cloudflare Worker Full Example
 description: Complete Cloudflare Worker with all ChatCops features.
 ---
 
-A production-ready Cloudflare Worker with lead capture, knowledge base, and rate limiting.
+A production-ready Cloudflare Worker with lead capture, a knowledge base, rate limits and budgets. Conversations live in D1 and the counters in a Durable Object, so every isolate and every region sees the same history and the same limits.
 
 ## Worker (`src/index.ts`)
 
 ```typescript
 import { chatcopsCloudflareHandler } from '@chatcops/server';
-import { LeadCaptureTool, FAQKnowledgeSource, TextKnowledgeSource } from '@chatcops/core';
+import {
+  FAQKnowledgeSource,
+  LeadCaptureTool,
+  TextKnowledgeSource,
+  type WorkersAiBinding,
+} from '@chatcops/core';
+import { cloudflareStorage, ChatCopsCounter } from '@chatcops/store-cloudflare';
+
+// Cloudflare finds the Durable Object class through the Worker's exports.
+export { ChatCopsCounter };
 
 interface Env {
+  DB: D1Database;
+  COUNTERS: DurableObjectNamespace<ChatCopsCounter>;
+  AI: WorkersAiBinding;
   ANTHROPIC_API_KEY: string;
+  CHATCOPS_SESSION_SECRET: string;
   WEBHOOK_URL: string;
   SYSTEM_PROMPT: string;
 }
 
-// Built on the first request rather than at import, because the API key is a
-// Worker secret that only exists inside a request. Caching the handler here is
-// what keeps conversation history and rate limiting alive across requests.
+// Built on the first request rather than at import, because the API key and
+// the bindings only exist inside a request.
 let handler: ReturnType<typeof chatcopsCloudflareHandler> | undefined;
 function getHandler(env: Env) {
   handler ??= chatcopsCloudflareHandler({
@@ -58,15 +70,19 @@ function getHandler(env: Env) {
       ]),
     ],
 
-    cors: '*',
+    storage: cloudflareStorage({ d1: env.DB, counters: env.COUNTERS }),
+    retention: { conversationsDays: 30 },
+    allowedOrigins: ['https://your-site.com'],
+    sessionSecrets: [env.CHATCOPS_SESSION_SECRET],
     rateLimit: { maxRequests: 20, windowMs: 60_000 },
+    budgets: { globalPerDay: { tokens: 20_000_000 } },
     analytics: true,
   });
   return handler;
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     // Health check
     if (new URL(request.url).pathname === '/health') {
       return new Response(JSON.stringify({ status: 'ok' }), {
@@ -74,26 +90,70 @@ export default {
       });
     }
 
-    return getHandler(env)(request);
+    // ctx lets lead webhooks and analytics writes finish after the reply.
+    return getHandler(env)(request, env, ctx);
   },
 };
 ```
+
+To query a persistent vector store (such as Cloudflare Vectorize) alongside static knowledge sources, connect `workersAiEmbedder({ ai: env.AI })` to a vector retriever and add `workersAiReranker({ ai: env.AI })` to rerank its candidates with `@cf/baai/bge-reranker-base`:
+
+```typescript
+import { hybridRetriever, retrieverKnowledge, workersAiEmbedder, workersAiReranker, type VectorStore, type WorkersAiBinding } from '@chatcops/core';
+
+declare const env: { AI: WorkersAiBinding };
+declare const vectors: VectorStore;
+
+const embedder = workersAiEmbedder({ ai: env.AI });
+const retriever = hybridRetriever({
+  store: vectors,
+  embedder,
+  reranker: workersAiReranker({ ai: env.AI }),
+});
+const knowledge = retrieverKnowledge(retriever, { topK: 5 });
+```
+
+See [Retrieval from a vector store](/core/knowledge-base/#retrieval-from-a-vector-store) for setup and retriever options. The [Workers AI reranker model](https://developers.cloudflare.com/workers-ai/models/bge-reranker-base/) accepts the query and candidate contexts and returns their relevance scores.
 
 ## `wrangler.toml`
 
 ```toml
 name = "chatcops-worker"
 main = "src/index.ts"
-compatibility_date = "2024-01-01"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
 
 [vars]
 SYSTEM_PROMPT = "You are a helpful AI assistant."
+
+[ai]
+binding = "AI"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "chatcops"
+database_id = "<from wrangler d1 create>"
+
+[[durable_objects.bindings]]
+name = "COUNTERS"
+class_name = "ChatCopsCounter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ChatCopsCounter"]
+```
+
+Create the database once. The store creates its tables on first use:
+
+```bash
+npx wrangler d1 create chatcops
 ```
 
 ## Secrets
 
 ```bash
 npx wrangler secret put ANTHROPIC_API_KEY
+npx wrangler secret put CHATCOPS_SESSION_SECRET   # openssl rand -base64 32
 npx wrangler secret put WEBHOOK_URL
 ```
 
@@ -107,7 +167,7 @@ npx wrangler deploy
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js"
   data-api-url="https://chatcops-worker.your-subdomain.workers.dev"
   data-accent="#6366f1"
   data-brand-name="AI Support"
@@ -115,17 +175,16 @@ npx wrangler deploy
 ></script>
 ```
 
-## With Cloudflare KV (Conversation Storage)
+## Install
 
-```typescript
-interface Env {
-  ANTHROPIC_API_KEY: string;
-  CONVERSATIONS: KVNamespace;  // Bind in wrangler.toml
-}
-
-// Store conversation history in KV
-const conversation = await env.CONVERSATIONS.get(conversationId, 'json');
-await env.CONVERSATIONS.put(conversationId, JSON.stringify(updated), {
-  expirationTtl: 86400, // 24 hours
-});
+```bash
+npm install @chatcops/server @chatcops/core @chatcops/store-cloudflare
 ```
+
+## Without a Durable Object
+
+Leave out `counters` and the `COUNTERS` binding, and the counters go to D1 as well. Limits still hold across isolates, since each count is one atomic D1 statement, but every count is a D1 write. Turn locks always live in D1.
+
+## Cleaning up old conversations
+
+`retention` sets how long conversations are kept, and something has to call `purge()`. See [running purge() on a schedule](/server/storage/#cloudflare-workers) for a cron trigger.

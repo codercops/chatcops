@@ -21,6 +21,23 @@ describe('renderMarkdown', () => {
     expect(result).toContain('const x = 1;');
   });
 
+  it.each(['c++', 'c#', 'objective-c', 'ts'])('drops a %s language tag from a code block', (lang) => {
+    expect(renderMarkdown(`\`\`\`${lang}\nint x;\n\`\`\``)).toBe('<pre><code>int x;</code></pre>');
+  });
+
+  it('keeps all the text of a one-line code block', () => {
+    expect(renderMarkdown('```const x```')).toBe('<pre><code>const x</code></pre>');
+  });
+
+  it('drops a language tag with a space after it', () => {
+    expect(renderMarkdown('```ts \nconst x = 1;\n```')).toBe('<pre><code>const x = 1;</code></pre>');
+  });
+
+  it('leaves a code block that is still streaming as text', () => {
+    expect(renderMarkdown('```ts\nconst x = 1;')).toBe('```ts<br>const x = 1;');
+    expect(renderMarkdown('```c++\nint x;')).toBe('```c++<br>int x;');
+  });
+
   it('renders links', () => {
     const result = renderMarkdown('[Click here](https://example.com)');
     expect(result).toContain('<a href="https://example.com"');
@@ -63,6 +80,11 @@ describe('renderMarkdown', () => {
     expect(result).toContain('Intro');
     expect(result).toContain('<ol><li>First</li><li>Second</li></ol>');
     expect(result).toContain('Outro');
+  });
+
+  it('keeps the item number when a list does not start at 1', () => {
+    expect(renderMarkdown('1. Install\n\n2. Configure')).toBe('<ol><li>Install</li></ol><br><ol start="2"><li>Configure</li></ol>');
+    expect(renderMarkdown('3. third\n4. fourth')).toBe('<ol start="3"><li>third</li><li>fourth</li></ol>');
   });
 
   it('escapes HTML to prevent injection', () => {

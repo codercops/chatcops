@@ -1,25 +1,25 @@
+import { CHAT_ICON, CLOSE_ICON } from './icons.js';
 import { PANEL_ID } from './panel.js';
-
-const CHAT_ICON = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/><path d="M7 9h10v2H7zm0-3h10v2H7z"/></svg>`;
-const CLOSE_ICON = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>`;
 
 export interface FABOptions {
   position: 'bottom-right' | 'bottom-left';
   openLabel: string;
   closeLabel: string;
+  unreadLabel: string;
   onClick: () => void;
 }
 
 export class FAB {
   private el: HTMLButtonElement;
   private badge: HTMLDivElement;
-  private isOpen = false;
   private openLabel: string;
   private closeLabel: string;
+  private unreadLabel: string;
 
   constructor(root: ShadowRoot, options: FABOptions) {
     this.openLabel = options.openLabel;
     this.closeLabel = options.closeLabel;
+    this.unreadLabel = options.unreadLabel;
 
     this.el = document.createElement('button');
     this.el.className = 'cc-fab cc-pulse';
@@ -44,7 +44,7 @@ export class FAB {
   }
 
   setOpen(open: boolean): void {
-    this.isOpen = open;
+    if (open) this.hideBadge();
     this.el.innerHTML = open ? CLOSE_ICON : CHAT_ICON;
     if (!open) this.el.appendChild(this.badge);
     this.el.classList.toggle('cc-open', open);
@@ -52,16 +52,41 @@ export class FAB {
     this.el.setAttribute('aria-expanded', String(open));
   }
 
+  setLabels(openLabel: string, closeLabel: string, unreadLabel: string): void {
+    this.openLabel = openLabel;
+    this.closeLabel = closeLabel;
+    this.unreadLabel = unreadLabel;
+    const shown = this.badge.textContent;
+    this.el.setAttribute(
+      'aria-label',
+      this.el.classList.contains('cc-open') ? closeLabel : shown ? `${openLabel}, ${unreadLabel.replace('{count}', shown)}` : openLabel
+    );
+  }
+
   focus(): void {
     this.el.focus();
   }
 
-  showBadge(): void {
+  showBadge(count = 1): void {
+    if (count <= 0) {
+      this.hideBadge();
+      return;
+    }
+    const display = count > 9 ? '9+' : String(count);
+    this.badge.textContent = display;
+    if (!this.el.classList.contains('cc-open')) {
+      const unread = this.unreadLabel.replace('{count}', display);
+      this.el.setAttribute('aria-label', `${this.openLabel}, ${unread}`);
+    }
     this.badge.classList.add('cc-visible');
   }
 
   hideBadge(): void {
     this.badge.classList.remove('cc-visible');
+    this.badge.textContent = '';
+    if (!this.el.classList.contains('cc-open')) {
+      this.el.setAttribute('aria-label', this.openLabel);
+    }
   }
 
   destroy(): void {

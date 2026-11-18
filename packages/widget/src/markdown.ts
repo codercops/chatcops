@@ -16,6 +16,7 @@ function isSafeHref(href: string): boolean {
   // Browsers drop tabs and newlines anywhere in a URL and trim leading
   // control characters and spaces, so normalize the same way before
   // reading the scheme. URLs without a scheme are relative and safe.
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: strip control characters from url
   const normalized = href.replace(/[\t\n\r]/g, '').replace(/^[\u0000-\u0020]+/, '');
   const scheme = /^([^:/?#]+):/.exec(normalized);
   return !scheme || SAFE_SCHEMES.has(scheme[1].toLowerCase());
@@ -41,7 +42,7 @@ export function renderMarkdown(input: string): string {
 
   // Code blocks (``` ... ```) — stashed before any markdown transformation so
   // their content stays literal and their newlines survive the <br> step.
-  html = html.replace(/```(?:\w*)\n?([\s\S]*?)```/g, (_match, code: string) => {
+  html = html.replace(/```(?:[^`\n]*\n)?([\s\S]*?)```/g, (_match, code: string) => {
     return stashHtml(`<pre><code>${code.trim()}</code></pre>`);
   });
 
@@ -73,14 +74,15 @@ export function renderMarkdown(input: string): string {
   // `1.` list stays two separate lists. Intra-list newlines are removed
   // here so the line-break step below does not insert <br> between items.
   html = html.replace(/^[-*+] (.+)$/gm, '<li data-md="ul">$1</li>');
-  html = html.replace(/^\d+\. (.+)$/gm, '<li data-md="ol">$1</li>');
+  html = html.replace(/^(\d+)\. (.+)$/gm, '<li data-md="ol" data-n="$1">$2</li>');
   html = html.replace(
-    /(?:<li data-md="ul">.*?<\/li>\n?)+|(?:<li data-md="ol">.*?<\/li>\n?)+/g,
+    /(?:<li data-md="ul">.*?<\/li>\n?)+|(?:<li data-md="ol" data-n="\d+">.*?<\/li>\n?)+/g,
     (run) => {
       const ordered = run.includes('data-md="ol"');
       const tag = ordered ? 'ol' : 'ul';
-      const items = run.replace(/ data-md="(?:ul|ol)"/g, '').replace(/\n/g, '');
-      return `<${tag}>${items}</${tag}>`;
+      const start = ordered ? Number(/data-n="(\d+)"/.exec(run)?.[1]) : 1;
+      const items = run.replace(/ data-md="(?:ul|ol)"( data-n="\d+")?/g, '').replace(/\n/g, '');
+      return `<${tag}${start !== 1 ? ` start="${start}"` : ''}>${items}</${tag}>`;
     }
   );
 

@@ -17,12 +17,12 @@ test('a popup and an inline widget on one page keep separate conversations', asy
 
   await inline.locator('.cc-input').fill('From the inline widget');
   await inline.locator('.cc-send-btn').click();
-  await expect(inline.locator('.cc-message-assistant').last()).toContainText('mock server');
+  await expect(inline.locator('.cc-message-assistant').last()).toContainText('test server');
 
   await popup.locator('.cc-fab').click();
   await popup.locator('.cc-input').fill('From the popup');
   await popup.locator('.cc-send-btn').click();
-  await expect(popup.locator('.cc-message-assistant').last()).toContainText('mock server');
+  await expect(popup.locator('.cc-message-assistant').last()).toContainText('test server');
 
   expect(conversationIds).toHaveLength(2);
   expect(conversationIds[0]).not.toBe(conversationIds[1]);

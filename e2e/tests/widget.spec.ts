@@ -14,7 +14,8 @@ test.beforeEach(async ({ page }) => {
 test('starts from the script tag alone', async ({ page }) => {
   await expect(page.locator('#chatcops-root')).toBeAttached();
   await expect(page.locator(fab)).toBeVisible();
-  await expect(page.locator(panel)).not.toHaveClass(/cc-visible/);
+  // The loader draws only the button; the panel loads when it's needed (loader.spec.ts).
+  await expect(page.locator(panel)).toHaveCount(0);
 });
 
 test('streams a reply into the panel', async ({ page }) => {
@@ -25,7 +26,7 @@ test('streams a reply into the panel', async ({ page }) => {
   await page.locator(send).click();
 
   await expect(page.locator('.cc-message-user').last()).toContainText('Hi there');
-  await expect(page.locator('.cc-message-assistant').last()).toContainText('Hello from the mock server.');
+  await expect(page.locator('.cc-message-assistant').last()).toContainText('Hello from the test server.');
 });
 
 test('Escape closes the popup and returns focus to the launcher', async ({ page }) => {
@@ -51,6 +52,26 @@ test('the closed popup is not in the tab order', async ({ page }) => {
   }
 });
 
+for (const key of ['Enter', 'Space']) {
+  test(`the welcome button opens the chat with ${key}`, async ({ page }) => {
+    await page.goto('/full.html');
+    await page.evaluate(() => {
+      const chat = (window as unknown as { ChatCops: { destroy(): void; init(config: object): void } }).ChatCops;
+      chat.destroy();
+      chat.init({ apiUrl: '/api/chat', welcomeBubble: { text: 'Need help?', delay: 0 } });
+    });
+    const trigger = page.locator('.cc-bubble-trigger');
+    await expect(trigger).toBeVisible();
+    await page.locator('#host-button').focus();
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Tab');
+    await expect(trigger).toBeFocused();
+    await page.keyboard.press(key);
+    await expect(page.locator(panel)).toHaveClass(/cc-visible/);
+    await expect(page.locator('.cc-bubble')).not.toHaveClass(/cc-visible/);
+  });
+}
+
 test.describe('on a phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
@@ -66,6 +87,14 @@ test.describe('on a phone', () => {
   });
 });
 
+test('tells the visitor they are chatting with an AI, before anything else', async ({ page }) => {
+  await page.locator(fab).click();
+  const note = page.locator('.cc-messages > :first-child');
+  await expect(note).toHaveAttribute('role', 'note');
+  await expect(note).toBeVisible();
+  await expect(note).toHaveText("You're chatting with an AI assistant. It can make mistakes.");
+});
+
 test('has no serious accessibility violations, closed or open', async ({ page }) => {
   const closed = await new AxeBuilder({ page }).include('#chatcops-root').analyze();
   expect(seriousOrWorse(closed.violations)).toEqual([]);
@@ -74,7 +103,7 @@ test('has no serious accessibility violations, closed or open', async ({ page })
   await expect(page.locator(panel)).toHaveClass(/cc-visible/);
   await page.locator(input).fill('Hi there');
   await page.locator(send).click();
-  await expect(page.locator('.cc-message-assistant').last()).toContainText('mock server');
+  await expect(page.locator('.cc-message-assistant').last()).toContainText('test server');
 
   const open = await new AxeBuilder({ page }).include('#chatcops-root').analyze();
   expect(seriousOrWorse(open.violations)).toEqual([]);
@@ -98,4 +127,15 @@ test('a reply that fails partway keeps its text and shows the error under it', a
 
   const results = await new AxeBuilder({ page }).include('#chatcops-root').analyze();
   expect(seriousOrWorse(results.violations)).toEqual([]);
+});
+
+test('a reply cut off without [DONE] keeps its text and offers a retry', async ({ page }) => {
+  await page.locator(fab).click();
+  await page.locator(input).fill('Please cut off');
+  await page.locator(send).click();
+
+  const reply = page.locator('.cc-message-assistant').last();
+  await expect(reply.locator('.cc-message-error-note')).toBeVisible();
+  await expect(reply.locator('.cc-message-content')).toHaveText('Hello from the');
+  await expect(reply.locator('.cc-message-retry')).toBeVisible();
 });

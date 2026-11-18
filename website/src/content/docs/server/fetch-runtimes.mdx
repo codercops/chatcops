@@ -1,0 +1,349 @@
+---
+title: Next.js, Hono, Bun, Deno, Astro, Nuxt and SvelteKit
+description: Run ChatCops in any runtime built on the Fetch API — Next.js, Hono, Bun, Deno, Astro, Nuxt and SvelteKit.
+---
+
+`chatcopsVercelHandler` is a plain `(request: Request) => Promise<Response>` function. It isn't tied to Vercel, so it works in any runtime that speaks the Fetch API: Next.js route handlers, Hono, Bun, Deno, Astro, Nuxt and SvelteKit.
+
+Two things apply to every example on this page:
+
+- **Route `OPTIONS` to the handler as well as `POST`.** The handler answers the CORS preflight itself. A widget on another origin sends `OPTIONS` first, and if your router returns 404 or 405 for it, the browser never sends the chat request.
+- **Create the handler once, at module level.** It holds the conversation store and the rate limiter. A handler created per request starts empty every time, so conversations lose their history and rate limits never trigger.
+
+## Next.js (App Router)
+
+Create `app/api/chat/[[...path]]/route.ts`:
+
+```typescript
+import { chatcopsNext } from '@chatcops/server/next';
+
+export const { POST, OPTIONS } = chatcopsNext({
+  provider: {
+    type: 'claude',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  },
+  systemPrompt: 'You are a helpful assistant.',
+  allowedOrigins: ['*'],
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+});
+export const runtime = 'nodejs';
+```
+
+The catch-all route answers both the chat endpoint at `/api/chat` and the session endpoint at `/api/chat/session`. The widget's `data-api-url` is then `/api/chat` on the same site, or the full URL from another origin.
+
+The double brackets in `[[...path]]` (an optional catch-all route) are required: single brackets (`[...path]`) only match paths with at least one segment after `/api/chat`, so `/api/chat` itself would return a 404.
+
+> **Older setups:** Older code used two route files with `chatcopsVercelHandler`: `app/api/chat/route.ts` and `app/api/chat/session/route.ts` (re-exporting `POST` and `OPTIONS` from the first). The single catch-all route replaces both.
+
+## Hono
+
+Pass Hono's raw `Request` to the handler with `c.req.raw`:
+
+```typescript
+import { Hono } from 'hono';
+import { chatcopsVercelHandler } from '@chatcops/server';
+
+const chat = chatcopsVercelHandler({
+  provider: {
+    type: 'claude',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  },
+  systemPrompt: 'You are a helpful assistant.',
+  allowedOrigins: ['*'],
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+});
+
+const app = new Hono();
+
+app.on(['POST', 'OPTIONS'], '/api/chat', (c) => chat(c.req.raw));
+// Where the widget gets its session token.
+app.on(['POST', 'OPTIONS'], '/api/chat/session', (c) => chat(c.req.raw));
+
+export default app;
+```
+
+Bun runs this file as it is (`bun run index.ts`). For other runtimes, start the app the way [Hono's docs](https://hono.dev/docs/getting-started/basic) describe for that runtime.
+
+## Bun
+
+```typescript
+import { chatcopsVercelHandler } from '@chatcops/server';
+
+const chat = chatcopsVercelHandler({
+  provider: {
+    type: 'claude',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  },
+  systemPrompt: 'You are a helpful assistant.',
+  allowedOrigins: ['*'],
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+  // Set below from the socket, so a visitor can't choose it.
+  clientIp: (req) => req.headers.get('x-client-ip'),
+});
+
+Bun.serve({
+  port: 3000,
+  // Replies stream for a while; Bun closes idle connections after 10 seconds by default.
+  idleTimeout: 120,
+  fetch(req, server) {
+    const { pathname } = new URL(req.url);
+    if (pathname !== '/api/chat' && pathname !== '/api/chat/session') return new Response('Not found', { status: 404 });
+
+    // The visitor's IP, for per-IP rate limits and budgets. set() replaces
+    // any x-client-ip the visitor sent.
+    const headers = new Headers(req.headers);
+    headers.set('x-client-ip', server.requestIP(req)?.address ?? '');
+    return chat(new Request(req, { headers }));
+  },
+});
+```
+
+## Deno
+
+```typescript
+import { chatcopsVercelHandler } from '@chatcops/server';
+
+const chat = chatcopsVercelHandler({
+  provider: {
+    type: 'claude',
+    apiKey: Deno.env.get('ANTHROPIC_API_KEY')!,
+  },
+  systemPrompt: 'You are a helpful assistant.',
+  allowedOrigins: ['*'],
+  sessionSecrets: [Deno.env.get('CHATCOPS_SESSION_SECRET')!],
+  // Set below from the socket, so a visitor can't choose it.
+  clientIp: (req) => req.headers.get('x-client-ip'),
+});
+
+Deno.serve({ port: 8000 }, (req, info) => {
+  const { pathname } = new URL(req.url);
+  if (pathname !== '/api/chat' && pathname !== '/api/chat/session') return new Response('Not found', { status: 404 });
+
+  // The visitor's IP, for per-IP rate limits and budgets. set() replaces
+  // any x-client-ip the visitor sent.
+  const headers = new Headers(req.headers);
+  headers.set('x-client-ip', (info.remoteAddr as Deno.NetAddr).hostname);
+  return chat(new Request(req, { headers }));
+});
+```
+
+Run it with `deno run --allow-net --allow-env --allow-read --allow-sys server.ts`. Pin the version in the `npm:` specifier as above. Deno also skips npm versions published in the last 24 hours by default, so right after a ChatCops release it may resolve the previous version for a day.
+
+## Astro
+
+Create `src/pages/api/chat/[...path].ts`. The optional catch-all matches both
+`/api/chat` (the chat endpoint) and `/api/chat/session` (the session endpoint
+the widget calls first to get a token).
+
+Astro needs an adapter to render endpoints on demand: `npx astro add node`, or the adapter for your host.
+
+```typescript
+import { chatcopsVercelHandler } from '@chatcops/server';
+import type { APIRoute } from 'astro';
+
+const chat = chatcopsVercelHandler({
+  provider: {
+    type: 'claude',
+    apiKey: import.meta.env.ANTHROPIC_API_KEY,
+  },
+  systemPrompt: 'You are a helpful assistant.',
+  allowedOrigins: ['*'],
+  sessionSecrets: [import.meta.env.CHATCOPS_SESSION_SECRET],
+  clientIp: (req) => req.headers.get('x-client-ip'),
+});
+
+export const prerender = false;
+
+export const POST: APIRoute = (context) => {
+  const headers = new Headers(context.request.headers);
+  headers.set('x-client-ip', context.clientAddress);
+  return chat(new Request(context.request, { headers }));
+};
+
+export const OPTIONS: APIRoute = (context) => {
+  const headers = new Headers(context.request.headers);
+  headers.set('x-client-ip', context.clientAddress);
+  return chat(new Request(context.request, { headers }));
+};
+```
+
+`context.clientAddress` is the visitor's IP. Copying it into `x-client-ip`
+before the call keeps parity with the Bun and Deno patterns: `set()` overwrites
+any header the visitor might have sent themselves, so they can't pick their own
+rate-limit key. See [The visitor's IP](#the-visitors-ip) for other approaches.
+
+## Nuxt
+
+Create `server/api/chat/[...path].ts`. Nuxt's file-based router matches both
+`/api/chat` and `/api/chat/session` from one file.
+
+```typescript
+import { chatcopsVercelHandler } from '@chatcops/server';
+import { defineEventHandler, getRequestIP, toWebRequest } from 'h3';
+
+const chat = chatcopsVercelHandler({
+  provider: {
+    type: 'claude',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  },
+  systemPrompt: 'You are a helpful assistant.',
+  allowedOrigins: ['*'],
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+  clientIp: (req) => req.headers.get('x-client-ip'),
+});
+
+export default defineEventHandler((event) => {
+  const request = toWebRequest(event);
+  const ip = getRequestIP(event) ?? '';
+  const headers = new Headers(request.headers);
+  headers.set('x-client-ip', ip);
+  return chat(new Request(request, { headers }));
+});
+```
+
+`toWebRequest` converts a Nitro `H3Event` into a standard `Request`. The
+handler returns a standard `Response`, which Nitro streams back to the client.
+For the visitor's IP, see [The visitor's IP](#the-visitors-ip).
+
+## SvelteKit
+
+Create `src/routes/api/chat/[...path]/+server.ts`. The rest-parameter segment
+`[...path]` matches both `/api/chat` and `/api/chat/session`.
+
+```typescript
+import { env } from '$env/dynamic/private';
+import { chatcopsVercelHandler } from '@chatcops/server';
+import type { RequestHandler } from '@sveltejs/kit';
+
+const chat = chatcopsVercelHandler({
+  provider: {
+    type: 'claude',
+    apiKey: env.ANTHROPIC_API_KEY!,
+  },
+  systemPrompt: 'You are a helpful assistant.',
+  allowedOrigins: ['*'],
+  sessionSecrets: [env.CHATCOPS_SESSION_SECRET!],
+  clientIp: (req) => req.headers.get('x-client-ip'),
+});
+
+export const POST: RequestHandler = ({ request, getClientAddress }) => {
+  const headers = new Headers(request.headers);
+  headers.set('x-client-ip', getClientAddress());
+  return chat(new Request(request, { headers }));
+};
+
+export const OPTIONS: RequestHandler = ({ request, getClientAddress }) => {
+  const headers = new Headers(request.headers);
+  headers.set('x-client-ip', getClientAddress());
+  return chat(new Request(request, { headers }));
+};
+```
+
+`event.getClientAddress()` returns the visitor's IP. For other ways to get it,
+see [The visitor's IP](#the-visitors-ip).
+
+## Node's http module, Fastify, Koa
+
+A server that gives you Node's `req` and `res` instead of a `Request` can still use the same handler: turn the request into a `Request`, and stream the `Response` back. This works for `node:http` as below, and for Fastify (`request.raw`, `reply.raw`) or Koa (`ctx.req`, `ctx.res`) the same way.
+
+```typescript
+import { createServer } from 'node:http';
+import { Readable } from 'node:stream';
+import { chatcopsVercelHandler } from '@chatcops/server';
+
+const chat = chatcopsVercelHandler({
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+  systemPrompt: 'You are a helpful assistant.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+  // Set below from the socket, so a visitor can't choose it.
+  clientIp: (req) => req.headers.get('x-client-ip'),
+});
+
+createServer(async (req, res) => {
+  const { pathname } = new URL(req.url ?? '/', 'http://localhost');
+  // The chat, and the session token the widget asks for first.
+  if (pathname !== '/api/chat' && pathname !== '/api/chat/session') {
+    res.writeHead(404).end();
+    return;
+  }
+
+  const headers = new Headers();
+  for (const [name, value] of Object.entries(req.headers)) {
+    if (typeof value === 'string') headers.set(name, value);
+  }
+  headers.set('x-client-ip', req.socket.remoteAddress ?? '');
+  const request = new Request(`http://localhost${req.url}`, {
+    method: req.method,
+    headers,
+    body: req.method === 'POST' ? (Readable.toWeb(req) as ReadableStream) : undefined,
+    duplex: 'half', // Node needs this to send a streamed body
+  } as RequestInit);
+
+  const response = await chat(request);
+  res.writeHead(response.status, Object.fromEntries(response.headers));
+  if (!response.body) {
+    res.end();
+    return;
+  }
+  // Stop the reply, and the model request behind it, when the visitor leaves.
+  const body = Readable.fromWeb(response.body as import('node:stream/web').ReadableStream);
+  res.on('close', () => body.destroy());
+  body.pipe(res);
+}).listen(3000);
+```
+
+The handler does everything else itself: CORS and `allowedOrigins`, body limits, pings that keep the stream open through a slow tool, session tokens, and the 0.5 format for old widgets. That's why it's better to bridge to it than to call `createChatHandler` and write the HTTP side yourself.
+
+## The visitor's IP
+
+Rate limits and the per-IP budget key on the visitor's IP. The handler only reads it from a header that the platform sets itself, because a visitor can send any `X-Forwarded-For` they like and get a fresh limit with every request.
+
+| Where it runs | Where the IP comes from |
+|---|---|
+| Vercel | Vercel's own headers (`x-vercel-forwarded-for`, `x-real-ip`, `x-forwarded-for`), which Vercel overwrites. Nothing to set. |
+| Cloudflare Workers (`chatcopsCloudflareHandler`) | `CF-Connecting-IP`. Nothing to set. |
+| Express | `req.ip`, which follows Express's `trust proxy` setting. Behind one proxy, call `app.set('trust proxy', 1)`. |
+| Astro | `context.clientAddress`, copied into `x-client-ip` by the route handler before calling the ChatCops handler. |
+| Nuxt / Nitro | `getRequestIP(event)`, copied into `x-client-ip`. Behind a proxy, read that proxy's header with `clientIp`, as in the "Anywhere else" example. |
+| SvelteKit | `event.getClientAddress()`, copied into `x-client-ip` by the route handler. |
+| Anywhere else | Your `clientIp` function. |
+
+Anywhere else, set `clientIp` to read the header your host or proxy sets:
+
+```typescript
+import { chatcopsVercelHandler } from '@chatcops/server';
+
+const handler = chatcopsVercelHandler({
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+  systemPrompt: 'Be helpful.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+  clientIp: (req) => req.headers.get('x-nf-client-connection-ip'), // Netlify
+  // clientIp: (req) => req.headers.get('x-real-ip'),            // your nginx, with proxy_set_header X-Real-IP $remote_addr
+});
+```
+
+Bun and Deno have no proxy in front, so the examples above copy the socket address into a header and read that. Astro and SvelteKit expose the IP on the route context (`context.clientAddress` and `event.getClientAddress()`), and the examples above copy it into `x-client-ip` the same way. With Hono, do the same in the route with Hono's `getConnInfo`, or read your proxy's header.
+
+Without a way to tell the IP, per-IP limits are skipped and the server logs one warning saying so. Visitors never share one limit: that used to happen with an `"unknown"` key, where one busy visitor could use up the limit for everyone.
+
+## Checking your setup
+
+With the server running (a placeholder key such as `test` is enough for the first three):
+
+```bash
+# CORS preflight: expect 204 with Access-Control-Allow-Origin
+curl -i -X OPTIONS http://localhost:3000/api/chat
+
+# Broken JSON: expect 400 {"error":"Invalid JSON body"}
+curl -i -X POST http://localhost:3000/api/chat -H 'Content-Type: application/json' --data '{broken'
+
+# No session token: expect 401, which tells the widget to get one
+curl -i -X POST http://localhost:3000/api/chat -H 'Content-Type: application/json' \
+  --data '{"protocol":1,"conversationId":"test","message":"Hello"}'
+
+# A real reply (needs a real key): get a token, then expect data: lines, ending with data: [DONE]
+TOKEN=$(curl -s -X POST http://localhost:3000/api/chat/session -H 'Content-Type: application/json' \
+  --data '{"conversationId":"test"}' | node -pe 'JSON.parse(require("fs").readFileSync(0)).token')
+curl -N -X POST http://localhost:3000/api/chat -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $TOKEN" --data '{"protocol":1,"conversationId":"test","message":"Hello"}'
+```

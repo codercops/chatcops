@@ -1,3 +1,4 @@
+import type { Logger } from '../logger.js';
 import type { ProviderChatParams, ProviderToolCall, ToolResult } from '../types.js';
 
 export const MAX_TOOL_ROUNDS = 5;
@@ -35,38 +36,74 @@ export function toToolFailure(error: unknown): ToolResult {
   };
 }
 
+/** A tool stopped by us (a timeout, a cancelled reply): its message is ours, so the model can see it. */
+class ToolStopped extends Error {}
+
+type Timers = typeof globalThis & {
+  setTimeout: (callback: () => void, delay?: number) => unknown;
+  clearTimeout: (timeoutId: unknown) => void;
+};
+
+/**
+ * Runs a tool with a timeout. The tool gets a signal that aborts when the
+ * timeout passes or when `signal` aborts (the visitor left), and the result
+ * comes back as a failure right away in both cases, so a tool that ignores
+ * its signal can't hold up the reply.
+ */
+export async function runToolWithTimeout(
+  run: (signal: AbortSignal) => Promise<ToolResult>,
+  options: { timeoutMs?: number; signal?: AbortSignal; name?: string; logger?: Logger } = {}
+): Promise<ToolResult> {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS;
+  const timers = globalThis as Timers;
+  const controller = new AbortController();
+  let timeoutId: unknown;
+  let onAbort: (() => void) | undefined;
+
+  try {
+    return await Promise.race([
+      run(controller.signal),
+      new Promise<never>((_, reject) => {
+        timeoutId = timers.setTimeout(() => {
+          const error = new ToolStopped(`Tool execution timed out after ${timeoutMs}ms.`);
+          controller.abort(error);
+          reject(error);
+        }, timeoutMs);
+        if (options.signal) {
+          onAbort = () => {
+            controller.abort(options.signal?.reason);
+            reject(new ToolStopped('The reply was cancelled before the tool finished.'));
+          };
+          if (options.signal.aborted) onAbort();
+          else options.signal.addEventListener('abort', onAbort, { once: true });
+        }
+      }),
+    ]);
+  } catch (error) {
+    if (error instanceof ToolStopped) return toToolFailure(error);
+    // What a tool throws can hold anything (a database error, a key), so it's
+    // logged in full and the model only learns that the tool failed. A tool
+    // that wants to explain returns `{ success: false, message }` instead.
+    const name = options.name ?? 'tool';
+    options.logger?.error('tool_error', `Tool ${name} threw`, { tool: name, error });
+    return { success: false, message: `Tool failed: ${name}` };
+  } finally {
+    if (timeoutId !== undefined) timers.clearTimeout(timeoutId);
+    if (onAbort) options.signal?.removeEventListener('abort', onAbort);
+  }
+}
+
 export async function executeToolCall(
   params: ProviderChatParams,
   call: ProviderToolCall
 ): Promise<ToolResult> {
-  if (!params.toolExecutor) {
+  const executor = params.toolExecutor;
+  if (!executor) {
     return {
       success: false,
       message: `No tool executor is configured for "${call.name}".`,
     };
   }
-
-  const timeoutMs = params.toolTimeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS;
-  const timers = globalThis as typeof globalThis & {
-    setTimeout: (callback: () => void, delay?: number) => unknown;
-    clearTimeout: (timeoutId: unknown) => void;
-  };
-  let timeoutId: unknown;
-
-  try {
-    return await Promise.race([
-      params.toolExecutor(call),
-      new Promise<never>((_, reject) => {
-        timeoutId = timers.setTimeout(() => {
-          reject(new Error(`Tool execution timed out after ${timeoutMs}ms.`));
-        }, timeoutMs);
-      }),
-    ]);
-  } catch (error) {
-    return toToolFailure(error);
-  } finally {
-    if (timeoutId !== undefined) {
-      timers.clearTimeout(timeoutId);
-    }
-  }
+  // The executor gets the call alone, as in 0.4.
+  return runToolWithTimeout(() => executor(call), { timeoutMs: params.toolTimeoutMs });
 }

@@ -1,0 +1,179 @@
+/* The launcher button and the shared tokens: everything the loader draws before the chat loads. */
+:host {
+  /* Light, the default. theme.mode 'dark' (or 'auto' on a dark system) swaps in
+     the set below. The accent tokens read the --cc-theme-* values applyTheme
+     sets from theme.accent and theme.accentDark.
+     --cc-on-accent is text and icons on accent backgrounds, and
+     --cc-accent-contrast the accent shade text sits on, so text reaches 4.5:1. */
+  --cc-accent: var(--cc-theme-accent, #4f46e5);
+  --cc-accent-hover: var(--cc-theme-accent-hover, #4338ca);
+  --cc-on-accent: var(--cc-theme-on-accent, #ffffff);
+  --cc-accent-contrast: var(--cc-theme-accent-contrast, #4f46e5);
+  --cc-text: #1a1d23;
+  --cc-bg: #ffffff;
+  --cc-bg-surface: #f4f5f7;
+  --cc-surface-raised: #ffffff;
+  --cc-bg-input: #ffffff;
+  --cc-border: #d9dce1;
+  --cc-text-secondary: #5b616e;
+  --cc-danger: #c62828;
+  --cc-code-bg: rgb(0 0 0 / 0.07);
+  --cc-pre-bg: rgb(0 0 0 / 0.05);
+  --cc-shadow: 0 12px 40px rgb(16 24 40 / 0.18);
+  --cc-font: system-ui, -apple-system, sans-serif;
+  --cc-radius: 12px;
+  --cc-fab-size: 56px;
+  --cc-panel-width: 400px;
+  --cc-panel-height: 560px;
+  --cc-focus-ring: 0 0 0 2px var(--cc-bg), 0 0 0 4px var(--cc-accent);
+
+  all: initial;
+  /* After `all`, which would reset it. */
+  color-scheme: light;
+  font-family: var(--cc-font);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--cc-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Dark: the look the widget had before light mode, so theme.mode 'dark' keeps
+   an existing site as it was. */
+:host([data-cc-mode="dark"]) {
+  --cc-accent: var(--cc-theme-accent-dark, var(--cc-theme-accent, #6366f1));
+  --cc-accent-hover: var(--cc-theme-accent-dark-hover, var(--cc-theme-accent-hover, #4f46e5));
+  --cc-on-accent: var(--cc-theme-on-accent-dark, var(--cc-theme-on-accent, #ffffff));
+  --cc-accent-contrast: var(--cc-theme-accent-dark-contrast, var(--cc-theme-accent-contrast, #6164ec));
+  --cc-text: #ffffff;
+  --cc-bg: #0a0a0a;
+  --cc-bg-surface: #1a1a1a;
+  --cc-surface-raised: #1e1e1e;
+  --cc-bg-input: #2a2a2a;
+  --cc-border: #333333;
+  --cc-text-secondary: #a0a0a0;
+  --cc-danger: #ef4444;
+  --cc-code-bg: rgba(0, 0, 0, 0.2);
+  --cc-pre-bg: rgba(0, 0, 0, 0.3);
+  --cc-shadow: 0 8px 32px rgba(0,0,0,.4);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :host(:not([data-cc-mode])),
+  :host([data-cc-mode="auto"]) {
+    --cc-accent: var(--cc-theme-accent-dark, var(--cc-theme-accent, #6366f1));
+    --cc-accent-hover: var(--cc-theme-accent-dark-hover, var(--cc-theme-accent-hover, #4f46e5));
+    --cc-on-accent: var(--cc-theme-on-accent-dark, var(--cc-theme-on-accent, #ffffff));
+    --cc-accent-contrast: var(--cc-theme-accent-dark-contrast, var(--cc-theme-accent-contrast, #6164ec));
+    --cc-text: #ffffff;
+    --cc-bg: #0a0a0a;
+    --cc-bg-surface: #1a1a1a;
+    --cc-surface-raised: #1e1e1e;
+    --cc-bg-input: #2a2a2a;
+    --cc-border: #333333;
+    --cc-text-secondary: #a0a0a0;
+    --cc-danger: #ef4444;
+    --cc-code-bg: rgba(0, 0, 0, 0.2);
+    --cc-pre-bg: rgba(0, 0, 0, 0.3);
+    --cc-shadow: 0 8px 32px rgba(0,0,0,.4);
+    color-scheme: dark;
+  }
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* FAB */
+.cc-fab {
+  position: fixed;
+  bottom: 20px;
+  /* Physical placement: the site's default bottom-right choice stays on the right. */
+  right: 20px;
+  width: var(--cc-fab-size);
+  height: var(--cc-fab-size);
+  border-radius: 50%;
+  background: var(--cc-accent);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s, box-shadow 0.2s;
+  z-index: 10000;
+  outline: none;
+}
+
+.cc-fab:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+}
+
+.cc-fab:active {
+  transform: scale(0.95);
+}
+
+.cc-fab.cc-left {
+  /* Physical placement: the site's bottom-left choice stays on the left. */
+  right: auto;
+  left: 20px;
+}
+
+.cc-fab svg {
+  width: 24px;
+  height: 24px;
+  fill: var(--cc-on-accent);
+  transition: transform 0.3s;
+}
+
+.cc-fab.cc-open svg {
+  transform: rotate(90deg);
+}
+
+.cc-fab-badge {
+  position: absolute;
+  top: -2px;
+  inset-inline-end: -2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: #ef4444;
+  border: 2px solid var(--cc-bg);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.cc-fab-badge.cc-visible {
+  display: flex;
+}
+
+@keyframes cc-pulse {
+  0%, 100% { box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3); }
+  50% { box-shadow: 0 4px 16px color-mix(in srgb, var(--cc-accent) 50%, transparent); }
+}
+
+.cc-fab.cc-pulse {
+  animation: cc-pulse 2s ease-in-out 3;
+}
+
+.cc-fab:focus-visible {
+  outline: 2px solid transparent;
+  box-shadow: var(--cc-focus-ring), 0 4px 16px rgba(0, 0, 0, 0.3);
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cc-fab.cc-pulse {
+    animation: none;
+  }
+}

@@ -1,0 +1,693 @@
+---
+title: Storage
+description: Persist conversations and coordinate ChatCops across instances with a server-side storage provider.
+---
+
+The server uses storage for conversation history and, when the configured store provides the capability, counters, turn locks, and analytics events.
+
+By default, conversations are kept in memory for one server process. The memory store holds up to 1000 conversations, evicting the least recently used first, and drops conversations that have been idle for 7 days. That is useful for local development, but it is not reliable for Vercel, Lambda, Workers, or any multi-instance deployment: instances do not share memory, and a restart removes the data. Use a persistent store when conversations must survive restarts or be available to every instance.
+
+To change the memory store's limits, pass your own as `storage`:
+
+```typescript
+import { memoryStorage } from '@chatcops/core';
+
+const storage = memoryStorage({
+  maxConversations: 5000,                  // default 1000, least recently used dropped first
+  conversationTtlMs: 24 * 60 * 60 * 1000,  // default 7 days idle
+  maxKeys: 50_000,                          // counters and keys each, default 10,000
+  maxEvents: 50_000,                        // analytics events, default 10,000, oldest dropped first
+});
+```
+
+Past `maxKeys`, expired counters and keys are swept first, and only then are the oldest dropped.
+
+## Postgres
+
+The Postgres store is provided by `@chatcops/store-postgres`. It is currently private and will ship with the next release, so install it alongside the server package when that release is available:
+
+```bash
+npm install @chatcops/server @chatcops/store-postgres pg
+```
+
+Create a `pg` client, run the store migration once, and pass the resulting store through the `storage` option:
+
+```typescript
+import { Pool } from 'pg';
+import { chatcopsMiddleware } from '@chatcops/server';
+import { migrate, postgresStorage } from '@chatcops/store-postgres';
+
+const db = new Pool({ connectionString: process.env.DATABASE_URL });
+
+await migrate(db);
+
+const storage = postgresStorage({ db, tablePrefix: 'chatcops_' });
+
+const handler = chatcopsMiddleware({
+  provider: {
+    type: 'claude',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  },
+  systemPrompt: 'You are a helpful customer support assistant.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+  storage,
+});
+```
+
+`tablePrefix` is optional and is useful when several applications share one database. Pass the same prefix to `migrate` and `postgresStorage`, and run migrations before the server handles traffic. Migrations are safe to run on every deploy because already-applied migrations are skipped:
+
+```typescript
+import { Pool } from 'pg';
+import { neon } from '@neondatabase/serverless';
+import { migrate } from '@chatcops/store-postgres';
+
+const db = new Pool({ connectionString: process.env.DATABASE_URL });
+await migrate(db, { tablePrefix: 'chatcops_' });
+```
+
+### Neon
+
+For Neon, use the adapter exported by the Postgres store with Neon's serverless SQL client:
+
+```bash
+npm install @chatcops/server @chatcops/store-postgres @neondatabase/serverless
+```
+
+```typescript
+import { neon } from '@neondatabase/serverless';
+import { chatcopsMiddleware } from '@chatcops/server';
+import { fromNeon, migrate, postgresStorage } from '@chatcops/store-postgres';
+
+const db = fromNeon(neon(process.env.DATABASE_URL!));
+
+await migrate(db);
+
+const storage = postgresStorage({ db, tablePrefix: 'chatcops_' });
+
+const handler = chatcopsMiddleware({
+  provider: {
+    type: 'claude',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  },
+  systemPrompt: 'You are a helpful customer support assistant.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+  storage,
+});
+```
+
+## Redis
+
+The Redis store is provided by `@chatcops/store-redis`. It is currently private and will ship with the next release. The package supports both Upstash and `ioredis` clients and implements conversations, counters, KV locks, and events.
+
+### Upstash
+
+```bash
+npm install @chatcops/server @chatcops/store-redis @upstash/redis
+```
+
+```typescript
+import { Redis } from '@upstash/redis';
+import { chatcopsMiddleware } from '@chatcops/server';
+import { redisStorage } from '@chatcops/store-redis';
+
+const redis = Redis.fromEnv();
+const storage = redisStorage({
+  redis,
+  prefix: 'chatcops',
+  conversationTtlMs: 30 * 24 * 60 * 60 * 1000,
+});
+
+const handler = chatcopsMiddleware({
+  provider: {
+    type: 'claude',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  },
+  systemPrompt: 'You are a helpful customer support assistant.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+  storage,
+});
+```
+
+### ioredis
+
+```bash
+npm install @chatcops/server @chatcops/store-redis ioredis
+```
+
+```typescript
+import Redis from 'ioredis';
+import { chatcopsMiddleware } from '@chatcops/server';
+import { fromIoRedis, redisStorage } from '@chatcops/store-redis';
+
+const redis = new Redis(process.env.REDIS_URL!);
+const storage = redisStorage({
+  redis: fromIoRedis(redis),
+  prefix: 'chatcops',
+});
+
+const handler = chatcopsMiddleware({
+  provider: {
+    type: 'claude',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  },
+  systemPrompt: 'You are a helpful customer support assistant.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+  storage,
+});
+```
+
+## SQLite
+
+`@chatcops/store-sqlite` keeps everything in one SQLite file, for a single server process. It uses Node's built-in `node:sqlite` (Node 22.13 or later), so there's no native dependency to build. Like the Postgres store, it ships with the next release.
+
+```typescript
+import { chatcopsMiddleware } from '@chatcops/server';
+import { sqliteStorage } from '@chatcops/store-sqlite';
+
+const storage = sqliteStorage({ path: './chatcops.db' });
+
+const handler = chatcopsMiddleware({
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+  systemPrompt: 'You are a helpful customer support assistant.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+  storage,
+});
+```
+
+The tables are created on first use. `path: ':memory:'` is handy in tests, and `database` takes a `DatabaseSync` you opened yourself (better-sqlite3 works too). Call `await storage.close?.()` on shutdown, and back the file up the way you back up anything else on that server. Node may print an `ExperimentalWarning` the first time `node:sqlite` loads, which is expected.
+
+## Cloudflare D1
+
+`@chatcops/store-cloudflare` stores conversations, turn locks and analytics events in D1. Rate limit and budget counters go to a Durable Object when you bind one, and to D1 otherwise. It also ships with the next release.
+
+```typescript
+// docs-check: skip, needs the Workers types and bindings from wrangler
+import { chatcopsCloudflareHandler } from '@chatcops/server/cloudflare';
+import { ChatCopsCounter, cloudflareStorage } from '@chatcops/store-cloudflare';
+
+// Cloudflare finds the Durable Object class through the Worker's exports.
+export { ChatCopsCounter };
+
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    const handler = chatcopsCloudflareHandler({
+      provider: { type: 'claude', apiKey: env.ANTHROPIC_API_KEY },
+      systemPrompt: 'You are a helpful customer support assistant.',
+      sessionSecrets: [env.CHATCOPS_SESSION_SECRET],
+      storage: cloudflareStorage({ d1: env.DB, counters: env.COUNTERS }),
+    });
+    return handler(request, env, ctx);
+  },
+};
+```
+
+In `wrangler.jsonc`, bind the D1 database as `DB` and the counter class as `COUNTERS`, with a migration that lists `ChatCopsCounter` under `new_sqlite_classes`. D1 has no interactive transactions, so a write to a conversation is one `batch()` that checks the version first. Two isolates answering the same conversation can't both write, and the loser gets a `ConflictError` with nothing half written. Workers KV isn't used for locks, since it has no atomic set-if-absent.
+
+## Extra columns
+
+The Postgres, SQLite and D1 stores can fill in columns of your own on every new conversation and message row, such as the tenant a chat belongs to. Add the columns with your own migration, list them in `extraColumns`, and return their values from `rowHook`:
+
+```sql
+ALTER TABLE chatcops_conversations ADD COLUMN workspace_id uuid;
+ALTER TABLE chatcops_messages ADD COLUMN workspace_id uuid;
+```
+
+```typescript
+import { Pool } from 'pg';
+import { postgresStorage } from '@chatcops/store-postgres';
+
+const db = new Pool({ connectionString: process.env.DATABASE_URL });
+
+// One storage per workspace, made when that workspace's handler is.
+function storageFor(workspaceId: string) {
+  return postgresStorage({
+    db,
+    extraColumns: { workspace_id: 'uuid' },
+    rowHook: () => ({ workspace_id: workspaceId }),
+  });
+}
+```
+
+The hook runs when a row is inserted, never on updates. It gets `table` (`'conversations'` or `'messages'`), `conversationId`, the `metadata` passed with that write, and `message` for message rows. The server writes `visitor` (the pre-chat answers) and `uid` (a [signed-in visitor](/server/setup/#signed-in-visitors)) as metadata with a conversation's first message, so for anything else, close over the value as above. Every column in `extraColumns` is written to both tables, so add it to both. A column the hook leaves out is stored as null, and returning a key that isn't in `extraColumns` throws, with nothing from that write stored. Values are sent as query parameters, never put into the SQL.
+
+`extraColumns` is a list of names, or names with their SQL type as above (the default type is `text`). SQLite and D1 ignore the type, so one config works for all three. They store booleans as 1 or 0, so use an `INTEGER` column for those. Reads aren't filtered by these columns: scoping queries to a workspace is up to your own queries or row-level security.
+
+## Custom stores
+
+The server accepts a custom conversation store through `storage`:
+
+```typescript
+import type { Conversation, ConversationStore } from '@chatcops/core';
+import { chatcopsMiddleware } from '@chatcops/server';
+
+const myStore: ConversationStore = {
+  async get(id: string): Promise<Conversation | null> {
+    // Read the conversation from your database.
+    return null;
+  },
+  async save(conversation: Conversation): Promise<void> {
+    // Persist the complete conversation.
+  },
+  async delete(id: string): Promise<void> {
+    // Delete the conversation.
+  },
+};
+
+const handler = chatcopsMiddleware({
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+  systemPrompt: 'Be helpful.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+  storage: { conversations: myStore },
+});
+```
+
+A store with only `get`, `save`, and `delete` works, but the server logs one warning at startup. In that mode, each write saves the complete conversation, so two instances writing the same conversation concurrently can overwrite one another and lose a message.
+
+Implement `append` when the backing system can perform an atomic append. The server uses it to make concurrent writes safe across instances. `append(id, messages, { expectedVersion, metadata })` adds the messages after the existing ones and resolves to the new `{ version }`. A conversation that doesn't exist yet is at version 0. When `expectedVersion` is given and the stored version has moved on, throw `ConflictError` (from `@chatcops/core`) and write nothing. `metadata` is merged into the conversation's metadata, new keys winning. `runStorageConformance` from [`@chatcops/core/testing`](/core/testing/#testing-a-store) checks all of this.
+
+`updateMessage`, `removeMessage`, `list`, and `purge` are optional capabilities; implement them when the application needs those operations.
+
+The history sent to the model is trimmed to about 32,000 tokens: the visitor's first message plus as many recent ones as fit. Stored history keeps up to 100 messages per conversation.
+
+The complete interface is defined by [`ConversationStore`](https://github.com/codercops/chatcops/blob/dev/packages/core/src/storage/types.ts). The broader `ChatCopsStorage` object can also provide optional counter, KV, and event stores for distributed rate limits, turn locks, and analytics.
+
+## Vector stores
+
+`vectors` holds embedded chunks of your site's pages, for answering from them. The server doesn't search it yet; retrieval and citations build on it next. The interface is in place now so store packages can add it.
+
+`memoryVectors` keeps vectors in the process and compares a query with every record. Use it for tests, local development, and indexes of a few thousand chunks:
+
+```typescript
+import { memoryStorage, memoryVectors } from '@chatcops/core';
+
+const storage = {
+  ...memoryStorage(),
+  vectors: memoryVectors({ dimensions: 1024 }),
+};
+
+await storage.vectors.upsert([
+  {
+    id: 'pricing-0',
+    vector: new Float32Array(1024),
+    text: 'The Team plan is $20 a month.',
+    source: { id: 'https://example.com/pricing', url: 'https://example.com/pricing', title: 'Pricing' },
+    metadata: { locale: 'en' },
+  },
+]);
+
+const results = await storage.vectors.query({
+  vector: new Float32Array(1024),
+  topK: 5,
+  filter: { locale: ['en', 'de'] },
+});
+```
+
+A `VectorStore` needs:
+
+| Method | What it does |
+|---|---|
+| `dimensions` | The length of every vector. Storing or searching with another length is an error. |
+| `upsert(records)` | Adds records, replacing any with the same id. |
+| `query({ vector, topK, filter })` | The nearest records by cosine similarity, best first. |
+| `keywordQuery({ text, topK, filter })` | Optional full-text search, for hybrid retrieval. Words are split with `Intl.Segmenter`, so Japanese and Chinese work. |
+| `deleteBySource(sourceId)` | Removes every chunk of a page. |
+
+A filter matches when every key matches: a value has to be equal and of the same type, and an array matches any of its values. Results don't include the vectors.
+
+To check your own store, run the conformance suite from `@chatcops/core/testing`. Its vector checks run when the storage has `vectors`, need at least 4 dimensions, and tag every record with the run's id, so they work against a shared index.
+
+### SQLite with sqlite-vec
+
+Install the optional peer dependency to keep embeddings in the same SQLite file:
+
+```bash
+npm install @chatcops/store-sqlite sqlite-vec
+```
+
+```typescript
+import { sqliteStorage } from '@chatcops/store-sqlite';
+
+const storage = sqliteStorage({
+  path: './chatcops.db',
+  vectors: { dimensions: 1024 },
+});
+```
+
+Use the embedder's dimensions. `storage.vectors` supports cosine similarity, typed metadata filters, source deletion, and FTS5 keyword search with Japanese and Chinese word segmentation. Without `vectors`, SQLite storage does not load or require `sqlite-vec`. A caller-supplied database must be opened with `allowExtension: true` to enable vectors.
+
+### Postgres with pgvector
+
+The Postgres store can keep chunks in a pgvector table with cosine search and full-text keyword search. Install pgvector on the database, then run the vector migration separately from the regular conversation migration. This keeps `migrate()` usable on Postgres servers where the extension is not installed:
+
+```typescript
+import { Pool } from 'pg';
+import { migrate, migrateVectors, postgresStorage } from '@chatcops/store-postgres';
+
+const db = new Pool({ connectionString: process.env.DATABASE_URL });
+const dimensions = 1024;
+await migrate(db);
+await migrateVectors(db, { dimensions });
+
+const storage = postgresStorage({ db, dimensions });
+await storage.vectors?.upsert([
+  {
+    id: 'pricing-0',
+    vector: new Float32Array(dimensions),
+    text: 'The Team plan is $20 a month.',
+    source: { id: 'pricing', url: 'https://example.com/pricing', title: 'Pricing' },
+    metadata: { locale: 'en' },
+  },
+]);
+```
+
+Use the same `dimensions` and `tablePrefix` for both `migrateVectors()` and `postgresStorage()`. `keywordQuery()` uses Postgres full-text ranking and splits words with `Intl.Segmenter`, including Japanese and Chinese. Filtered vector queries use pgvector iterative HNSW scans, which requires pgvector 0.8 or newer.
+
+### Cloudflare Vectorize
+
+`@chatcops/store-cloudflare` can add semantic and keyword retrieval with a D1 database and a Cloudflare Vectorize index:
+
+```bash
+npm install @chatcops/store-cloudflare
+```
+
+Create the Vectorize index with the same dimensions as your embedding model and cosine distance, then create metadata indexes for every key used in filters:
+
+```bash
+npx wrangler vectorize create-index CHATCOPS_VECTORS --dimensions=1024 --metric=cosine
+npx wrangler vectorize create-metadata-index CHATCOPS_VECTORS --property-name=locale --type=string
+npx wrangler vectorize create-metadata-index CHATCOPS_VECTORS --property-name=collection --type=string
+```
+
+Bind both services and pass the same dimension count to the store:
+
+```typescript
+import { cloudflareStorage, type CloudflareBindings } from '@chatcops/store-cloudflare';
+
+declare const env: CloudflareBindings;
+
+const storage = cloudflareStorage({
+  d1: env.DB,
+  vectorize: env.CHATCOPS_VECTORS,
+  vectorDimensions: 1024,
+});
+```
+
+Vectorize stores embeddings and filterable metadata; D1 keeps the full text and source details and provides FTS5 keyword search. Create a metadata index for each key you pass in `filter`; unindexed metadata cannot be filtered by Vectorize. The index metric must be `cosine`. Vectorize writes can take a few seconds to become searchable.
+
+### Upstash Vector
+
+The Upstash store uses an existing dense index configured for cosine distance. Set its dimensions to match your embedder. The store preserves the page source in reserved metadata fields, so `deleteBySource()` can remove all of a page's chunks. Configure a dedicated test index with at least four dimensions to run conformance; tests do not reset the index.
+
+```bash
+npm install @chatcops/store-upstash-vector @upstash/vector
+```
+
+```typescript
+import { memoryStorage } from '@chatcops/core';
+import { Index } from '@upstash/vector';
+import { upstashVectors } from '@chatcops/store-upstash-vector';
+
+const dimensions = 1024;
+const index = new Index({
+  url: process.env.UPSTASH_VECTOR_REST_URL!,
+  token: process.env.UPSTASH_VECTOR_REST_TOKEN!,
+});
+const storage = {
+  ...memoryStorage(),
+  vectors: upstashVectors({ index, dimensions }),
+};
+```
+
+Metadata filters require every key to match and accept any value in an array. For sparse indexes and hybrid indexes with a sparse text embedding model, pass `keywordSearch: true` to expose `keywordQuery`. Dense indexes leave that method absent. The SDK does not encode the configured index kind in its `Index` type, so only enable this option for supported indexes.
+
+## Retention
+
+The handler exposes `purge()` for retention cleanup. `retention.conversationsDays` defaults to 30 days. Call `purge()` from a scheduled job or deploy task; it returns the number of deleted conversations, or `null` when the store can't purge:
+
+```typescript
+import { createChatHandler } from '@chatcops/server';
+import { Pool } from 'pg';
+import { postgresStorage } from '@chatcops/store-postgres';
+
+const handler = createChatHandler({
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+  systemPrompt: 'Be helpful.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+  storage: postgresStorage({ db: new Pool({ connectionString: process.env.DATABASE_URL }) }),
+  retention: { conversationsDays: 30 },
+});
+
+const deleted = await handler.purge();
+if (typeof deleted === 'number') {
+  console.log(`Purged ${deleted} old conversations`);
+}
+```
+
+`purge()` returns `null` only when a custom conversation store does not implement the optional `purge` capability, such as a custom store with only `get`, `save`, and `delete`. The built-in memory, SQLite, Postgres, and Redis stores all implement `purge()`.
+
+### Express / Node.js
+
+Use [`node-cron`](https://github.com/node-cron/node-cron) to call `purge()` on a schedule from the same process as your Express server:
+
+```bash
+npm install node-cron pg @types/pg
+```
+
+```typescript
+import express from 'express';
+import cron from 'node-cron';
+import { Pool } from 'pg';
+import { chatcopsMiddleware, createChatHandler, type ChatCopsServerConfig } from '@chatcops/server';
+import { postgresStorage } from '@chatcops/store-postgres';
+
+const db = new Pool({ connectionString: process.env.DATABASE_URL });
+const storage = postgresStorage({ db });
+
+const config: ChatCopsServerConfig = {
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+  systemPrompt: 'You are a helpful assistant.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+  storage,
+  retention: { conversationsDays: 30 },
+};
+
+const handler = createChatHandler(config);
+
+const app = express();
+app.use(express.json());
+app.use('/api/chat', chatcopsMiddleware(config));
+
+// Run at 03:00 every day.
+cron.schedule('0 3 * * *', async () => {
+  try {
+    const deleted = await handler.purge();
+    if (typeof deleted === 'number') {
+      console.log(`[chatcops] Purged ${deleted} old conversations`);
+    } else {
+      console.warn('[chatcops] purge() returned null: store does not support purge');
+    }
+  } catch (err) {
+    console.error('[chatcops] Scheduled purge failed:', err);
+  }
+});
+```
+
+Alternatively, keep the purge logic in a standalone script and invoke it from an external scheduler (systemd timer, AWS EventBridge, GitHub Actions cron, etc.). Run database migrations separately as part of your deployment, not on every cleanup run:
+
+```typescript
+// scripts/purge.ts
+import { createChatHandler } from '@chatcops/server';
+import { Pool } from 'pg';
+import { postgresStorage } from '@chatcops/store-postgres';
+
+const db = new Pool({ connectionString: process.env.DATABASE_URL });
+
+try {
+  const handler = createChatHandler({
+    provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+    systemPrompt: '',
+    sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+    storage: postgresStorage({ db }),
+    retention: { conversationsDays: 30 },
+  });
+
+  const deleted = await handler.purge();
+  if (typeof deleted === 'number') {
+    console.log(`Purged ${deleted} old conversations`);
+  } else {
+    console.warn('purge() returned null: store does not support purge');
+  }
+} catch (err) {
+  console.error('Purge failed:', err);
+  process.exitCode = 1;
+} finally {
+  await db.end();
+}
+```
+
+Run it with `tsx`:
+
+```bash
+npx tsx scripts/purge.ts
+```
+
+### Vercel Cron Jobs
+
+Vercel Cron Jobs call an API route on a schedule. Create a route that runs `purge()` and protect it with a shared secret so only Vercel's cron runner can trigger it:
+
+```typescript
+// app/api/purge/route.ts  (Next.js App Router)
+import { createChatHandler } from '@chatcops/server';
+import { NextRequest, NextResponse } from 'next/server';
+// Import the createChatHandler instance from your application module.
+// Replace '@/lib/chatcops' with the actual path where your handler is created,
+// configured with the same storage and retention settings as your chat route.
+const handler = createChatHandler({
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+  systemPrompt: 'Be helpful.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+});
+
+export const runtime = 'nodejs';
+
+export async function GET(req: NextRequest) {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) {
+    return NextResponse.json({ error: 'CRON_SECRET is not configured' }, { status: 500 });
+  }
+  const auth = req.headers.get('authorization');
+  if (auth !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const deleted = await handler.purge();
+    if (typeof deleted === 'number') {
+      return NextResponse.json({ deleted });
+    }
+    return NextResponse.json({ deleted: null, message: 'Store does not support purge' });
+  } catch (err) {
+    console.error('[chatcops] Purge failed:', err);
+    return NextResponse.json({ error: 'Purge failed' }, { status: 500 });
+  }
+}
+```
+
+Register the cron trigger in `vercel.json`. The path must match the route above:
+
+```json
+{
+  "crons": [
+    {
+      "path": "/api/purge",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}
+```
+
+Vercel automatically sends an `Authorization: Bearer <CRON_SECRET>` header when it invokes the route. Set `CRON_SECRET` in your Vercel project's environment variables. The route rejects any caller whose header doesn't match, and returns 500 when the secret is not configured at all.
+
+:::note
+Vercel Cron Jobs are available on all plans. On the Hobby plan, each cron job is limited to running at most once per day, which is sufficient for daily retention cleanup.
+:::
+
+### Cloudflare Workers
+
+Add a `scheduled` export to your Worker. Cloudflare calls it on the cron triggers you define in `wrangler.toml`.
+
+This example uses [`@chatcops/store-redis`](/server/storage/#redis) with Upstash's HTTP-based Redis client because it runs directly in Workers over HTTP without extra database-connection setup:
+
+```bash
+npm install @chatcops/store-redis @upstash/redis
+```
+
+Create a fresh handler inside `scheduled()` using the invocation's `env` so that no environment-specific secret is cached at global scope:
+
+```typescript
+// src/index.ts
+import { chatcopsCloudflareHandler, createChatHandler } from '@chatcops/server';
+import { Redis } from '@upstash/redis/cloudflare';
+import { redisStorage } from '@chatcops/store-redis';
+
+interface Env {
+  ANTHROPIC_API_KEY: string;
+  CHATCOPS_SESSION_SECRET: string;
+  UPSTASH_REDIS_REST_URL: string;
+  UPSTASH_REDIS_REST_TOKEN: string;
+}
+
+function makeStorage(env: Env) {
+  const redis = new Redis({
+    url: env.UPSTASH_REDIS_REST_URL,
+    token: env.UPSTASH_REDIS_REST_TOKEN,
+  });
+  // retention.conversationsDays determines the cutoff used by purge().
+  // purge() removes old conversations and their corresponding index entries.
+  // conversationTtlMs is an optional Redis key-expiration safety net.
+  return redisStorage({ redis, prefix: 'chatcops' });
+}
+
+// The fetch handler is built once per isolate; env is the same on every request.
+let fetchHandler: ReturnType<typeof chatcopsCloudflareHandler> | undefined;
+function getFetchHandler(env: Env) {
+  fetchHandler ??= chatcopsCloudflareHandler({
+    provider: { type: 'claude', apiKey: env.ANTHROPIC_API_KEY },
+    systemPrompt: 'You are a helpful assistant.',
+    sessionSecrets: [env.CHATCOPS_SESSION_SECRET],
+    storage: makeStorage(env),
+    retention: { conversationsDays: 30 },
+    allowedOrigins: ['*'],
+  });
+  return fetchHandler;
+}
+
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    return getFetchHandler(env)(request, env, ctx);
+  },
+
+  async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
+    // Build a dedicated handler for this invocation using the current env bindings.
+    const purgeHandler = createChatHandler({
+      provider: { type: 'claude', apiKey: env.ANTHROPIC_API_KEY },
+      systemPrompt: '',
+      sessionSecrets: [env.CHATCOPS_SESSION_SECRET],
+      storage: makeStorage(env),
+      retention: { conversationsDays: 30 },
+    });
+
+    ctx.waitUntil(
+      purgeHandler
+        .purge()
+        .then((deleted) => {
+          if (typeof deleted === 'number') {
+            console.log(`[chatcops] Purged ${deleted} old conversations`);
+          } else {
+            console.warn('[chatcops] purge() returned null: store does not support purge');
+          }
+        })
+        .catch((err) => {
+          console.error('[chatcops] Scheduled purge failed:', err);
+        })
+    );
+  },
+};
+```
+
+Register the cron trigger in `wrangler.toml`:
+
+```toml
+name = "chatcops-worker"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[triggers]
+crons = ["0 3 * * *"]
+```
+
+When using a custom conversation store, the store must implement `ConversationStore.purge` for scheduled cleanup to work. `purge()` returns `null` when the store does not implement it, making scheduled cleanup a no-op.
+
+:::note
+The in-memory store implements `purge()`, but each process or Worker instance only purges its own in-memory data. Scheduled cleanup is most useful when the application uses shared, persistent storage.
+:::

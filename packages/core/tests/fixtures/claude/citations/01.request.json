@@ -1,0 +1,56 @@
+{
+  "model": "claude-haiku-5-5",
+  "max_tokens": 4096,
+  "system": [
+    {
+      "type": "text",
+      "text": "You are the support assistant for a small online shop. Keep answers short.",
+      "cache_control": {
+        "type": "ephemeral"
+      }
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "search_result",
+          "source": "https://example.test/pricing",
+          "title": "Pricing > Plans",
+          "content": [
+            {
+              "type": "text",
+              "text": "The Team plan costs $20 per user per month, billed annually. The Starter plan is free for up to 3 users."
+            }
+          ],
+          "citations": {
+            "enabled": true
+          }
+        },
+        {
+          "type": "search_result",
+          "source": "https://example.test/refunds",
+          "title": "Refund policy",
+          "content": [
+            {
+              "type": "text",
+              "text": "Refunds are available within 30 days of purchase. Contact support with your order number."
+            }
+          ],
+          "citations": {
+            "enabled": true
+          }
+        },
+        {
+          "type": "text",
+          "text": "How much is the Team plan, and can I get a refund?"
+        }
+      ]
+    }
+  ],
+  "output_config": {
+    "effort": "low"
+  },
+  "stream": true
+}

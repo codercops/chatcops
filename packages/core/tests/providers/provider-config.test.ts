@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { normalizeHistory } from '../../src/providers/base.js';
+import { createProvider, normalizeHistory } from '../../src/providers/base.js';
 import {
   ClaudeProvider,
   claudeRejectsTemperature,
@@ -7,8 +7,10 @@ import {
   parseClaudeModel,
 } from '../../src/providers/claude.js';
 import { OpenAIProvider, isOpenAIReasoningModel } from '../../src/providers/openai.js';
+import { GeminiProvider } from '../../src/providers/gemini.js';
 import { ConversationManager } from '../../src/conversation/manager.js';
 import type { ChatMessage, ProviderChatParams } from '../../src/types.js';
+import { chatViaTurn } from '../helpers/chat-via-turn.js';
 
 function msg(id: string, role: ChatMessage['role'], content: string): ChatMessage {
   return { id, role, content, timestamp: 0 };
@@ -55,6 +57,41 @@ function mockOpenAI(provider: OpenAIProvider, create: ReturnType<typeof vi.fn>) 
 
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+describe('provider setup validation', () => {
+  it.each(['claude', 'openai', 'gemini'] as const)('requires an explicit key for %s', async (type) => {
+    vi.stubEnv('OPENAI_API_KEY', 'environment-key');
+    vi.stubEnv('ANTHROPIC_API_KEY', 'environment-key');
+    vi.stubEnv('GOOGLE_API_KEY', 'environment-key');
+    try {
+      for (const apiKey of [undefined, '', '   ']) {
+        await expect(createProvider({ type, apiKey })).rejects.toThrow(`${type} requires apiKey`);
+      }
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('validates keys when hosted classes are constructed directly', () => {
+    expect(() => new ClaudeProvider({ type: 'claude' })).toThrow('claude requires apiKey');
+    expect(() => new OpenAIProvider({ type: 'openai' })).toThrow('openai requires apiKey');
+    expect(() => new GeminiProvider({ type: 'gemini' })).toThrow('gemini requires apiKey');
+  });
+
+  it.each(['baseURL', 'model'] as const)('requires a nonempty %s for openai-compatible', async (field) => {
+    for (const value of [undefined, '', '   ']) {
+      await expect(createProvider({
+        type: 'openai-compatible', baseURL: 'http://localhost:11434/v1', model: 'local', [field]: value,
+      })).rejects.toThrow(`openai-compatible requires ${field}`);
+    }
+  });
+
+  it.each(['claude', 'openai', 'gemini'] as const)('keeps hosted defaults for %s', async (type) => {
+    const provider = await createProvider({ type, apiKey: 'test-key' });
+    expect(provider.name).toBe(type);
+    expect(provider.model).toBe(type === 'claude' ? 'claude-haiku-5-5' : type === 'openai' ? 'gpt-5-mini' : 'gemini-3.5-flash-lite');
+  });
 });
 
 describe('normalizeHistory', () => {
@@ -135,8 +172,8 @@ describe('ClaudeProvider', () => {
     ));
     mockClaude(provider, stream);
 
-    await collect(provider.chat(params({ temperature: 0.4 })));
-    await collect(provider.chat(params({ temperature: 0.4 })));
+    await collect(chatViaTurn(provider, params({ temperature: 0.4 })));
+    await collect(chatViaTurn(provider, params({ temperature: 0.4 })));
 
     const request = stream.mock.calls[0][0];
     expect(request.model).toBe('claude-haiku-5-5');
@@ -146,15 +183,16 @@ describe('ClaudeProvider', () => {
     expect(warn.mock.calls.filter(([text]) => String(text).includes('temperature'))).toHaveLength(1);
   });
 
-  it('keeps temperature and sends no effort on models without it', async () => {
+  it('never sends temperature, even on older models, and sends no effort on models without it', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     const provider = new ClaudeProvider({ type: 'claude', apiKey: 'k', model: 'claude-haiku-4-5' });
     const stream = vi.fn().mockReturnValue(claudeStream({ stop_reason: 'end_turn', content: [] }));
     mockClaude(provider, stream);
 
-    await collect(provider.chat(params({ temperature: 0.4 })));
+    await collect(chatViaTurn(provider, params({ temperature: 0.4 })));
 
     const request = stream.mock.calls[0][0];
-    expect(request.temperature).toBe(0.4);
+    expect(request).not.toHaveProperty('temperature');
     expect(request).not.toHaveProperty('output_config');
   });
 
@@ -165,7 +203,7 @@ describe('ClaudeProvider', () => {
     const stream = vi.fn().mockReturnValue(claudeStream({ stop_reason: 'end_turn', content: [] }));
     mockClaude(provider, stream);
 
-    await collect(provider.chat(params()));
+    await collect(chatViaTurn(provider, params()));
 
     expect(stream.mock.calls[0][0].output_config).toEqual({ effort: 'high' });
     expect((provider as unknown as { client: { baseURL: string } }).client.baseURL).toBe('https://proxy.example.com');
@@ -186,7 +224,7 @@ describe('ClaudeProvider', () => {
     mockClaude(provider, stream);
 
     const toolExecutor = vi.fn().mockResolvedValue({ success: true, data: { status: 'shipped' } });
-    await collect(provider.chat(params({ tools: [lookupTool], toolExecutor })));
+    await collect(chatViaTurn(provider, params({ tools: [lookupTool], toolExecutor })));
 
     const assistantTurn = stream.mock.calls[1][0].messages.at(-2);
     expect(assistantTurn).toEqual({
@@ -203,7 +241,7 @@ describe('ClaudeProvider', () => {
     const provider = new ClaudeProvider({ type: 'claude', apiKey: 'k' });
     mockClaude(provider, vi.fn().mockReturnValue(claudeStream({ stop_reason: 'refusal', content: [] })));
 
-    await expect(collect(provider.chat(params()))).rejects.toThrow('refusal');
+    await expect(collect(chatViaTurn(provider, params()))).rejects.toThrow('refusal');
   });
 
   it('normalizes history before sending it', async () => {
@@ -211,7 +249,7 @@ describe('ClaudeProvider', () => {
     const stream = vi.fn().mockReturnValue(claudeStream({ stop_reason: 'end_turn', content: [] }));
     mockClaude(provider, stream);
 
-    await collect(provider.chat(params({
+    await collect(chatViaTurn(provider, params({
       messages: [msg('a0', 'assistant', 'orphan'), msg('u1', 'user', 'one'), msg('u2', 'user', 'two')],
     })));
 
@@ -236,7 +274,7 @@ describe('OpenAIProvider', () => {
     const create = vi.fn().mockResolvedValue(openAIStream({ choices: [{ delta: { content: 'Hi' }, finish_reason: 'stop' }] }));
     mockOpenAI(provider, create);
 
-    await collect(provider.chat(params({ temperature: 0.3 })));
+    await collect(chatViaTurn(provider, params({ temperature: 0.3 })));
 
     const request = create.mock.calls[0][0];
     expect(request.model).toBe('gpt-5-mini');
@@ -259,7 +297,7 @@ describe('OpenAIProvider', () => {
     const create = vi.fn().mockResolvedValue(openAIStream({ choices: [{ delta: {}, finish_reason: 'stop' }] }));
     mockOpenAI(provider, create);
 
-    await collect(provider.chat(params({ maxTokens: 256, temperature: 0.3 })));
+    await collect(chatViaTurn(provider, params({ maxTokens: 256, temperature: 0.3 })));
 
     const request = create.mock.calls[0][0];
     expect(request.max_tokens).toBe(256);
@@ -300,7 +338,7 @@ describe('OpenAIProvider', () => {
       return { success: true, data: { orderId: call.input.orderId } };
     });
 
-    const chunks = await collect(provider.chat(params({ tools: [lookupTool], toolExecutor })));
+    const chunks = await collect(chatViaTurn(provider, params({ tools: [lookupTool], toolExecutor })));
 
     expect(chunks).toEqual(['Both found.']);
     expect(maxRunning).toBe(2);
@@ -316,11 +354,11 @@ describe('abort signal', () => {
     mockClaude(provider, stream);
     const controller = new AbortController();
 
-    await collect(provider.chat(params({ signal: controller.signal })));
+    await collect(chatViaTurn(provider, params({ signal: controller.signal })));
     expect(stream.mock.calls[0][1]).toEqual({ signal: controller.signal });
 
     controller.abort();
-    await expect(collect(provider.chat(params({ signal: controller.signal })))).rejects.toThrow();
+    await expect(collect(chatViaTurn(provider, params({ signal: controller.signal })))).rejects.toThrow();
     expect(stream).toHaveBeenCalledTimes(1);
   });
 
@@ -337,7 +375,7 @@ describe('abort signal', () => {
       return { success: true };
     });
 
-    await expect(collect(provider.chat(params({ tools: [lookupTool], toolExecutor, signal: controller.signal })))).rejects.toThrow();
+    await expect(collect(chatViaTurn(provider, params({ tools: [lookupTool], toolExecutor, signal: controller.signal })))).rejects.toThrow();
     expect(stream).toHaveBeenCalledTimes(1);
   });
 
@@ -347,7 +385,7 @@ describe('abort signal', () => {
     mockOpenAI(provider, create);
     const controller = new AbortController();
 
-    await collect(provider.chat(params({ signal: controller.signal })));
+    await collect(chatViaTurn(provider, params({ signal: controller.signal })));
     expect(create.mock.calls[0][1]).toEqual({ signal: controller.signal });
   });
 });

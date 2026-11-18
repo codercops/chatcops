@@ -47,31 +47,37 @@ export default chatcopsVercelHandler({
     ]),
   ],
 
-  cors: '*',
+  allowedOrigins: ['*'],
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
   analytics: true,
 });
 ```
 
+Add `api/chat/session.ts` with `export { default, config } from '../chat';`, so `/api/chat/session`, where the widget gets its session token, reaches the same handler.
+
 ## Next.js Integration
 
-If using Next.js, place the file at `app/api/chat/route.ts`:
+For Next.js (App Router), create a single catch-all route at `app/api/chat/[[...path]]/route.ts` with `chatcopsNext()` (see [Fetch runtimes](/server/fetch-runtimes/#nextjs-app-router)):
 
 ```typescript
-import { chatcopsVercelHandler } from '@chatcops/server';
+import { chatcopsNext } from '@chatcops/server/next';
 
 export const runtime = 'edge';
 
-const handler = chatcopsVercelHandler({
+export const { POST, OPTIONS } = chatcopsNext({
   provider: {
     type: 'openai',
     apiKey: process.env.OPENAI_API_KEY!,
   },
   systemPrompt: 'You are a helpful assistant.',
-  cors: '*',
+  allowedOrigins: ['*'],
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
 });
-
-export const POST = handler;
 ```
+
+The single catch-all route answers both the chat requests at `/api/chat` and session requests at `/api/chat/session`, so no second route file is needed.
+
+More runtimes (Hono, Bun, Deno) are in [Next.js, Hono, Bun and Deno](/server/fetch-runtimes/).
 
 ## Widget in Next.js Layout
 
@@ -85,7 +91,7 @@ export default function RootLayout({ children }) {
       <body>
         {children}
         <Script
-          src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+          src="https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js"
           data-api-url="/api/chat"
           data-accent="#6366f1"
           data-brand-name="Support"
@@ -103,5 +109,6 @@ Set in Vercel dashboard → Settings → Environment Variables:
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-...
+CHATCOPS_SESSION_SECRET=...   # openssl rand -base64 32
 WEBHOOK_URL=https://hooks.zapier.com/...
 ```

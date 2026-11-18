@@ -1,0 +1,417 @@
+---
+title: Testing your bot
+description: Write conversations your bot should handle in YAML, and check them with chatcops test before you ship a prompt or model change.
+---
+
+A change to the system prompt, the model or the knowledge base can quietly break an answer that used to be right. `chatcops test` catches that. You write the conversations your bot has to get right in YAML, say what each reply should contain, and the command runs them against your bot and tells you which ones broke.
+
+```bash
+npx chatcops test
+```
+
+It exits 0 when every test passed, 1 when some failed, and 2 when it couldn't run (a bad eval file, a missing config), so it works as a CI step.
+
+For a step-by-step walkthrough from your first eval file to a free suite in CI, see [Test Before Launch](/getting-started/test-before-launch/).
+
+## The config
+
+`chatcops test` reads the `server` section of `chatcops.config.ts`. It's the same config you give the server: the provider, system prompt, tools and knowledge.
+
+The command, its flags and `defineConfig` are `@chatcops/cli`'s API. The package exports more (the runner, the assertion and reporter registries) for its own use, and those can change in a minor release until the CLI reaches 1.0.
+
+```ts
+import { LeadCaptureTool } from '@chatcops/core';
+import { defineConfig } from '@chatcops/cli';
+
+export default defineConfig({
+  server: {
+    provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+    systemPrompt: 'You answer questions about Acme plans and orders.',
+    tools: [new LeadCaptureTool()],
+  },
+});
+```
+
+Tests run in process, through the same request path the server uses, so knowledge, tools, page context and locale all work as they do in production. Each test starts with fresh in-memory storage; your real conversation store is never touched.
+
+To run the evals against a deployed server instead, pass its chat URL:
+
+```bash
+npx chatcops test --url https://example.com/chat --header "Origin: https://example.com" --concurrency 1
+```
+
+`--header` is repeatable for headers such as `Origin`; headers are sent to both the session request and chat requests. When session tokens are enabled, the CLI mints a token for each test run and uses the returned conversation id for every turn. A server config is not needed with `--url`, but tool mocks cannot run over HTTP. Use `--concurrency 1` when the server's rate limit applies to the test client. `--url` is always live, even when `CI` is set, and cannot be combined with `--record` or `--replay`. A server with Turnstile enabled cannot be tested this way because minting a session token requires a Turnstile token.
+
+## Eval files
+
+By default the command runs every `evals/**/*.chat.yaml` file. Pass globs to pick others:
+
+```bash
+npx chatcops test "evals/pricing/*.chat.yaml"
+```
+
+An eval file has a name and a list of tests. Each test is one conversation, a turn at a time:
+
+```yaml
+version: 1
+name: Pricing
+tests:
+  - name: quotes the Team price
+    tags: [pricing]
+    turns:
+      - user: How much is the Team plan?
+        expect:
+          - contains: "$19"
+          - not-contains: "$29"
+
+  - name: remembers the plan on a follow-up
+    turns:
+      - user: Tell me about the Team plan.
+      - user: How much is it per year?
+        expect:
+          - contains: "$190"
+```
+
+Each assertion has one key. `judge` has a model grade the reply ([below](#judged-by-a-model)), and every assertion also works with a `not-` prefix to say the opposite. An assertion name that doesn't exist fails the whole run before anything is sent, so a typo can't make a test pass by checking nothing.
+
+Four assertions check what the reply says:
+
+- `contains`: takes a string or a list of strings that must all appear in the reply (`contains: "$19"` or `contains: [Team, "$19"]`).
+- `icontains`: case-insensitive substring matching; takes a string or a list of strings (`icontains: team` or `icontains: [team, "$19"]`).
+- `regex`: matches the reply against a JavaScript `RegExp`. Accepts a pattern string (`regex: "\\$\\d+"`) or `{ pattern, flags }` (`regex: { pattern: "team", flags: "i" }`).
+- `equals`: compares the trimmed reply with the exact expected string (`equals: "The Team plan is $19."`).
+
+Three assertions catch a prompt change that makes replies longer, slower or more expensive:
+
+- `tokens-under: 800` checks the turn's input plus output tokens. `tokens-under: { input: 600, output: 200 }` checks them separately, and you can give only one of them. A turn without usage fails.
+- `latency-under: 3000` checks the time to the end of the reply, in milliseconds. Replays answer at once, so it only means something in live and recorded runs.
+- `cost-under: 0.01` checks what the turn cost in US dollars. It needs the model in `prices` ([Costs](#costs)), and a turn without a price fails with a reason that says so.
+
+Two assertions check what ChatCops adds to a reply:
+
+- `cites` takes a URL glob, or a list of them, and each has to match a page the reply cites (`cites: "https://acme.test/pricing*"`). Globs work the same as in `ingest.include`. `cites: true` means it cites at least one page.
+- `lead-captured: true` means the turn captured a lead. An object, such as `lead-captured: { email: jane@acme.test }`, also has to match those fields of the lead.
+
+Two assertions check tool calls made during a turn:
+
+- `calls-tool` asserts that the bot called a tool. It takes either a tool name (`calls-tool: lookup_order`) or `{ name, args }` to also check inputs (`calls-tool: { name: lookup_order, args: { id: "A-1001" } }`). Arguments match partially: every specified key must match, nested objects follow the same rule, extra input keys are allowed, and arrays must match exactly.
+- `no-tool-call: true` asserts that no tool was called during the turn. It also takes a tool name (`no-tool-call: cancel_order`) to assert that the specific tool was not called, even if other tools were called.
+
+A test can also set:
+
+- `pageContext`: the page the visitor is on (`url`, `title`, and optionally `description` and `contentSnippet`)
+- `locale` and `userData`, as the widget would send them
+- `mocks.tools`: a fixed result for a server tool, so the test doesn't place a real order or send a real email
+- `repeat` and `passRate`: run the test several times and pass when that share of runs passed (models aren't deterministic)
+
+`defaults` at the top of the file applies to every test in it. A test's own values win, and tool mocks are merged:
+
+```yaml
+version: 1
+name: Orders
+defaults:
+  pageContext: { url: "https://acme.com/account", title: "Your account" }
+  mocks:
+    tools:
+      lookup_order: { success: true, data: { status: "shipped" } }
+tests:
+  - name: says where the order is
+    repeat: 5
+    passRate: 0.8
+    turns:
+      - user: Where is order A-1001?
+        expect:
+          - calls-tool: lookup_order
+          - calls-tool: { name: lookup_order, args: { id: "A-1001" } }
+          - no-tool-call: cancel_order
+          - contains: shipped
+```
+
+A mock for a tool your config doesn't have is an error, so a renamed tool can't leave a mock behind that no longer does anything.
+
+Eval files can also be modules (`.chat.ts`, `.chat.mjs`) that export the same object as their default, when you'd rather build tests in code.
+
+## Judged by a model
+
+Some things a reply should do don't fit in a `contains`: "confirms the demo without inventing a meeting time", "apologizes once and doesn't argue". A `judge` assertion has a second model grade the reply against a rubric:
+
+```yaml
+expect:
+  - judge: "Confirms the demo request without inventing a meeting time."
+  - judge: { rubric: "Apologizes once and doesn't argue.", threshold: 0.8 }
+```
+
+The judge sees the rubric and the conversation so far, scores the last reply from 0 to 1, and gives a reason. The assertion passes at `threshold` or above (0.7 when you don't set one), and a failure prints the score and the reason.
+
+By default the judge is the cheap model of a different provider than your bot's: Gemini's default model, or OpenAI's when the bot runs on Gemini. A model grading its own answers tends to score them too kindly. Its key comes from `GEMINI_API_KEY` (or `GOOGLE_API_KEY`), `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`, and without one the run stops before it starts instead of skipping the judged tests. Every run prints which judge it used. To choose it yourself, pass `--judge-model openai:gpt-5-mini`, or set `judge` in the config:
+
+```ts
+import { defineConfig } from '@chatcops/cli';
+
+export default defineConfig({
+  server: { provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! }, systemPrompt: 'You answer questions about Acme.' },
+  judge: { type: 'openai', apiKey: process.env.OPENAI_API_KEY!, model: 'gpt-5-mini' },
+});
+```
+
+A judge's scores can change when its model changes, so keep the same judge for a suite, and re-record when you switch. Judge calls are recorded and replayed like the bot's, so in CI the same verdicts come back without a key.
+
+## Simulated visitors
+
+Some behavior only shows up over a conversation you can't script, like "an annoyed customer who gives their email on the third message". A test with `simulate` instead of `turns` has a second model play the visitor from a persona, and the runner goes back and forth with your bot until a stop condition:
+
+```yaml
+version: 1
+name: Refunds
+tests:
+  - name: annoyed customer leaves an email
+    simulate:
+      persona: >
+        Your mug arrived broken and you're annoyed. You want a refund.
+        Give your email (sam@example.com) only when the assistant asks for it.
+      maxTurns: 6
+      stopWhen: lead-captured
+    expect:
+      - lead-captured: { email: sam@example.com }
+      - judge: { rubric: "Apologizes once and does not argue.", threshold: 0.7 }
+```
+
+- `persona` is who the visitor is and what they want. It is the visitor model's instructions, so say when it should hand out details.
+- `maxTurns` is the most visitor messages it sends, from 1 to 20.
+- `stopWhen: lead-captured` ends the conversation once the bot has captured a lead. Leave it out to run until `maxTurns`, or until the visitor model answers only `DONE` because its goal is reached. (`stopWhen: handoff` waits for the handoff feature and is rejected for now.)
+- `expect` is checked once, on the last turn, with the whole conversation, so a `judge` here grades the whole exchange. It works with every assertion. A simulated test has `simulate` or `turns`, never both, and a test-level `expect` only goes with `simulate`.
+
+The visitor is played by the judge model: the same `--judge-model` or `judge` in the config, a different provider from your bot by default, and no run without its key ([see above](#judged-by-a-model)). It is told to play the persona, write only the visitor's next message, and treat the bot's replies as data, not instructions. Its messages differ from run to run, so use `repeat` and `passRate` for a test that has to hold most of the time, and keep the persona specific.
+
+Everything the visitor model says goes through `fetch`, so `--record` and `--replay` cover it like the judge: in CI the same visitor messages come back, with no key and no network call. Changing the persona changes the request, so the replay misses the recording and fails until you record again. The visitor model's calls count in the run's cost and in `--max-cost`. A failed run prints each turn's visitor message and the bot's reply, so you can read what happened.
+
+## JavaScript checks
+
+For checks YAML can't express, point `javascript` at a module. The path is relative to the eval file:
+
+```yaml
+expect:
+  - javascript: ./checks/mentions-plan.mjs
+```
+
+The module's default export is called with `(turn, conversation)` and may be async. It should return a boolean, or an object with `pass`, and optionally `reason` and `score`:
+
+```js
+// evals/checks/mentions-plan.mjs
+export default function (turn) {
+  return turn.text.includes('plan');
+}
+```
+
+```js
+// evals/checks/no-apology.mjs
+export default async function (turn, conversation) {
+  const hasApology = /sorry|apologize/i.test(turn.text);
+  return { pass: !hasApology, reason: hasApology ? 'reply contains an apology' : 'no apology found' };
+}
+```
+
+A missing file, a module without a default function, or a throw inside it are failures with the file name in the reason. Each module is loaded once per run, not once per turn. `.ts` modules work on Node with type stripping, the same as the config file.
+
+## Costs
+
+With `prices` in the config, every turn, judge call and simulated visitor message gets a cost, and the run prints what it spent. Prices are in US dollars per million tokens, keyed by the model id. Copy them from your provider's pricing page, since they change.
+
+
+```ts
+import { defineConfig } from '@chatcops/cli';
+
+export default defineConfig({
+  server: { provider: { type: 'openai', apiKey: process.env.OPENAI_API_KEY!, model: 'gpt-5-mini' }, systemPrompt: 'You answer questions about Acme.' },
+  prices: {
+    // Example numbers only: use your provider's current prices.
+    'gpt-5-mini': { input: 0.25, output: 2 },
+    'gemini-3.5-flash-lite': { input: 0.1, output: 0.4 },
+  },
+});
+```
+
+`--max-cost 0.50` stops starting new turns once the run has spent 50 cents. Turns already running finish, so a run can go a little over. It needs a price for the bot's model and for the judge's, and refuses to run without them. Replays spend nothing, so `--max-cost` doesn't count them.
+
+## Options
+
+| Option | What it does |
+| --- | --- |
+| `[files...]` | Globs of eval files. Default `evals/**/*.chat.yaml`. |
+| `--filter <text>` | Only tests whose name contains the text, or `tag:<name>` for a tag |
+| `--repeat <n>` | Run every test n times, instead of each test's own `repeat` |
+| `--concurrency <n>` | Tests run at once. Default 4. |
+| `--reporter <name[=file]>` | `pretty` (the default), `json` (every turn's reply, tool calls, sources and token usage), `junit` (JUnit XML for CI), or `github` (GitHub Actions annotations and job summary). Repeatable, with each name used once. Add `=file` to write a reporter other than `github` to a file. |
+| `--output <file>` | Write a single reporter's complete output to a file instead of stdout. Also works with the default reporter. The `github` reporter requires stdout. |
+| `--json` | The same as `--reporter json` |
+| `--judge-model <provider:model>` | The judge for `judge` assertions: `gemini`, `openai` or `claude`, with a model id or without one for the default |
+| `--max-cost <usd>` | Stop starting turns once the run has spent this much. Needs `prices`. |
+| `--config <file>` | A config file other than `chatcops.config.*` in the current folder |
+
+A failed test prints the reason for each failed assertion and the reply it checked:
+
+```text
+✗ evals/pricing.chat.yaml > quotes the Team price
+    turn 1: the reply doesn't contain "$19"
+    reply: The Team plan is $29 a month, billed monthly.
+
+1 passed, 1 failed.
+```
+
+## Recorded replays
+
+Running tests calls your model for real, which costs tokens and needs the API key. For CI, record the calls once and replay them:
+
+```bash
+npx chatcops test --record   # calls the APIs and saves what they answer
+npx chatcops test --replay   # answers every call from the recordings
+```
+
+`--record` saves each eval file's calls next to it, in `__cassettes__/<file>.jsonl` (so `evals/pricing.chat.yaml` records to `evals/__cassettes__/pricing.chat.jsonl`). It records every HTTP call a test makes: the model, embedding calls for knowledge search, and tools that call APIs without a mock. Commit the folder with your eval files.
+
+When the `CI` environment variable is set, as it is on GitHub Actions and most CI services, `chatcops test` replays by default, so CI needs no API keys and costs nothing. A provider config without an `apiKey` gets a stand-in key during replay, since nothing is sent. Keep the config file loading when a key is missing: read `process.env.ANTHROPIC_API_KEY` as it is, and don't throw at load time. `--live` calls the APIs anyway.
+
+Each call is matched by its method, URL and body within its test. Any change that changes what gets sent fails the test instead of passing on an old answer:
+
+- a new word in the system prompt
+- another model
+- a tool added or removed
+- a new knowledge page in the context
+
+The message says where the request changed:
+
+```text
+✗ evals/pricing.chat.yaml > quotes the Team price
+    A call changed since it was recorded (POST https://api.anthropic.com/v1/messages, at system[0].text). Run chatcops test --record to record it again.
+```
+
+Run `--record` again after a change like that, check that the tests still pass, and commit the new recordings. `--record --filter` updates only the tests it ran, and recordings of tests you deleted are dropped the next time the file is recorded.
+
+A few things to know about recordings:
+
+- Headers aren't saved, and neither are query parameters like `key` or `api_key`. API keys usually travel in one of those, so they stay out of the files. The request and response bodies are saved, which means your system prompt and the replies are in the files, so treat them like the rest of your code. Request bodies stay readable JSON, so a re-recording's diff shows what you changed. Responses over 4 kB, such as a streamed reply with one event per token, are saved gzipped in base64, which keeps the files about a tenth of the size.
+- `repeat` records every run, and replay plays them back in the same order.
+- Replays answer at once, so `latency` in a replayed run is not the real latency.
+
+### JUnit reports for CI
+
+Write a JUnit report for a CI test report integration:
+
+```bash
+npx chatcops test --reporter junit --output evals.xml
+```
+
+To keep the readable summary in the terminal and save XML separately, give the JUnit reporter a destination:
+
+```bash
+npx chatcops test --reporter pretty --reporter junit=evals.xml
+```
+
+File paths are relative to the current folder. Parent folders are created as needed, and an existing report is replaced after reporting finishes. Paths containing `=` work: only the first `=` separates the reporter name from its destination. Each reporter name can be used once, and file destinations must differ. `--output` is a shortcut for one reporter; it cannot be combined with multiple reporters or `name=file`. A file write error exits 2, after all reporters have finished and any recordings have been saved.
+
+JUnit groups tests by eval file. Each test's time is the sum of its turns' latencies across all repeats, in seconds. The aggregate pass-rate verdict decides whether the testcase passed. A failed test with any execution error gets an `<error>`; other failed tests get a `<failure>` with the assertion reasons, turn numbers and replies.
+
+For example, GitLab CI can display the report even when an eval fails (record the API calls first so CI can replay them):
+
+```yaml
+evals:
+  image: node:22
+  script:
+    - npm ci
+    - npx chatcops test --reporter junit --output evals.xml
+  artifacts:
+    when: always
+    reports:
+      junit: evals.xml
+```
+
+### GitHub Actions
+
+Run `npx chatcops test --reporter github` to emit one workflow error annotation per failed eval, including the source line for YAML fixtures. When GitHub Actions sets `GITHUB_STEP_SUMMARY`, the reporter appends a Markdown table with every test's outcome and pass rate. With the variable unset, it emits annotations only. If the summary cannot be written, the CLI reports its path and exits 2.
+
+GitHub Actions reads workflow commands from stdout. The CLI rejects both `--reporter github=file` and `--reporter github --output file`. You can combine `github` with `pretty` on stdout or with a separate file reporter such as `--reporter junit=evals.xml`.
+
+```yaml
+name: Evals
+on: [pull_request]
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+      - run: npx chatcops test --reporter pretty --reporter github
+```
+
+## Unit tests with a scripted model
+
+`chatcops test` checks what a real model says. For code around the bot, such as your tools, a custom store or a page that reads the stream, a model is slow and never answers the same way twice. `@chatcops/core/testing` has a provider that plays back a script instead:
+
+```typescript
+import { expect, it } from 'vitest';
+import { scriptedProvider, textStep, toolStep } from '@chatcops/core/testing';
+import { chatcopsVercelHandler } from '@chatcops/server/vercel';
+
+it('looks the order up before answering', async () => {
+  const lookups: unknown[] = [];
+  const provider = scriptedProvider([
+    toolStep([{ name: 'lookup_order', input: { id: 'A-1' } }]),
+    textStep('Your order shipped on Monday.'),
+  ]);
+  const handler = chatcopsVercelHandler({
+    provider,
+    systemPrompt: 'You answer questions about orders.',
+    allowAnonymous: true, // the test posts without a session token
+    tools: [{
+      name: 'lookup_order',
+      description: 'Finds an order by id.',
+      inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+      async execute(input) {
+        lookups.push(input);
+        return { success: true, data: { shipped: 'Monday' } };
+      },
+    }],
+  });
+
+  const response = await handler(new Request('http://localhost/api/chat', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ protocol: 1, conversationId: 'test-1', message: 'Where is order A-1?' }),
+  }));
+
+  // The reply is a stream of `data:` lines, one part each.
+  const parts = (await response.text())
+    .split('\n')
+    .filter((line) => line.startsWith('data: {'))
+    .map((line) => JSON.parse(line.slice(6)));
+  const reply = parts.filter((part) => part.type === 'text-delta').map((part) => part.delta).join('');
+
+  expect(reply).toBe('Your order shipped on Monday.');
+  expect(lookups).toEqual([{ id: 'A-1' }]);
+  expect(provider.calls).toHaveLength(2); // the second step saw the tool's result
+});
+```
+
+Each model step takes the next entry of the script:
+
+- `textStep(text, { chunkSize, usage })` streams `text` in pieces of `chunkSize` characters (8 by default).
+- `toolStep(calls, { text })` calls tools, optionally after some text.
+- A list of provider events, or a function that builds them from the step's params, for anything else.
+- An `Error` makes that step fail, and `'hang'` waits until the request is aborted, for testing disconnects.
+
+`scriptedProvider(script, { delayMs })` waits `delayMs` before each event, to test timeouts and streaming. `citations: 'native'` makes it act like Claude, getting `sources` on each step. `provider.calls` keeps the params of every step, with the messages as they were then.
+
+### Testing a store
+
+If you write your own storage, `runStorageConformance` runs the checks every built-in store passes. It covers saving and appending, version conflicts, counters, expiry, events and, when the store has `vectors`, vector search:
+
+```typescript
+import { runStorageConformance } from '@chatcops/core/testing';
+import { memoryStorage } from '@chatcops/core';
+
+runStorageConformance('my store', () => memoryStorage(), { ttlMs: 1500 });
+```
+
+Call it at the top level of a Vitest file. `ttlMs` (150 by default) is the expiry the checks use, and they wait about twice that, so raise it for a backend that rounds expiry to seconds. `skip` leaves out checks a backend can't meet in a test run: `'kv-ttl'`, `'counter-ttl'`, `'conversation-concurrency'`, `'counter-concurrency'` or `'vector-keyword-cjk'`. For example, Workers KV's shortest TTL is 60 seconds, so skip `'kv-ttl'` there.

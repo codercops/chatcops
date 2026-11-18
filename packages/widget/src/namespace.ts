@@ -14,7 +14,8 @@ const DEFAULT = '';
 const CLAIMS_KEY = Symbol.for('chatcops.storageClaims');
 type Claims = Map<string, Set<() => boolean>>;
 const store = globalThis as typeof globalThis & { [CLAIMS_KEY]?: Claims };
-const claims: Claims = (store[CLAIMS_KEY] ??= new Map());
+store[CLAIMS_KEY] ??= new Map();
+const claims: Claims = store[CLAIMS_KEY];
 
 export interface ClaimedNamespace {
   /** `undefined` means the default keys, which a single widget always gets. */

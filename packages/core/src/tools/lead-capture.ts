@@ -1,15 +1,16 @@
+import { consoleLogger } from '../logger.js';
 import { z } from 'zod';
-import type { ToolResult, LeadData } from '../types.js';
+import type { LeadData, MessagePart, ToolContext, ToolResult } from '../types.js';
 import type { ChatTool } from './base.js';
 
 export type LeadCaptureCallback = (lead: LeadData) => void | Promise<void>;
 
 const leadInputSchema = z.object({
-  name: z.string(),
-  email: z.string().email(),
-  company: z.string().optional(),
-  phone: z.string().optional(),
-  projectDetails: z.string(),
+  name: z.string().trim().min(1, 'Required'),
+  email: z.string().trim().email('Invalid email'),
+  company: z.string().trim().optional(),
+  phone: z.string().trim().optional(),
+  projectDetails: z.string().trim().min(1, 'Required'),
 });
 
 export class LeadCaptureTool implements ChatTool {
@@ -30,12 +31,17 @@ export class LeadCaptureTool implements ChatTool {
     this.onCapture = onCapture;
   }
 
-  async execute(input: Record<string, unknown>): Promise<ToolResult> {
+  /** A captured lead shows up in the reply as a `lead-captured` part. */
+  emits(result: ToolResult): MessagePart[] {
+    return result.success && result.data ? [{ type: 'lead-captured', lead: result.data as Record<string, unknown> }] : [];
+  }
+
+  async execute(input: Record<string, unknown>, context?: ToolContext): Promise<ToolResult> {
     const parsed = leadInputSchema.safeParse(input);
     if (!parsed.success) {
       return {
         success: false,
-        message: `Invalid lead data: ${parsed.error.issues.map((i) => i.message).join(', ')}`,
+        message: `Invalid lead data: ${parsed.error.issues.map((i) => `${i.path.join('.') || 'value'}: ${i.message}`).join(', ')}`,
       };
     }
 
@@ -52,7 +58,7 @@ export class LeadCaptureTool implements ChatTool {
       try {
         await this.onCapture(lead);
       } catch (err) {
-        console.error('[chatcops] Lead capture callback failed:', err);
+        (context?.logger ?? consoleLogger()).error('lead_capture_failed', 'Lead capture callback failed', { error: err });
         return {
           success: false,
           message: 'Failed to process lead capture callback.',

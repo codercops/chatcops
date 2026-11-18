@@ -1,7 +1,19 @@
 {
   "name": "@chatcops/server",
-  "version": "0.5.0",
+  "version": "1.1.1",
   "description": "Server-side handler and adapters for ChatCops",
+  "keywords": [
+    "chatcops",
+    "ai",
+    "chatbot",
+    "llm",
+    "sse",
+    "express",
+    "vercel",
+    "cloudflare-workers"
+  ],
+  "homepage": "https://chat.codercops.com",
+  "bugs": "https://github.com/codercops/chatcops/issues",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,6 +29,10 @@
     "./vercel": {
       "types": "./dist/adapters/vercel.d.ts",
       "import": "./dist/adapters/vercel.js"
+    },
+    "./next": {
+      "types": "./dist/adapters/next.d.ts",
+      "import": "./dist/adapters/next.js"
     },
     "./cloudflare": {
       "types": "./dist/adapters/cloudflare.d.ts",
@@ -46,17 +62,22 @@
     }
   },
   "devDependencies": {
+    "@types/express": "^5.0.0",
+    "ai": "7.0.122",
     "typescript": "^5.7.0",
-    "vitest": "^4.1.11",
-    "@types/express": "^5.0.0"
+    "vitest": "^4.1.11"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/codercops/chatcops",
+    "url": "git+https://github.com/codercops/chatcops.git",
     "directory": "packages/server"
   },
   "publishConfig": {
     "access": "public"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "sideEffects": false
 }

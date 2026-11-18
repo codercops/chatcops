@@ -12,9 +12,10 @@ import { createChatHandler } from '../../src/handler.js';
 import { chatcopsVercelHandler } from '../../src/adapters/vercel.js';
 
 const config = {
+  allowAnonymous: true,
   provider: { type: 'claude' as const, apiKey: 'test-key' },
   systemPrompt: 'Test',
-  cors: '*',
+  allowedOrigins: ['*'],
 };
 
 describe('chatcopsVercelHandler', () => {
@@ -25,12 +26,14 @@ describe('chatcopsVercelHandler', () => {
     const res = await handler(req);
     expect(res.status).toBe(405);
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*');
+    expect(res.headers.get('Allow')).toBe('POST, OPTIONS');
     const body = await res.json();
     expect(body.error).toBe('Method not allowed');
   });
 
   it('returns Access-Control-Allow-Origin: * for 405 when cors is not configured', async () => {
     const handlerWithoutCors = chatcopsVercelHandler({
+      allowAnonymous: true,
       provider: { type: 'claude' as const, apiKey: 'test-key' },
       systemPrompt: 'Test',
     });
@@ -45,11 +48,12 @@ describe('chatcopsVercelHandler', () => {
 
   it('returns custom Access-Control-Allow-Origin for 405 when cors is configured', async () => {
     const handlerWithCustomCors = chatcopsVercelHandler({
+      allowAnonymous: true,
       provider: { type: 'claude' as const, apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: 'https://example.com',
+      allowedOrigins: ['https://example.com'],
     });
-    const req = new Request('http://localhost/api/chat', { method: 'GET' });
+    const req = new Request('http://localhost/api/chat', { method: 'GET', headers: { Origin: 'https://example.com' } });
     const res = await handlerWithCustomCors(req);
     expect(res.status).toBe(405);
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://example.com');
@@ -67,6 +71,7 @@ describe('chatcopsVercelHandler', () => {
 
   it('returns Access-Control-Allow-Origin: * for OPTIONS when cors is not configured', async () => {
     const handlerWithoutCors = chatcopsVercelHandler({
+      allowAnonymous: true,
       provider: { type: 'claude' as const, apiKey: 'test-key' },
       systemPrompt: 'Test',
     });
@@ -91,6 +96,7 @@ describe('chatcopsVercelHandler', () => {
 
   it('returns Access-Control-Allow-Origin: * for 400 when cors is not configured', async () => {
     const handlerWithoutCors = chatcopsVercelHandler({
+      allowAnonymous: true,
       provider: { type: 'claude' as const, apiKey: 'test-key' },
       systemPrompt: 'Test',
     });
@@ -109,14 +115,15 @@ describe('chatcopsVercelHandler', () => {
 
   it('returns custom Access-Control-Allow-Origin for 400 when cors is configured', async () => {
     const handlerWithCustomCors = chatcopsVercelHandler({
+      allowAnonymous: true,
       provider: { type: 'claude' as const, apiKey: 'test-key' },
       systemPrompt: 'Test',
-      cors: 'https://example.com',
+      allowedOrigins: ['https://example.com'],
     });
     const req = new Request('http://localhost/api/chat', {
       method: 'POST',
       body: 'not valid json{{{',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Origin: 'https://example.com' },
     });
     const res = await handlerWithCustomCors(req);
     expect(res.status).toBe(400);
@@ -135,7 +142,7 @@ describe('chatcopsVercelHandler', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
       const failure = new Error('Unexpected handler failure');
       vi.mocked(createChatHandler).mockImplementationOnce(() => ({
-        async *handleChat() {
+        startChat: async () => {
           throw failure;
         },
         getAnalytics: () => null,

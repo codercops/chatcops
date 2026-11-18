@@ -1,9 +1,26 @@
+import type { WirePart } from './protocol.js';
+import { keyStore, type KeyStore } from '../storage.js';
 import type { WidgetChatRequest, WidgetChatChunk } from './types.js';
+
+/** A signed token for the visitor, or a function that returns one (or none) each time a session is requested. */
+export type UserToken = string | (() => string | undefined | Promise<string | undefined>);
+
+/** How long a `userToken` function may take before the session starts without an identity. */
+const USER_TOKEN_TIMEOUT = 5000;
 
 export interface ChatClientOptions {
   apiUrl: string;
   /** Inactivity timeout in milliseconds. Defaults to 30000. */
   timeout?: number;
+  /** Cloudflare Turnstile site key, when the server checks Turnstile before issuing a session. */
+  turnstileSiteKey?: string;
+  /**
+   * The host site's signed token for a signed-in visitor, sent when asking for a session.
+   * A function is called for a fresh one each time, and may be async.
+   */
+  userToken?: UserToken;
+  /** Where the session token is kept. Defaults to localStorage; the widget passes its own store. */
+  store?: KeyStore;
 }
 
 export interface SendMessageOptions {
@@ -12,13 +29,73 @@ export interface SendMessageOptions {
   timeout?: number;
 }
 
+/** A session token from `POST <apiUrl>/session`, for servers that have them on. */
+interface Session {
+  token: string;
+  conversationId: string;
+}
+
 export class ChatClient {
   private apiUrl: string;
   private timeout: number;
+  private sessionKey: string;
+  /** The last token, kept across page loads so the server can resume the conversation. Read on first use. */
+  private saved?: Partial<Session>;
+  private store: KeyStore;
+  private turnstileSiteKey?: string;
+  private userToken?: UserToken;
 
   constructor(options: ChatClientOptions) {
     this.apiUrl = options.apiUrl;
+    this.turnstileSiteKey = options.turnstileSiteKey;
+    this.userToken = options.userToken;
     this.timeout = options.timeout ?? 30000;
+    this.sessionKey = `chatcops-session:${options.apiUrl}`;
+    this.store = options.store ?? keyStore('local');
+  }
+
+  /**
+   * The signed-in visitor's identity token for the next session, or none.
+   * The session token from before is dropped, so the next message gets one
+   * for the new identity (the server starts a new conversation for a
+   * different user). `forget: false` leaves the stored token alone, for a widget that
+   * may not use storage yet.
+   */
+  setUserToken(token: UserToken | undefined, forget = true): void {
+    if (token === this.userToken) return;
+    this.userToken = token;
+    if (forget) this.forgetSession();
+    else this.saved = {};
+  }
+
+  /** Drops the session token, in memory and from the store. */
+  forgetSession(): void {
+    this.saved = {};
+    this.store.remove(this.sessionKey);
+  }
+
+  get identity(): UserToken | undefined {
+    return this.userToken;
+  }
+
+  /** The token to send with a session request. A function that fails, or is too slow, means no identity. */
+  private async resolveUserToken(): Promise<string | undefined> {
+    const source = this.userToken;
+    if (typeof source !== 'function') return source;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const token = await Promise.race([
+        source(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(reject, USER_TOKEN_TIMEOUT, new Error('timed out'));
+        }),
+      ]);
+      return typeof token === 'string' && token ? token : undefined;
+    } catch (error) {
+      console.warn('ChatCops: userToken() failed, so the session starts without the visitor', error);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   async *sendMessage(
@@ -69,20 +146,63 @@ export class ChatClient {
     resetTimeout();
 
     try {
-      const response = await fetch(this.apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request),
-        signal: controller.signal,
-      });
+      const post = (url: string, body: object, token?: string) =>
+        fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }) },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+      let saved = this.saved;
+      if (!saved) {
+        try {
+          saved = (JSON.parse(this.store.get(this.sessionKey) || '{}') as Partial<Session> | null) ?? {};
+        } catch {
+          saved = {};
+        }
+        this.saved = saved;
+      }
+      const resumable = saved.conversationId === request.conversationId;
+      // Servers before 0.6 ignore `protocol` and answer in the old format.
+      let response = await post(this.apiUrl, { protocol: 1, ...request }, resumable ? saved.token : undefined);
+
+      // Session tokens are on. Get a token for this conversation and try once
+      // more. The previous token, even expired, lets the server resume the
+      // conversation without Turnstile; without one it may give the
+      // conversation a new id.
+      if (response.status === 401) {
+        const minted = await post(this.apiUrl.replace(/\/?(\?.*)?$/, '/session$1'), {
+          conversationId: request.conversationId,
+          previousToken: saved.token,
+          userToken: await this.resolveUserToken(),
+          // Its own chunk: only sites with a Turnstile key download it.
+          turnstileToken:
+            this.turnstileSiteKey && !resumable
+              ? await (await import('./turnstile.js')).turnstileToken(this.turnstileSiteKey)
+              : undefined,
+        });
+        if (minted.ok) {
+          const session = (await minted.json()) as Session;
+          this.saved = session;
+          this.store.set(this.sessionKey, JSON.stringify(session));
+          if (session.conversationId !== request.conversationId) {
+            request = { ...request, conversationId: session.conversationId };
+            yield { conversationId: session.conversationId };
+          }
+          response = await post(this.apiUrl, { protocol: 1, ...request }, session.token);
+        } else {
+          // A token the server won't resume from: start over, with Turnstile, on the next try.
+          this.saved = {};
+        }
+      }
 
       if (!response.ok) {
+        // Protocol v1 servers send `{ error: { code, retryAfterMs } }`.
+        const { error } = await response.json().catch(() => ({}));
         await cleanup();
-        if (response.status === 429) {
-          yield { error: 'rate_limit' };
-          return;
-        }
-        yield { error: `HTTP ${response.status}` };
+        yield error?.code
+          ? errorChunk(error.code, error.retryAfterMs)
+          : { error: response.status === 429 ? 'rate_limit' : `HTTP ${response.status}` };
         return;
       }
 
@@ -95,6 +215,10 @@ export class ChatClient {
 
       const decoder = new TextDecoder();
       let buffer = '';
+      // Protocol v1 parts have a `type`; 0.5 chunks never do. A v1 stream
+      // ends with `finish`, so ending without one means it was cut off.
+      let v1 = false;
+      let finished = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -114,20 +238,32 @@ export class ChatClient {
           const data = trimmed.slice(6);
           if (data === '[DONE]') {
             await cleanup();
-            yield { done: true };
+            yield v1 && !finished ? { error: 'cut_off' } : { done: true };
             return;
           }
 
+          let chunk: WidgetChatChunk | WirePart;
           try {
-            yield JSON.parse(data) as WidgetChatChunk;
+            chunk = JSON.parse(data);
           } catch {
-            // Skip malformed chunks
+            continue; // Skip malformed chunks
+          }
+          if ('type' in chunk) {
+            v1 = true;
+            if (chunk.type === 'finish') finished = true;
+            const mapped = fromPart(chunk);
+            if (mapped) yield mapped;
+          } else {
+            yield chunk;
           }
         }
       }
 
       await cleanup();
-      yield { done: true };
+      // A [DONE] with no newline after it still counts. Anything else means the
+      // connection was cut mid-reply (a proxy timeout, a server crash), so the
+      // visitor should see an error and a Retry button rather than half an answer.
+      yield buffer.trim() === 'data: [DONE]' ? { done: true } : { error: v1 ? 'cut_off' : 'network' };
     } catch (err) {
       await cleanup();
       if (err instanceof DOMException && err.name === 'AbortError') {
@@ -138,5 +274,45 @@ export class ChatClient {
     } finally {
       await cleanup();
     }
+  }
+}
+
+/** The widget's error type for a protocol v1 error code. */
+const ERROR_TYPES: Record<string, string> = {
+  rate_limited: 'rate_limit',
+  timeout: 'timeout',
+  budget_exceeded: 'budget',
+  budget_daily: 'budget_daily',
+  provider_unavailable: 'unavailable',
+};
+
+function errorChunk(code: string, retryAfterMs?: number): WidgetChatChunk {
+  return { error: ERROR_TYPES[code] ?? 'provider_error', retryAfterMs };
+}
+
+/**
+ * A protocol v1 part as the chunk the widget already handles, or null for
+ * parts it doesn't use (and part types added later).
+ */
+function fromPart(part: WirePart): WidgetChatChunk | null {
+  switch (part.type) {
+    case 'start':
+      return { messageId: part.messageId };
+    case 'text-delta':
+      return { content: part.delta };
+    case 'lead-captured':
+      return { leadCaptured: true, leadData: part.lead };
+    case 'source': {
+      const { url, title } = part;
+      if (!url.startsWith('http://') && !url.startsWith('https://')) return null;
+      return { source: { url, title } };
+    }
+    case 'error':
+      return errorChunk(part.code === 'budget_exceeded' && part.scope !== 'conversation' ? 'budget_daily' : part.code, part.retryAfterMs);
+    case 'finish':
+      // An error part already went out, or nobody is listening.
+      return part.reason === 'error' || part.reason === 'aborted' ? null : { done: true };
+    default:
+      return null;
   }
 }

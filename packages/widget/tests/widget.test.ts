@@ -15,6 +15,7 @@ type WidgetInternals = {
     status?: 'streaming' | 'complete' | 'error';
     errorType?: 'rate_limit' | 'network' | 'provider_error' | 'timeout';
   }>;
+  saveHistory(): void;
   isStreaming: boolean;
   userData?: Record<string, string>;
   showChatView(): void;
@@ -31,13 +32,183 @@ function getInternals(widget: Widget): WidgetInternals {
 describe('Widget', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
+    document.documentElement.removeAttribute('style');
     localStorage.clear();
     sessionStorage.clear();
   });
 
+  it('shows the AI disclosure first by default, with its text and link from the config', () => {
+    const note = () => getInternals(widget).shadow.querySelector('.cc-messages')?.firstElementChild;
+    let widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    expect(note()?.getAttribute('role')).toBe('note');
+    expect(note()?.textContent).toBe("You're chatting with an AI assistant. It can make mistakes.");
+    widget.destroy();
+
+    widget = new Widget({ apiUrl: 'https://api.test/chat', disclosure: { text: 'Acme Bot is an AI.', learnMoreUrl: 'https://acme.test/ai' } });
+    widget.init();
+    expect(note()?.textContent).toBe('Acme Bot is an AI. Learn more');
+    widget.destroy();
+  });
+
+  it('leaves the disclosure out with disclosure: false, and says who is responsible then', () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const widget = new Widget({ apiUrl: 'https://api.test/chat', disclosure: false });
+    widget.init();
+    expect(getInternals(widget).shadow.querySelector('.cc-disclosure')).toBeNull();
+    expect(info).toHaveBeenCalledWith(expect.stringContaining('Article 50'));
+    widget.destroy();
+    info.mockRestore();
+  });
+
+  it('sets locale-derived direction and language on the host', () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat', locale: 'ar' });
+    widget.init();
+
+    const host = document.querySelector('.chatcops-root');
+    expect(host?.getAttribute('dir')).toBe('rtl');
+    expect(host?.getAttribute('lang')).toBe('ar');
+
+    widget.destroy();
+  });
+
+  it('keeps an explicit direction over the locale in inline mode', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const widget = new Widget({ apiUrl: 'https://api.test/chat', locale: 'he', dir: 'ltr', mode: 'inline', container });
+    widget.init();
+
+    expect(container.querySelector('.chatcops-root')?.getAttribute('dir')).toBe('ltr');
+    expect(container.querySelector('.chatcops-root')?.getAttribute('lang')).toBe('he');
+
+    widget.destroy();
+  });
+
+  it('reports malformed inline container selectors with a ChatCops error', () => {
+    const widget = new Widget({
+      apiUrl: 'https://api.test/chat',
+      mode: 'inline',
+      container: '[',
+      siteId: 'invalid-container-selector',
+    });
+
+    expect(() => widget.init()).toThrowError('ChatCops: invalid container selector: [');
+  });
+
+  it('keeps the existing error when an inline container selector has no match', () => {
+    const widget = new Widget({
+      apiUrl: 'https://api.test/chat',
+      mode: 'inline',
+      container: '#missing-container',
+      siteId: 'missing-container-selector',
+    });
+
+    expect(() => widget.init()).toThrowError('ChatCops: container element not found: #missing-container');
+  });
+
+  it('resolves a valid inline container selector', () => {
+    const container = document.createElement('div');
+    container.id = 'inline-container';
+    document.body.appendChild(container);
+    const widget = new Widget({ apiUrl: 'https://api.test/chat', mode: 'inline', container: '#inline-container' });
+
+    widget.init();
+
+    expect(container.querySelector('.chatcops-root')).not.toBeNull();
+    widget.destroy();
+  });
+
   afterEach(() => {
+    document.documentElement.removeAttribute('style');
     vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  describe('maxMessages', () => {
+    const makeMessages = (count: number) =>
+      Array.from({ length: count }, (_, index) => ({
+        id: `message-${index}`,
+        role: index % 2 === 0 ? 'user' as const : 'assistant' as const,
+        content: `Message ${index}`,
+      }));
+
+    it('defaults to saving the latest 50 transcript messages', () => {
+      const widget = new Widget({ apiUrl: '/chat', persistence: 'local' });
+      widget.init();
+      getInternals(widget).messages = makeMessages(55);
+
+      getInternals(widget).saveHistory();
+
+      const saved = JSON.parse(localStorage.getItem('chatcops_conversation') ?? '{}');
+      expect(saved.messages).toHaveLength(50);
+      expect(saved.messages[0].id).toBe('message-5');
+      widget.destroy();
+    });
+
+    it('saves only the latest messages for a positive safe-integer limit', () => {
+      const widget = new Widget({ apiUrl: '/chat', persistence: 'local', maxMessages: 2 });
+      widget.init();
+      getInternals(widget).messages = makeMessages(5);
+
+      getInternals(widget).saveHistory();
+
+      const saved = JSON.parse(localStorage.getItem('chatcops_conversation') ?? '{}');
+      expect(saved.messages.map((message: { id: string }) => message.id)).toEqual(['message-3', 'message-4']);
+      widget.destroy();
+    });
+
+    it('saves no transcript messages at zero while keeping in-memory chat messages', () => {
+      const widget = new Widget({ apiUrl: '/chat', persistence: 'local', maxMessages: 0 });
+      widget.init();
+      getInternals(widget).messages = makeMessages(3);
+
+      getInternals(widget).saveHistory();
+
+      const saved = JSON.parse(localStorage.getItem('chatcops_conversation') ?? '{}');
+      expect(saved.messages).toEqual([]);
+      expect(getInternals(widget).messages).toHaveLength(3);
+      widget.destroy();
+    });
+
+    it.each([-1, -50, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])(
+      'falls back to 50 for invalid maxMessages value %s',
+      (maxMessages) => {
+        const widget = new Widget({ apiUrl: '/chat', persistence: 'local', maxMessages });
+        widget.init();
+        getInternals(widget).messages = makeMessages(55);
+
+        getInternals(widget).saveHistory();
+
+        const saved = JSON.parse(localStorage.getItem('chatcops_conversation') ?? '{}');
+        expect(saved.messages).toHaveLength(50);
+        expect(saved.messages[0].id).toBe('message-5');
+        widget.destroy();
+      }
+    );
+  });
+
+  it('moves to the conversation id the server gives with a session token, and saves history under it', async () => {
+    const reply = [
+      'data: {"type":"start","protocol":1,"conversationId":"server-id","messageId":"m1"}',
+      'data: {"type":"text-delta","id":"t1","delta":"Hello"}',
+      'data: {"type":"finish","reason":"stop"}',
+      'data: [DONE]',
+      '',
+    ].join('\n\n');
+    const fetch = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('{"error":{"code":"session_required"}}', { status: 401 }))
+      .mockResolvedValueOnce(new Response('{"token":"tok","conversationId":"server-id","expiresAt":0}', { status: 200 }))
+      .mockResolvedValueOnce(new Response(reply, { status: 200 }))
+      .mockResolvedValueOnce(new Response(reply, { status: 200 }));
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+
+    await getInternals(widget).handleSend('Hi');
+    await getInternals(widget).handleSend('Again');
+
+    expect(JSON.parse(String(fetch.mock.calls[3][1]?.body)).conversationId).toBe('server-id');
+    expect(JSON.parse(localStorage.getItem('chatcops_conversation') ?? '{}').id).toBe('server-id');
+    widget.destroy();
   });
 
   it('does not open after destroy when auto-open is delayed', () => {
@@ -48,6 +219,98 @@ describe('Widget', () => {
     widget.destroy();
     vi.advanceTimersByTime(100);
     expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  describe('auto-open and the bubble delay', () => {
+    const MAX = 2_147_483_647;
+    const DAY = 86_400_000;
+    const start = (config: Record<string, unknown>) => {
+      const onOpen = vi.fn();
+      const widget = new Widget({ apiUrl: 'https://api.test/chat', onOpen, ...config });
+      widget.init();
+      return { widget, onOpen };
+    };
+    const bubbleOf = (widget: Widget) => getInternals(widget).shadow.querySelector('.cc-bubble') as HTMLElement;
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('opens at once for true and for 0, and after a valid delay', () => {
+      for (const [autoOpen, at] of [[true, 0], [0, 0], [1000, 1000], [DAY, DAY], [MAX, MAX]] as const) {
+        const { widget, onOpen } = start({ autoOpen });
+        if (at > 0) {
+          vi.advanceTimersByTime(at - 1);
+          expect(onOpen, String(autoOpen)).not.toHaveBeenCalled();
+        }
+        vi.advanceTimersByTime(at === 0 ? 0 : 1);
+        expect(onOpen, String(autoOpen)).toHaveBeenCalledTimes(1);
+        widget.destroy();
+      }
+    });
+
+    it.each([3_000_000_000, Number.MAX_SAFE_INTEGER, Number.POSITIVE_INFINITY])(
+      'does not open at once for an autoOpen delay of %s, which is past what setTimeout holds',
+      (autoOpen) => {
+        const { widget, onOpen } = start({ autoOpen });
+        vi.advanceTimersByTime(0);
+        vi.advanceTimersByTime(DAY);
+        expect(onOpen).not.toHaveBeenCalled();
+        // It waits for the longest delay there is.
+        vi.advanceTimersByTime(MAX - DAY);
+        expect(onOpen).toHaveBeenCalledTimes(1);
+        widget.destroy();
+      },
+    );
+
+    it.each([Number.NaN, -1, -3000, Number.NEGATIVE_INFINITY, '500', null, false])('never auto-opens for autoOpen %j', (autoOpen) => {
+      const { widget, onOpen } = start({ autoOpen });
+      vi.advanceTimersByTime(MAX);
+      expect(onOpen).not.toHaveBeenCalled();
+      widget.destroy();
+    });
+
+    it('shows the bubble after a valid delay, and at once for 0', () => {
+      for (const delay of [0, 1500]) {
+        // The bubble shows once per browser, so each one starts clean.
+        localStorage.clear();
+        const { widget } = start({ welcomeBubble: { text: 'Hi', delay } });
+        if (delay) {
+          vi.advanceTimersByTime(delay - 1);
+          expect(bubbleOf(widget).classList.contains('cc-visible'), String(delay)).toBe(false);
+        }
+        vi.advanceTimersByTime(delay ? 1 : 0);
+        expect(bubbleOf(widget).classList.contains('cc-visible'), String(delay)).toBe(true);
+        widget.destroy();
+      }
+    });
+
+    it.each([Number.NaN, -1, -3000, Number.NEGATIVE_INFINITY, '2000', null])(
+      'uses the default of 3000 ms when the bubble delay is %j',
+      (delay) => {
+        const { widget } = start({ welcomeBubble: { text: 'Hi', delay } });
+        vi.advanceTimersByTime(0);
+        expect(bubbleOf(widget).classList.contains('cc-visible')).toBe(false);
+        vi.advanceTimersByTime(2998);
+        expect(bubbleOf(widget).classList.contains('cc-visible')).toBe(false);
+        vi.advanceTimersByTime(2);
+        expect(bubbleOf(widget).classList.contains('cc-visible')).toBe(true);
+        widget.destroy();
+      },
+    );
+
+    it.each([3_000_000_000, Number.POSITIVE_INFINITY])('does not show the bubble at once for a delay of %s', (delay) => {
+      const { widget } = start({ welcomeBubble: { text: 'Hi', delay } });
+      vi.advanceTimersByTime(0);
+      vi.advanceTimersByTime(DAY);
+      expect(bubbleOf(widget).classList.contains('cc-visible')).toBe(false);
+      vi.advanceTimersByTime(MAX - DAY);
+      expect(bubbleOf(widget).classList.contains('cc-visible')).toBe(true);
+      widget.destroy();
+    });
   });
 
   it.each(['bottom-right', 'bottom-left'] as const)(
@@ -121,6 +384,145 @@ describe('Widget', () => {
     expect(bubble.hasAttribute('inert')).toBe(true);
     expect(bubble.getAttribute('aria-hidden')).toBe('true');
 
+    widget.destroy();
+  });
+
+  it('opens from the welcome text button, but only dismisses from the close button', () => {
+    vi.useFakeTimers();
+    const onOpen = vi.fn();
+    const widget = new Widget({
+      apiUrl: 'https://api.test/chat',
+      welcomeBubble: { text: 'Need help?', delay: 1000, showOnce: false },
+      onOpen,
+    });
+    widget.init();
+
+    const root = getInternals(widget).shadow;
+    const bubble = root.querySelector('.cc-bubble') as HTMLElement;
+    const trigger = bubble.querySelector('.cc-bubble-trigger') as HTMLButtonElement;
+    const close = bubble.querySelector('.cc-bubble-close') as HTMLButtonElement;
+    expect(trigger.tagName).toBe('BUTTON');
+    expect(trigger.type).toBe('button');
+    expect(trigger.textContent).toBe('Need help?');
+    expect(trigger.parentElement).toBe(bubble);
+    expect(close.parentElement).toBe(bubble);
+    expect(bubble.hasAttribute('inert')).toBe(true);
+
+    vi.advanceTimersByTime(1000);
+    expect(bubble.classList.contains('cc-visible')).toBe(true);
+    expect(bubble.hasAttribute('inert')).toBe(false);
+    bubble.click();
+    expect(onOpen).not.toHaveBeenCalled();
+    close.click();
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(bubble.hasAttribute('inert')).toBe(true);
+    widget.destroy();
+
+    const second = new Widget({
+      apiUrl: 'https://api.test/chat',
+      welcomeBubble: { text: 'Need help?', delay: 1000, showOnce: false },
+      onOpen,
+    });
+    second.init();
+    vi.advanceTimersByTime(1000);
+    const secondBubble = getInternals(second).shadow.querySelector('.cc-bubble') as HTMLElement;
+    (secondBubble.querySelector('.cc-bubble-trigger') as HTMLButtonElement).click();
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(secondBubble.hasAttribute('inert')).toBe(true);
+    expect(getInternals(second).shadow.querySelector('.cc-panel')?.classList.contains('cc-visible')).toBe(true);
+    second.destroy();
+  });
+
+  it('shows configured suggestions in a labelled group in a new conversation', () => {
+    const widget = new Widget({
+      apiUrl: 'https://api.test/chat',
+      suggestions: ['Compare plans', 'Book a demo'],
+      strings: { suggestionsLabel: 'Popular questions' },
+    });
+    widget.init();
+    widget.open();
+
+    const root = getInternals(widget).shadow;
+    const group = root.querySelector('.cc-suggestions');
+    expect(group?.getAttribute('role')).toBe('group');
+    expect(group?.getAttribute('aria-label')).toBe('Popular questions');
+    expect(Array.from(group?.querySelectorAll('button') ?? []).map((button) => button.textContent))
+      .toEqual(['Compare plans', 'Book a demo']);
+    widget.destroy();
+  });
+
+  it('sends a selected suggestion and removes the suggestion row', () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat', suggestions: ['Compare plans'] });
+    widget.init();
+    widget.open();
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementation(async function* () {
+      yield { done: true };
+    });
+
+    const root = getInternals(widget).shadow;
+    (root.querySelector('.cc-suggestion') as HTMLButtonElement).click();
+    expect(root.querySelector('.cc-suggestions')).toBeNull();
+    expect(getInternals(widget).messages.some((message) => message.role === 'user' && message.content === 'Compare plans')).toBe(true);
+    widget.destroy();
+  });
+
+  it('does not show suggestions for restored conversations with user messages or while the pre-chat form is open', async () => {
+    localStorage.setItem('chatcops_conversation', JSON.stringify({
+      id: 'restored',
+      messages: [{ id: 'saved-user', role: 'user', content: 'Hi', timestamp: Date.now() }],
+      updatedAt: Date.now(),
+    }));
+    const restoredWidget = new Widget({ apiUrl: '/chat', suggestions: ['Book a demo'] });
+    restoredWidget.init();
+    restoredWidget.open();
+    expect(getInternals(restoredWidget).shadow.querySelector('.cc-suggestions')).toBeNull();
+    restoredWidget.destroy();
+
+    localStorage.clear();
+    const preChatWidget = new Widget({
+      apiUrl: '/chat',
+      suggestions: ['Book a demo'],
+      preChatForm: { enabled: true, fields: [{ name: 'email', label: 'Email', type: 'email' }] },
+    });
+    preChatWidget.init();
+    preChatWidget.open();
+    await vi.dynamicImportSettled();
+    expect(getInternals(preChatWidget).shadow.querySelector('.cc-prechat')).not.toBeNull();
+    expect(getInternals(preChatWidget).shadow.querySelector('.cc-suggestions')).toBeNull();
+    preChatWidget.destroy();
+  });
+
+  it('shows suggestions after restoring a pre-chat-completed conversation with no messages', () => {
+    new ConversationStorage().save({
+      id: 'pre-chat-completed',
+      messages: [],
+      preChatDone: true,
+      updatedAt: Date.now(),
+    });
+    const widget = new Widget({
+      apiUrl: '/chat',
+      suggestions: ['Book a demo'],
+      preChatForm: { enabled: true, fields: [{ name: 'email', label: 'Email', type: 'email' }] },
+    });
+    widget.init();
+    widget.open();
+
+    expect(getInternals(widget).shadow.querySelector('.cc-suggestions')).not.toBeNull();
+    widget.destroy();
+  });
+
+  it('hides suggestions when the visitor sends their first message', async () => {
+    const widget = new Widget({ apiUrl: '/chat', suggestions: ['Book a demo'] });
+    widget.init();
+    widget.open();
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementation(async function* () {
+      yield { done: true };
+    });
+
+    const root = getInternals(widget).shadow;
+    expect(root.querySelector('.cc-suggestions')).not.toBeNull();
+    await getInternals(widget).handleSend('Hello');
+    expect(root.querySelector('.cc-suggestions')).toBeNull();
     widget.destroy();
   });
 
@@ -277,6 +679,166 @@ describe('Widget', () => {
     });
   });
 
+  it('marks streamed assistant replies as ai generated, but not user or welcome messages', async () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    getInternals(widget).showChatView();
+    let streamingBubble: HTMLElement | null = null;
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementationOnce(async function* () {
+      yield { content: 'Hel' };
+      streamingBubble = getInternals(widget).shadow.querySelector('.cc-message-assistant[data-status="streaming"]');
+      yield { content: 'lo' };
+      yield { done: true };
+    });
+
+    await getInternals(widget).handleSend('Hi');
+
+    const shadow = getInternals(widget).shadow;
+    expect(streamingBubble?.dataset.aiGenerated).toBe('true');
+    expect((shadow.querySelector('.cc-message-user') as HTMLElement).dataset.aiGenerated).toBeUndefined();
+    const assistant = Array.from(shadow.querySelectorAll<HTMLElement>('.cc-message-assistant'));
+    const welcome = assistant.find((el) => el.dataset.id === 'welcome');
+    expect(welcome).toBeDefined();
+    expect(welcome?.dataset.aiGenerated).toBeUndefined();
+    expect(assistant.at(-1)?.dataset.aiGenerated).toBe('true');
+  });
+
+  it('announces a streamed reply once after completion, including repeated identical replies', async () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    const shadow = getInternals(widget).shadow;
+    const log = shadow.querySelector('.cc-messages') as HTMLElement;
+    const announcement = shadow.querySelector('.cc-reply-announcement') as HTMLElement;
+    const during: Array<[string | null, string | null]> = [];
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementation(async function* () {
+      yield { content: '**Hello**' };
+      during.push([log.getAttribute('aria-live'), announcement.textContent]);
+      yield { content: ' world' };
+      during.push([log.getAttribute('aria-live'), announcement.textContent]);
+      yield { done: true };
+    });
+
+    await getInternals(widget).handleSend('Hi');
+    expect(during).toEqual([['off', ''], ['off', '']]);
+    expect(announcement.textContent).toBe('Hello world');
+    expect(log.getAttribute('aria-live')).toBe('polite');
+
+    await getInternals(widget).handleSend('Again');
+    expect(during).toEqual([['off', ''], ['off', ''], ['off', ''], ['off', '']]);
+    expect(announcement.textContent).toBe('Hello world');
+    widget.destroy();
+  });
+
+  it.each([
+    ['empty error', [{ error: 'provider_error' }], 'Something went wrong. Please try again.'],
+    ['partial error', [{ content: 'Partial reply' }, { error: 'provider_error' }], 'Partial reply Something went wrong. Please try again.'],
+    ['cut-off reply', [{ content: 'Partial reply' }, { error: 'cut_off' }], 'Partial reply The reply was cut off.'],
+  ])('announces the %s once and restores the message log', async (_case, chunks, expected) => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    const shadow = getInternals(widget).shadow;
+    const log = shadow.querySelector('.cc-messages') as HTMLElement;
+    const announcement = shadow.querySelector('.cc-reply-announcement') as HTMLElement;
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementationOnce(async function* () {
+      for (const chunk of chunks) {
+        yield chunk;
+        expect(log.getAttribute('aria-live')).toBe('off');
+        expect(announcement.textContent).toBe('');
+      }
+    });
+
+    await getInternals(widget).handleSend('Hi');
+    expect(announcement.textContent).toBe(expected);
+    expect(log.getAttribute('aria-live')).toBe('polite');
+    widget.destroy();
+  });
+
+  it('announces a caught stream failure after partial content', async () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementationOnce(async function* () {
+      yield { content: 'Partial reply' };
+      throw new Error('network failed');
+    });
+
+    await getInternals(widget).handleSend('Hi');
+    const shadow = getInternals(widget).shadow;
+    expect(shadow.querySelector('.cc-reply-announcement')?.textContent).toBe('Partial reply Something went wrong. Please try again.');
+    expect(shadow.querySelector('.cc-messages')?.getAttribute('aria-live')).toBe('polite');
+    widget.destroy();
+  });
+
+  it('keeps the ai generated mark on failed, retried and regenerated replies', async () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    getInternals(widget).client.sendMessage = vi.fn()
+      .mockImplementationOnce(async function* () {
+        yield { error: 'provider_error' };
+      })
+      .mockImplementationOnce(async function* () {
+        yield { content: 'Recovered' };
+        yield { done: true };
+      })
+      .mockImplementationOnce(async function* () {
+        yield { content: 'Again' };
+        yield { done: true };
+      });
+    const lastBubble = () => {
+      const bubble = Array.from(getInternals(widget).shadow.querySelectorAll<HTMLElement>('.cc-message-assistant')).at(-1);
+      if (!bubble) throw new Error('no assistant bubble');
+      return bubble;
+    };
+    const lastMessageId = () => {
+      const id = getInternals(widget).messages.at(-1)?.id;
+      if (!id) throw new Error('no message');
+      return id;
+    };
+
+    await getInternals(widget).handleSend('Hi');
+    expect(lastBubble().dataset.status).toBe('error');
+    expect(lastBubble().dataset.aiGenerated).toBe('true');
+
+    await getInternals(widget).handleRetry(lastMessageId());
+    expect(lastBubble().textContent).toContain('Recovered');
+    expect(lastBubble().dataset.aiGenerated).toBe('true');
+
+    await getInternals(widget).handleRegenerate(lastMessageId());
+    expect(lastBubble().textContent).toContain('Again');
+    expect(lastBubble().dataset.aiGenerated).toBe('true');
+  });
+
+  it.each([
+    [{ error: 'rate_limit', retryAfterMs: 41_200 }, 'rate_limit', 'Too many messages. Please try again in 42 seconds.'],
+    [{ error: 'rate_limit' }, 'rate_limit', 'Too many messages. Please wait a moment.'],
+    [{ error: 'budget' }, 'budget', 'This chat has reached its limit.'],
+    [{ error: 'budget_daily' }, 'budget_daily', 'The assistant has reached its limit for today. Please try again later.'],
+    [{ error: 'unavailable' }, 'unavailable', 'The assistant is unavailable right now. Please try again later.'],
+    [{ error: 'cut_off' }, 'cut_off', 'The reply was cut off.'],
+    [{ error: 'HTTP 502' }, 'provider_error', 'Something went wrong. Please try again.'],
+  ])('shows %o as %s with its own message', async (chunk, errorType, text) => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementationOnce(async function* () {
+      yield chunk;
+    });
+
+    await getInternals(widget).handleSend('Hi');
+
+    expect(getInternals(widget).messages.at(-1)).toMatchObject({ status: 'error', errorType, content: text });
+    widget.destroy();
+  });
+
+  it('takes the limit messages from strings', async () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat', strings: { errorRateLimitWait: 'Warte {seconds} Sekunden.' } });
+    widget.init();
+    getInternals(widget).client.sendMessage = vi.fn().mockImplementationOnce(async function* () {
+      yield { error: 'rate_limit', retryAfterMs: 3000 };
+    });
+    await getInternals(widget).handleSend('Hi');
+    expect(getInternals(widget).messages.at(-1)?.content).toBe('Warte 3 Sekunden.');
+    widget.destroy();
+  });
+
   it('keeps streamed text when an error arrives partway through and shows the error under it', async () => {
     const widget = new Widget({ apiUrl: 'https://api.test/chat' });
     widget.init();
@@ -375,11 +937,38 @@ describe('Widget', () => {
     });
   });
 
+  it("keeps the server's id for a v1 reply and regenerates it by that id", async () => {
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.init();
+    const sendMessage = vi.fn()
+      .mockImplementationOnce(async function* () {
+        yield { messageId: 'srv-1' };
+        yield { content: 'First' };
+        yield { done: true };
+      })
+      .mockImplementationOnce(async function* () {
+        yield { messageId: 'srv-2' };
+        yield { content: 'Second' };
+        yield { done: true };
+      });
+    getInternals(widget).client.sendMessage = sendMessage;
+
+    await getInternals(widget).handleSend('Hi');
+    const reply = getInternals(widget).messages.at(-1);
+    expect(reply?.id).toBe('srv-1');
+    expect(getInternals(widget).shadow.querySelector('[data-id="srv-1"]')).toBeTruthy();
+
+    await getInternals(widget).handleRegenerate('srv-1');
+    expect(sendMessage.mock.calls[1]?.[0]).toMatchObject({ regenerate: { assistantMessageId: 'srv-1' } });
+    expect(getInternals(widget).messages.at(-1)).toMatchObject({ id: 'srv-2', content: 'Second' });
+  });
+
   it('blocks retry and regenerate while streaming is active', async () => {
     const widget = new Widget({
       apiUrl: 'https://api.test/chat',
     });
     widget.init();
+    widget.open();
 
     const sendMessage = vi.fn();
     getInternals(widget).client.sendMessage = sendMessage;
@@ -485,6 +1074,7 @@ describe('Widget', () => {
 
     const widget1 = new Widget(config);
     widget1.init();
+    widget1.open();
 
     getInternals(widget1).handlePreChatSubmit({ name: 'Jordan' });
 
@@ -495,6 +1085,8 @@ describe('Widget', () => {
 
     const widget2 = new Widget(config);
     widget2.init();
+    widget2.open();
+    await vi.dynamicImportSettled();
 
     expect(getInternals(widget2).shadow.querySelector('.cc-prechat')).toBeNull();
     const welcome2 = getInternals(widget2).messages.find((m) => m.id === 'welcome');
@@ -516,7 +1108,27 @@ describe('Widget', () => {
     widget2.destroy();
   });
 
-  it('sends userData with every request, not just the first', async () => {
+  it('stops sending userData once a v1 server has answered, since it keeps the answers', async () => {
+    const widget = new Widget({
+      apiUrl: 'https://api.test/chat',
+      preChatForm: { enabled: true, fields: [{ name: 'name', label: 'Name', type: 'text' as const }] },
+    });
+    widget.init();
+    getInternals(widget).handlePreChatSubmit({ name: 'Taylor' });
+    const sendMessage = vi.fn().mockImplementation(async function* () {
+      yield { messageId: crypto.randomUUID() };
+      yield { content: 'Echo' };
+      yield { done: true };
+    });
+    getInternals(widget).client.sendMessage = sendMessage;
+
+    await getInternals(widget).handleSend('First');
+    await getInternals(widget).handleSend('Second');
+    expect(sendMessage.mock.calls[0]?.[0]).toMatchObject({ userData: { name: 'Taylor' } });
+    expect(sendMessage.mock.calls[1]?.[0]).not.toHaveProperty('userData');
+  });
+
+  it('sends userData with every request to a 0.5 server, which needs it each time', async () => {
     const widget = new Widget({
       apiUrl: 'https://api.test/chat',
       preChatForm: {
@@ -562,9 +1174,7 @@ describe('Widget', () => {
   });
 
   it('does not store or send form answers when preChatForm is disabled', async () => {
-    const storage = new ConversationStorage();
-    const sessionId = storage.getSessionId();
-    storage.setPreChatCompleted(sessionId, { name: 'IgnoredUser' });
+    new ConversationStorage().save({ id: 'c1', messages: [], userData: { name: 'IgnoredUser' }, preChatDone: true, updatedAt: Date.now() });
 
     const widget = new Widget({
       apiUrl: 'https://api.test/chat',
@@ -574,6 +1184,8 @@ describe('Widget', () => {
       },
     });
     widget.init();
+    widget.open();
+    await vi.dynamicImportSettled();
 
     expect(getInternals(widget).shadow.querySelector('.cc-prechat')).toBeNull();
     const welcome = getInternals(widget).messages.find((m) => m.id === 'welcome');
@@ -629,6 +1241,25 @@ describe('Widget', () => {
     widget2.destroy();
     setItemSpy.mockRestore();
   });
+
+  it('does not throw during init when {} is stored and shows the welcome message', () => {
+    localStorage.setItem('chatcops_conversation', '{}');
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+
+    expect(() => widget.init()).not.toThrow();
+    // A popup reads its saved conversation when it's opened, not before.
+    expect(localStorage.getItem('chatcops_conversation')).toBe('{}');
+    widget.open();
+
+    const internals = getInternals(widget);
+    const welcome = internals.messages.find((m) => m.id === 'welcome');
+    expect(welcome).toBeDefined();
+    expect(welcome?.content).toBe('How can I help you today?');
+    expect(internals.shadow.querySelector('.cc-message-assistant')?.textContent).toContain('How can I help you today?');
+    expect(localStorage.getItem('chatcops_conversation')).toBeNull();
+
+    widget.destroy();
+  });
 });
 
 describe('Widget streaming timeout configuration', () => {
@@ -650,7 +1281,7 @@ describe('Widget streaming timeout configuration', () => {
   it.each([undefined, 750, 0])('uses the configured timeout (%s) through the real client', async (timeout) => {
     const transport = mockChatStream(false);
     const onError = vi.fn();
-    widget = new Widget({ apiUrl: '/chat', timeout, persistHistory: false, onError });
+    widget = new Widget({ apiUrl: '/chat', timeout, persistence: 'none', onError });
     widget.init();
     const pending = getInternals(widget).handleSend('Hello');
     const interval = timeout ?? 30000;
@@ -672,7 +1303,7 @@ describe('Widget streaming timeout configuration', () => {
     const transport = mockChatStream();
     const onError = vi.fn();
     const onMessage = vi.fn();
-    widget = new Widget({ apiUrl: '/chat', timeout: 1000, persistHistory: false, onError, onMessage });
+    widget = new Widget({ apiUrl: '/chat', timeout: 1000, persistence: 'none', onError, onMessage });
     widget.init();
     const pending = getInternals(widget).handleSend('Hello');
     transport.send('data: {"content":"Partial reply"}\n\n');
@@ -693,7 +1324,7 @@ describe('Widget streaming timeout configuration', () => {
 
   it('keeps the partial reply and adds the timeout error under it when an active stream later stalls', async () => {
     const transport = mockChatStream();
-    widget = new Widget({ apiUrl: '/chat', timeout: 1000, persistHistory: false });
+    widget = new Widget({ apiUrl: '/chat', timeout: 1000, persistence: 'none' });
     widget.init();
     const pending = getInternals(widget).handleSend('Hello');
     transport.send('data: {"content":"Partial reply"}\n\n');
@@ -721,5 +1352,183 @@ describe('Widget streaming timeout configuration', () => {
     widget.open();
 
     expect(onOpen).not.toHaveBeenCalled();
+    widget.destroy();
+  });
+
+  it('counts replies finished while closed and resets on open', async () => {
+    const reply1 = [
+      'data: {"type":"start","protocol":1,"conversationId":"c1","messageId":"m1"}',
+      'data: {"type":"text-delta","id":"t1","delta":"First reply"}',
+      'data: {"type":"finish","reason":"stop"}',
+      'data: [DONE]',
+      '',
+    ].join('\n\n');
+    const reply2 = [
+      'data: {"type":"start","protocol":1,"conversationId":"c1","messageId":"m2"}',
+      'data: {"type":"text-delta","id":"t2","delta":"Second reply"}',
+      'data: {"type":"finish","reason":"stop"}',
+      'data: [DONE]',
+      '',
+    ].join('\n\n');
+
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(reply1, { status: 200 }))
+      .mockResolvedValueOnce(new Response(reply2, { status: 200 }));
+
+    const widget = new Widget({ apiUrl: 'https://api.test/chat', persistence: 'none' });
+    widget.init();
+
+    const root = getInternals(widget).shadow;
+    const fabBtn = root.querySelector('.cc-fab') as HTMLButtonElement;
+    const badge = root.querySelector('.cc-fab-badge') as HTMLElement;
+
+    expect(fabBtn.getAttribute('aria-label')).toBe('Open chat');
+    expect(badge.classList.contains('cc-visible')).toBe(false);
+
+    await getInternals(widget).handleSend('Hi 1');
+    expect(badge.classList.contains('cc-visible')).toBe(true);
+    expect(badge.textContent).toBe('1');
+    expect(fabBtn.getAttribute('aria-label')).toBe('Open chat, 1 unread');
+
+    await getInternals(widget).handleSend('Hi 2');
+    expect(badge.textContent).toBe('2');
+    expect(fabBtn.getAttribute('aria-label')).toBe('Open chat, 2 unread');
+
+    widget.open();
+    expect(badge.classList.contains('cc-visible')).toBe(false);
+    expect(badge.textContent).toBe('');
+    expect(fabBtn.getAttribute('aria-label')).toBe('Close');
+
+    widget.close();
+    expect(badge.classList.contains('cc-visible')).toBe(false);
+    expect(fabBtn.getAttribute('aria-label')).toBe('Open chat');
+
+    widget.destroy();
+  });
+
+  describe('scroll-lock', () => {
+    function stubMatchMedia(matches: boolean) {
+      return vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
+        matches: query === '(max-width: 640px)' ? matches : false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      } as unknown as MediaQueryList));
+    }
+
+    it('locks root overflow on mobile and restores it on close, but leaves desktop untouched', () => {
+      stubMatchMedia(false);
+      const desktopWidget = new Widget({ apiUrl: 'https://api.test/chat' });
+      desktopWidget.init();
+      desktopWidget.open();
+      expect(document.documentElement.style.overflow).toBe('');
+      desktopWidget.close();
+      expect(document.documentElement.style.overflow).toBe('');
+      desktopWidget.destroy();
+
+      stubMatchMedia(true);
+      const mobileWidget = new Widget({ apiUrl: 'https://api.test/chat' });
+      mobileWidget.init();
+      expect(document.documentElement.style.overflow).toBe('');
+      mobileWidget.open();
+      expect(document.documentElement.style.overflow).toBe('hidden');
+      mobileWidget.close();
+      expect(document.documentElement.style.overflow).toBe('');
+      mobileWidget.destroy();
+    });
+
+    it('does not lock root overflow in inline mode on mobile', () => {
+      stubMatchMedia(true);
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const widget = new Widget({ apiUrl: 'https://api.test/chat', mode: 'inline', container });
+      widget.init();
+      expect(document.documentElement.style.overflow).toBe('');
+      widget.open();
+      expect(document.documentElement.style.overflow).toBe('');
+      widget.destroy();
+    });
+
+    it('preserves and restores pre-existing inline overflow value and priority', () => {
+      stubMatchMedia(true);
+      document.documentElement.style.setProperty('overflow', 'scroll', 'important');
+
+      const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+      widget.init();
+      widget.open();
+      expect(document.documentElement.style.overflow).toBe('hidden');
+
+      widget.close();
+      expect(document.documentElement.style.getPropertyValue('overflow')).toBe('scroll');
+      expect(document.documentElement.style.getPropertyPriority('overflow')).toBe('important');
+      widget.destroy();
+    });
+
+    it('restores pre-existing overflow when closed from the header close button', () => {
+      stubMatchMedia(true);
+      document.documentElement.style.setProperty('overflow', 'auto');
+
+      const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+      widget.init();
+      widget.open();
+      expect(document.documentElement.style.overflow).toBe('hidden');
+
+      const headerClose = getInternals(widget).shadow.querySelector('.cc-header-close') as HTMLButtonElement;
+      headerClose.click();
+      expect(document.documentElement.style.getPropertyValue('overflow')).toBe('auto');
+      widget.destroy();
+    });
+
+    it('restores root overflow on destroy when open, and does not alter overflow if already closed', () => {
+      stubMatchMedia(true);
+      document.documentElement.style.setProperty('overflow', 'auto');
+
+      const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+      widget.init();
+      widget.open();
+      expect(document.documentElement.style.overflow).toBe('hidden');
+
+      widget.destroy();
+      expect(document.documentElement.style.getPropertyValue('overflow')).toBe('auto');
+
+      // Destroying while already closed
+      const closedWidget = new Widget({ apiUrl: 'https://api.test/chat' });
+      closedWidget.init();
+      expect(document.documentElement.style.getPropertyValue('overflow')).toBe('auto');
+      closedWidget.destroy();
+      expect(document.documentElement.style.getPropertyValue('overflow')).toBe('auto');
+    });
+
+    it('handles repeated open, close, and destroy calls safely without overwriting saved overflow', () => {
+      stubMatchMedia(true);
+      document.documentElement.style.setProperty('overflow', 'auto');
+
+      const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+      widget.init();
+
+      // Repeated open
+      widget.open();
+      expect(document.documentElement.style.overflow).toBe('hidden');
+      widget.open();
+      expect(document.documentElement.style.overflow).toBe('hidden');
+
+      // Repeated close
+      widget.close();
+      expect(document.documentElement.style.getPropertyValue('overflow')).toBe('auto');
+      widget.close();
+      expect(document.documentElement.style.getPropertyValue('overflow')).toBe('auto');
+
+      // Open again, repeated destroy
+      widget.open();
+      expect(document.documentElement.style.overflow).toBe('hidden');
+      widget.destroy();
+      expect(document.documentElement.style.getPropertyValue('overflow')).toBe('auto');
+      widget.destroy();
+      expect(document.documentElement.style.getPropertyValue('overflow')).toBe('auto');
+    });
   });
 });

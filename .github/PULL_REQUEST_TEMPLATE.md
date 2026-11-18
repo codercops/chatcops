@@ -20,4 +20,5 @@ Closes #
 - [ ] Tests added or updated where it makes sense
 - [ ] For a bug fix: the new test fails without my change
 - [ ] Changeset added (`pnpm changeset`) if this changes `core`, `widget` or `server`
+- [ ] `pnpm api` run and `api/` committed if an exported type or option changed
 - [ ] Docs updated if behavior or options changed

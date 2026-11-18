@@ -1,16 +1,29 @@
+import type { Logger } from '../logger.js';
 import type { Tool as GeminiTool } from '@google/genai';
-import type { ChatMessage, ProviderChatParams, ProviderConfig, ToolDefinition } from '../types.js';
+import type { ChatMessage, ProviderConfig, ToolDefinition } from '../types.js';
+import type { AIProvider } from './types.js';
+import { toolInputSchema } from './schema.js';
+import { getProviderFactory } from './registry.js';
 
-export interface AIProvider {
-  name: string;
-  chat(params: ProviderChatParams): AsyncGenerator<string>;
-  chatSync(params: ProviderChatParams): Promise<string>;
-}
+export type { AIProvider } from './types.js';
 
 /** Output token limit used when neither the server config nor the request sets one. */
 export const DEFAULT_MAX_TOKENS = 4096;
 
+/**
+ * True for a provider object, false for a provider config. A config never
+ * has functions, so an object with a `step` or `chat` function is a provider.
+ */
+export function isAIProvider(value: unknown): value is AIProvider {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Partial<AIProvider>;
+  return typeof candidate.step === 'function' || typeof candidate.chat === 'function';
+}
+
 export async function createProvider(config: ProviderConfig): Promise<AIProvider> {
+  const factory = getProviderFactory(config.type);
+  if (factory) return factory(config);
+
   switch (config.type) {
     case 'claude': {
       const { ClaudeProvider } = await import('./claude.js');
@@ -19,6 +32,10 @@ export async function createProvider(config: ProviderConfig): Promise<AIProvider
     case 'openai': {
       const { OpenAIProvider } = await import('./openai.js');
       return new OpenAIProvider(config);
+    }
+    case 'openai-compatible': {
+      const { OpenAIProvider } = await import('./openai.js');
+      return new OpenAIProvider(config, { compatible: true });
     }
     case 'gemini': {
       const { GeminiProvider } = await import('./gemini.js');
@@ -35,73 +52,46 @@ export function toProviderMessages(messages: ChatMessage[]): Array<{ role: strin
     .map((m) => ({ role: m.role, content: m.content }));
 }
 
-export interface NormalizedMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
-
-/**
- * Turns stored messages into a history every provider accepts: it starts with
- * a user turn and alternates between user and assistant.
- *
- * - System messages and empty messages are dropped.
- * - Leading assistant turns are dropped (history trimming can leave one first).
- * - Consecutive turns with the same role are merged with a blank line, for
- *   example a user message saved before a provider call that then failed.
- */
-export function normalizeHistory(messages: ChatMessage[]): NormalizedMessage[] {
-  const normalized: NormalizedMessage[] = [];
-
-  for (const message of messages) {
-    if (message.role !== 'user' && message.role !== 'assistant') continue;
-    if (!message.content.trim()) continue;
-    if (normalized.length === 0 && message.role !== 'user') continue;
-
-    const previous = normalized.at(-1);
-    if (previous && previous.role === message.role) {
-      previous.content += `\n\n${message.content}`;
-    } else {
-      normalized.push({ role: message.role, content: message.content });
-    }
-  }
-
-  return normalized;
-}
+export {
+  normalizeHistory,
+  normalizeTurns,
+  trimHistory,
+  estimateTokens,
+  type NormalizedMessage,
+  type NormalizedTurn,
+  type TurnPart,
+} from './history.js';
 
 const warned = new Set<string>();
 
 /** Logs a configuration warning once per process. */
-export function warnOnce(key: string, message: string): void {
+export function warnOnce(logger: Logger, key: string, message: string): void {
   if (warned.has(key)) return;
   warned.add(key);
-  console.warn(`[chatcops] ${message}`);
-}
-
-function toJsonSchemaObject(tool: ToolDefinition) {
-  return {
-    type: 'object' as const,
-    properties: tool.parameters,
-    required: tool.required,
-  };
+  logger.warn('config_warning', message, { key });
 }
 
 export function toClaudeTools(tools: ToolDefinition[]) {
   return tools.map((t) => ({
     name: t.name,
     description: t.description,
-    input_schema: toJsonSchemaObject(t),
+    input_schema: toolInputSchema(t) as { type: 'object'; [key: string]: unknown },
   }));
 }
 
 export function toOpenAITools(tools: ToolDefinition[]) {
-  return tools.map((t) => ({
-    type: 'function' as const,
-    function: {
-      name: t.name,
-      description: t.description,
-      parameters: toJsonSchemaObject(t),
-    },
-  }));
+  return tools.map((t) => {
+    const schema = toolInputSchema(t);
+    return {
+      type: 'function' as const,
+      function: {
+        name: t.name,
+        description: t.description,
+        // OpenAI rejects an object schema without `properties`.
+        parameters: 'properties' in schema ? schema : { ...schema, properties: {} },
+      },
+    };
+  });
 }
 
 export function toGeminiTools(tools: ToolDefinition[]): GeminiTool[] {
@@ -109,7 +99,7 @@ export function toGeminiTools(tools: ToolDefinition[]): GeminiTool[] {
     functionDeclarations: tools.map((t) => ({
       name: t.name,
       description: t.description,
-      parametersJsonSchema: toJsonSchemaObject(t),
+      parametersJsonSchema: toolInputSchema(t),
     })),
   }];
 }

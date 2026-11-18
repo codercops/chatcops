@@ -1,0 +1,40 @@
+{
+  "model": "claude-haiku-5-5",
+  "max_tokens": 4096,
+  "system": [
+    {
+      "type": "text",
+      "text": "You are the support assistant for a small online shop. Keep answers short.",
+      "cache_control": {
+        "type": "ephemeral"
+      }
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is the weather in Paris and in Tokyo right now? Call the tool for both cities at once."
+    }
+  ],
+  "tools": [
+    {
+      "name": "get_weather",
+      "description": "Current weather for one city.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "city"
+        ]
+      }
+    }
+  ],
+  "output_config": {
+    "effort": "low"
+  },
+  "stream": true
+}

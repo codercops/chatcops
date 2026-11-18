@@ -1,0 +1,59 @@
+# @chatcops/cli
+
+The `chatcops` command: build a knowledge index from your site, search it to check what your bot will find, and test your bot against conversations it has to get right.
+
+```bash
+npx chatcops ingest --source https://example.com/sitemap.xml
+npx chatcops search "how much is the Team plan?"
+```
+
+Both read `chatcops.config.ts` (or `.mts`, `.js`, `.mjs`) in the current folder:
+
+```ts
+import { openaiEmbedder } from '@chatcops/core';
+import { defineConfig } from '@chatcops/cli';
+import { postgresStorage, fromPostgresJs } from '@chatcops/store-postgres';
+import postgres from 'postgres';
+
+export default defineConfig({
+  embedder: openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! }),
+  storage: postgresStorage({ db: fromPostgresJs(postgres(process.env.DATABASE_URL!)), dimensions: 1024 }),
+  ingest: {
+    sources: [{ type: 'sitemap', url: 'https://example.com/sitemap.xml' }],
+    exclude: ['**/blog/**'],
+  },
+});
+```
+
+`chatcops ingest` options: `--source` (repeatable; a sitemap, a page URL, or a folder with `--base-url`), `--crawl`, `--index`, `--dry-run`, `--max-pages`, `--concurrency`, `--prune`, `--force`, `--json`. `chatcops search` options: `--index`, `--top-k`, `--json`. Run `chatcops --help` for details.
+
+`chatcops test` runs eval files (`evals/**/*.chat.yaml` by default) against the bot in the config's `server` section:
+
+```yaml
+version: 1
+name: Pricing
+tests:
+  - name: quotes the Team price
+    turns:
+      - user: How much is the Team plan?
+        expect:
+          - contains: "$19"
+          - not-contains: "$29"
+```
+
+Options: `--filter` (a name, or `tag:<name>`), `--repeat`, `--concurrency`, `--verbose`, `--reporter pretty|json` (repeatable), `--json`. The pretty report groups tests by file and includes run duration, assertion counts, available bot-token usage and total elapsed time. By default, assertion details are shown for failed tests; `--verbose` shows them for every test. `--record` saves every API call the tests make to `__cassettes__/` next to the eval files, and `--replay` answers them from there. Replay is the default when `CI` is set, so CI needs no API keys. `judge` assertions have a model from another provider grade a reply against a rubric (`--judge-model` to choose it), and with `prices` in the config, `--max-cost` stops a run once it has spent that much. It exits 0 when all tests passed, 1 when some failed, 2 when it couldn't run. See [Testing your bot](https://chat.codercops.com/core/testing/).
+
+Use `--url <chat-url>` to test a deployed server live. The CLI requests a session token for each test run when the server has session tokens enabled, and sends repeated `--header "Name: value"` headers to both the session and chat requests. A server with Turnstile enabled cannot be tested this way because minting a session requires a Turnstile token. `--url` does not record or replay cassettes, even when `CI` is set; `--record` and `--replay` are rejected.
+
+To inspect failure formatting without calling a live AI provider, build the CLI and run its deterministic fake-provider demo from the repository root:
+
+```bash
+pnpm --filter @chatcops/cli build
+node packages/cli/dist/bin.js test packages/cli/tests/fixtures/reporter-failure.chat.yaml --config packages/cli/tests/fixtures/reporter-failure.config.mjs --live --verbose
+```
+
+The demo intentionally fails an assertion and exits with code 1; that is expected.
+
+Exit codes for ingest and search: 0 when everything worked, 1 when it finished with failed pages or discovery errors, 2 when it couldn't run (bad options, config problems, a different embedder than the index was built with).
+
+TypeScript config files need Node 22.18 or later; on older Node, use `chatcops.config.mjs`.

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ChatCops e2e host page, waiting for cookie consent</title>
+</head>
+<body>
+  <main>
+    <h1>Host page</h1>
+    <p>The widget below waits until the visitor accepts functional cookies.</p>
+    <button type="button" id="accept">Accept functional cookies</button>
+    <button type="button" id="reject">Reject</button>
+  </main>
+  <script src="/chatcops.min.js" data-api-url="/api/chat" data-wait-for-consent></script>
+  <script>
+    document.getElementById('accept').addEventListener('click', () => ChatCops.setConsent(true));
+    document.getElementById('reject').addEventListener('click', () => ChatCops.setConsent(false));
+  </script>
+</body>
+</html>

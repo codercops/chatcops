@@ -19,6 +19,7 @@ const TAG = 'visitor_context';
 /** One line of plain text: no control characters, no line breaks, no tags that could close the block. */
 function clean(value: string): string {
   return value
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: sanitize control characters
     .replace(/[\u0000-\u001f\u007f]+/g, ' ')
     .replace(new RegExp(`<\\s*/?\\s*${TAG}[^>]*>`, 'gi'), '')
     .replace(/\s+/g, ' ')
@@ -33,6 +34,11 @@ export function buildVisitorContext(req: Pick<ValidatedChatRequest, 'pageContext
     lines.push(`Page: ${clean(req.pageContext.url.slice(0, MAX_PAGE_URL_LENGTH))}`);
     if (req.pageContext.title) lines.push(`Page title: ${clean(req.pageContext.title)}`);
     if (req.pageContext.description) lines.push(`Page description: ${clean(req.pageContext.description)}`);
+    const added = Object.entries(req.pageContext.data ?? {}).filter(([, value]) => clean(value));
+    if (added.length > 0) {
+      lines.push('Details the page added (not verified):');
+      for (const [key, value] of added) lines.push(`- ${clean(key)}: ${clean(value)}`);
+    }
   }
 
   const entries = Object.entries(req.userData ?? {}).filter(([, value]) => clean(value));

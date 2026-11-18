@@ -5,10 +5,41 @@ on:
     branches: [dev]
   pull_request:
     branches: [dev, production]
+  # The Update screenshots workflow starts this on the branch it committed to,
+  # since its own pushes don't trigger workflows.
+  workflow_dispatch:
 
 jobs:
   typecheck-test-build:
     runs-on: ubuntu-latest
+    # Databases for the store packages' conformance tests. Locally those tests
+    # skip unless the CHATCOPS_TEST_* variables below are set.
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+      # The Upstash REST API in front of the redis service, for @upstash/redis.
+      upstash:
+        image: hiett/serverless-redis-http:0.0.10
+        ports: ['8079:80']
+        env:
+          SRH_MODE: env
+          SRH_TOKEN: chatcops_test_token
+          SRH_CONNECTION_STRING: redis://redis:6379
+      postgres:
+        image: pgvector/pgvector:pg17
+        ports: ['5432:5432']
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      CHATCOPS_TEST_REDIS_URL: redis://localhost:6379
+      CHATCOPS_TEST_UPSTASH_URL: http://localhost:8079
+      CHATCOPS_TEST_UPSTASH_TOKEN: chatcops_test_token
+      CHATCOPS_TEST_POSTGRES_URL: postgres://postgres:postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v4
 
@@ -23,6 +54,22 @@ jobs:
             exit 1
           fi
 
+      # Recorded provider responses are replayed in tests. The recording script
+      # refuses to write a key, and this catches one added by hand.
+      - name: No API keys in test fixtures or eval recordings
+        run: |
+          if git grep -n -I -E '(^|[^A-Za-z0-9_])(sk-ant-|sk-proj-|sk-[A-Za-z0-9]{20,})|AIza[0-9A-Za-z_-]{35}' -- 'packages/*/tests/fixtures'; then
+            echo "::error::A test fixture above looks like it contains an API key. Remove it and rotate the key."
+            exit 1
+          fi
+          # Eval recordings keep request bodies as JSON and long responses as
+          # base64, so the Google key pattern needs a boundary here: random
+          # base64 can contain "AIza" followed by 35 letters.
+          if git grep -n -I -E '(^|[^A-Za-z0-9_])(sk-ant-|sk-proj-|sk-[A-Za-z0-9]{20,})|(^|[^A-Za-z0-9+/_-])AIza[0-9A-Za-z_-]{35}' -- '**/__cassettes__/**'; then
+            echo "::error::An eval recording above looks like it contains an API key. Remove it, rotate the key, and record again."
+            exit 1
+          fi
+
       - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
@@ -32,14 +79,51 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Lint
+        run: pnpm lint
+
       - name: Build
         run: pnpm -r build
+
+      - name: Check documentation TypeScript samples
+        run: pnpm docs:check
+
+      # Checks each package's exports, types and files the way npm will see them.
+      - name: Package checks
+        run: pnpm publint
+
+      # api/*.api.md is each package's public types. A change to them has to
+      # come with the updated snapshot, so it's seen in review.
+      - name: Public API snapshot
+        run: pnpm api:check
+
+      # Gzip budgets for the widget bundles are in .size-limit.json.
+      - name: Widget size budget
+        run: pnpm size
 
       - name: Typecheck
         run: pnpm -r typecheck
 
+      # Per-package coverage minimums are in vitest.config.ts.
       - name: Test
-        run: pnpm test
+        run: pnpm test:coverage
+
+      # The docs bot's evals, replayed from website/evals/__cassettes__, so
+      # nothing calls an API and no key is needed. A change to its prompt or
+      # FAQ fails here until the recordings are made again with
+      # `npm run evals:record` in website/.
+      - name: Docs bot evals
+        run: pnpm --filter @chatcops/website evals
+
+      # 50 questions, each with the page that answers it. Passes when at
+      # least 85% of the replayed answers cite that page.
+      - name: Docs bot citations
+        run: pnpm --filter @chatcops/website evals:citations
+
+      # Warns, without failing, when the docs pages changed since the docs
+      # bot's index (website/public/docs-index) was built.
+      - name: Docs bot index
+        run: pnpm --filter @chatcops/website docs-index:check
 
   changeset:
     if: github.event_name == 'pull_request' && github.base_ref == 'dev'
@@ -68,8 +152,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Build the widget
-        run: pnpm --filter @chatcops/widget build
+      # e2e/server.mjs runs the real server handler, so build it and core too.
+      - name: Build the widget and the server
+        run: pnpm --filter @chatcops/widget --filter "@chatcops/server..." build
 
       - name: Install Chromium
         run: pnpm exec playwright install --with-deps chromium

@@ -1,0 +1,212 @@
+import { spawnSync } from 'node:child_process';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { dirname, join, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const docsRoot = join(root, 'website', 'src', 'content', 'docs');
+const tempRoot = await mkdtemp(join(root, 'website', '.docs-check-'));
+const samplesRoot = join(tempRoot, 'samples');
+const samples = [];
+const skipped = [];
+// Every TypeScript block, skipped or not, for the session check below.
+const blocks = [];
+
+// 1.0 refuses to start a server without `sessionSecrets` (or `allowAnonymous: true`),
+// which type-checking can't see. Flags a handler built from an object literal that
+// has neither, or a full `ChatCopsServerConfig` that has neither, unless it spreads
+// another config in.
+const handlerCall = /\b(chatcopsMiddleware|chatcopsVercelHandler|chatcopsNext|chatcopsCloudflareHandler|chatcopsAiSdkHandler|createChatHandler)\(\s*\{|:\s*(ChatCopsServerConfig)\s*=\s*\{/g;
+function missingSessionConfig(code) {
+  const lines = [];
+  for (const match of code.matchAll(handlerCall)) {
+    let depth = 0;
+    let end = code.length;
+    for (let i = match.index + match[0].length - 1; i < code.length; i++) {
+      if (code[i] === '{') depth++;
+      else if (code[i] === '}' && --depth === 0) {
+        end = i;
+        break;
+      }
+    }
+    const config = code.slice(match.index, end);
+    if (!/\b(sessionSecrets|allowAnonymous)\b|\.\.\./.test(config)) {
+      lines.push({ offset: code.slice(0, match.index).split('\n').length - 1, name: match[1] ? `${match[1]}()` : `A ${match[2]}` });
+    }
+  }
+  return lines;
+}
+
+async function findMdxFiles(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const nested = await Promise.all(entries.map(async (entry) => {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) return findMdxFiles(path);
+    return entry.isFile() && entry.name.endsWith('.mdx') ? [path] : [];
+  }));
+  return nested.flat();
+}
+
+try {
+  // The docs pages, and the READMEs, which npm and GitHub show and people copy from just as often.
+  const readmes = [];
+  for (const file of [join(root, 'README.md'), ...(await readdir(join(root, 'packages'))).map((name) => join(root, 'packages', name, 'README.md'))]) {
+    if (await readFile(file).then(() => true, () => false)) readmes.push(file);
+  }
+  const files = [...(await findMdxFiles(docsRoot)).sort(), ...readmes];
+
+  for (const file of files) {
+    const contents = await readFile(file, 'utf8');
+    const lines = contents.split(/\r?\n/);
+    let inTypeScript = false;
+    let blockLines = [];
+    let firstLine = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      if (!inTypeScript && /^```(?:typescript|ts)\s*$/.test(lines[i])) {
+        inTypeScript = true;
+        firstLine = i + 2;
+        blockLines = [];
+      } else if (inTypeScript && /^```\s*$/.test(lines[i])) {
+        const label = `${relative(root, file).split(sep).join('/')}:${firstLine}`;
+        blocks.push({ label: relative(root, file).split(sep).join('/'), line: firstLine, code: blockLines.join('\n') });
+        if (blockLines[0]?.trim().startsWith('// docs-check: skip')) {
+          skipped.push(label);
+        } else {
+          samples.push({ label, file, line: firstLine, code: blockLines.join('\n') });
+        }
+        inTypeScript = false;
+      } else if (inTypeScript) {
+        blockLines.push(lines[i]);
+      }
+    }
+  }
+
+  // The homepage's code and the server examples aren't type-checked here, but are copied just as often.
+  const examples = join(root, 'packages', 'server', 'src', 'examples');
+  for (const file of [join(root, 'website', 'src', 'components', 'react', 'CodeTabs.tsx'), ...(await readdir(examples)).map((name) => join(examples, name))]) {
+    blocks.push({ label: relative(root, file).split(sep).join('/'), line: 1, code: await readFile(file, 'utf8') });
+  }
+  let unsessioned = 0;
+  for (const block of blocks) {
+    for (const { offset, name } of missingSessionConfig(block.code)) {
+      console.error(`${block.label}:${block.line + offset}: ${name} has no \`sessionSecrets\` or \`allowAnonymous: true\`, so it doesn't start on 1.0.`);
+      unsessioned++;
+    }
+  }
+
+  await mkdir(samplesRoot, { recursive: true });
+  const labelByPath = new Map();
+
+  for (let i = 0; i < samples.length; i++) {
+    const sample = samples[i];
+    const path = join(samplesRoot, `${String(i + 1).padStart(3, '0')}.ts`);
+    await writeFile(path, `${sample.code}\n\nexport {};\n`, 'utf8');
+    labelByPath.set(resolve(path).toLowerCase(), sample);
+  }
+
+  const globalsPath = join(tempRoot, 'globals.d.ts');
+  await writeFile(globalsPath, [
+    'type D1Database = any;',
+    'type ExecutionContext = any;',
+    'interface DurableObjectId { toString(): string; equals(other: DurableObjectId): boolean; name?: string; }',
+    'type DurableObjectStub<T = unknown> = { id: DurableObjectId; name?: string } & T;',
+    'interface DurableObjectNamespace<T = unknown> { newUniqueId(options?: { jurisdiction?: string }): DurableObjectId; idFromName(name: string): DurableObjectId; idFromString(id: string): DurableObjectId; get(id: DurableObjectId): DurableObjectStub<T>; }',
+    'type ScheduledEvent = any;',
+    'type NextRequest = any;',
+    'type Env = any;',
+    'declare const ChatCops: typeof import("@chatcops/widget").default;',
+    'declare const gtag: (command: "event", eventName: string) => void;',
+    'declare const Bun: { serve(options: { port: number; idleTimeout?: number; fetch: (request: Request, server: { requestIP(request: Request): { address?: string } | null }) => Response | Promise<Response> }): unknown };',
+    'declare const Deno: { env: { get(name: string): string | undefined }; serve(options: { port?: number }, handler: (request: Request, info: Deno.ServeHandlerInfo) => Response | Promise<Response>): unknown };',
+    'declare namespace Deno { interface NetAddr { hostname: string; } interface ServeHandlerInfo { remoteAddr: NetAddr; } }',
+    'declare module "@cloudflare/workers-types";',
+    'declare module "@neondatabase/serverless" { export function neon(url: string): any; }',
+    'declare module "next/server" { export const NextResponse: any; export type NextRequest = any; }',
+    'declare module "hono" { export class Hono { on(methods: string | string[], path: string, handler: (context: { req: { raw: Request } }) => unknown): void; } }',
+    'declare module "node-cron" { export function schedule(expression: string, callback: () => void): unknown; }',
+    'declare module "astro" { export type APIRoute = (context: { request: Request; clientAddress: string; params: Record<string, string | undefined> }) => Response | Promise<Response>; }',
+    'declare module "h3" { export interface H3Event { node: { req: { socket: { remoteAddress?: string } } } } export function defineEventHandler(handler: (event: H3Event) => Response | Promise<Response>): unknown; export function toWebRequest(event: H3Event): Request; export function getRequestIP(event: H3Event, options?: { xForwardedFor?: boolean }): string | undefined; }',
+    'declare module "@sveltejs/kit" { export interface RequestEvent { request: Request; getClientAddress(): string; params: Record<string, string> } export type RequestHandler = (event: RequestEvent) => Response | Promise<Response>; }',
+    'declare module "$env/dynamic/private" { export const env: Record<string, string | undefined>; }',
+    'interface ImportMeta { env: Record<string, string>; }',
+    '',
+  ].join('\n'), 'utf8');
+
+  const packagePath = (name, subpath = 'index.d.ts') => join(root, 'packages', name, 'dist', subpath);
+  const paths = {
+    '@chatcops/core': [packagePath('core')],
+    '@chatcops/core/*': [packagePath('core', '*')],
+    '@chatcops/server': [packagePath('server')],
+    '@chatcops/server/*': [packagePath('server', '*')],
+    '@chatcops/widget': [packagePath('widget')],
+    '@chatcops/store-postgres': [packagePath('store-postgres')],
+    '@chatcops/store-redis': [packagePath('store-redis')],
+    '@chatcops/store-sqlite': [packagePath('store-sqlite')],
+    '@chatcops/store-cloudflare': [packagePath('store-cloudflare')],
+    '@chatcops/store-upstash-vector': [packagePath('store-upstash-vector')],
+    '@chatcops/ingest': [packagePath('ingest')],
+    '@chatcops/cli': [packagePath('cli')],
+    '@chatcops/react': [packagePath('react')],
+    express: [join(root, 'packages', 'server', 'node_modules', '@types', 'express', 'index.d.ts')],
+    '@neondatabase/serverless': [join(root, 'packages', 'store-postgres', 'node_modules', '@neondatabase', 'serverless')],
+    '@upstash/vector': [join(root, 'packages', 'store-upstash-vector', 'node_modules', '@upstash', 'vector')],
+    '@upstash/redis': [join(root, 'packages', 'store-redis', 'node_modules', '@upstash', 'redis')],
+    '@upstash/redis/*': [join(root, 'packages', 'store-redis', 'node_modules', '@upstash', 'redis', '*')],
+    ioredis: [join(root, 'packages', 'store-redis', 'node_modules', 'ioredis')],
+    postgres: [join(root, 'packages', 'store-postgres', 'node_modules', 'postgres')],
+  };
+  const tsconfigPath = join(tempRoot, 'tsconfig.json');
+  await writeFile(tsconfigPath, JSON.stringify({
+    compilerOptions: {
+      target: 'ES2022',
+      module: 'ES2022',
+      moduleResolution: 'Bundler',
+      lib: ['ES2022', 'DOM', 'DOM.Iterable'],
+      strict: true,
+      skipLibCheck: true,
+      esModuleInterop: true,
+      types: ['node'],
+      typeRoots: [join(root, 'packages', 'store-postgres', 'node_modules', '@types')],
+      baseUrl: root,
+      paths,
+      noEmit: true,
+    },
+    include: [join(samplesRoot, '**/*.ts'), globalsPath],
+  }, null, 2), 'utf8');
+
+  const tscPath = join(root, 'node_modules', 'typescript', 'bin', 'tsc');
+  const result = spawnSync(process.execPath, [
+    tscPath,
+    '--pretty', 'false',
+    '--project', tsconfigPath,
+  ], { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+
+  const diagnostics = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim();
+  if (diagnostics) {
+    const lines = diagnostics.split(/\r?\n/);
+    for (const line of lines) {
+      const match = line.match(/^(.+\.ts)\((\d+),(\d+)\): error (TS\d+): (.*)$/);
+      if (!match) {
+        console.error(line);
+        continue;
+      }
+      const sample = labelByPath.get(resolve(match[1]).toLowerCase());
+      if (sample) {
+        const originalLine = sample.line + Number(match[2]) - 1;
+        console.error(`${sample.label.replace(/:\d+$/, `:${originalLine}`)}: error ${match[4]}: ${match[5]}`);
+      } else {
+        console.error(line);
+      }
+    }
+  }
+
+  console.log(`Checked ${samples.length} TypeScript blocks; skipped ${skipped.length}.`);
+  if (skipped.length > 0) console.log(`Skipped: ${skipped.join(', ')}`);
+  if (unsessioned > 0) console.error(`${unsessioned} server examples would not start: add \`sessionSecrets\` (or \`allowAnonymous: true\` for a test).`);
+  if (result.error) throw result.error;
+  if (result.status !== 0) process.exitCode = result.status ?? 1;
+  else if (unsessioned > 0) process.exitCode = 1;
+} finally {
+  await rm(tempRoot, { recursive: true, force: true });
+}

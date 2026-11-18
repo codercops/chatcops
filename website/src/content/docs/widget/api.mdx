@@ -3,7 +3,7 @@ title: API Reference
 description: The ChatCops global singleton API for programmatic control.
 ---
 
-The `ChatCops` singleton is exposed on `window.ChatCops` when using the IIFE bundle, or importable from the ESM bundle.
+The `ChatCops` singleton is exposed on `window.ChatCops` by the script tag build (`chatcops.min.js` or `chatcops.full.min.js`), or importable from the ESM bundle.
 
 ## Methods
 
@@ -31,6 +31,8 @@ ChatCops.init({
 
 Calling `init()` again will destroy the previous instance and create a new one.
 
+In the ESM and single-file builds, `init()` returns the `Widget` instance. In the script tag loader (`chatcops.min.js`) it returns nothing, since the chat itself loads later. Use the `ChatCops` methods there, which work before and after the chat has loaded.
+
 ### `ChatCops.open()`
 
 Programmatically open the chat panel.
@@ -39,7 +41,7 @@ Programmatically open the chat panel.
 - **Inline mode:** Shows the panel (useful if you've previously called `close()`).
 
 ```typescript
-document.querySelector('#help-btn').addEventListener('click', () => {
+document.querySelector('#help-btn')?.addEventListener('click', () => {
   ChatCops.open();
 });
 ```
@@ -53,6 +55,40 @@ Close the chat panel.
 
 ```typescript
 ChatCops.close();
+```
+
+### `ChatCops.toggle()`
+
+Open the chat if it's closed, and close it if it's open. With the script tag build, the first call loads the chat.
+
+```typescript
+document.querySelector('#help-btn')?.addEventListener('click', () => ChatCops.toggle());
+```
+
+### `ChatCops.sendMessage(text, options?)`
+
+Send a message as if the visitor typed it, for example from a "Ask about pricing" button on your page. The chat opens first, unless you pass `{ open: false }`. The promise resolves when the reply has finished. While a reply is still coming, another message is ignored, as it is in the input. While the browser is offline the message waits and is sent when the connection is back, so the promise resolves at once, without a reply (see [messages sent while offline](/widget/configuration/#messages-sent-while-offline)).
+
+```typescript
+document.querySelector('#pricing-question')?.addEventListener('click', () => {
+  void ChatCops.sendMessage('How much is the Team plan?');
+});
+```
+
+### `ChatCops.newConversation()`
+
+Start a fresh conversation: a new conversation id, and the chat back to the welcome message. A reply that's still coming is stopped. Pre-chat answers are kept, so the visitor isn't asked again.
+
+```typescript
+ChatCops.newConversation();
+```
+
+### `ChatCops.clear()`
+
+Like `newConversation()`, and also removes what the widget saved in this browser: the transcript and the pre-chat answers, so the form shows again. Use it when a visitor signs out.
+
+```typescript
+ChatCops.clear();
 ```
 
 ### `ChatCops.destroy()`
@@ -94,6 +130,88 @@ ChatCops.on('open', onOpen);
 ChatCops.off('open', onOpen);
 ```
 
+### `ChatCops.setUser(user)`
+
+Tell the widget who the signed-in visitor is.
+
+- `token` is the identity token for [signed-in visitors](/server/setup/#signed-in-visitors), which your server signs. It can also be a function (sync or async) that returns a fresh token each time the widget asks for a session, the same as [`userToken`](/server/setup/#a-fresh-token-for-each-session).
+- `name` and `email` are sent to the bot as visitor details with the first message of a conversation, and the name greets them.
+
+Switching to another user, or `setUser(null)` when the visitor signs out, clears the chat, so one person's conversation never shows for the next. With a function, passing the same function again counts as the same visitor and keeps the chat; a different function, a string or no token counts as another visitor and clears it. Keep one reference to the function if you call `setUser` more than once. With the script tag build, a call before the chat has loaded is kept until it does.
+
+```typescript
+declare const session: { name: string; email: string; chatToken: string };
+
+ChatCops.setUser({ name: session.name, email: session.email, token: session.chatToken });
+
+// Or, so the token is signed when the chat needs it and cannot have expired:
+const signToken = async () => (await fetch('/api/chat-token')).text();
+ChatCops.setUser({ name: session.name, email: session.email, token: signToken });
+
+// When the visitor signs out:
+ChatCops.setUser(null);
+```
+
+`setUser` replaces the identity the widget was started with, including a [`userToken` function](/server/setup/#a-fresh-token-for-each-session).
+
+### `ChatCops.setConsent(consent)`
+
+Tell the widget whether the visitor accepted functional cookies, for a chat with [`waitForConsent`](/widget/configuration/#waiting-for-cookie-consent). `true` replaces the notice with the normal chat; `false` closes the chat, removes the conversation and session token the widget saved in this browser, and shows the notice again on the next open. With the script tag build, a call before `init()` or before the chat has loaded is kept until it does, and the last call wins. While consent is missing, `sendMessage()` resolves without sending, so don't wait on a reply.
+
+```typescript
+ChatCops.setConsent(true);
+```
+
+### `ChatCops.setContext(data)`
+
+Details the bot should know for the next messages, such as the visitor's plan or what's in their cart. They're sent with each message as page context: at most 20 fields, keys up to 40 characters, values up to 500. The bot sees them as details the page added, not as verified facts. `setContext(null)` removes them. Nothing is sent when `pageContext: false`.
+
+```typescript
+ChatCops.setContext({ plan: 'Team', seats: '12' });
+```
+
+### `ChatCops.update(changes)`
+
+Change how the running chat looks or what it says, without loading it again. It takes these options from `init()`:
+
+- `theme`, except `position`: moving the chat needs `init()`
+- `branding`, `placeholder` and `strings`
+- `disclosure`
+- `welcomeMessage` and `suggestions`
+
+What you leave out stays as it is, and that goes for each field inside `theme`, `branding` and `strings` too. A chat with only the welcome message shows the new one right away. Once the visitor has written, the new welcome message and suggestions wait for the next conversation. With the script tag build, a call before the chat has loaded is kept until it does, and the launcher button takes the new theme straight away.
+
+```typescript
+// A single-page app moving to its pricing page:
+ChatCops.update({
+  branding: { name: 'Sales', subtitle: 'Usually replies in a minute' },
+  welcomeMessage: 'Questions about plans? Ask here.',
+  suggestions: ['Compare plans', 'Is there a free trial?'],
+});
+
+// Following the site's own dark mode toggle:
+ChatCops.update({ theme: { mode: 'dark' } });
+```
+
+### `ChatCops.registerLocale(code, strings, options?)`
+
+Add a language the widget doesn't ship, or replace one of its own. Strings you leave out stay in English. Pass `{ dir: 'rtl' }` for a right-to-left language. Register before `init()`, then use the code as `locale`.
+
+```typescript
+ChatCops.registerLocale('sv', {
+  welcomeMessage: 'Hur kan jag hjälpa dig?',
+  inputPlaceholder: 'Skriv ett meddelande…',
+  sendButton: 'Skicka',
+});
+ChatCops.init({ apiUrl: '/api/chat', locale: 'sv' });
+```
+
+See [Internationalization](/widget/i18n/) for every string.
+
+### `ChatCops.version`
+
+The widget's version, such as `"0.7.0"`.
+
 ## Auto-Initialization
 
 When using the CDN script tag, the widget auto-initializes by reading `data-*` attributes:
@@ -102,7 +220,7 @@ When using the CDN script tag, the widget auto-initializes by reading `data-*` a
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js"
   data-api-url="https://your-api.com/chat"
   data-accent="#6366f1"
 ></script>
@@ -113,7 +231,7 @@ When using the CDN script tag, the widget auto-initializes by reading `data-*` a
 ```html
 <div id="my-chat" style="width: 400px; height: 500px;"></div>
 <script
-  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js"
   data-api-url="https://your-api.com/chat"
   data-mode="inline"
   data-container="#my-chat"
@@ -132,6 +250,7 @@ ChatCops.init({ apiUrl: '/api/chat' });
 
 // Inline with element reference
 const el = document.getElementById('chat');
+if (!el) throw new Error('Chat container not found');
 ChatCops.init({
   apiUrl: '/api/chat',
   mode: 'inline',

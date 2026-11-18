@@ -14,6 +14,11 @@
     // Default html_handling (auto-trailing-slash): Starlight's URLs and
     // canonicals end in a slash, so /core/tools redirects to /core/tools/.
   },
+  // Conversations, rate limits and turn locks for the docs chat
+  // (src/pages/api/chat.ts). The store creates its tables on first use.
+  "d1_databases": [
+    { "binding": "CHATCOPS_DB", "database_name": "chatcops-website", "database_id": "91cae4fa-4483-4083-be68-b58ef69966c4" }
+  ],
   "observability": {
     "enabled": true,
     // Trace 5% of requests. From Oct 1, 2026 every span counts against the 20M

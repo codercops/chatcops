@@ -2,6 +2,7 @@ export interface WidgetLocaleStrings {
   welcomeMessage: string;
   inputPlaceholder: string;
   sendButton: string;
+  stopButton: string;
   closeButton: string;
   openChat: string;
   defaultName: string;
@@ -12,6 +13,12 @@ export interface WidgetLocaleStrings {
   errorGeneric: string;
   errorNetwork: string;
   errorRateLimit: string;
+  /** `{seconds}` is how long to wait. */
+  errorRateLimitWait: string;
+  errorBudget: string;
+  errorBudgetDaily: string;
+  errorUnavailable: string;
+  errorCutOff: string;
   typingIndicator: string;
   poweredBy: string;
   newConversation: string;
@@ -22,13 +29,29 @@ export interface WidgetLocaleStrings {
   preChatRequired: string;
   preChatInvalidEmail: string;
   retryButton: string;
+  messageWaiting: string;
   regenerateButton: string;
+  copyButton: string;
+  copySuccess: string;
+  copyFailure: string;
+  suggestionsLabel: string;
+  unreadCount: string;
+  sourcesLabel: string;
+  disclosure: string;
+  disclosureLearnMore: string;
+  consentNotice: string;
+  consentButton: string;
+  moreButton: string;
+  downloadTranscript: string;
+  privacy: string;
+  newReply: string;
 }
 
 const en: WidgetLocaleStrings = {
   welcomeMessage: 'How can I help you today?',
   inputPlaceholder: 'Type a message...',
   sendButton: 'Send',
+  stopButton: 'Stop',
   closeButton: 'Close',
   openChat: 'Open chat',
   defaultName: 'AI Assistant',
@@ -39,6 +62,11 @@ const en: WidgetLocaleStrings = {
   errorGeneric: 'Something went wrong. Please try again.',
   errorNetwork: 'Connection error. Please check your network.',
   errorRateLimit: 'Too many messages. Please wait a moment.',
+  errorRateLimitWait: 'Too many messages. Please try again in {seconds} seconds.',
+  errorBudget: 'This chat has reached its limit.',
+  errorBudgetDaily: 'The assistant has reached its limit for today. Please try again later.',
+  errorUnavailable: 'The assistant is unavailable right now. Please try again later.',
+  errorCutOff: 'The reply was cut off.',
   typingIndicator: 'Typing...',
   poweredBy: 'Powered by ChatCops',
   newConversation: 'New conversation',
@@ -48,8 +76,23 @@ const en: WidgetLocaleStrings = {
   preChatSubmit: 'Start Chat',
   preChatRequired: 'This field is required',
   preChatInvalidEmail: 'Please enter a valid email',
+  messageWaiting: "Will send when you're back online",
   retryButton: 'Retry',
   regenerateButton: 'Regenerate',
+  copyButton: 'Copy reply',
+  copySuccess: 'Reply copied.',
+  copyFailure: 'Could not copy reply.',
+  suggestionsLabel: 'Suggested questions',
+  unreadCount: '{count} unread',
+  sourcesLabel: 'Sources',
+  disclosure: "You're chatting with an AI assistant. It can make mistakes.",
+  disclosureLearnMore: 'Learn more',
+  consentNotice: 'Chat is available once you accept functional cookies.',
+  consentButton: 'Cookie settings',
+  moreButton: 'More options',
+  downloadTranscript: 'Download transcript',
+  privacy: 'Privacy',
+  newReply: 'New reply',
 };
 
 const locales: Record<string, WidgetLocaleStrings> = { en };
@@ -59,6 +102,7 @@ export function getWidgetLocale(code: string, overrides?: Partial<WidgetLocaleSt
   return overrides ? { ...base, ...overrides } : base;
 }
 
-export function registerWidgetLocale(code: string, strings: WidgetLocaleStrings): void {
-  locales[code] = strings;
+/** Adds or replaces a language. Strings it leaves out stay in English. */
+export function registerWidgetLocale(code: string, strings: Partial<WidgetLocaleStrings>): void {
+  locales[code] = { ...en, ...strings };
 }

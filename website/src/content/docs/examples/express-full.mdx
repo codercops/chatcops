@@ -19,7 +19,8 @@ app.use(express.json());
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
 // ChatCops endpoint
-app.all('/chat', chatcopsMiddleware({
+// app.use, so /chat/session (the widget's session token) reaches it too.
+app.use('/chat', chatcopsMiddleware({
   provider: {
     type: 'claude',
     apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -66,14 +67,15 @@ app.all('/chat', chatcopsMiddleware({
   webhooks: [
     {
       url: process.env.WEBHOOK_URL || 'https://hooks.example.com/chatcops',
-      events: ['message:received', 'lead:captured'],
+      events: ['lead:captured'],
       secret: process.env.WEBHOOK_SECRET,
     },
   ],
 
   rateLimit: { maxRequests: 30, windowMs: 60_000 },
   analytics: true,
-  cors: process.env.CORS_ORIGIN || '*',
+  allowedOrigins: process.env.ALLOWED_ORIGINS?.split(',') ?? ['*'],
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
 }));
 
 const PORT = process.env.PORT ?? 3001;
@@ -94,7 +96,7 @@ app.listen(PORT, () => {
   <h1>Welcome to Acme Corp</h1>
 
   <script
-    src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+    src="https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js"
     data-api-url="http://localhost:3001/chat"
     data-accent="#6366f1"
     data-brand-name="Acme Support"
@@ -111,8 +113,9 @@ app.listen(PORT, () => {
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-...
+CHATCOPS_SESSION_SECRET=...   # openssl rand -base64 32
 WEBHOOK_URL=https://hooks.example.com/chatcops
 WEBHOOK_SECRET=your-webhook-secret
-CORS_ORIGIN=https://your-website.com
+ALLOWED_ORIGINS=https://your-website.com
 PORT=3001
 ```

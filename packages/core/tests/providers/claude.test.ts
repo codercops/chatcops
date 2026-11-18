@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { toClaudeTools, toProviderMessages } from '../../src/providers/base.js';
-import type { ChatMessage, ToolDefinition } from '../../src/types.js';
+import type { ChatMessage } from '../../src/types.js';
 
 describe('Claude provider helpers', () => {
   it('converts messages, filtering out system role', () => {

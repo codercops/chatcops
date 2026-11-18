@@ -1,0 +1,365 @@
+---
+title: Index Your Site
+description: Build a searchable index of your site and give your ChatCops bot page citations.
+---
+
+Give your bot your own help pages to search. This guide takes you from choosing where to keep those pages to checking the index and connecting it to a bot. The bot can then answer from the pages it finds and cite them.
+
+## 1. Choose where to keep the index
+
+The vector store holds the searchable page chunks. Choose one that works in the same place as your server. Each config below uses a local `content` folder to make it easy to try; change it to your content folder, or use your site's sitemap:
+
+```typescript
+const source = { type: 'sitemap', url: 'https://your-site.example/sitemap.xml' };
+```
+
+For a directory source, `baseUrl` is the public URL your files correspond to. For example, `content/pricing.md` with `baseUrl: 'https://your-site.example'` is cited as `https://your-site.example/pricing`.
+
+### Node server with Postgres
+
+Start with [`@chatcops/store-postgres` setup](https://github.com/codercops/chatcops/tree/dev/packages/store-postgres#readme). It stores both vectors and the manifest (the record of which pages were indexed) in Postgres. Enable pgvector on your database.
+
+```bash
+npm install @chatcops/core @chatcops/cli @chatcops/store-postgres postgres
+```
+
+Set `DATABASE_URL` and `OPENAI_API_KEY` in your environment. Before the first ingest, enable pgvector and create the tables once:
+
+```typescript
+import { openaiEmbedder } from '@chatcops/core';
+import { fromPostgresJs, migrate, migrateVectors } from '@chatcops/store-postgres';
+import postgres from 'postgres';
+
+const sql = postgres(process.env.DATABASE_URL!);
+const db = fromPostgresJs(sql);
+const embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! });
+
+await migrate(db);
+await migrateVectors(db, { dimensions: embedder.dimensions });
+await sql.end();
+```
+
+Now create `chatcops.config.ts`:
+
+```typescript
+import { openaiEmbedder } from '@chatcops/core';
+import { defineConfig } from '@chatcops/cli';
+import { fromPostgresJs, postgresStorage } from '@chatcops/store-postgres';
+import postgres from 'postgres';
+
+const db = fromPostgresJs(postgres(process.env.DATABASE_URL!));
+const embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! });
+
+export default defineConfig({
+  embedder,
+  storage: postgresStorage({ db, dimensions: embedder.dimensions }),
+  ingest: {
+    sources: [{ type: 'directory', path: './content', baseUrl: 'https://your-site.example' }],
+  },
+});
+```
+
+### Vercel with Upstash Vector
+
+Start with [`@chatcops/store-upstash-vector` setup](https://github.com/codercops/chatcops/tree/dev/packages/store-upstash-vector#readme). Create an Upstash **hybrid** index with cosine distance and the same dimension as the embedder. Hybrid search also needs a persistent key-value store for the ingest manifest; this example uses Upstash Redis.
+
+```bash
+npm install @chatcops/core @chatcops/cli @chatcops/store-upstash-vector @chatcops/store-redis @upstash/vector @upstash/redis
+```
+
+Create `chatcops.config.ts`. Set `UPSTASH_VECTOR_REST_URL`, `UPSTASH_VECTOR_REST_TOKEN`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, and `OPENAI_API_KEY` in your environment:
+
+```typescript
+import { openaiEmbedder } from '@chatcops/core';
+import { defineConfig } from '@chatcops/cli';
+import { Redis } from '@upstash/redis';
+import { Index } from '@upstash/vector';
+import { redisStorage } from '@chatcops/store-redis';
+import { upstashVectors } from '@chatcops/store-upstash-vector';
+
+const embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! });
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
+const index = new Index({
+  url: process.env.UPSTASH_VECTOR_REST_URL!,
+  token: process.env.UPSTASH_VECTOR_REST_TOKEN!,
+});
+const vectors = upstashVectors({ index, dimensions: embedder.dimensions, keywordSearch: true });
+
+export default defineConfig({
+  embedder,
+  storage: { ...redisStorage({ redis }), vectors },
+  ingest: {
+    sources: [{ type: 'directory', path: './content', baseUrl: 'https://your-site.example' }],
+  },
+});
+```
+
+### Cloudflare Workers with Vectorize and D1
+
+Start with [`@chatcops/store-cloudflare` setup](https://github.com/codercops/chatcops/tree/dev/packages/store-cloudflare#readme). Configure D1 and a Vectorize index in `wrangler.jsonc`; for CLI ingestion, Wrangler's platform proxy supplies those bindings to Node. Set the bindings to remote if you want CLI runs to use the same deployed D1 database and Vectorize index as the Worker. Cloudflare storage includes a D1-backed manifest, so it can be used directly by the CLI.
+
+```bash
+npm install @chatcops/core @chatcops/cli @chatcops/store-cloudflare wrangler
+```
+
+Create `chatcops.config.ts` in the Worker project. Set `OPENAI_API_KEY` in the environment. The directory source lets you dry-run without fetching your live site:
+
+```typescript
+import { openaiEmbedder } from '@chatcops/core';
+import { defineConfig } from '@chatcops/cli';
+import { cloudflareStorage, type D1Database, type VectorizeIndex } from '@chatcops/store-cloudflare';
+import { getPlatformProxy } from 'wrangler';
+
+interface CliBindings {
+  DB: D1Database;
+  VECTORIZE: VectorizeIndex;
+}
+
+const proxy = await getPlatformProxy<CliBindings>({ configPath: './wrangler.jsonc' });
+const embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! });
+const cloudflare = cloudflareStorage({
+  d1: proxy.env.DB,
+  vectorize: proxy.env.VECTORIZE,
+  vectorDimensions: embedder.dimensions,
+});
+
+export default defineConfig({
+  embedder,
+  storage: {
+    ...cloudflare,
+    close: async () => {
+      await cloudflare.close?.();
+      await proxy.dispose();
+    },
+  },
+  ingest: {
+    sources: [{ type: 'directory', path: './content', baseUrl: 'https://your-site.example' }],
+  },
+});
+```
+
+### One Node server with SQLite
+
+Start with [`@chatcops/store-sqlite` setup](https://github.com/codercops/chatcops/tree/dev/packages/store-sqlite#readme). SQLite keeps the vectors and manifest in one local file and is for a single Node server process. It requires Node 22.18 or later to load the TypeScript CLI config.
+
+```bash
+npm install @chatcops/core @chatcops/cli @chatcops/store-sqlite
+```
+
+Create `chatcops.config.ts`:
+
+```typescript
+import { openaiEmbedder } from '@chatcops/core';
+import { defineConfig } from '@chatcops/cli';
+import { sqliteStorage } from '@chatcops/store-sqlite';
+
+const embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! });
+
+export default defineConfig({
+  embedder,
+  storage: sqliteStorage({ path: './chatcops.db', vectors: { dimensions: embedder.dimensions } }),
+  ingest: {
+    sources: [{ type: 'directory', path: './content', baseUrl: 'https://your-site.example' }],
+  },
+});
+```
+
+## 2. Check and build the index
+
+From the folder with `chatcops.config.ts`, first see what would be found. This dry run discovers, reads, and chunks pages without embedding or writing them:
+
+```bash
+npx chatcops ingest --dry-run
+```
+
+If the pages look right, build the index:
+
+```bash
+npx chatcops ingest
+```
+
+Then check the search results before connecting the bot:
+
+```bash
+npx chatcops search "How do I get started?"
+```
+
+If search finds the wrong page, adjust your sources or exclude patterns in `ingest`, ingest again, and search again.
+
+## 3. Connect the index to your bot
+
+The server needs the same vector store and the same embedder you used when ingesting. The embedder turns a visitor's question into a vector that can be compared with the indexed pages. Here's a Node and Postgres example:
+
+Set `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `DATABASE_URL`, and `CHATCOPS_SESSION_SECRET` in the server environment. Generate a session secret with `openssl rand -base64 32`; do not put it in browser code.
+
+```typescript
+import express from 'express';
+import { chatcopsMiddleware } from '@chatcops/server';
+import { hybridRetriever, openaiEmbedder, retrieverKnowledge } from '@chatcops/core';
+import { fromPostgresJs, postgresStorage } from '@chatcops/store-postgres';
+import postgres from 'postgres';
+
+const db = fromPostgresJs(postgres(process.env.DATABASE_URL!));
+const embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! });
+const storage = postgresStorage({ db, dimensions: embedder.dimensions });
+const store = storage.vectors;
+
+if (!store) throw new Error('Postgres vector storage is not configured.');
+
+const app = express();
+app.use(express.json());
+app.use('/chat', chatcopsMiddleware({
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+  systemPrompt: 'Answer questions about our website using the indexed pages.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+  storage,
+  knowledge: [retrieverKnowledge(hybridRetriever({ store, embedder }))],
+}));
+
+app.listen(3001);
+```
+
+For a single Node server using SQLite instead, create its store from the same database file:
+
+```typescript
+import express from 'express';
+import { chatcopsMiddleware } from '@chatcops/server';
+import { hybridRetriever, openaiEmbedder, retrieverKnowledge } from '@chatcops/core';
+import { sqliteStorage } from '@chatcops/store-sqlite';
+
+const embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! });
+const storage = sqliteStorage({
+  path: './chatcops.db',
+  vectors: { dimensions: embedder.dimensions },
+});
+const store = storage.vectors;
+
+if (!store) throw new Error('SQLite vector storage is not configured.');
+
+const app = express();
+app.use(express.json());
+app.use('/chat', chatcopsMiddleware({
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+  systemPrompt: 'Answer questions about our website using the indexed pages.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+  storage,
+  knowledge: [retrieverKnowledge(hybridRetriever({ store, embedder }))],
+}));
+
+app.listen(3001);
+```
+
+Every server handler must set `sessionSecrets`; keep that value secret and out of browser code. The adapter READMEs have more details on [Vercel](https://github.com/codercops/chatcops/tree/dev/packages/store-upstash-vector#readme) and [Cloudflare](https://github.com/codercops/chatcops/tree/dev/packages/store-cloudflare#readme) setup.
+
+For Vercel, use the same Upstash index and Redis database as the CLI config:
+
+```typescript
+import { chatcopsVercelHandler } from '@chatcops/server';
+import { hybridRetriever, openaiEmbedder, retrieverKnowledge } from '@chatcops/core';
+import { Redis } from '@upstash/redis';
+import { Index } from '@upstash/vector';
+import { redisStorage } from '@chatcops/store-redis';
+import { upstashVectors } from '@chatcops/store-upstash-vector';
+
+const embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! });
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
+const index = new Index({
+  url: process.env.UPSTASH_VECTOR_REST_URL!,
+  token: process.env.UPSTASH_VECTOR_REST_TOKEN!,
+});
+const vectors = upstashVectors({ index, dimensions: embedder.dimensions, keywordSearch: true });
+
+export default chatcopsVercelHandler({
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+  systemPrompt: 'Answer questions about our website using the indexed pages.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+  storage: { ...redisStorage({ redis }), vectors },
+  knowledge: [retrieverKnowledge(hybridRetriever({ store: vectors, embedder }))],
+});
+```
+
+For a Cloudflare Worker, pass its D1 and Vectorize bindings to the storage adapter. Keep the handler between requests so the same store and embedder are reused:
+
+```typescript
+import { chatcopsCloudflareHandler } from '@chatcops/server';
+import { hybridRetriever, openaiEmbedder, retrieverKnowledge } from '@chatcops/core';
+import {
+  cloudflareStorage,
+  type D1Database,
+  type VectorizeIndex,
+} from '@chatcops/store-cloudflare';
+
+interface WorkerEnv {
+  DB: D1Database;
+  VECTORIZE: VectorizeIndex;
+  OPENAI_API_KEY: string;
+  ANTHROPIC_API_KEY: string;
+  CHATCOPS_SESSION_SECRET: string;
+}
+
+let handler: ReturnType<typeof chatcopsCloudflareHandler> | undefined;
+
+export default {
+  async fetch(request: Request, env: WorkerEnv, ctx: ExecutionContext): Promise<Response> {
+    if (!handler) {
+      const embedder = openaiEmbedder({ apiKey: env.OPENAI_API_KEY });
+      const storage = cloudflareStorage({
+        d1: env.DB,
+        vectorize: env.VECTORIZE,
+        vectorDimensions: embedder.dimensions,
+      });
+      const store = storage.vectors;
+
+      if (!store) throw new Error('Cloudflare vector storage is not configured.');
+
+      handler = chatcopsCloudflareHandler({
+        provider: { type: 'claude', apiKey: env.ANTHROPIC_API_KEY },
+        systemPrompt: 'Answer questions about our website using the indexed pages.',
+        sessionSecrets: [env.CHATCOPS_SESSION_SECRET],
+        storage,
+        knowledge: [retrieverKnowledge(hybridRetriever({ store, embedder }))],
+      });
+    }
+
+    return handler(request, env, ctx);
+  },
+};
+```
+
+To keep a small, curated set of answers alongside page search, add it as another knowledge source:
+
+```typescript
+import { FAQKnowledgeSource, hybridRetriever, openaiEmbedder, retrieverKnowledge, type VectorStore } from '@chatcops/core';
+
+declare const store: VectorStore;
+const embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! });
+
+const knowledge = [
+  new FAQKnowledgeSource([{ question: 'What are your hours?', answer: 'We are open Monday to Friday.' }]),
+  retrieverKnowledge(hybridRetriever({ store, embedder })),
+];
+```
+
+## 4. Keep the index fresh
+
+Run `npx chatcops ingest` again when you deploy new content or on a schedule. The manifest remembers what was indexed, so unchanged pages are skipped and do not need new embeddings. Add `--prune` to remove pages that have disappeared from the source (first use `--dry-run --prune` to preview what would be removed):
+
+```bash
+npx chatcops ingest --prune
+```
+
+## Moving from Text or FAQ sources
+
+You can move gradually; you do not have to replace every knowledge source at once.
+
+- **Keep FAQs that still work well.** `knowledge` accepts several sources, so put your existing `FAQKnowledgeSource` next to `retrieverKnowledge(...)`. The FAQ answers remain available while the retriever finds relevant pages.
+- **Move long text into files.** If `TextKnowledgeSource` contains Markdown documentation, move that Markdown into a folder and add a `{ type: 'directory', path: './content', baseUrl: 'https://your-site.example' }` ingest source. The directory source chunks the files and associates them with URLs, so the bot can cite the matching pages. Keep short instructions or context that are not pages in `TextKnowledgeSource`.
+- **Migrate a little at a time.** Leave the old source in `knowledge` while you confirm the index returns the right pages, then remove it when you are ready.
+
+See [Knowledge Base](/core/knowledge-base/) for the full ingest options, supported embedders, and how citations appear in replies.

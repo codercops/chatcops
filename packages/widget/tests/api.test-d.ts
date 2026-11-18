@@ -1,0 +1,96 @@
+import { describe, expectTypeOf, it } from 'vitest';
+import ChatCops, {
+  type MessageErrorType,
+  type MessageStatus,
+  type Persistence,
+  type PreChatFormConfig,
+  type ThemeConfig,
+  type ThemeMode,
+  type WidgetTokens,
+  type UserToken,
+  type WidgetConfig,
+  type WidgetLocaleStrings,
+  type WidgetUpdate,
+} from '../src/index.js';
+import type { ChatCopsLoader } from '../src/loader/loader.js';
+
+describe('the widget API types', () => {
+  it('has the same methods in the npm build and the script tag loader', () => {
+    expectTypeOf(ChatCops.sendMessage).toEqualTypeOf<(text: string, options?: { open?: boolean }) => Promise<void>>();
+    expectTypeOf<ChatCopsLoader['sendMessage']>().toEqualTypeOf<(text: string, options?: { open?: boolean }) => Promise<void>>();
+    expectTypeOf(ChatCops.toggle).toEqualTypeOf<() => void>();
+    expectTypeOf(ChatCops.newConversation).toEqualTypeOf<() => void>();
+    expectTypeOf(ChatCops.clear).toEqualTypeOf<() => void>();
+    expectTypeOf<ChatCopsLoader['toggle']>().toEqualTypeOf<() => void>();
+    expectTypeOf(ChatCops.version).toBeString();
+    expectTypeOf<ChatCopsLoader['version']>().toBeString();
+  });
+
+  it('types setUser and setContext the same in both builds', () => {
+    type User = { name?: string; email?: string; token?: UserToken } | null;
+    expectTypeOf(ChatCops.setUser).parameters.toEqualTypeOf<[User]>();
+    expectTypeOf<ChatCopsLoader['setUser']>().parameters.toEqualTypeOf<[User]>();
+    expectTypeOf(ChatCops.setContext).parameters.toEqualTypeOf<[Record<string, string> | null]>();
+    expectTypeOf<ChatCopsLoader['setContext']>().parameters.toEqualTypeOf<[Record<string, string> | null]>();
+    // The token is a string or a function, as in `userToken`.
+    ChatCops.setUser({ token: 'signed.token' });
+    ChatCops.setUser({ token: async () => 'signed.token' });
+    ChatCops.setUser({ name: 'Ada', token: () => undefined });
+    // @ts-expect-error: a function has to return a string
+    ChatCops.setUser({ token: () => 42 });
+    // @ts-expect-error: context values are strings
+    ChatCops.setContext({ seats: 12 });
+  });
+
+  it('types setConsent the same in both builds', () => {
+    expectTypeOf(ChatCops.setConsent).parameters.toEqualTypeOf<[boolean]>();
+    expectTypeOf<ChatCopsLoader['setConsent']>().parameters.toEqualTypeOf<[boolean]>();
+    // @ts-expect-error: consent is a boolean
+    ChatCops.setConsent('yes');
+  });
+
+  it('takes a string or a function for userToken', () => {
+    expectTypeOf<WidgetConfig['userToken']>().toEqualTypeOf<UserToken | undefined>();
+    expectTypeOf<UserToken>().toEqualTypeOf<string | (() => string | undefined | Promise<string | undefined>)>();
+    const config: WidgetConfig = { apiUrl: '/api/chat', userToken: async () => 'signed.token' };
+    ChatCops.init({ ...config, userToken: () => undefined });
+    // @ts-expect-error: a function has to return a string
+    ChatCops.init({ apiUrl: '/api/chat', userToken: () => 42 });
+  });
+
+  it('types update() the same in both builds, without position', () => {
+    expectTypeOf(ChatCops.update).parameters.toEqualTypeOf<[WidgetUpdate]>();
+    expectTypeOf<ChatCopsLoader['update']>().parameters.toEqualTypeOf<[WidgetUpdate]>();
+    ChatCops.update({ theme: { mode: 'dark', accent: '#000' }, branding: { name: 'Sales' }, strings: { sendButton: 'Go' } });
+    ChatCops.update({ theme: { tokens: { border: '#d0d4da', 'panel-width': '440px' } } });
+    // @ts-expect-error: moving the chat needs init()
+    ChatCops.update({ theme: { position: 'bottom-left' } });
+    // @ts-expect-error: the server can't change on a running chat
+    ChatCops.update({ apiUrl: '/other' });
+  });
+
+  it('exports the types a config is made of', () => {
+    expectTypeOf<NonNullable<WidgetConfig['theme']>>().toEqualTypeOf<ThemeConfig>();
+    expectTypeOf<NonNullable<ThemeConfig['mode']>>().toEqualTypeOf<ThemeMode>();
+    expectTypeOf<NonNullable<ThemeConfig['tokens']>>().toEqualTypeOf<WidgetTokens>();
+    const tokens: WidgetTokens = { border: '#d0d4da', 'panel-width': '440px' };
+    expectTypeOf(tokens).toEqualTypeOf<WidgetTokens>();
+    // @ts-expect-error: token names must be supported by the widget
+    const typo: WidgetTokens = { 'panel-wdith': '440px' };
+    expectTypeOf(typo).toEqualTypeOf<WidgetTokens>();
+    expectTypeOf<NonNullable<WidgetConfig['preChatForm']>>().toEqualTypeOf<PreChatFormConfig>();
+    expectTypeOf<NonNullable<WidgetConfig['persistence']>>().toEqualTypeOf<Persistence>();
+    expectTypeOf<MessageStatus>().toEqualTypeOf<'streaming' | 'complete' | 'error'>();
+    expectTypeOf<'cut_off'>().toExtend<MessageErrorType>();
+  });
+
+  it('takes partial strings and an optional direction in registerLocale', () => {
+    expectTypeOf(ChatCops.registerLocale).parameters.toEqualTypeOf<[string, Partial<WidgetLocaleStrings>, ({ dir?: 'ltr' | 'rtl' } | undefined)?]>();
+    ChatCops.registerLocale('nl', { sendButton: 'Verzenden' });
+    ChatCops.registerLocale('fa', { sendButton: 'ارسال' }, { dir: 'rtl' });
+    // @ts-expect-error: not a direction
+    ChatCops.registerLocale('xx', {}, { dir: 'up' });
+    // @ts-expect-error: not a string of the widget
+    ChatCops.registerLocale('xx', { sendButtonn: 'typo' });
+  });
+});

@@ -1,11 +1,12 @@
 import type { Conversation } from '../types.js';
+import type { ConversationStore } from '../storage/types.js';
 
-export interface ConversationStore {
-  get(id: string): Promise<Conversation | null>;
-  save(conversation: Conversation): Promise<void>;
-  delete(id: string): Promise<void>;
-}
+export type { ConversationStore } from '../storage/types.js';
 
+/**
+ * The 0.4 in-memory store. Unbounded and without `append`; `memoryStorage()`
+ * replaces it.
+ */
 export class MemoryStore implements ConversationStore {
   private store = new Map<string, Conversation>();
 

@@ -39,6 +39,7 @@ ChatCops.off('open', onOpen);
 Fired when the chat panel opens. Takes no arguments.
 
 ```typescript
+const analytics = { track: (_event: string) => {} };
 ChatCops.on('open', () => {
   analytics.track('chat_opened');
 });
@@ -49,6 +50,7 @@ ChatCops.on('open', () => {
 Fired when the chat panel closes. Takes no arguments.
 
 ```typescript
+const analytics = { track: (_event: string) => {} };
 ChatCops.on('close', () => {
   analytics.track('chat_closed');
 });
@@ -129,7 +131,7 @@ ChatCops.on('message', (data) => {
 Open the chat when a user clicks a help button:
 
 ```typescript
-document.querySelector('#help-btn').addEventListener('click', () => {
+document.querySelector('#help-btn')?.addEventListener('click', () => {
   ChatCops.open();
 });
 ```

@@ -1,3 +1,4 @@
 export { chatcopsMiddleware, chatcopsAnalyticsHandler } from './express.js';
 export { chatcopsVercelHandler } from './vercel.js';
 export { chatcopsCloudflareHandler } from './cloudflare.js';
+export { chatcopsAiSdkHandler } from './ai-sdk.js';

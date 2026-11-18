@@ -1,0 +1,23 @@
+{
+  "model": "claude-haiku-5-5",
+  "max_tokens": 4096,
+  "system": [
+    {
+      "type": "text",
+      "text": "You are the support assistant for a small online shop. Keep answers short.",
+      "cache_control": {
+        "type": "ephemeral"
+      }
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": "Say hello in five words."
+    }
+  ],
+  "output_config": {
+    "effort": "low"
+  },
+  "stream": true
+}

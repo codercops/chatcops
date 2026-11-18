@@ -1,6 +1,6 @@
 # @chatcops/widget
 
-Embeddable AI chatbot widget. Zero dependencies, Shadow DOM isolated, ~50KB gzipped.
+Embeddable AI chatbot widget. Zero dependencies, Shadow DOM isolated. The script tag loads a launcher under 5 kB gzipped, and the chat panel (about 19 kB) loads when it's opened.
 
 ## Install
 
@@ -8,7 +8,7 @@ Embeddable AI chatbot widget. Zero dependencies, Shadow DOM isolated, ~50KB gzip
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js"
   data-api-url="https://your-api.com/chat"
   data-accent="#6366f1">
 </script>
@@ -75,6 +75,10 @@ ChatCops.init({
     bgColor: '#0a0a0a',
     fontFamily: 'system-ui, sans-serif',
     borderRadius: '12px',
+    tokens: {
+      border: '#d0d4da',
+      'panel-width': '440px',
+    },
     position: 'bottom-right',           // 'bottom-right' | 'bottom-left'
   },
 
@@ -90,16 +94,18 @@ ChatCops.init({
   welcomeBubble: {
     text: 'Need help? Chat with us!',
     delay: 3000,                        // ms before showing
-    showOnce: true,                     // per session
+    showOnce: true,                     // once per browser ('local'), per tab ('session'), every load ('none')
   },
   placeholder: 'Type a message...',
 
   // Behavior
-  persistHistory: true,                 // localStorage, default: true
-  maxMessages: 50,                      // max persisted messages
+  persistence: 'local',                 // 'local' | 'session' | 'none', default: 'local'
+  historyTtlDays: 30,                   // drop saved chats older than this
+  maxMessages: 50,                      // non-negative safe integer; invalid values default to 50
   pageContext: true,                     // send page URL/title to API
   autoOpen: 5000,                       // auto-open after ms (popup only)
   locale: 'en',
+  privacyUrl: 'https://example.com/privacy', // link in header menu (https: or http:)
 
   // Callbacks
   onOpen: () => {},
@@ -109,9 +115,11 @@ ChatCops.init({
 });
 ```
 
+`maxMessages` limits the number of transcript messages saved (the default is `50`). Set it to a positive safe integer to save only the latest messages, or to `0` to save none; the chat remains usable in memory. Negative numbers, fractions, `NaN`, `Infinity`, and other values that are not non-negative safe integers fall back to `50`.
+
 ## API
 
-```typescript
+```text
 ChatCops.init(config)         // Initialize the widget
 ChatCops.open()               // Open the chat panel (popup mode)
 ChatCops.close()              // Close the chat panel
@@ -128,7 +136,7 @@ All configuration can be set via `data-*` attributes:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js"
   data-api-url="/chat"
   data-mode="popup"
   data-accent="#6366f1"
@@ -145,7 +153,8 @@ All configuration can be set via `data-*` attributes:
   data-welcome-bubble-delay="3000"
   data-placeholder="Type here..."
   data-locale="en"
-  data-auto-open="true">
+  data-auto-open="true"
+  data-privacy-url="https://example.com/privacy">
 </script>
 ```
 
@@ -157,7 +166,7 @@ All configuration can be set via `data-*` attributes:
 - **Conversation Persistence** - localStorage for history, sessionStorage for session ID
 - **Theming** - CSS custom properties, auto-derived surface colors from `bgColor`
 - **Mobile Responsive** - Full-screen panel on screens below 768px
-- **i18n** - Built-in locale strings with custom override support
+- **i18n** - English plus 13 translations, each loaded only by sites that use that language, and any string can be overridden
 - **Accessible** - ARIA labels, semantic HTML, keyboard navigation
 
 ## License

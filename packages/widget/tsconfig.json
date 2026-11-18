@@ -3,7 +3,10 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    // Class fields become plain assignments in the constructor, without the
+    // bundler's __publicField helper on every field. Saves bytes in the ESM build.
+    "useDefineForClassFields": false
   },
   "include": ["src"]
 }

@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { accentTextColors, applyTheme, contrastRatio } from '../src/theme.js';
+import { accentTextColors, applyTheme, contrastRatio, themeMode } from '../src/theme.js';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 // Vitest runs from the repo root or from the package, depending on how it's started.
-const cssPath = ['src/styles/widget.css', 'packages/widget/src/styles/widget.css']
+const cssPath = ['src/styles/launcher.css', 'packages/widget/src/styles/launcher.css']
   .map((p) => resolve(process.cwd(), p))
   .find((p) => existsSync(p))!;
 const css = readFileSync(cssPath, 'utf8');
@@ -59,11 +59,32 @@ describe('applyTheme', () => {
     });
   });
 
-  it('sets --cc-accent and a darker --cc-accent-hover from accent', () => {
+  it('sets the accent and a darker hover from accent, for both modes', () => {
     applyTheme(root, { accent: '#6366f1' });
-    expect(get('--cc-accent')).toBe('#6366f1');
+    expect(get('--cc-theme-accent')).toBe('#6366f1');
     // 10% darker: rgb(99, 102, 241) -> rgb(89, 92, 217)
-    expect(get('--cc-accent-hover')).toBe('#595cd9');
+    expect(get('--cc-theme-accent-hover')).toBe('#595cd9');
+    expect(get('--cc-theme-accent-dark')).toBe('');
+  });
+
+  it('sets a separate dark accent from accentDark', () => {
+    applyTheme(root, { accent: '#4f46e5', accentDark: '#ffcc00' });
+    expect(get('--cc-theme-accent')).toBe('#4f46e5');
+    expect(get('--cc-theme-accent-dark')).toBe('#ffcc00');
+    expect(get('--cc-theme-accent-dark-hover')).toBe('#e6b800');
+    expect(get('--cc-theme-on-accent-dark')).toBe('#0a0a0a');
+    expect(get('--cc-theme-accent-dark-contrast')).toBe('#ffcc00');
+  });
+
+  it('marks the host with the mode, and leaves auto to the system setting', () => {
+    applyTheme(root, { mode: 'dark' });
+    expect(host.dataset.ccMode).toBe('dark');
+    applyTheme(root, { mode: 'light' });
+    expect(host.dataset.ccMode).toBe('light');
+    applyTheme(root, {});
+    expect(host.dataset.ccMode).toBeUndefined();
+    applyTheme(root, { mode: 'sepia' as never });
+    expect(host.dataset.ccMode).toBeUndefined();
   });
 
   it('sets --cc-bg and lighter surface and input colors from bgColor', () => {
@@ -72,6 +93,40 @@ describe('applyTheme', () => {
     // 8% and 14% of the way to white: 10 -> 30 (#1e) and 10 -> 44 (#2c)
     expect(get('--cc-bg-surface')).toBe('#1e1e1e');
     expect(get('--cc-bg-input')).toBe('#2c2c2c');
+  });
+
+  it('sets custom tokens after the existing options', () => {
+    applyTheme(root, {
+      accent: '#4f46e5',
+      bgColor: '#0a0a0a',
+      tokens: { accent: '#e11d48', bg: '#18181b', border: '#d0d4da', 'panel-width': '440px' },
+    });
+    expect(get('--cc-accent')).toBe('#e11d48');
+    expect(get('--cc-bg')).toBe('#18181b');
+    expect(get('--cc-border')).toBe('#d0d4da');
+    expect(get('--cc-panel-width')).toBe('440px');
+  });
+
+  it('ignores unknown token names and empty values', () => {
+    applyTheme(root, { tokens: { border: '', unknown: '#fff' } as never });
+    expect(get('--cc-border')).toBe('');
+    expect(get('--cc-unknown')).toBe('');
+  });
+
+  it('ignores undefined and whitespace-only token values', () => {
+    applyTheme(root, { tokens: { border: undefined, font: '   ', 'panel-width': '440px' } });
+    expect(get('--cc-border')).toBe('');
+    expect(get('--cc-font')).toBe('');
+    expect(get('--cc-panel-width')).toBe('440px');
+  });
+
+  it('keeps token overrides on the host in each selected mode', () => {
+    applyTheme(root, { mode: 'light', tokens: { border: '#d0d4da' } });
+    expect(host.dataset.ccMode).toBe('light');
+    expect(get('--cc-border')).toBe('#d0d4da');
+    applyTheme(root, { mode: 'dark' });
+    expect(host.dataset.ccMode).toBe('dark');
+    expect(get('--cc-border')).toBe('#d0d4da');
   });
 });
 
@@ -108,21 +163,129 @@ describe('accent text contrast', () => {
     expect(accentTextColors('rebeccapurple')).toBeNull();
   });
 
-  it('the CSS defaults match what the default accent computes to', () => {
-    const defaultAccent = css.match(/--cc-accent: (#[\da-f]+);/i)![1];
-    const pair = accentTextColors(defaultAccent)!;
-    expect(css).toContain(`--cc-on-accent: ${pair.onAccent};`);
-    expect(css).toContain(`--cc-accent-contrast: ${pair.background};`);
+  it('the CSS defaults match what the default accents compute to, in both modes', () => {
+    const light = css.match(/--cc-accent: var\(--cc-theme-accent, (#[\da-f]+)\);/i)?.[1] ?? '';
+    const lightPair = accentTextColors(light) ?? { onAccent: '', background: '' };
+    expect(css).toContain(`--cc-on-accent: var(--cc-theme-on-accent, ${lightPair.onAccent});`);
+    expect(css).toContain(`--cc-accent-contrast: var(--cc-theme-accent-contrast, ${lightPair.background});`);
+
+    const dark = css.match(/--cc-accent: var\(--cc-theme-accent-dark, var\(--cc-theme-accent, (#[\da-f]+)\)\);/i)?.[1] ?? '';
+    const darkPair = accentTextColors(dark) ?? { onAccent: '', background: '' };
+    expect(css).toContain(`--cc-on-accent: var(--cc-theme-on-accent-dark, var(--cc-theme-on-accent, ${darkPair.onAccent}));`);
+    expect(css).toContain(`--cc-accent-contrast: var(--cc-theme-accent-dark-contrast, var(--cc-theme-accent-contrast, ${darkPair.background}));`);
   });
 
   it('applyTheme sets both tokens, and falls back to the accent for non-hex colors', () => {
     const host = document.createElement('div');
     const root = host.attachShadow({ mode: 'open' });
     applyTheme(root, { accent: '#ffcc00' });
-    expect(host.style.getPropertyValue('--cc-on-accent')).toBe('#0a0a0a');
-    expect(host.style.getPropertyValue('--cc-accent-contrast')).toBe('#ffcc00');
+    expect(host.style.getPropertyValue('--cc-theme-on-accent')).toBe('#0a0a0a');
+    expect(host.style.getPropertyValue('--cc-theme-accent-contrast')).toBe('#ffcc00');
 
     applyTheme(root, { accent: 'rgb(1, 2, 3)' });
-    expect(host.style.getPropertyValue('--cc-accent-contrast')).toBe('rgb(1, 2, 3)');
+    expect(host.style.getPropertyValue('--cc-theme-accent-contrast')).toBe('rgb(1, 2, 3)');
+  });
+});
+
+describe('light and dark', () => {
+  const block = (selector: string) => {
+    const start = css.indexOf(`${selector} {`);
+    return css.slice(start, css.indexOf('}', start));
+  };
+  const tokens = (text: string) => [...text.matchAll(/(--cc-[a-z-]+):\s*([^;]+);/g)].map(([, name, value]) => `${name}: ${value.trim()}`);
+
+  it('keeps the old look as the dark preset, for mode dark and for auto on a dark system', () => {
+    const forced = tokens(block(':host([data-cc-mode="dark"])'));
+    expect(forced).toContain('--cc-bg: #0a0a0a');
+    expect(forced).toContain('--cc-text: #ffffff');
+    expect(forced).toContain('--cc-bg-surface: #1a1a1a');
+    const media = css.slice(css.indexOf('@media (prefers-color-scheme: dark)'));
+    expect(media).toMatch(/^@media \(prefers-color-scheme: dark\) \{\s*:host\(:not\(\[data-cc-mode\]\)\),\s*:host\(\[data-cc-mode="auto"\]\) \{/);
+    expect(tokens(media.slice(0, media.indexOf('}')))).toEqual(forced);
+  });
+
+  it('defaults to light tokens with readable text', () => {
+    const light = tokens(block(':host'));
+    expect(light).toContain('--cc-bg: #ffffff');
+    const value = (name: string) => light.find((t) => t.startsWith(`${name}:`))?.split(': ')[1] ?? '';
+    for (const [text, bg] of [
+      ['--cc-text', '--cc-bg'],
+      ['--cc-text', '--cc-bg-surface'],
+      ['--cc-text-secondary', '--cc-bg'],
+      ['--cc-text-secondary', '--cc-bg-surface'],
+      ['--cc-danger', '--cc-bg'],
+    ]) {
+      expect(contrastRatio(value(text), value(bg)), `${text} on ${bg}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('picks dark for configs from before light mode that set dark colors', () => {
+    expect(themeMode({})).toBeUndefined();
+    expect(themeMode({ mode: 'auto', bgColor: '#000' })).toBe('auto');
+    expect(themeMode({ bgColor: '#0a0a0a' })).toBe('dark');
+    expect(themeMode({ bgColor: '#ffffff', textColor: '#111' })).toBe('light');
+    expect(themeMode({ bgColor: 'rgb(0 0 0)' })).toBe('dark');
+    expect(themeMode({ textColor: '#fafaf9' })).toBe('dark');
+    expect(themeMode({ textColor: '#1a1a1a' })).toBe('light');
+    expect(themeMode({ textColor: 'white' })).toBe('dark');
+    expect(themeMode({ accent: '#16a34a' })).toBeUndefined();
+  });
+});
+
+describe('focus ring', () => {
+  const widgetCss = readFileSync(resolve(__dirname, '../src/styles/widget.css'), 'utf8');
+  const prechatCss = readFileSync(resolve(__dirname, '../src/styles/prechat.css'), 'utf8');
+
+  it('defines --cc-focus-ring on :host', () => {
+    expect(css).toContain('--cc-focus-ring: 0 0 0 2px var(--cc-bg), 0 0 0 4px var(--cc-accent);');
+  });
+
+  it('applies --cc-focus-ring to the launcher button on :focus-visible', () => {
+    expect(css).toContain('.cc-fab:focus-visible');
+    expect(css).toMatch(/\.cc-fab:focus-visible\s*\{[^}]*box-shadow:\s*var\(--cc-focus-ring\)/);
+  });
+
+  it('stops the pulse animation on launcher focus-visible', () => {
+    expect(css).toMatch(/\.cc-fab:focus-visible\s*\{[^}]*animation:\s*none;/);
+  });
+
+  it('applies --cc-focus-ring to widget controls on :focus-visible', () => {
+    for (const selector of [
+      '.cc-header-close:focus-visible',
+      '.cc-send-btn:focus-visible',
+      '.cc-message-retry:focus-visible',
+      '.cc-message-regenerate:focus-visible',
+      '.cc-bubble-close:focus-visible',
+      '.cc-input:focus-visible',
+    ]) {
+      expect(widgetCss).toContain(selector);
+    }
+    expect(widgetCss).toMatch(/box-shadow:\s*var\(--cc-focus-ring\);/);
+  });
+
+  it('applies --cc-focus-ring to pre-chat controls on :focus-visible', () => {
+    for (const selector of [
+      '.cc-prechat-input:focus-visible',
+      '.cc-prechat-select:focus-visible',
+      '.cc-prechat-textarea:focus-visible',
+      '.cc-prechat-submit:focus-visible',
+    ]) {
+      expect(prechatCss).toContain(selector);
+    }
+    expect(prechatCss).toMatch(/box-shadow:\s*var\(--cc-focus-ring\);/);
+  });
+
+  it('allows customizing --cc-focus-ring on the host element', () => {
+    const host = document.createElement('div');
+    host.style.setProperty('--cc-focus-ring', '0 0 0 3px red');
+    expect(host.style.getPropertyValue('--cc-focus-ring')).toBe('0 0 0 3px red');
+  });
+});
+
+describe('user message', () => {
+  const widgetCss = readFileSync(resolve(__dirname, '../src/styles/widget.css'), 'utf8');
+
+  it('keeps the line breaks a visitor typed', () => {
+    expect(widgetCss).toMatch(/\.cc-message-user \.cc-message-content\s*\{[^}]*white-space:\s*pre-wrap;/);
   });
 });

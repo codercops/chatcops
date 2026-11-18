@@ -53,17 +53,31 @@ const docs = new TextKnowledgeSource([
 ## KnowledgeSource Interface
 
 ```typescript
+import type { RetrievalQuery, RetrievedChunk } from '@chatcops/core';
+
 interface KnowledgeSource {
   type: string;
   getContext(query: string): Promise<string>;
+  // Optional: the matching chunks themselves, with the conversation so far.
+  retrieve?(query: RetrievalQuery): Promise<RetrievedChunk[]>;
 }
 ```
+
+When a source has `retrieve`, the server uses it instead of `getContext`. It passes the visitor's message and the last few messages before it, so a follow-up like "how long does it take?" can be searched in context. The chunks from every source are numbered and given to the model in one fenced block, marked as reference material that never contains instructions, since crawled pages sometimes do. That's what citations will build on.
 
 ## Multiple Sources
 
 Combine multiple knowledge sources — all contexts are concatenated:
 
 ```typescript
+import { FAQKnowledgeSource, TextKnowledgeSource } from '@chatcops/core';
+import { chatcopsMiddleware } from '@chatcops/server';
+import type { FAQPair } from '@chatcops/core';
+
+const faqs: FAQPair[] = [{ question: 'What are your hours?', answer: '9am-5pm EST.' }];
+const productDocs = 'Our product is ChatCops.';
+const policyDocs = 'Refunds are available within 30 days.';
+
 chatcopsMiddleware({
   provider: { type: 'claude', apiKey: '...' },
   systemPrompt: 'Answer using the provided context. If unsure, say so.',
@@ -80,6 +94,10 @@ chatcopsMiddleware({
 Implement `KnowledgeSource` for database-backed or vector search:
 
 ```typescript
+import type { KnowledgeSource } from '@chatcops/core';
+
+const vectorDB = { async search(_query: string, _options: { topK: number }) { return [] as Array<{ text: string }>; } };
+
 class VectorKnowledgeSource implements KnowledgeSource {
   type = 'vector';
 
@@ -89,3 +107,231 @@ class VectorKnowledgeSource implements KnowledgeSource {
   }
 }
 ```
+
+## Building an index from your site
+
+`@chatcops/ingest` fills a vector store from your site: it reads your sitemap (or a list of URLs, or a folder of Markdown and HTML files), extracts each page's readable content, splits it into chunks along headings, and embeds them.
+
+For a complete walkthrough from choosing a store to connecting a bot, see [Index Your Site](/getting-started/index-your-site/).
+
+```typescript
+import { memoryStorage, memoryVectors, openaiEmbedder } from '@chatcops/core';
+import { ingest } from '@chatcops/ingest';
+
+const embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! });
+const storage = memoryStorage();
+const vectors = memoryVectors({ dimensions: embedder.dimensions });
+
+const stats = await ingest({
+  sources: [{ type: 'sitemap', url: 'https://example.com/sitemap.xml' }],
+  exclude: ['**/blog/**'],
+  embedder,
+  store: vectors,
+  manifest: storage.kv!,
+});
+```
+
+In production, use a persistent vector store and its key-value store as the `manifest`. Running it again then only embeds pages that changed: unchanged pages answer `304` to a conditional request, or extract to the same text. Hidden elements, scripts, styles and comments are removed before extraction. `prune: true` removes pages that are gone, but never after a sitemap failed to load. An index remembers which embedder built it and refuses a different one.
+
+Network sources respect `robots.txt` by default, using the `ChatCopsBot` group or falling back to `*`. Disallowed pages are skipped with the reason `blocked by robots.txt`. Policies are fetched once per origin per run, and `crawl-delay` sets the minimum interval between requests to that origin. A 4xx response permits crawling; a 5xx response or unreachable robots server blocks it. Up to five redirects are followed. Set `respectRobots: false` in the ingest config to opt out. Directory sources read local files and are never checked.
+
+### Ingest options
+
+`sources` is a list of any of these:
+
+| Source | Reads |
+|---|---|
+| `{ type: 'sitemap', url }` | A sitemap, a sitemap index, or a gzipped one (`.xml.gz`) |
+| `{ type: 'urls', urls }` | The pages you list |
+| `{ type: 'directory', path, baseUrl }` | Local `.md`, `.mdx` and `.html` files, cited as if published under `baseUrl` |
+| `{ type: 'crawl', url, maxDepth?, maxPages? }` | Crawl a site breadth-first from `url`, following same-origin links (defaults: `maxDepth: 3`, `maxPages: 500`). `maxDepth` counts link hops from the starting URL; depth 0 means only the starting URL. `include` and `exclude` also control which crawl links are followed, including the starting URL. For example, `include: ['https://example.com/docs/**']` with `url: 'https://example.com/'` discovers nothing because the starting URL does not match `include`. |
+
+The rest of the config:
+
+| Option | Default | What it does |
+|---|---|---|
+| `embedder`, `store`, `manifest` | required | What turns text into vectors, the vector store, and the key-value store that remembers what's indexed |
+| `index` | `'default'` | Names the index, so a new one can be built next to the old |
+| `include`, `exclude` | everything | URL globs: `*` matches within a path segment, `**` across them. Only pages matching an `include` are indexed, and none matching an `exclude` |
+| `selectors` | none | A CSS selector for the content, by URL glob, such as `{ '**/docs/**': 'main article' }`, for pages where automatic extraction picks the wrong part. The first glob that matches wins |
+| `chunk` | `{ targetTokens: 500, overlapTokens: 60 }` | About how long each chunk is, and how much of the previous chunk in the same section it repeats. Chunks are at least 50 tokens, and the overlap is at most half a chunk |
+| `metadata` | none | `(doc) => ({ ... })`: extra metadata for every chunk of a page, such as `{ collection: 'docs' }`, to filter on later |
+| `maxPages` | no limit | Index at most this many pages (after `include` and `exclude`), for a quick look at a big site |
+| `concurrency` | 4 | Pages fetched at once |
+| `timeoutMs` | 30,000 | For each page |
+| `userAgent` | `ChatCopsBot/<version> (+https://chat.codercops.com/bot)` | Sent with every request. `robots.txt` is always read for the `ChatCopsBot` group, whatever this says |
+| `respectRobots` | `true` | See above |
+| `dryRun` | `false` | Discover, fetch, extract and chunk, but embed and write nothing |
+| `force` | `false` | Embed every page again, changed or not |
+| `contextualize` | `false` | `{ provider }`: have a model write a short context for each chunk before it is embedded. [See below](#contextual-retrieval) |
+| `prune` | `false` | Remove pages that are in the index but weren't found this time. Skipped when the sitemap or `robots.txt` couldn't be read, since the missing pages may still be there |
+| `onEvent` | none | Progress: `{ type: 'discovered', pages, errors }` once, then `{ type: 'page', url, status }` for each page (`indexed`, `unchanged`, `skipped` or `failed`, with `chunks` or a `reason`), and `{ type: 'pruned', url }` |
+| `fetch` | global `fetch` | For tests, or to go through a proxy |
+
+`ingest()` resolves to counts: `discovered`, `indexed`, `unchanged`, `skipped`, `failed`, `pruned`, `chunks`, and `embedded` (texts sent to the embedder, 0 on a run where nothing changed), `contextualized` (chunks a model wrote context for) and `modelTokens` (`{ inputTokens, outputTokens }` those calls used, 0 without `contextualize`), plus `errors` for discovery and `robots.txt` problems, and `pruneSkipped` with the reason when you asked for `prune` and it didn't run.
+
+### Contextual retrieval
+
+A chunk like "It costs $20 a month" says nothing about which plan it is about, so a question about the Team plan may not find it. With `contextualize`, a model first writes a sentence or two that places each chunk in its page ("This section is from the Team plan's billing FAQ; it covers refunds after the trial"), and that context is embedded together with the chunk. It is the recipe Anthropic calls contextual retrieval.
+
+```typescript
+import { memoryStorage, memoryVectors, openaiEmbedder } from '@chatcops/core';
+import { ingest } from '@chatcops/ingest';
+
+const embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! });
+const storage = memoryStorage();
+
+const stats = await ingest({
+  sources: [{ type: 'sitemap', url: 'https://example.com/sitemap.xml' }],
+  contextualize: { provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! } },
+  embedder,
+  store: memoryVectors({ dimensions: embedder.dimensions }),
+  manifest: storage.kv!,
+});
+console.log(stats.contextualized, stats.modelTokens);
+```
+
+`provider` is a provider config (`{ type: 'claude' | 'openai' | 'gemini', apiKey, model }`) or a provider object, the same as the server takes. A small, cheap model is enough.
+
+- The text that is embedded is the context, a blank line, then the chunk. The text that is stored, shown and cited is the chunk alone, and the context is kept in the chunk's metadata as `context`.
+- The whole page goes in the model's system prompt and only the chunk in the message, so the page is the same for every chunk of a page. Chunks are asked about one at a time, in order, so a provider with prompt caching (Claude, for one) reads the page from its cache after the first chunk. A page longer than about 100,000 characters is cut there for the model, and answers are kept to a couple of sentences.
+- The model's tokens are counted in `modelTokens` and in the `--json` output, next to `embedded`. Anthropic puts the cost with prompt caching at about $1 per million tokens of documents; check your provider's prices, and note that a provider without prompt caching reads the page again for every chunk.
+- Turning `contextualize` on or off, or changing the model, embeds the pages again, even unchanged ones, because what is embedded changes. The manifest remembers what wrote each page's context.
+- A model call that fails fails that page (`failed`, with the reason). The page keeps what was indexed before, and the next run tries it again.
+- `dryRun` makes no model calls, and doesn't start the model.
+
+### From the command line
+
+`@chatcops/cli` wraps the same thing in a command, reading `chatcops.config.ts`:
+
+```typescript
+import { memoryStorage, memoryVectors, openaiEmbedder } from '@chatcops/core';
+import { defineConfig } from '@chatcops/cli';
+
+export default defineConfig({
+  embedder: openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! }),
+  storage: { ...memoryStorage(), vectors: memoryVectors({ dimensions: 1024 }) },
+  ingest: { sources: [{ type: 'sitemap', url: 'https://example.com/sitemap.xml' }] },
+});
+```
+
+```bash
+npx chatcops ingest              # build or update the index
+npx chatcops ingest --dry-run    # see what would be indexed
+npx chatcops ingest --contextualize   # have a model write context for each chunk first
+npx chatcops search "how much is the Team plan?"
+```
+
+`--contextualize` turns on contextual retrieval with the provider in `ingest.contextualize.provider` in the config, and stops with a message when the config has none. Without the flag a run never asks a model, so it never costs model tokens by surprise. Its summary line says how many chunks got a context and the tokens used, and `--json` has them in `stats`.
+
+Use a persistent store in a real config. Add `--json` in CI for one JSON object per line. The command exits with 1 when some pages failed, and 2 when it couldn't run at all.
+
+## Citations
+
+When knowledge sources return chunks (through `retrieve`), answers say which pages they came from. Each page the reply cites becomes a `source` part in the stream, once per page, after the text that cites it, and is saved with the reply:
+
+```json
+{ "type": "source", "sourceId": "https://example.com/pricing", "url": "https://example.com/pricing", "title": "Pricing", "snippet": "The Team plan costs $20 per user per month…" }
+```
+
+How the model cites depends on the provider:
+
+| Provider | Sources go to the model as | Citations come back as |
+|---|---|---|
+| Claude | `search_result` blocks before the visitor's message | Claude's own citations, mapped to `source` parts |
+| OpenAI, Gemini, others | A numbered `<sources>` block in the system context | `[1]`, `[2]` in the text; numbers that match no source are removed |
+
+Either way, retrieved text is framed as reference material that never contains instructions, and it can't add or unlock tools. Sources with only `getContext` work as before: their text goes in the context, without citations.
+
+## Retrieval from a vector store
+
+Embedders turn text into vectors. `openaiEmbedder` calls OpenAI's embeddings API (`text-embedding-3-small` at 1024 dimensions by default), while `workersAiEmbedder` runs inside Cloudflare Workers using the native `env.AI` binding (`@cf/baai/bge-m3` at 1024 dimensions by default, batched up to 100 texts). A retriever searches a vector store with them, and `retrieverKnowledge` turns the retriever into a knowledge source:
+
+```typescript
+import { hybridRetriever, memoryVectors, openaiEmbedder, retrieverKnowledge } from '@chatcops/core';
+import { chatcopsMiddleware } from '@chatcops/server';
+
+const embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! });
+const vectors = memoryVectors({ dimensions: embedder.dimensions });
+
+const handler = chatcopsMiddleware({
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+  systemPrompt: 'Answer questions about Acme.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
+  knowledge: [retrieverKnowledge(hybridRetriever({ store: vectors, embedder }), { topK: 5 })],
+});
+```
+
+`geminiEmbedder` does the same with [Google's Gemini API](https://ai.google.dev/gemini-api/docs/embeddings). It defaults to `gemini-embedding-001` at 1024 dimensions:
+
+```typescript
+import { geminiEmbedder } from '@chatcops/core';
+
+const embedder = geminiEmbedder({ apiKey: process.env.GEMINI_API_KEY! });
+```
+
+`voyageEmbedder` does the same with [Voyage AI](https://docs.voyageai.com/reference/embeddings-api). It uses `voyage-4-large` at 1024 dimensions by default, and tells Voyage whether it is embedding a document or a search query, which Voyage embeds differently:
+
+```typescript
+import { voyageEmbedder } from '@chatcops/core';
+
+const embedder = voyageEmbedder({ apiKey: process.env.VOYAGE_API_KEY! });
+```
+
+The newer Voyage models (`voyage-4`, `voyage-4-lite`, `voyage-3.5` and others) can shorten their vectors with `dimensions` (256, 512, 1024 or 2048). Other models make one fixed length, so set `dimensions` to that length. `batchSize` is how many texts go in one request (128 by default, at most 1,000); each model also limits the tokens in a request, so lower it for very long texts.
+
+In a Cloudflare Worker, pass the `AI` binding directly:
+
+```typescript
+import {
+  memoryVectors,
+  retrieverKnowledge,
+  vectorRetriever,
+  workersAiEmbedder,
+  workersAiReranker,
+  type WorkersAiBinding,
+} from '@chatcops/core';
+
+declare const env: { AI: WorkersAiBinding };
+
+const embedder = workersAiEmbedder({ ai: env.AI });
+const vectors = memoryVectors({ dimensions: embedder.dimensions });
+const reranker = workersAiReranker({ ai: env.AI });
+const knowledge = retrieverKnowledge(vectorRetriever({ store: vectors, embedder, reranker }), { topK: 5 });
+```
+
+There are two retrievers:
+
+| Retriever | Searches by | Needs |
+|---|---|---|
+| `vectorRetriever({ store, embedder })` | Meaning: the question is embedded and compared with every chunk | Any vector store |
+| `hybridRetriever({ store, embedder })` | Meaning and exact words, merged by rank (reciprocal rank fusion, `rrfK` 60) | A store with `keywordQuery` |
+
+Hybrid search is the better default when the store supports it. Words catch what meaning misses, such as product names, error codes and part numbers.
+
+Both take `candidates` (how many records each search fetches, default 20) and an optional `reranker`, which reorders the candidates before the top ones are kept. A short follow-up question ("how long does it take?") is searched together with the visitor's previous question, so it finds the right pages.
+
+Use [Cohere](https://docs.cohere.com/reference/rerank) or [Voyage](https://docs.voyageai.com/reference/reranker-api) to improve the ordering of retrieved candidates. `cohereReranker` defaults to `rerank-v5.0-pro`, while `voyageReranker` defaults to `rerank-3`. Both use the same reranker interface, so either can be passed to `hybridRetriever` in the same way:
+
+```typescript
+import { cohereReranker, hybridRetriever, memoryVectors, openaiEmbedder } from '@chatcops/core';
+
+const embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! });
+const vectors = memoryVectors({ dimensions: embedder.dimensions });
+const reranker = cohereReranker({ apiKey: process.env.COHERE_API_KEY! });
+
+const retriever = hybridRetriever({ store: vectors, embedder, reranker });
+```
+
+Each embedder and reranker that calls an API takes `baseUrl`, for a proxy in front of it. For `openaiEmbedder` it can be any OpenAI-compatible embeddings API, such as a local model server. The default is the provider's own API.
+
+`workersAiReranker({ ai })` uses Cloudflare's [`@cf/baai/bge-reranker-base`](https://developers.cloudflare.com/workers-ai/models/bge-reranker-base/) model through the Workers AI binding. It sends the query and candidate text to the model, then maps its ranked context ids back to the original chunks. It uses the same `env.AI` binding as `workersAiEmbedder`; add this binding to `wrangler.toml` if you have not already:
+
+```toml
+[ai]
+binding = "AI"
+```
+
+`memoryVectors` keeps the whole index in memory, which suits tests and small sites. It holds at most `maxRecords` chunks (50,000 by default), and an upsert past that fails rather than dropping anything. For a bigger index, or one that survives a restart, use one of the [vector stores](/server/storage/#vector-stores).
+
+The index has to be built and searched with the same embedder; a retriever refuses an embedder whose vectors are a different size from the store's. A command that builds the index from your sitemap is next.

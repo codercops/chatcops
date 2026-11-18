@@ -81,3 +81,36 @@ header.header {
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
 }
+
+/* Mobile top navbar: show Theme Toggle in top-right, hide GitHub in header */
+@media (max-width: 49.99rem) {
+  /* Show theme toggle in top navbar header on mobile */
+  .header .right-group {
+    display: flex !important;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  /* Hide GitHub / social icons in header on mobile (kept in mobile drawer footer) */
+  .header .social-icons {
+    display: none !important;
+  }
+
+  /* Push search and theme toggle to the right, adjacent to the mobile menu button */
+  .header > :has(site-search, [data-open-modal]),
+  .header > :nth-child(2) {
+    margin-inline-start: auto;
+    flex-shrink: 0;
+  }
+
+  .header {
+    gap: 0.5rem;
+  }
+
+  /* Ensure title truncates cleanly on narrow screens (e.g. 320px) without overflow */
+  .header .title-wrapper {
+    min-width: 0;
+    flex-shrink: 1;
+  }
+}

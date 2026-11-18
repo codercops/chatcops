@@ -1,0 +1,8 @@
+data: {"candidates": [{"content": {"parts": [{"text": "Order"}],"role": "model"},"index": 0}],"usageMetadata": {"promptTokenCount": 219,"candidatesTokenCount": 1,"totalTokenCount": 220,"promptTokensDetails": [{"modality": "TEXT","tokenCount": 219}],"serviceTier": "standard"},"modelVersion": "gemini-3.5-flash-lite","responseId": "4CTYapL1Lse-vdIP-6K_kAo"}
+
+data: {"candidates": [{"content": {"parts": [{"text": " A-1001 has been shipped and the tracking number is ZX123"}],"role": "model"},"index": 0}],"usageMetadata": {"promptTokenCount": 219,"candidatesTokenCount": 19,"totalTokenCount": 238,"promptTokensDetails": [{"modality": "TEXT","tokenCount": 219}],"serviceTier": "standard"},"modelVersion": "gemini-3.5-flash-lite","responseId": "4CTYapL1Lse-vdIP-6K_kAo"}
+
+data: {"candidates": [{"content": {"parts": [{"text": "."}],"role": "model"},"index": 0}],"usageMetadata": {"promptTokenCount": 219,"candidatesTokenCount": 20,"totalTokenCount": 239,"promptTokensDetails": [{"modality": "TEXT","tokenCount": 219}],"serviceTier": "standard"},"modelVersion": "gemini-3.5-flash-lite","responseId": "4CTYapL1Lse-vdIP-6K_kAo"}
+
+data: {"candidates": [{"content": {"parts": [{"text": "","thoughtSignature": "EmAKXgFpFH0Tu8h16AiuFmvxSKLxoeHlbxG6TCHRlyjm/1nb8CwRi7H03TqlDFQqHzv3p2rwt7bgHAIF6Oy2eys8N6weIOrzCzdihLRh5v8HqoqmxYl/OIkVTXEIzMc4gUg="}],"role": "model"},"finishReason": "STOP","index": 0}],"usageMetadata": {"promptTokenCount": 219,"candidatesTokenCount": 20,"totalTokenCount": 239,"promptTokensDetails": [{"modality": "TEXT","tokenCount": 219}],"serviceTier": "standard"},"modelVersion": "gemini-3.5-flash-lite","responseId": "4CTYapL1Lse-vdIP-6K_kAo"}
+

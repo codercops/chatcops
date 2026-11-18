@@ -13,7 +13,10 @@ describe('Input', () => {
   it('limits chat messages to 10000 characters', () => {
     new Input(parent, {
       placeholder: 'Type a message...',
+      sendLabel: 'Send',
+      stopLabel: 'Stop',
       onSend: vi.fn(),
+      onStop: vi.fn(),
     });
 
     const textarea = parent.querySelector(
@@ -29,6 +32,7 @@ describe('Input keyboard behavior', () => {
   let textarea: HTMLTextAreaElement;
   let sendButton: HTMLButtonElement;
   let onSend: ReturnType<typeof vi.fn>;
+  let onStop: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     document.body.innerHTML = '';
@@ -38,7 +42,8 @@ describe('Input keyboard behavior', () => {
     const parent = document.createElement('div');
     root.appendChild(parent);
     onSend = vi.fn();
-    input = new Input(parent, { placeholder: 'Type here...', onSend });
+    onStop = vi.fn();
+    input = new Input(parent, { placeholder: 'Type here...', sendLabel: 'Send', stopLabel: 'Stop', onSend, onStop });
     textarea = root.querySelector('.cc-input') as HTMLTextAreaElement;
     sendButton = root.querySelector('.cc-send-btn') as HTMLButtonElement;
   });
@@ -114,20 +119,62 @@ describe('Input keyboard behavior', () => {
     expect(sendButton.disabled).toBe(true);
   });
 
-  it('disables both controls and preserves text until they are enabled again', () => {
+  it('locks the text and turns the button into Stop while a reply streams, and restores both after', () => {
     type('Hello world');
 
-    input.setDisabled(true);
+    input.setStreaming(true);
 
     expect(textarea.disabled).toBe(true);
-    expect(sendButton.disabled).toBe(true);
+    expect(sendButton.disabled).toBe(false);
+    expect(sendButton.getAttribute('aria-label')).toBe('Stop');
+    expect(sendButton.querySelector('rect')).not.toBeNull();
     expect(textarea.value).toBe('Hello world');
 
-    input.setDisabled(false);
+    input.setStreaming(false);
 
     expect(textarea.disabled).toBe(false);
     expect(sendButton.disabled).toBe(false);
+    expect(sendButton.getAttribute('aria-label')).toBe('Send');
+    expect(sendButton.querySelector('path')).not.toBeNull();
     expect(textarea.value).toBe('Hello world');
+  });
+
+  it('leaves Send disabled for an empty box after a reply', () => {
+    input.setStreaming(true);
+    input.setStreaming(false);
+    expect(sendButton.disabled).toBe(true);
+  });
+
+  it('leaves the Stop button enabled when sending starts the stream, as the widget does', () => {
+    onSend.mockImplementation(() => input.setStreaming(true));
+    type('A question');
+
+    sendButton.click();
+
+    expect(onSend).toHaveBeenCalledExactlyOnceWith('A question');
+    expect(textarea.value).toBe('');
+    expect(sendButton.getAttribute('aria-label')).toBe('Stop');
+    expect(sendButton.disabled).toBe(false);
+  });
+
+  it('calls onStop, not onSend, when the button is clicked while streaming', () => {
+    type('Typed before');
+    input.setStreaming(true);
+
+    sendButton.click();
+
+    expect(onStop).toHaveBeenCalledOnce();
+    expect(onSend).not.toHaveBeenCalled();
+    expect(textarea.value).toBe('Typed before');
+  });
+
+  it('shows new labels at once, whichever button is showing', () => {
+    input.setLabels('Ask here', 'Go', 'Halt');
+    expect(sendButton.getAttribute('aria-label')).toBe('Go');
+    input.setStreaming(true);
+    expect(sendButton.getAttribute('aria-label')).toBe('Halt');
+    input.setLabels('Ask here', 'Verzenden', 'Stoppen');
+    expect(sendButton.getAttribute('aria-label')).toBe('Stoppen');
   });
 
   it('still sends trimmed text and clears the input when the button is clicked', () => {

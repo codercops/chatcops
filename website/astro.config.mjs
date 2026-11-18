@@ -23,8 +23,10 @@ export default defineConfig({
     // `undefined`.
     schema: {
       OPENAI_API_KEY: envField.string({ context: 'server', access: 'secret', optional: true }),
+      CHATCOPS_SESSION_SECRET: envField.string({ context: 'server', access: 'secret', optional: true }),
       UPSTASH_REDIS_REST_URL: envField.string({ context: 'server', access: 'secret', optional: true }),
       UPSTASH_REDIS_REST_TOKEN: envField.string({ context: 'server', access: 'secret', optional: true }),
+      VISITOR_HASH_SALT: envField.string({ context: 'server', access: 'secret', optional: true }),
     },
   },
   site: 'https://chat.codercops.com',
@@ -43,6 +45,10 @@ export default defineConfig({
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/codercops/chatcops' },
       ],
+      components: {
+        ThemeSelect: './src/components/ThemeToggle.astro',
+        MobileMenuFooter: './src/components/MobileMenuFooter.astro',
+      },
       head: [
         {
           tag: 'script',
@@ -58,7 +64,7 @@ export default defineConfig({
         {
           tag: 'script',
           attrs: {
-            src: 'https://cdn.jsdelivr.net/npm/@chatcops/widget@0.4/dist/chatcops.min.js',
+            src: 'https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js',
             'data-api-url': '/api/chat',
             'data-accent': '#6366f1',
             'data-brand-name': 'ChatCops AI',
@@ -104,12 +110,18 @@ export default defineConfig({
           items: [
             { label: 'Quick Start', slug: 'getting-started/quick-start' },
             { label: 'Installation', slug: 'getting-started/installation' },
+            { label: 'Index Your Site', slug: 'getting-started/index-your-site' },
+            { label: 'Test Before Launch', slug: 'getting-started/test-before-launch' },
+            { label: 'Upgrading from 0.5', slug: 'getting-started/upgrading' },
+            { label: 'Upgrading to 1.0', slug: 'getting-started/upgrading-to-1' },
           ],
         },
         {
           label: 'Widget',
           items: [
             { label: 'Configuration', slug: 'widget/configuration' },
+            { label: 'React', slug: 'widget/react' },
+            { label: 'Pre-chat Form', slug: 'widget/pre-chat-form' },
             { label: 'API Reference', slug: 'widget/api' },
             { label: 'Theming', slug: 'widget/theming' },
             { label: 'Events', slug: 'widget/events' },
@@ -120,8 +132,13 @@ export default defineConfig({
           label: 'Server',
           items: [
             { label: 'Setup', slug: 'server/setup' },
+            { label: 'Protocol', slug: 'server/protocol' },
+            { label: 'Storage', slug: 'server/storage' },
+            { label: 'Security', slug: 'server/security' },
             { label: 'Express', slug: 'server/express' },
             { label: 'Vercel', slug: 'server/vercel' },
+            { label: 'Next.js, Hono, Bun, Deno', slug: 'server/fetch-runtimes' },
+            { label: 'AI SDK (useChat)', slug: 'server/ai-sdk' },
             { label: 'Cloudflare Workers', slug: 'server/cloudflare' },
           ],
         },
@@ -131,6 +148,7 @@ export default defineConfig({
             { label: 'AI Providers', slug: 'core/providers' },
             { label: 'Tools', slug: 'core/tools' },
             { label: 'Knowledge Base', slug: 'core/knowledge-base' },
+            { label: 'Testing Your Bot', slug: 'core/testing' },
             { label: 'Analytics', slug: 'core/analytics' },
           ],
         },

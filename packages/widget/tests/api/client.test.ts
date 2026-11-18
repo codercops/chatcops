@@ -58,6 +58,30 @@ describe('ChatClient', () => {
     expect(chunks[0]).toEqual({ error: 'rate_limit' });
   });
 
+  it.each([
+    ['ends with [DONE]', ['data: {"content":"Hello"}\n\n', 'data: [DONE]\n\n'], { done: true }],
+    ['ends with [DONE] and no newline', ['data: {"content":"Hello"}\n\n', 'data: [DONE]'], { done: true }],
+    ['ends without [DONE]', ['data: {"content":"Hello"}\n\n'], { error: 'network' }],
+    ['ends mid-event', ['data: {"content":"Hello"}\n\n', 'data: {"cont'], { error: 'network' }],
+  ])('a stream that %s', async (_name, events, terminal) => {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        for (const event of events) controller.enqueue(encoder.encode(event));
+        controller.close();
+      },
+    });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(stream, { status: 200 }));
+
+    const client = new ChatClient({ apiUrl: 'https://api.test/chat' });
+    const chunks: unknown[] = [];
+    for await (const chunk of client.sendMessage({ conversationId: 'test', message: 'Hi' })) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks).toEqual([{ content: 'Hello' }, terminal]);
+  });
+
   it('handles network error', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Network failed'));
 
@@ -175,6 +199,7 @@ describe('ChatClient inactivity timeout', () => {
       transport.send(data);
       await vi.advanceTimersByTimeAsync(0);
     }
+    transport.send('data: [DONE]\n\n');
     transport.close();
 
     expect(await result).toEqual([{ content: 'Hello' }, { done: true }]);
@@ -246,7 +271,7 @@ describe('ChatClient inactivity timeout', () => {
         if (ending === 'eof') transport.close();
         if (ending === 'failure') transport.fail();
         const terminal = await stream.next();
-        expect(terminal.value).toEqual(ending === 'failure' ? { error: 'network' } : { done: true });
+        expect(terminal.value).toEqual(ending === 'done' ? { done: true } : { error: 'network' });
         // Cleanup must happen even if the consumer pauses at the terminal yield.
         expect(vi.getTimerCount()).toBe(0);
         await stream.return(undefined);
@@ -280,5 +305,131 @@ describe('ChatClient inactivity timeout', () => {
     expect(vi.getTimerCount()).toBe(0);
     expect(remove).toHaveBeenCalledWith('abort', expect.any(Function));
     await stream.return(undefined);
+  });
+});
+
+describe('ChatClient with protocol v1', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function respond(lines: string[]) {
+    const body = lines.map((line) => `data: ${line}\n\n`).join('');
+    return vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(body, { status: 200 }));
+  }
+
+  async function collect(request = { conversationId: 'c1', message: 'Hi' }) {
+    const chunks: WidgetChatChunk[] = [];
+    for await (const chunk of new ChatClient({ apiUrl: 'https://api.test/chat' }).sendMessage(request)) chunks.push(chunk);
+    return chunks;
+  }
+
+  const part = (value: Record<string, unknown>) => JSON.stringify(value);
+
+  it('asks for v1, and reads parts as the chunks the widget handles', async () => {
+    const fetch = respond([
+      part({ type: 'start', protocol: 1, conversationId: 'c1', messageId: 'srv-1' }),
+      part({ type: 'text-start', id: 't1' }),
+      part({ type: 'text-delta', id: 't1', delta: 'Hello' }),
+      part({ type: 'lead-captured', lead: { email: 'a@b.test' } }),
+      part({ type: 'text-end', id: 't1' }),
+      part({ type: 'tool-call', toolCallId: 'x', toolName: 'y', input: {}, executor: 'server' }),
+      part({ type: 'a-part-from-the-future', anything: true }),
+      part({ type: 'finish', reason: 'stop' }),
+      '[DONE]',
+    ]);
+
+    const chunks = await collect();
+
+    expect(JSON.parse(String(fetch.mock.calls[0][1]?.body))).toMatchObject({ protocol: 1, conversationId: 'c1' });
+    expect(chunks).toEqual([
+      { messageId: 'srv-1' },
+      { content: 'Hello' },
+      { leadCaptured: true, leadData: { email: 'a@b.test' } },
+      { done: true },
+      { done: true },
+    ]);
+  });
+
+  it('maps error codes to the errors the widget knows, and ignores the finish after one', async () => {
+    respond([
+      part({ type: 'start', protocol: 1, conversationId: 'c1', messageId: 'm' }),
+      part({ type: 'error', code: 'rate_limited', retryable: true, retryAfterMs: 5000 }),
+      part({ type: 'finish', reason: 'error' }),
+      '[DONE]',
+    ]);
+    expect((await collect()).slice(1, 2)).toEqual([{ error: 'rate_limit', retryAfterMs: 5000 }]);
+
+    respond([part({ type: 'error', code: 'timeout', retryable: true }), part({ type: 'finish', reason: 'error' }), '[DONE]']);
+    expect((await collect())[0]).toEqual({ error: 'timeout' });
+
+    respond([part({ type: 'error', code: 'budget_exceeded', retryable: false, scope: 'conversation' }), part({ type: 'finish', reason: 'error' }), '[DONE]']);
+    expect((await collect())[0]).toEqual({ error: 'budget' });
+
+    respond([part({ type: 'error', code: 'budget_exceeded', retryable: false, scope: 'ip' }), part({ type: 'finish', reason: 'error' }), '[DONE]']);
+    expect((await collect())[0]).toEqual({ error: 'budget_daily' });
+
+    respond([part({ type: 'error', code: 'provider_error', retryable: true }), part({ type: 'finish', reason: 'error' }), '[DONE]']);
+    expect((await collect())[0]).toEqual({ error: 'provider_error' });
+  });
+
+  it('reads the error body of a refusal before the stream', async () => {
+    const refuse = (status: number, body: string) => vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(body, { status }));
+
+    refuse(429, JSON.stringify({ error: { code: 'rate_limited', retryAfterMs: 42_000 } }));
+    expect(await collect()).toEqual([{ error: 'rate_limit', retryAfterMs: 42_000 }]);
+
+    refuse(503, JSON.stringify({ error: { code: 'provider_unavailable' } }));
+    expect(await collect()).toEqual([{ error: 'unavailable' }]);
+
+    // A 0.5 server, or a proxy page: no JSON body.
+    refuse(429, 'Too Many Requests');
+    expect(await collect()).toEqual([{ error: 'rate_limit' }]);
+    refuse(502, '<html>Bad gateway</html>');
+    expect(await collect()).toEqual([{ error: 'HTTP 502' }]);
+  });
+
+  it('reports a v1 stream that ends without finish as cut off', async () => {
+    respond([part({ type: 'start', protocol: 1, conversationId: 'c1', messageId: 'm' }), part({ type: 'text-delta', id: 't', delta: 'Half' }), '[DONE]']);
+    expect((await collect()).at(-1)).toEqual({ error: 'cut_off' });
+  });
+
+  it('still reads the 0.5 format from older servers', async () => {
+    respond([part({ content: 'Old' }), part({ done: true }), '[DONE]']);
+    expect((await collect()).slice(0, 2)).toEqual([{ content: 'Old' }, { done: true }]);
+  });
+
+  it('maps a source part to a source chunk with url and title', async () => {
+    respond([
+      part({ type: 'start', protocol: 1, conversationId: 'c1', messageId: 'm' }),
+      part({ type: 'source', sourceId: 'https://example.com/pricing', url: 'https://example.com/pricing', title: 'Pricing' }),
+      part({ type: 'finish', reason: 'stop' }),
+      '[DONE]',
+    ]);
+    const chunks = await collect();
+    expect(chunks).toContainEqual({ source: { url: 'https://example.com/pricing', title: 'Pricing' } });
+  });
+
+  it('maps a source part without title to a source chunk with url only', async () => {
+    respond([
+      part({ type: 'start', protocol: 1, conversationId: 'c1', messageId: 'm' }),
+      part({ type: 'source', sourceId: 'https://example.com/docs', url: 'https://example.com/docs' }),
+      part({ type: 'finish', reason: 'stop' }),
+      '[DONE]',
+    ]);
+    const chunks = await collect();
+    expect(chunks).toContainEqual({ source: { url: 'https://example.com/docs', title: undefined } });
+  });
+
+  it('drops source parts with non-http(s) URLs', async () => {
+    respond([
+      part({ type: 'start', protocol: 1, conversationId: 'c1', messageId: 'm' }),
+      part({ type: 'source', sourceId: 'javascript:alert(1)', url: 'javascript:alert(1)', title: 'XSS' }),
+      part({ type: 'source', sourceId: 'data:text/html,hi', url: 'data:text/html,hi', title: 'Data' }),
+      part({ type: 'finish', reason: 'stop' }),
+      '[DONE]',
+    ]);
+    const chunks = await collect();
+    expect(chunks.some((c) => 'source' in c)).toBe(false);
   });
 });

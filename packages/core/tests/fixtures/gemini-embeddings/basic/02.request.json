@@ -1,0 +1,16 @@
+{
+  "requests": [
+    {
+      "model": "models/gemini-embedding-001",
+      "content": {
+        "parts": [
+          {
+            "text": "How much is the Team plan?"
+          }
+        ]
+      },
+      "taskType": "RETRIEVAL_QUERY",
+      "outputDimensionality": 8
+    }
+  ]
+}

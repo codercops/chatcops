@@ -30,9 +30,6 @@ vi.mock('@chatcops/core', async (importOriginal) => {
         });
         yield ' and a tail nobody should see';
       },
-      async chatSync() {
-        return '';
-      },
     }),
   };
 });
@@ -58,12 +55,13 @@ afterEach(() => {
 });
 
 describe('handleChat with a signal', () => {
-  it('passes the signal to the provider, stops quietly and does not save the partial reply', async () => {
+  it('passes the signal to the provider, stops quietly and saves the partial reply as aborted', async () => {
     const store = new MemoryStore();
     const { handleChat, cleanup } = createChatHandler({
+      allowAnonymous: true,
       provider: { type: 'claude', apiKey: 'k' },
       systemPrompt: 'Test',
-      conversationStore: store,
+      storage: { conversations: store },
     });
     const controller = new AbortController();
     const chunks: string[] = [];
@@ -78,13 +76,16 @@ describe('handleChat with a signal', () => {
     expect(seen.aborted).toBe(true);
     expect(chunks).toEqual([JSON.stringify({ content: 'First words' })]);
     const saved = await store.get('conv-abort');
-    expect(saved?.messages.map((m) => m.role)).toEqual(['user']);
+    expect(saved?.messages.map((m) => m.role)).toEqual(['user', 'assistant']);
+    // Kept so the conversation shows what the visitor saw, but marked, so the
+    // model never takes it for a finished answer.
+    expect(saved?.messages[1]).toMatchObject({ content: 'First words', status: 'aborted' });
   });
 });
 
 describe('adapters stop the provider when the visitor disconnects', () => {
   it('Vercel: cancelling the response stream aborts the reply', async () => {
-    const handler = chatcopsVercelHandler({ provider: { type: 'claude', apiKey: 'k' }, systemPrompt: 'Test' });
+    const handler = chatcopsVercelHandler({ allowAnonymous: true, provider: { type: 'claude', apiKey: 'k' }, systemPrompt: 'Test' });
     const res = await handler(new Request('http://localhost/api/chat', { method: 'POST', body: JSON.stringify(body) }));
     const reader = res.body!.getReader();
     const first = new TextDecoder().decode((await reader.read()).value);
@@ -95,7 +96,7 @@ describe('adapters stop the provider when the visitor disconnects', () => {
   });
 
   it('Cloudflare: a failed write after the visitor left aborts the reply', async () => {
-    const handler = chatcopsCloudflareHandler({ provider: { type: 'claude', apiKey: 'k' }, systemPrompt: 'Test' });
+    const handler = chatcopsCloudflareHandler({ allowAnonymous: true, provider: { type: 'claude', apiKey: 'k' }, systemPrompt: 'Test' });
     const waitUntil = vi.fn();
     const res = await handler(
       new Request('http://localhost/api/chat', { method: 'POST', body: JSON.stringify(body) }),
@@ -132,12 +133,13 @@ describe('adapters stop the provider when the visitor disconnects', () => {
         ended = true;
       }),
       on: vi.fn((event: string, listener: () => void) => {
-        (listeners[event] ??= []).push(listener);
+        listeners[event] ??= [];
+        listeners[event].push(listener);
       }),
     };
     const req = { method: 'POST', body, ip: '127.0.0.1', socket: {} };
 
-    await chatcopsMiddleware({ provider: { type: 'claude', apiKey: 'k' }, systemPrompt: 'Test' })(
+    await chatcopsMiddleware({ allowAnonymous: true, provider: { type: 'claude', apiKey: 'k' }, systemPrompt: 'Test' })(
       req as unknown as ExpressRequest,
       res as unknown as ExpressResponse,
       vi.fn() as unknown as NextFunction

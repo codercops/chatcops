@@ -2,17 +2,17 @@
 
 Thanks for helping out. This guide covers setup, how we work, and what a good PR looks like.
 
-## Hacktoberfest 2026
+## How to contribute
 
-We're taking part in Hacktoberfest this year, and first-time contributors are very welcome.
+First-time contributors are very welcome.
 
-1. Pick an open issue labeled [`hacktoberfest`](https://github.com/codercops/chatcops/issues?q=is%3Aissue+is%3Aopen+label%3Ahacktoberfest+no%3Aassignee) or [`good first issue`](https://github.com/codercops/chatcops/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22+no%3Aassignee) that nobody is assigned to.
+1. Pick an open issue labeled [`good first issue`](https://github.com/codercops/chatcops/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22+no%3Aassignee) that nobody is assigned to.
 2. Comment on it to ask for it. I'll assign it to you, usually within a day. Please don't start on an issue that's assigned to someone else.
 3. Take one issue at a time. Once your PR is merged, grab the next one. After 3 merged PRs with us you can hold two issues at once.
 4. If you're assigned and there's no PR or update for 5 days, I'll free the issue up for someone else. Just comment if you need more time.
-5. Open your PR against `dev` here in codercops/chatcops and put `Closes #<issue number>` in the description. A PR merged inside your own fork never reaches us, so it doesn't count. A check on the PR ("Claim check") fails if that issue isn't assigned to you. Another one ("Description check") fails while the "How I tested this" or "AI assistance" section of the description is missing or empty.
+5. Open your PR against `dev` here in codercops/chatcops and put `Closes #<issue number>` in the description. For an issue that stays open across several PRs, like one language of the translations issue, write `Part of #<issue number>` instead. A PR merged inside your own fork never reaches us, so it doesn't count. A check on the PR ("Claim check") fails if that issue isn't assigned to you. Another one ("Description check") fails while the "How I tested this" or "AI assistance" section of the description is missing or empty.
 
-PRs count for Hacktoberfest once they're merged or labeled `hacktoberfest-accepted`. PRs that aren't linked to an issue, only reformat code, or change things nobody asked for will be closed, and spammy ones get the `spam` label. If you have an idea that isn't an issue yet, open an issue first so we can agree on it before you write code. The full rules are under [Ground rules](#ground-rules) below.
+A merged PR counts on the monthly leaderboard once it's labeled `codercops-accepted`. A workflow adds that label when the PR is merged, as long as every issue it closes is assigned to you. PRs that aren't linked to an issue, only reformat code, or change things nobody asked for will be closed, and spammy ones get the `spam` label. If you have an idea that isn't an issue yet, open an issue first so we can agree on it before you write code. The full rules are under [Ground rules](#ground-rules) below.
 
 Stuck? Ask on the issue, or in `#oss-help` on our [Discord](https://discord.gg/mpGdJyjaRQ). Questions are welcome. Claims still happen on the issue, so the assignment stays visible to everyone.
 
@@ -38,7 +38,7 @@ These get closed and labeled `spam`:
 - claiming a pile of issues at once, or bulk and automated submissions
 - untested generated code
 
-Two spam PRs and you won't be assigned more issues this month, and you're out of the CODERCOPS goodies.
+Two spam PRs and you won't be assigned more issues this month, and your PRs stop counting on the leaderboard.
 
 ### Reviews
 
@@ -48,15 +48,15 @@ For a bug fix, check that your new test fails without the fix: undo the change i
 
 I review most PRs within a few days. Please don't ping repeatedly or DM maintainers about a review. If three days pass with no reply, one follow-up comment on the PR is fine.
 
-### Goodies
+### Monthly leaderboard
 
-The top 5 contributors this October get a CODERCOPS T-shirt and stickers. You need at least 5 merged PRs labeled `hacktoberfest-accepted` across chatcops, ogcops, toolbelt and discord-bot, merged between Oct 1 and Oct 31 (UTC), and ties go to whoever got there first. To keep it fair:
+Every month has its own leaderboard at [oss.codercops.com/leaderboard](https://oss.codercops.com/leaderboard). It counts PRs labeled `codercops-accepted` across chatcops, ogcops, toolbelt and discord-bot that were merged in that month (UTC). You're ranked from 3 merged PRs, and the top 5 get a shout-out on our X and LinkedIn pages. To keep it fair:
 
 - only PRs for issues that were assigned to you count
 - a fix split into several PRs counts once
 - what counts is the maintainers' call, and that call is final
 
-These goodies come from CODERCOPS through our own open source program. They're separate from Hacktoberfest, so anything Hacktoberfest itself gives out is a different thing with its own rules.
+People who keep contributing can be invited as maintainers with Triage access. [GOVERNANCE.md](https://github.com/codercops/.github/blob/main/GOVERNANCE.md) explains how that works and who maintains what.
 
 ## Prerequisites
 
@@ -84,6 +84,9 @@ pnpm -r build
 # Run tests
 pnpm test
 
+# Run tests with coverage, as CI does (fails if a package drops below its minimum)
+pnpm test:coverage
+
 # Typecheck
 pnpm -r typecheck
 ```
@@ -92,6 +95,12 @@ Build before you test. The server tests import `@chatcops/core` from its `dist` 
 
 `pnpm -r build` also builds the website. To build only the packages, run `pnpm --filter "./packages/*" build`.
 
+### Docs bot evals
+
+CI also runs the website's docs bot through `chatcops test` (`website/evals/`), replaying the recorded API calls in `website/evals/__cassettes__`, so it needs no key. Run it with `pnpm --filter @chatcops/website evals`. A second suite, `evals:citations`, asks 50 questions and checks that at least 85% of the answers cite the docs page that answers them. If you change the docs bot's instructions or FAQ (`website/src/lib/docs-bot.ts`), the replay fails with "A call changed since it was recorded". That's expected. Ask a maintainer to record it again: recording calls the APIs with the project's keys, which aren't in CI.
+
+The docs bot answers from an index of the docs pages, `website/public/docs-index/`. It's built by `npm run docs-index` in `website/`, which also needs a key, so a docs change doesn't rebuild it. CI shows a warning when the pages changed since the index was built, and a maintainer rebuilds it before a release. You don't need to do anything about that warning in a docs PR.
+
 ## Project structure
 
 ```
@@ -99,6 +108,7 @@ packages/
   core/     @chatcops/core (AI providers, tools, knowledge base)
   widget/   @chatcops/widget (embeddable chat UI)
   server/   @chatcops/server (server handler + adapters)
+  store-*/  conversation, counter and analytics stores, one package per backend
 website/    Marketing site + Starlight docs (Astro)
 ```
 
@@ -117,7 +127,8 @@ website/    Marketing site + Starlight docs (Astro)
 3. Run tests: `pnpm test`
 4. Run typecheck: `pnpm -r typecheck`
 5. Add a changeset if your change affects a published package (`core`, `widget` or `server`): `pnpm changeset`. Docs and website changes don't need one.
-6. Push your branch and open a PR against upstream `dev`.
+6. If you changed an exported type, function or option, run `pnpm -r build` and then `pnpm api`, and commit what changed in `api/`. Those files are each package's public types, made from the build, so a reviewer sees exactly how the API changes. CI fails when they're out of date (`pnpm api:check`). Comments and private class members aren't in them.
+7. Push your branch and open a PR against upstream `dev`.
 
 ### Branch strategy
 
@@ -199,17 +210,23 @@ ANTHROPIC_API_KEY=sk-... npx tsx src/examples/express-server.ts
 
 `npx` downloads `tsx` the first time.
 
+The widget has a size budget, gzipped: 5 kB for the script tag loader (`dist/chatcops.min.js`), 19.2 kB for the chat panel it loads when the chat opens (`dist/chatcops.panel.js`), 2 kB for the pre-chat form chunk, 23 kB for the single-file build (`dist/chatcops.full.min.js`) and 32 kB for the unminified ESM build. CI checks them with `pnpm size` after a build (limits in `.size-limit.json`). To save bytes, the minifier renames the private class members listed in `packages/widget/mangle.ts`. A name can go on that list only if the code touches it through `this` and nowhere else, which `tests/mangle.test.ts` checks. A config field, a request body key or a DOM property renamed there would break only the CDN build.
+
 ### Browser tests
 
-The unit tests run in happy-dom. The tests in `e2e/` load the built widget in a real Chromium, against a small mock server that streams canned replies, and run an axe accessibility check:
+The unit tests run in happy-dom. The tests in `e2e/` load the built widget in a real Chromium and run an axe accessibility check. `e2e/server.mjs` serves the pages and runs the real `@chatcops/server` handler, with a stand-in provider that answers by the message text (no API keys needed). A second, cross-origin server stands in for a 0.5 server:
 
 ```bash
-pnpm --filter @chatcops/widget build
+pnpm --filter @chatcops/widget --filter "@chatcops/server..." build
 pnpm exec playwright install chromium   # once
 pnpm e2e
 ```
 
-They cover starting from the script tag, streaming, Escape and the tab order, the phone layout, and accessibility. CI runs them in the `e2e` job. Add a test there when you change how the widget behaves in a browser.
+With Google Chrome installed you can skip the Chromium download and run `E2E_CHANNEL=chrome pnpm e2e`.
+
+They cover starting from the script tag, streaming, Escape and the tab order, the phone layout, a reply that fails or is cut off, a slow tool kept alive by pings, session tokens, and a chat API on another origin. `e2e/tests/states.spec.ts` puts the widget in each of its states (launcher, unread, welcome bubble, suggestions, pre-chat form, streaming, sources, errors, rate limit, offline, conversation limit, phone) in light, dark and right-to-left, and checks each one with axe against WCAG 2.2 AA. When you add a state, add it there too. CI runs them all in the `e2e` job.
+
+`e2e/tests/visual.spec.ts` compares screenshots of the main states, in light, dark and right-to-left, with the baselines in `e2e/screenshots/`. Fonts render differently on every OS, so the baselines are made on CI's Linux Chromium and the spec skips anywhere else, your machine included. When you change how the widget looks, a maintainer runs the "Update screenshots" workflow (Actions tab, Run workflow) on your branch. It commits the new images there. Look at them in the PR's Files tab: the diff is the review. GitHub doesn't run CI for a commit a workflow pushes, so the workflow starts CI on the branch itself. That run is under Actions, not on the PR. Check that it passed before merging. For a PR from a fork, which the workflow can't push to, the maintainer updates the images after merging. Run on `dev`, the workflow opens a PR with them, and that PR's CI waits for a maintainer to approve the run. Add a test there when you change how the widget behaves in a browser.
 
 ## Adding a new AI provider
 
@@ -219,6 +236,28 @@ They cover starting from the script tag, streaming, Escape and the tab order, th
 4. Register in the `createProvider` factory
 5. Export from `index.ts`
 6. Add tests
+
+## Writing a store package
+
+Stores live in their own packages (`packages/store-<name>`), so a Cloudflare user never installs a Postgres driver. Each one implements the interfaces in `packages/core/src/storage/types.ts`: `conversations` is required, and `counters`, `kv` and `events` are what make rate limits and analytics work across server instances. `memoryStorage()` in `packages/core/src/storage/memory.ts` is the reference.
+
+A new package needs:
+
+- `package.json` with `"private": true` until a maintainer publishes it for the first time, `"type": "module"`, an `exports` entry like `@chatcops/core`'s, `"@chatcops/core": "workspace:^"` in `peerDependencies` (and `"workspace:*"` in `devDependencies`), the database client as a peer dependency where there is one, and the `build`, `typecheck` and `test` scripts.
+- `tsconfig.json` extending `../../tsconfig.json`, like the other packages.
+- `tests/conformance.test.ts` running the shared suite, which is the contract every store has to meet:
+
+  ```ts
+  import { describe } from 'vitest';
+  import { runStorageConformance } from '@chatcops/core/testing';
+  import { redisStorage } from '../src/index.js';
+
+  const url = process.env.CHATCOPS_TEST_REDIS_URL;
+  if (url) runStorageConformance('redis', () => redisStorage({ url }));
+  else describe.skip('redis conformance (set CHATCOPS_TEST_REDIS_URL to run)', () => {});
+  ```
+
+CI runs Redis, the Upstash REST emulator and Postgres next to the tests and sets `CHATCOPS_TEST_REDIS_URL`, `CHATCOPS_TEST_UPSTASH_URL` with `CHATCOPS_TEST_UPSTASH_TOKEN`, and `CHATCOPS_TEST_POSTGRES_URL` (see `.github/workflows/ci.yml`). Locally, start the same containers with Docker and export the variables, or let those tests skip. The root `vitest.config.ts` and `pnpm publint` pick up a new package by themselves, and store packages need 90% line and 80% branch coverage, checked in CI (locally the database tests skip, so the store floor only applies there).
 
 ## Adding a new locale
 
@@ -247,9 +286,10 @@ The site runs without any secrets. Only the live chat demo on the landing page n
 OPENAI_API_KEY=sk-...
 UPSTASH_REDIS_REST_URL=https://your-endpoint.upstash.io
 UPSTASH_REDIS_REST_TOKEN=your-token-here
+VISITOR_HASH_SALT=any-long-random-string
 ```
 
-The visitor counter shows `-` without Upstash credentials. Google Analytics (`G-GLYL9J6QYX`) is hardcoded in the layout and Starlight config.
+The visitor counter shows `-` without Upstash credentials, and counts each visitor once per day only when `VISITOR_HASH_SALT` is set. Without it, every call increments the count. Google Analytics (`G-GLYL9J6QYX`) is hardcoded in the layout and Starlight config.
 
 ## Commit convention
 

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>A slow tool</title>
+</head>
+<body>
+  <main>
+    <h1>A slow tool</h1>
+  </main>
+  <!-- A 1.5 s inactivity timeout, much shorter than the 4 s tool: only the server's pings keep the reply alive. -->
+  <script type="module">
+    import { Widget } from '/chatcops.esm.js';
+    const widget = new Widget({ apiUrl: '/api/chat', timeout: 1500 });
+    widget.init();
+  </script>
+</body>
+</html>

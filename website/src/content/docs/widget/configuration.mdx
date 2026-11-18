@@ -5,6 +5,16 @@ description: All configuration options for the ChatCops widget.
 
 The widget can be configured via `data-*` attributes on the script tag or programmatically via `ChatCops.init()`.
 
+## Content Security Policy
+
+If your site's Content Security Policy requires a nonce for inline styles, add the same per-response nonce to the widget script tag. Script-tag installs, including `chatcops.full.min.js`, read their script element's `nonce` and apply it to the launcher, chat panel, and lazy pre-chat form styles, including when you call `ChatCops.init()` manually. An explicit `nonce` in the config takes precedence. For ESM and other programmatic `ChatCops.init()` calls that do not run from a script tag, pass it as `nonce`:
+
+```typescript
+ChatCops.init({ apiUrl: '/api/chat', nonce: 'YOUR_RESPONSE_NONCE' });
+```
+
+Include that nonce in your response's `style-src` policy. Generate a fresh, unpredictable nonce for each response and use it for both the policy and widget script.
+
 ## Display Modes
 
 ChatCops supports two display modes:
@@ -18,7 +28,8 @@ ChatCops supports two display modes:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js"
+  nonce="YOUR_RESPONSE_NONCE"
   data-api-url="https://your-api.com/chat"
   data-accent="#6366f1"
   data-text-color="#FAFAF9"
@@ -35,6 +46,7 @@ ChatCops supports two display modes:
   data-placeholder="Type a message..."
   data-locale="en"
   data-auto-open="1000"
+  data-privacy-url="https://example.com/privacy"
 ></script>
 ```
 
@@ -43,7 +55,7 @@ ChatCops supports two display modes:
 ```html
 <div id="chat-container" style="width: 400px; height: 500px;"></div>
 <script
-  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js"
   data-api-url="https://your-api.com/chat"
   data-mode="inline"
   data-container="#chat-container"
@@ -67,9 +79,9 @@ ChatCops.init({
 
   // Theme
   theme: {
-    accent: '#6366f1',
-    textColor: '#FAFAF9',
-    bgColor: '#0A0A0A',
+    mode: 'auto',               // 'light' | 'dark' | 'auto' (follows the system)
+    accent: '#4f46e5',
+    accentDark: '#a5b4fc',      // optional accent for dark mode
     fontFamily: 'Inter, sans-serif',
     borderRadius: '12',
     position: 'bottom-right',   // 'bottom-right' | 'bottom-left'
@@ -84,6 +96,7 @@ ChatCops.init({
 
   // Behavior
   welcomeMessage: 'Hi! How can I help you today?',
+  suggestions: ['Compare plans', 'Book a demo'],
   welcomeBubble: {
     text: 'Need help? Chat with us!',
     delay: 3000,
@@ -109,11 +122,11 @@ ChatCops.init({
     subtitle: 'Online',
   },
   welcomeMessage: 'Hi! How can I help you today?',
-  persistHistory: false,
+  persistence: 'none',
 });
 ```
 
-The `container` option accepts a CSS selector string or a direct `HTMLElement` reference.
+The `container` option accepts a valid CSS selector string or a direct `HTMLElement` reference. An invalid selector throws a `ChatCops: invalid container selector` error; a valid selector that matches no element throws a `ChatCops: container element not found` error.
 
 ### More than one widget on a page
 
@@ -134,6 +147,91 @@ new Widget({
 
 If you leave `siteId` out, the first widget keeps the default storage and the next one is given its own, with a note in the console. The first widget's host element has the id `chatcops-root`; later ones get `chatcops-root-2` and so on, and every host has the class `chatcops-root`.
 
+### Saved conversations
+
+The widget keeps the conversation so a visitor who reloads the page or comes back later picks up where they left off. `persistence` picks where:
+
+| Value | Kept in | Lasts |
+|-------|---------|-------|
+| `'local'` (default) | `localStorage` | Until `historyTtlDays` passes, 30 days by default |
+| `'session'` | `sessionStorage` | Until the tab is closed |
+| `'none'` | Memory | Until the page reloads |
+
+```typescript
+ChatCops.init({
+  apiUrl: '/api/chat',
+  persistence: 'session',
+});
+
+// Or keep it in the browser, for a week
+ChatCops.init({
+  apiUrl: '/api/chat',
+  historyTtlDays: 7,
+});
+```
+
+A popup doesn't read or write storage until the visitor opens it. Until then, nothing is stored on the visitor's device. An inline chat is on screen from the start, so it reads its saved conversation when it mounts. The one exception is a welcome bubble with `showOnce`. It checks and sets its own flag when it's due to appear, and stores nothing before that. With `persistence: 'none'` nothing at all is written to storage, the bubble flag included.
+
+The pre-chat form's answers are saved with the conversation, so they expire with it too.
+
+`persistHistory` was removed in 1.0. A config that still sets it throws, so a site that asked for nothing to be saved never starts saving conversations. Use `persistence: 'none'` instead.
+
+### Waiting for cookie consent
+
+A site under a strict consent policy can hold the chat back until the visitor accepts functional cookies. Set `waitForConsent` (or `data-wait-for-consent="true"` on the script tag) and the launcher shows as usual, but opening the chat shows a notice instead of the conversation: "Chat is available once you accept functional cookies." While it waits, the widget reads and writes no `localStorage` or `sessionStorage`, not even to check, and it makes no request to your chat server. The welcome bubble stays hidden too, since it remembers that it was shown.
+
+```typescript
+declare const consentBanner: { open(): void };
+
+ChatCops.init({
+  apiUrl: '/api/chat',
+  waitForConsent: true,
+  // The notice's button. Open your own consent banner here. Without it, the notice has no button.
+  onConsentRequest: () => consentBanner.open(),
+});
+
+// When the visitor accepts functional cookies:
+ChatCops.setConsent(true);
+
+// If they withdraw it later:
+ChatCops.setConsent(false);
+```
+
+`setConsent(true)` replaces the notice with the normal chat: the saved conversation comes back and the session starts. A chat the visitor has closed stays closed. It works before or after `init()`, and with the script tag build also before the chat has loaded. `setConsent(false)` closes the chat and removes what the widget saved in this browser (the conversation, the session token and the welcome bubble's flag), and the notice shows again on the next open. If the visitor never gave consent in this page view, `setConsent(false)` does nothing and touches no storage. While consent is missing, `sendMessage()` resolves without sending, so don't wait on a reply.
+
+The notice's wording is `consentNotice` and `consentButton` in the [locale](/widget/i18n/), and a language that doesn't have them yet shows them in English.
+
+### AI disclosure
+
+A new conversation starts with a short note: "You're chatting with an AI assistant. It can make mistakes." The EU AI Act (Article 50) asks that people know when they're talking to an AI, and the note stays at the top of the chat, also after "New conversation". Its strings are `disclosure` and `disclosureLearnMore` in the locale, and a language that doesn't have them yet shows them in English.
+
+Change the wording, or add a link to a page that explains more:
+
+```typescript
+ChatCops.init({
+  apiUrl: '/api/chat',
+  disclosure: {
+    text: 'Acme Assistant is an AI. It can get things wrong, so check anything important.',
+    learnMoreUrl: 'https://acme.com/ai',
+  },
+});
+```
+
+`disclosure: false` (or `data-disclosure="false"`) removes it. The widget then logs a note in the console, because telling visitors some other way is up to you.
+
+### Privacy policy link
+
+Add `privacyUrl` (or `data-privacy-url` on the script tag) to show a "Privacy" link in the header's "More options" menu (`⋯`), opening your site's privacy policy in a new tab:
+
+```typescript
+ChatCops.init({
+  apiUrl: '/api/chat',
+  privacyUrl: 'https://example.com/privacy',
+});
+```
+
+Only `https:` and `http:` URLs are accepted. Invalid or unsafe URLs (such as `javascript:`) are omitted.
+
 ### Streaming inactivity timeout
 
 Set `timeout` in `ChatCops.init()` to change the inactivity timeout in milliseconds.
@@ -147,12 +245,38 @@ A request that never responds, or a stream that stops sending data, fails with a
 timeout error. Use a larger value for backends with longer silent periods. This
 option is available through programmatic configuration.
 
+### Messages sent while offline
+
+If the browser reports it is offline (`navigator.onLine`), a message the visitor sends is shown with the note "Will send when you're back online" (the `messageWaiting` string) and is not sent. When the `online` event fires, the widget sends the waiting messages in order, one at a time, with no click needed. A message that then fails gets the usual error and Retry button, and the ones after it still go. If the connection drops again partway, the rest keep waiting. The `message` event for a waiting message fires when it is sent, not when it is typed.
+
+Waiting messages live in this page view only: they are not saved, so a reload, `ChatCops.newConversation()` or `ChatCops.clear()` drops them. The note is announced through the reply live region. A reply that fails because the connection drops in the middle is not part of this; it still shows the network error with Retry.
+
+### Stopping a reply
+
+While a reply streams, the send button becomes a Stop button, named by the `stopButton` string (`Stop` in English; a language without it shows the English one). Clicking it ends the request, so the server stops generating, and keeps the text that has streamed as a finished reply: no error, and the visitor can use Regenerate to ask again. The `message` event fires for it with `status: 'complete'`. If the visitor stops before any text has arrived, no reply appears. The text box stays locked while a reply streams, so Escape does not stop it and still closes the popup.
+
 ## WidgetConfig Interface
 
+`WidgetConfig` and the types it's made of are all exported from `@chatcops/widget`, so a site can type its own pieces of a config:
+
 ```typescript
+import type { PreChatFormConfig, ThemeConfig } from '@chatcops/widget';
+
+const brand: ThemeConfig = { mode: 'auto', accent: '#2563eb', borderRadius: 12 };
+const leadForm: PreChatFormConfig = {
+  enabled: true,
+  fields: [{ name: 'email', label: 'Work email', type: 'email', required: true }],
+};
+```
+
+```typescript
+// docs-check: skip, a reference listing rather than code to run
 interface WidgetConfig {
   apiUrl: string;
+  nonce?: string;                // CSP nonce for the widget's injected styles
   timeout?: number;              // Inactivity timeout in ms, default: 30000
+  turnstileSiteKey?: string;     // Cloudflare Turnstile site key, when the server has `turnstile` set
+  userToken?: string | (() => string | undefined | Promise<string | undefined>); // Your server's signed token for a signed-in visitor (server `identity`), or a function that returns a fresh one
 
   // Display mode
   mode?: 'popup' | 'inline';       // Default: 'popup'
@@ -160,9 +284,11 @@ interface WidgetConfig {
   siteId?: string;                 // Names the saved conversation; set one per widget when a page has several
 
   theme?: {
-    accent?: string;          // Hex color, default: '#6366f1'
-    textColor?: string;       // Hex color, default: '#ffffff'
-    bgColor?: string;         // Hex color, default: '#0a0a0a'
+    mode?: 'light' | 'dark' | 'auto';  // Default: 'auto', which follows the system setting
+    accent?: string;          // Hex color, default: '#4f46e5' (light), '#6366f1' (dark)
+    accentDark?: string;      // Hex color, the accent in dark mode. Default: accent
+    textColor?: string;       // Hex color, replaces the text color in every mode
+    bgColor?: string;         // Hex color, replaces the background in every mode
     fontFamily?: string;      // CSS font-family
     borderRadius?: string | number;  // px if a number or numeric string (12, '12'), or any CSS length ('1rem'). Default: 12
     position?: 'bottom-right' | 'bottom-left';
@@ -175,49 +301,89 @@ interface WidgetConfig {
   };
 
   welcomeMessage?: string;    // First assistant message
+  disclosure?: false | {      // The "you're chatting with an AI" note, on by default
+    text?: string;            // Replaces the wording
+    learnMoreUrl?: string;    // Adds a "Learn more" link (http or https)
+  };
+  suggestions?: string[];     // Suggested question buttons shown in a new conversation
   welcomeBubble?: {           // Popup mode only
     text: string;             // Text shown on hover bubble
-    delay?: number;           // ms before bubble appears
-    showOnce?: boolean;       // Only show once per session
+    delay?: number;           // ms before bubble appears, 0 to 2147483647 (about 24.8 days), default: 3000. A larger number waits that long; NaN, a negative or a non-number uses the default
+    showOnce?: boolean;       // Show only once (default: true): per browser with 'local' persistence, per tab with 'session', every page load with 'none'
   };
   placeholder?: string;       // Input placeholder text
-  persistHistory?: boolean;   // Save chat history, default: true
+  persistence?: 'local' | 'session' | 'none'; // Where the chat is saved, default: 'local'
+  historyTtlDays?: number;    // Drop saved chats older than this, default: 30
+  waitForConsent?: boolean;   // Show a notice and use no storage or API until setConsent(true), default: false
+  onConsentRequest?: () => void; // The notice's button; leave it out to have no button
   maxMessages?: number;       // Max messages to persist, default: 50
   pageContext?: boolean;       // Send page URL/title, default: true
-  autoOpen?: boolean | number; // Popup mode only. true = immediate, number = delay in ms
+  autoOpen?: boolean | number; // Popup mode only. true = immediate, number = delay in ms, 0 to 2147483647 (about 24.8 days). A larger number waits that long; NaN, a negative or a non-number doesn't auto-open
   locale?: string;            // Sent to the server with each message. Only English strings are built in
+  dir?: 'ltr' | 'rtl' | 'auto'; // Text direction; defaults from locale, then document direction
   strings?: Partial<WidgetLocaleStrings>; // Custom i18n overrides
+  privacyUrl?: string;        // Link in header menu to your site's privacy policy (https: or http: only)
+  preChatForm?: {
+    enabled: boolean;
+    title?: string;
+    subtitle?: string;
+    submitLabel?: string;
+    fields: Array<{
+      name: string;
+      type: 'text' | 'email' | 'select' | 'textarea';
+      label: string;
+      placeholder?: string;
+      required?: boolean;
+      options?: string[];
+    }>;
+  };
 
   // Callbacks
   onOpen?: () => void;
   onClose?: () => void;
   onMessage?: (message: MessageData) => void;
   onError?: (error: Error) => void;
+  onLeadCaptured?: (leadData?: Record<string, unknown>) => void;
+  onPreChatSubmit?: (data: Record<string, string>) => void;
 }
 ```
+
+See the [pre-chat form guide](/widget/pre-chat-form) for field behavior, validation, and how answers are sent to the server. The form is configured with JavaScript; it has no `data-*` attributes.
 
 ## Script Tag Attribute Reference
 
 | Attribute | Config Key | Description |
 |-----------|-----------|-------------|
 | `data-api-url` | `apiUrl` | API endpoint URL (required) |
-| `data-mode` | `mode` | `'popup'` or `'inline'` |
+| `data-mode` | `mode` | `'popup'` or `'inline'` (default: `'popup'`; invalid values are ignored) |
 | `data-container` | `container` | CSS selector for inline container |
+| `data-theme-mode` | `theme.mode` | `'light'`, `'dark'` or `'auto'` (default: `'auto'`; invalid values are ignored) |
 | `data-accent` | `theme.accent` | Primary accent color |
+| `data-accent-dark` | `theme.accentDark` | Accent color in dark mode |
 | `data-text-color` | `theme.textColor` | Primary text color |
 | `data-bg-color` | `theme.bgColor` | Background color |
 | `data-font-family` | `theme.fontFamily` | Font family |
 | `data-border-radius` | `theme.borderRadius` | Border radius. A bare number is px (`12`), or use any CSS length (`1rem`) |
-| `data-position` | `theme.position` | `'bottom-right'` or `'bottom-left'` |
+| `data-position` | `theme.position` | `'bottom-right'` or `'bottom-left'` (default: `'bottom-right'`; invalid values are ignored) |
 | `data-brand-name` | `branding.name` | Header title |
 | `data-brand-avatar` | `branding.avatar` | Avatar image URL |
 | `data-brand-subtitle` | `branding.subtitle` | Subtitle text |
 | `data-welcome-message` | `welcomeMessage` | First assistant message |
+| `data-disclosure` | `disclosure` | `"false"` turns the AI disclosure off |
+| `data-disclosure-text` | `disclosure.text` | Wording of the AI disclosure |
+| `data-disclosure-url` | `disclosure.learnMoreUrl` | "Learn more" link in the AI disclosure |
 | `data-welcome-bubble` | `welcomeBubble.text` | Welcome bubble text |
-| `data-welcome-bubble-delay` | `welcomeBubble.delay` | Bubble delay in ms |
+| `data-welcome-bubble-delay` | `welcomeBubble.delay` | Bubble delay in ms (0–2147483647) |
 | `data-placeholder` | `placeholder` | Input placeholder |
-| `data-auto-open` | `autoOpen` | Auto-open delay in ms or `true` |
+| `data-auto-open` | `autoOpen` | Auto-open delay in ms (0–2147483647) or `true`; invalid values are ignored |
 | `data-locale` | `locale` | Language code |
+| `data-dir` | `dir` | Text direction: `'ltr'`, `'rtl'` or `'auto'` |
+| `data-persistence` | `persistence` | `'local'`, `'session'` or `'none'` |
+| `data-history-ttl-days` | `historyTtlDays` | Days a saved conversation is kept |
+| `data-wait-for-consent` | `waitForConsent` | When present, anything except `"false"` waits for consent. Invalid non-empty values log a warning; `"true"` or an empty value enables it without a warning |
+| `data-privacy-url` | `privacyUrl` | Privacy policy link in header menu (https: or http: only) |
+| `data-turnstile-site-key` | `turnstileSiteKey` | Cloudflare Turnstile site key, when the server checks Turnstile |
+| `data-user-token` | `userToken` | Signed token for a signed-in visitor, when the server has `identity` set |
 
 ## CSS Custom Properties
 
@@ -239,6 +405,7 @@ The widget uses Shadow DOM and exposes these CSS custom properties on its host e
 | `--cc-fab-size` | FAB button size | `56px` |
 | `--cc-panel-width` | Chat panel width | `400px` |
 | `--cc-panel-height` | Chat panel height | `560px` |
+| `--cc-focus-ring` | Focus ring | `0 0 0 2px var(--cc-bg), 0 0 0 4px var(--cc-accent)` |
 
 ## Inline Mode Behavior
 

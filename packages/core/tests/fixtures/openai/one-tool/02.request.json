@@ -1,0 +1,79 @@
+{
+  "model": "gpt-5-mini",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are the support assistant for a small online shop. Keep answers short."
+    },
+    {
+      "role": "user",
+      "content": "Where is order A-1001? Include tracking. Use the tool."
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "call_WouEB7kuqbSioBi8FVNBdM7r",
+          "type": "function",
+          "function": {
+            "name": "lookup_orders",
+            "arguments": "{\"orders\":[{\"id\":\"A-1001\",\"include\":[\"items\",\"tracking\"]}]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_WouEB7kuqbSioBi8FVNBdM7r",
+      "content": "{\"success\":true,\"data\":{\"id\":\"A-1001\",\"status\":\"shipped\",\"tracking\":\"ZX123\"}}"
+    }
+  ],
+  "max_completion_tokens": 4096,
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "lookup_orders",
+        "description": "Look up one or more orders by id. Can include line items and tracking.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "orders": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "include": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "items",
+                        "tracking"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "id"
+                ]
+              }
+            }
+          },
+          "required": [
+            "orders"
+          ]
+        }
+      }
+    }
+  ],
+  "reasoning_effort": "low",
+  "stream": true,
+  "stream_options": {
+    "include_usage": true
+  }
+}

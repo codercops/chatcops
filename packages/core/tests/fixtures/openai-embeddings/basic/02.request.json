@@ -1,0 +1,8 @@
+{
+  "model": "text-embedding-3-small",
+  "input": [
+    "How much is the Team plan?"
+  ],
+  "encoding_format": "float",
+  "dimensions": 8
+}

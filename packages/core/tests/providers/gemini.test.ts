@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { toGeminiTools } from '../../src/providers/base.js';
 import { GeminiProvider, geminiSupportsThinkingLevel } from '../../src/providers/gemini.js';
 import type { ProviderChatParams, ToolDefinition } from '../../src/types.js';
+import { chatViaTurn } from '../helpers/chat-via-turn.js';
 
 type GenerateStream = ReturnType<typeof vi.fn>;
 
@@ -69,7 +70,7 @@ describe('Gemini provider helpers', () => {
     mockModels(provider, generate);
     const controller = new AbortController();
 
-    await collect(provider.chat(params({ signal: controller.signal })));
+    await collect(chatViaTurn(provider, params({ signal: controller.signal })));
     expect(generate.mock.calls[0][0].config.abortSignal).toBe(controller.signal);
   });
 
@@ -86,7 +87,7 @@ describe('GeminiProvider', () => {
     const generate = vi.fn().mockResolvedValue(streamOf(textChunk('Hi '), textChunk('there')));
     mockModels(provider, generate);
 
-    const chunks = await collect(provider.chat(params({
+    const chunks = await collect(chatViaTurn(provider, params({
       messages: [
         { id: 'a0', role: 'assistant', content: 'Trimmed leftover', timestamp: 0 },
         { id: 'u1', role: 'user', content: 'First', timestamp: 1 },
@@ -119,7 +120,7 @@ describe('GeminiProvider', () => {
       { candidates: [{ content: { parts: [{ text: 'thinking...', thought: true }, { text: 'Answer' }] } }] },
     )));
 
-    expect(await collect(provider.chat(params()))).toEqual(['Answer']);
+    expect(await collect(chatViaTurn(provider, params()))).toEqual(['Answer']);
   });
 
   it('throws before calling the API when there is no user message', async () => {
@@ -127,7 +128,7 @@ describe('GeminiProvider', () => {
     const generate = vi.fn();
     mockModels(provider, generate);
 
-    await expect(collect(provider.chat(params({
+    await expect(collect(chatViaTurn(provider, params({
       messages: [{ id: 'a0', role: 'assistant', content: 'Only me', timestamp: 0 }],
     })))).rejects.toThrow('no user message');
     expect(generate).not.toHaveBeenCalled();
@@ -145,7 +146,7 @@ describe('GeminiProvider', () => {
     mockModels(provider, generate);
 
     const toolExecutor = vi.fn().mockResolvedValue({ success: true, data: { status: 'shipped' } });
-    const chunks = await collect(provider.chat(params({
+    const chunks = await collect(chatViaTurn(provider, params({
       toolExecutor,
       tools: [{
         name: 'lookup_order',
@@ -172,3 +173,57 @@ describe('GeminiProvider', () => {
     });
   });
 });
+
+describe('Gemini tool call id fallback', () => {
+  const toolDef = [{
+    name: 'lookup_order',
+    description: 'Look up an order',
+    parameters: { orderId: { type: 'string', description: 'id' } },
+    required: ['orderId'],
+  }];
+
+  it('gives two tool calls without ids two distinct gemini_call_<uuid> ids', async () => {
+    const provider = new GeminiProvider({ type: 'gemini', apiKey: 'test-key' });
+    const capturedIds: string[] = [];
+
+    const generate = vi.fn()
+      .mockResolvedValueOnce(streamOf({ candidates: [{ content: { role: 'model', parts: [{ functionCall: { name: 'lookup_order', args: { orderId: '1' } } }] } }] }))
+      .mockResolvedValueOnce(streamOf({ candidates: [{ content: { role: 'model', parts: [{ functionCall: { name: 'lookup_order', args: { orderId: '2' } } }] } }] }))
+      .mockResolvedValueOnce(streamOf(textChunk('done')));
+
+    mockModels(provider, generate);
+
+    const toolExecutor = vi.fn().mockImplementation(({ id }: { id: string }) => {
+      capturedIds.push(id);
+      return Promise.resolve({ success: true, data: {} });
+    });
+
+    await collect(chatViaTurn(provider, params({ tools: toolDef, toolExecutor })));
+
+    expect(capturedIds).toHaveLength(2);
+    expect(capturedIds[0]).toMatch(/^gemini_call_[0-9a-f-]{36}$/);
+    expect(capturedIds[1]).toMatch(/^gemini_call_[0-9a-f-]{36}$/);
+    expect(capturedIds[0]).not.toBe(capturedIds[1]);
+  });
+
+  it('uses the id the API sends when one is present', async () => {
+    const provider = new GeminiProvider({ type: 'gemini', apiKey: 'test-key' });
+    let capturedId = '';
+
+    const generate = vi.fn()
+      .mockResolvedValueOnce(streamOf({ candidates: [{ content: { role: 'model', parts: [{ functionCall: { id: 'gemini_api_id', name: 'lookup_order', args: { orderId: '1' } } }] } }] }))
+      .mockResolvedValueOnce(streamOf(textChunk('done')));
+
+    mockModels(provider, generate);
+
+    const toolExecutor = vi.fn().mockImplementation(({ id }: { id: string }) => {
+      capturedId = id;
+      return Promise.resolve({ success: true, data: {} });
+    });
+
+    await collect(chatViaTurn(provider, params({ tools: toolDef, toolExecutor })));
+
+    expect(capturedId).toBe('gemini_api_id');
+  });
+});
+

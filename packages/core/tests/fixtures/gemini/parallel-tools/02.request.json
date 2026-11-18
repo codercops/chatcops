@@ -1,0 +1,102 @@
+{
+  "contents": [
+    {
+      "parts": [
+        {
+          "text": "What is the weather in Paris and in Tokyo right now? Call the tool for both cities at once."
+        }
+      ],
+      "role": "user"
+    },
+    {
+      "parts": [
+        {
+          "functionCall": {
+            "args": {
+              "city": "Paris"
+            },
+            "id": "call_828892",
+            "name": "get_weather"
+          },
+          "thoughtSignature": "EmAKXgFpFH0TM2ev+PZwXFgaIChW/wuZU/0gm6GKtF3/bqd00aiPW8zmOMuK81wMG/2TcSkIYXLIIafC5rQEeAkKMw+mkCqqNEwFOv8XrZusAssy+gNcDHOfOBQUk+EfLRI="
+        },
+        {
+          "functionCall": {
+            "args": {
+              "city": "Tokyo"
+            },
+            "id": "call_828895",
+            "name": "get_weather"
+          }
+        }
+      ],
+      "role": "model"
+    },
+    {
+      "parts": [
+        {
+          "functionResponse": {
+            "id": "call_828892",
+            "name": "get_weather",
+            "response": {
+              "success": true,
+              "data": {
+                "city": "Paris",
+                "tempC": 14
+              }
+            }
+          }
+        },
+        {
+          "functionResponse": {
+            "id": "call_828895",
+            "name": "get_weather",
+            "response": {
+              "success": true,
+              "data": {
+                "city": "Tokyo",
+                "tempC": 19
+              }
+            }
+          }
+        }
+      ],
+      "role": "user"
+    }
+  ],
+  "systemInstruction": {
+    "parts": [
+      {
+        "text": "You are the support assistant for a small online shop. Keep answers short."
+      }
+    ],
+    "role": "user"
+  },
+  "tools": [
+    {
+      "functionDeclarations": [
+        {
+          "name": "get_weather",
+          "description": "Current weather for one city.",
+          "parametersJsonSchema": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "city"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "generationConfig": {
+    "maxOutputTokens": 4096,
+    "thinkingConfig": {
+      "thinkingLevel": "LOW"
+    }
+  }
+}

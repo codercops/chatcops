@@ -16,7 +16,7 @@ Multi-provider (Claude, OpenAI, Gemini), lead capture, knowledge base, conversat
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js"
+  src="https://cdn.jsdelivr.net/npm/@chatcops/widget@1/dist/chatcops.min.js"
   data-api-url="https://your-api.com/chat"
   data-accent="#6366f1">
 </script>
@@ -35,12 +35,13 @@ import { chatcopsMiddleware } from '@chatcops/server';
 const app = express();
 app.use(express.json());
 
-app.all('/chat', chatcopsMiddleware({
+app.use('/chat', chatcopsMiddleware({
   provider: {
     type: 'claude',
-    apiKey: process.env.ANTHROPIC_API_KEY,
+    apiKey: process.env.ANTHROPIC_API_KEY!,
   },
   systemPrompt: 'You are a helpful assistant for our website.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!], // openssl rand -base64 32
 }));
 
 app.listen(3001);
@@ -51,13 +52,13 @@ That's it. Your site now has an AI chat widget.
 ## Features
 
 - **Multi-provider** - Claude, OpenAI, Gemini. Switch with one config change.
-- **Zero-dependency widget** - Shadow DOM isolated, ~50KB gzipped.
+- **Zero-dependency widget** - Shadow DOM isolated. The script tag loads a launcher under 5 kB gzipped, and the chat itself loads when it's opened.
 - **Streaming responses** - Real-time SSE streaming from all providers.
 - **Lead capture** - Built-in tool for capturing contact info, with webhook support.
 - **Knowledge base** - Feed text chunks or FAQ pairs for context-aware responses.
 - **Conversation persistence** - localStorage on client, pluggable stores on server.
 - **Analytics** - Track conversations, messages, and lead captures.
-- **i18n** - Replace any widget string, and the model replies in the visitor's language.
+- **i18n** - Ships in English with custom string overrides; the model replies in the visitor's language.
 - **Deployable anywhere** - Express, Vercel, Cloudflare Workers adapters included.
 - **Customizable** - Theme, branding, position, welcome messages, callbacks.
 
@@ -103,7 +104,7 @@ ChatCops.init({
     delay: 3000,
   },
   locale: 'en',
-  persistHistory: true,
+  persistence: 'local', // the default; 'session' keeps it for the tab, 'none' saves nothing
   onMessage: (msg) => console.log('New message:', msg),
 });
 ```
@@ -116,10 +117,13 @@ ChatCops.init({
 import { chatcopsVercelHandler } from '@chatcops/server/vercel';
 
 export default chatcopsVercelHandler({
-  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY },
+  provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
   systemPrompt: 'You are a helpful assistant.',
+  sessionSecrets: [process.env.CHATCOPS_SESSION_SECRET!],
 });
 ```
+
+Add `api/chat/session.ts` with `export { default } from '../chat';` so the widget can get its session token there.
 
 ### Cloudflare Workers
 
@@ -131,6 +135,7 @@ function getHandler(env: Env) {
   handler ??= chatcopsCloudflareHandler({
     provider: { type: 'openai', apiKey: env.OPENAI_API_KEY },
     systemPrompt: 'You are a helpful assistant.',
+    sessionSecrets: [env.CHATCOPS_SESSION_SECRET],
   });
   return handler;
 }
@@ -168,6 +173,10 @@ Questions, or want to chat with other contributors? Join the [CODERCOPS Discord]
 <a href="https://github.com/codercops/chatcops/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=codercops/chatcops" />
 </a>
+
+## Maintainers and funding
+
+ChatCops is maintained by CODERCOPS together with contributors who have Triage access. [GOVERNANCE.md](https://github.com/codercops/.github/blob/main/GOVERNANCE.md) lists who they are and how to become one. The project is free and MIT licensed, and CODERCOPS doesn't sell it or a hosted version of it. If it's useful to you, you can [sponsor the maintainers](https://github.com/sponsors/anurag629). The money pays for review time and hosting.
 
 ## License
 

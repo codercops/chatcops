@@ -10,7 +10,8 @@ describe('ChatCops browser export and auto-init', () => {
   ])('parses data-auto-open %j', (value, expected) => {
     expect(parseAutoOpen(value)).toBe(expected);
   });
-  const bundlePath = resolve(__dirname, '../dist/chatcops.min.js');
+  // The single-file build: everything in one IIFE, as the script tag build was before 0.7.
+  const bundlePath = resolve(__dirname, '../dist/chatcops.full.min.js');
   let bundleCode: string;
 
   beforeEach(() => {
@@ -83,6 +84,34 @@ describe('ChatCops browser export and auto-init', () => {
       if (typeof globalChatCops.destroy === 'function') {
         (globalChatCops.destroy as () => void)();
       }
+    });
+
+    it.each([
+      ['uses the script nonce when manual init omits it', undefined, 'script-nonce'],
+      ['prefers an explicit nonce over the script nonce', 'config-nonce', 'script-nonce'],
+      ['does not add a nonce when the script has none', undefined, undefined],
+    ])('%s in the single-file build', (_description, configNonce, scriptNonce) => {
+      const container = document.createElement('div');
+      container.id = 'nonce-container';
+      document.body.appendChild(container);
+
+      const script = document.createElement('script');
+      if (scriptNonce) script.nonce = scriptNonce;
+      Object.defineProperty(document, 'currentScript', { value: script, configurable: true });
+      window.eval(bundleCode);
+      Object.defineProperty(document, 'currentScript', { value: null, configurable: true });
+
+      const api = (window as unknown as { ChatCops: typeof ChatCops }).ChatCops;
+      api.init({
+        apiUrl: 'https://api.test/chat',
+        mode: 'inline',
+        container: '#nonce-container',
+        ...(configNonce ? { nonce: configNonce } : {}),
+      });
+
+      const style = container.querySelector('#chatcops-root')?.shadowRoot?.querySelector('style');
+      expect(style?.nonce || undefined).toBe(configNonce ?? scriptNonce);
+      api.destroy();
     });
   });
 
@@ -210,7 +239,9 @@ describe('ChatCops browser export and auto-init', () => {
     let cleanups: Array<() => void> = [];
 
     afterEach(() => {
-      cleanups.forEach((c) => c());
+      cleanups.forEach((c) => {
+        c();
+      });
       cleanups = [];
       ChatCops.destroy();
     });

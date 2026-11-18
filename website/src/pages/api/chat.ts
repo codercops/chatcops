@@ -1,143 +1,73 @@
 import type { APIRoute } from 'astro';
 import { getSecret } from 'astro:env/server';
-import { createChatHandler } from '@chatcops/server';
-import { FAQKnowledgeSource } from '@chatcops/core';
+import { env } from 'cloudflare:workers';
+import { chatcopsCloudflareHandler } from '@chatcops/server/cloudflare';
+import { cloudflareStorage, type D1Database } from '@chatcops/store-cloudflare';
+import { docsBotFaq, docsBotSystemPrompt } from '../../lib/docs-bot';
+import { docsKnowledge } from '../../lib/docs-index';
 
 export const prerender = false;
 
-const faq = new FAQKnowledgeSource([
-  {
-    question: 'What is ChatCops?',
-    answer:
-      'ChatCops is an open-source, universal AI chatbot widget you can embed on any website with a single script tag. It supports Claude, OpenAI, and Gemini as AI providers.',
-  },
-  {
-    question: 'How do I install ChatCops?',
-    answer:
-      'The easiest way is via CDN: add a <script> tag with src="https://cdn.jsdelivr.net/npm/@chatcops/widget/dist/chatcops.min.js" and set data-api-url to your server endpoint. For npm: install @chatcops/widget, @chatcops/server, and optionally @chatcops/core.',
-  },
-  {
-    question: 'What AI providers are supported?',
-    answer:
-      'ChatCops supports Claude (Anthropic), OpenAI (GPT-4, GPT-3.5), and Google Gemini. You configure the provider on the server side — the widget is provider-agnostic.',
-  },
-  {
-    question: 'Is ChatCops free?',
-    answer:
-      'Yes! ChatCops is fully open-source under the MIT license. You only pay for your AI provider API usage (e.g., Anthropic, OpenAI, or Google).',
-  },
-  {
-    question: 'What server platforms are supported?',
-    answer:
-      'ChatCops has adapters for Express.js, Vercel Serverless/Edge Functions, and Cloudflare Workers. You can also build custom integrations using the core package.',
-  },
-  {
-    question: 'Can I customize the widget appearance?',
-    answer:
-      'Absolutely. You can customize the accent color, text color, background, font, border radius, and position. The widget supports full theming and dark/light modes.',
-  },
-  {
-    question: 'Does ChatCops support multiple languages?',
-    answer:
-      'Yes. ChatCops has built-in i18n support with translations for English, Spanish, French, German, Japanese, Chinese, Hindi, and Arabic. You can also provide custom strings.',
-  },
-  {
-    question: 'How does the lead capture tool work?',
-    answer:
-      'The LeadCaptureTool lets the AI collect contact information (name, email, company, project details) during conversation. You provide a callback to handle the captured lead data.',
-  },
-]);
-
 // Built on the first request rather than at import: the API key is a Worker
-// secret that only exists inside a request, and createChatHandler starts a
-// timer, which Workers don't allow at global scope.
-let chat: ReturnType<typeof createChatHandler> | undefined;
+// secret that only exists inside a request.
+//
+// With the CHATCOPS_DB binding (wrangler.jsonc), conversations, limits and
+// turn locks live in D1 and hold across every isolate; without it, in memory.
+// With the CHATCOPS_SESSION_SECRET secret, the chat needs session tokens.
+let chat: ReturnType<typeof chatcopsCloudflareHandler> | undefined;
 function getChat() {
-  chat ??= createChatHandler({
+  chat ??= chatcopsCloudflareHandler({
     provider: {
       type: 'openai',
       apiKey: getSecret('OPENAI_API_KEY') ?? '',
     },
-    systemPrompt: `You are the ChatCops documentation assistant on the official ChatCops website.
-Your job is to help developers understand and use ChatCops — an open-source AI chatbot widget.
-
-Key facts:
-- ChatCops has 3 packages: @chatcops/widget (client), @chatcops/server (backend), @chatcops/core (providers/tools)
-- Widget is zero-dependency, Shadow DOM isolated, and works with a single script tag
-- Server supports Express, Vercel, and Cloudflare Workers
-- AI providers: Claude, OpenAI, Gemini
-- MIT licensed, fully open-source at github.com/codercops/chatcops
-
-Be concise, helpful, and friendly. Use markdown formatting. If you don't know something specific, direct users to the docs.`,
-    knowledge: [faq],
-    cors: '*',
+    systemPrompt: docsBotSystemPrompt,
+    // The docs pages, so answers cite the page they come from, then the FAQ.
+    knowledge: [docsKnowledge(readAsset, getSecret('OPENAI_API_KEY') ?? ''), docsBotFaq],
+    allowedOrigins: [
+      'https://chat.codercops.com',
+      ...(import.meta.env.DEV ? ['http://localhost:4321'] : []),
+    ],
+    // Cloudflare sets this header. Only local dev trusts the forwarded fallback.
+    clientIp: (request) =>
+      request.headers.get('cf-connecting-ip') ??
+      (import.meta.env.DEV ? request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() : undefined),
     rateLimit: { maxRequests: 10, windowMs: 60_000 },
+    // A docs answer is about 2,000 tokens in and 500 out (see the recordings
+    // in evals/__cassettes__). The daily cap allows roughly 2,000 answers
+    // across all visitors before the chat says it's out for the day (it
+    // resets at midnight UTC). The per-IP cap of about 100 answers is far
+    // more than one reader needs, and it keeps one script from using up the
+    // day for everyone, which the 2M-token default per IP would allow.
+    budgets: {
+      globalPerDay: { tokens: 5_000_000 },
+      perIpPerDay: { tokens: 250_000 },
+    },
+    ...storageOptions(),
   });
   return chat;
 }
 
-export const POST: APIRoute = async ({ request }) => {
-  // Cloudflare sets cf-connecting-ip; x-forwarded-for is only a local-dev
-  // fallback because its left-most entry can be set by the client.
-  const clientIp =
-    request.headers.get('cf-connecting-ip') ??
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    'unknown';
+/** A file of the docs index (public/docs-index/), from the Worker's static assets. */
+async function readAsset(name: string): Promise<ArrayBuffer> {
+  const assets = (env as { ASSETS: { fetch(request: Request): Promise<Response> } }).ASSETS;
+  const response = await assets.fetch(new Request(`https://assets.local/docs-index/${name}`));
+  if (!response.ok) throw new Error(`The docs index file ${name} is missing (HTTP ${response.status}).`);
+  return response.arrayBuffer();
+}
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
+function storageOptions() {
+  const db = (env as { CHATCOPS_DB?: D1Database }).CHATCOPS_DB;
+  const sessionSecret = getSecret('CHATCOPS_SESSION_SECRET');
+  return {
+    ...(db ? { storage: cloudflareStorage({ d1: db }), retention: { conversationsDays: 30 } } : {}),
+    ...(sessionSecret ? { sessionSecrets: [sessionSecret] } : {}),
+    // Widgets cached from before 0.6 don't send tokens, and without the
+    // secret there are none to send.
+    allowAnonymous: true,
+  };
+}
 
-  const encoder = new TextEncoder();
-  // Workers cancel the response when the visitor leaves; stop the reply then.
-  const abort = new AbortController();
-  const stream = new ReadableStream({
-    async start(controller) {
-      const send = (text: string) => {
-        if (!abort.signal.aborted) controller.enqueue(encoder.encode(text));
-      };
-      try {
-        for await (const chunk of getChat().handleChat(body, clientIp, {
-          signal: abort.signal,
-        })) {
-          if (abort.signal.aborted) break;
-          send(`data: ${chunk}\n\n`);
-        }
-        send('data: [DONE]\n\n');
-      } catch {
-        send(`data: ${JSON.stringify({ error: 'internal_error' })}\n\n`);
-      } finally {
-        if (!abort.signal.aborted) controller.close();
-      }
-    },
-    cancel() {
-      abort.abort();
-    },
-  });
+export const POST: APIRoute = ({ request, locals }) => getChat()(request, undefined, locals.cfContext);
 
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-    },
-  });
-};
-
-export const OPTIONS: APIRoute = async () => {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-      'Access-Control-Max-Age': '86400',
-    },
-  });
-};
+export const OPTIONS: APIRoute = ({ request, locals }) => getChat()(request, undefined, locals.cfContext);
