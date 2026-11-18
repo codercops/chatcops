@@ -236,7 +236,7 @@ describe('Widget menu actions', () => {
       expect(downloadedName).toBe('transcript.txt');
       expect(capturedBlob).toBeDefined();
       const text = await capturedBlob?.text();
-      expect(text).toBe('Assistant: How can I help you today?\n\nVisitor: Hello world\n\nAssistant: Hi there!');
+      expect(text).toBe('Visitor: Hello world\n\nAssistant: Hi there!');
     } finally {
       HTMLAnchorElement.prototype.click = originalClick;
     }

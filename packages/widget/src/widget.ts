@@ -485,7 +485,7 @@ export class Widget {
   private downloadTranscript(): void {
     const text = this.messages
       .filter((m) => m.content?.trim())
-      .map((m) => `${m.role === 'user' ? 'Visitor' : 'Assistant'}: ${m.content}`)
+      .map((m) => `${m.role === 'user' ? this.locale.transcriptVisitor : this.locale.transcriptAssistant}: ${m.content}`)
       .join('\n\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
