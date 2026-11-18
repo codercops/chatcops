@@ -57,6 +57,7 @@ export class HeaderMenu {
       const item = (e.target as HTMLElement).closest<HTMLElement>('[role="menuitem"]');
       if (!item) return;
       this.close();
+      this.btn.focus();
       const action = item.dataset.action;
       if (action === 'new') this.options.onNewConversation?.();
       else if (action === 'download') this.options.onDownloadTranscript?.();

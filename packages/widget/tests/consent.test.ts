@@ -100,6 +100,23 @@ describe('waiting for consent', () => {
     expect(noticeOf(w)?.textContent).toContain('Chat is available once you accept functional cookies.');
   });
 
+  it('moves focus to the notice when the popup opens', () => {
+    const w = start({ onConsentRequest: () => undefined });
+    w.open();
+
+    expect(shadowOf(w).activeElement).toBe(noticeOf(w));
+  });
+
+  it('does not take focus when an inline chat shows the notice', () => {
+    const box = document.createElement('div');
+    box.id = 'box';
+    document.body.appendChild(box);
+    const w = start({ mode: 'inline', container: '#box' });
+
+    expect(noticeOf(w)).not.toBeNull();
+    expect(shadowOf(w).activeElement).not.toBe(noticeOf(w));
+  });
+
   it('does not show the welcome bubble', async () => {
     vi.useFakeTimers();
     const calls = spyOnStorage();
