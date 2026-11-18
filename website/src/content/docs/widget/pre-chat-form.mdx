@@ -53,10 +53,10 @@ The form appears when there is no saved conversation with messages and the visit
 | `type` | `'text' \| 'email' \| 'select' \| 'textarea'` | Required input type. Email fields are checked for a valid email format. |
 | `label` | `string` | Required text label displayed above the field. |
 | `placeholder` | `string` | Optional placeholder. For a select, this replaces the default prompt. If omitted, the select prompt comes from `strings.selectPlaceholder` (English default: `Select {label}...`). |
-| `required` | `boolean` | Optional. When `true`, the visitor must enter or select a non-empty value before submitting. Defaults to `false`. |
+| `required` | `boolean` | Optional. When `true`, submitting with an empty value shows an error and focuses the field. Defaults to `false`. |
 | `options` | `string[]` | Optional choices for a `select` field. |
 
-Required fields are checked for non-empty values, and non-empty `email` fields are checked for email format. Invalid fields show an error and the form stays open until corrected. Values are trimmed before they are submitted.
+On submit, required fields are checked for non-empty values, and non-empty `email` fields are checked for email format. Invalid fields show an error, focus moves to the first invalid field, and the form stays open until corrected. Values are trimmed before they are submitted.
 
 ## What happens to answers
 

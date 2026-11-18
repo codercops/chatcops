@@ -100,11 +100,6 @@
   background: var(--cc-accent-hover);
 }
 
-.cc-prechat-submit:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .cc-prechat-input:focus-visible,
 .cc-prechat-select:focus-visible,
 .cc-prechat-textarea:focus-visible,
