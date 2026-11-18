@@ -4,6 +4,7 @@ const he: Partial<WidgetLocaleStrings> = {
   welcomeMessage: 'איך אפשר לעזור לכם היום?',
   inputPlaceholder: 'כתבו הודעה…',
   sendButton: 'שליחה',
+  stopButton: 'עצירה',
   closeButton: 'סגירה',
   openChat: 'פתיחת צ׳אט',
   defaultName: 'עוזר AI',
@@ -28,6 +29,7 @@ const he: Partial<WidgetLocaleStrings> = {
   preChatSubmit: 'התחלת צ׳אט',
   preChatRequired: 'זהו שדה חובה.',
   preChatInvalidEmail: 'הזינו כתובת אימייל תקינה.',
+  messageWaiting: 'יישלח כשתחזרו למצב מקוון',
   retryButton: 'ניסיון חוזר',
   regenerateButton: 'יצירה מחדש',
   copyButton: 'העתקת התשובה',
@@ -38,6 +40,12 @@ const he: Partial<WidgetLocaleStrings> = {
   sourcesLabel: 'מקורות',
   disclosure: 'אתם משוחחים עם עוזר מבוסס בינה מלאכותית. ייתכן שהוא יטעה.',
   disclosureLearnMore: 'למידע נוסף',
+  consentNotice: 'הצ׳אט זמין לאחר אישור קובצי Cookie פונקציונליים.',
+  consentButton: 'הגדרות קובצי Cookie',
+  moreButton: 'אפשרויות נוספות',
+  downloadTranscript: 'הורדת תמלול',
+  privacy: 'פרטיות',
+  newReply: 'תגובה חדשה',
 };
 
 export default he;

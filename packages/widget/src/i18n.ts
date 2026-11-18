@@ -44,6 +44,7 @@ export interface WidgetLocaleStrings {
   moreButton: string;
   downloadTranscript: string;
   privacy: string;
+  newReply: string;
 }
 
 const en: WidgetLocaleStrings = {
@@ -91,6 +92,7 @@ const en: WidgetLocaleStrings = {
   moreButton: 'More options',
   downloadTranscript: 'Download transcript',
   privacy: 'Privacy',
+  newReply: 'New reply',
 };
 
 const locales: Record<string, WidgetLocaleStrings> = { en };

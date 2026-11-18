@@ -4,6 +4,7 @@ const ko: Partial<WidgetLocaleStrings> = {
   welcomeMessage: '오늘 무엇을 도와드릴까요?',
   inputPlaceholder: '메시지를 입력하세요…',
   sendButton: '보내기',
+  stopButton: '중지',
   closeButton: '닫기',
   openChat: '채팅 열기',
   defaultName: 'AI 어시스턴트',
@@ -28,6 +29,7 @@ const ko: Partial<WidgetLocaleStrings> = {
   preChatSubmit: '채팅 시작',
   preChatRequired: '필수 입력 항목입니다.',
   preChatInvalidEmail: '유효한 이메일 주소를 입력해 주세요.',
+  messageWaiting: '온라인으로 돌아오면 전송됩니다',
   retryButton: '다시 시도',
   regenerateButton: '다시 생성',
   copyButton: '답변 복사',
@@ -38,6 +40,12 @@ const ko: Partial<WidgetLocaleStrings> = {
   sourcesLabel: '출처',
   disclosure: 'AI 어시스턴트와 대화하고 있습니다. 잘못된 답변을 할 수 있습니다.',
   disclosureLearnMore: '자세히 알아보기',
+  consentNotice: '기능성 쿠키에 동의하면 채팅을 이용할 수 있습니다.',
+  consentButton: '쿠키 설정',
+  moreButton: '추가 옵션',
+  downloadTranscript: '대화 기록 다운로드',
+  privacy: '개인정보 보호',
+  newReply: '새 답변',
 };
 
 export default ko;

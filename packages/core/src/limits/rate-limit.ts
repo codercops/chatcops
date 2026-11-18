@@ -56,8 +56,8 @@ export function createRateLimiter(
   rule: RateLimitRule,
   options: RateLimiterOptions = {}
 ): { check(key: string): Promise<RateLimitResult> } {
-  if (rule.limit <= 0) throw new Error('limit must be greater than 0');
-  if (rule.windowMs <= 0) throw new Error('windowMs must be greater than 0');
+  if (!Number.isFinite(rule.limit) || rule.limit <= 0) throw new Error('limit must be greater than 0');
+  if (!Number.isFinite(rule.windowMs) || rule.windowMs <= 0) throw new Error('windowMs must be greater than 0');
 
   const prefix = options.prefix ?? 'rl';
   const now = options.now ?? Date.now;

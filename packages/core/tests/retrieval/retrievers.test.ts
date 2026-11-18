@@ -98,6 +98,28 @@ describe('vectorRetriever', () => {
     expect(query).toHaveBeenCalledWith(expect.objectContaining({ topK: 4 }));
   });
 
+  it.each([Number.NaN, Infinity])('uses the default topK for non-finite topK: %s', async (topK) => {
+    const embedder = topicEmbedder();
+    const store = await indexed(embedder);
+    const query = vi.spyOn(store, 'query');
+    const chunks = await vectorRetriever({ store, embedder }).retrieve({ text: 'refunds for my order', topK });
+
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({ topK: 20 }));
+    expect(chunks.length).toBeGreaterThan(0);
+    expect(chunks[0].source).toBeDefined();
+  });
+
+  it('uses the default candidates for a non-finite candidates option', async () => {
+    const embedder = topicEmbedder();
+    const store = await indexed(embedder);
+    const query = vi.spyOn(store, 'query');
+    const chunks = await vectorRetriever({ store, embedder, candidates: Number.NaN }).retrieve({ text: 'refunds for my order' });
+
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({ topK: 20 }));
+    expect(chunks.length).toBeGreaterThan(0);
+    expect(chunks[0].source).toBeDefined();
+  });
+
   it('refuses an embedder whose vectors are a different size than the store', async () => {
     expect(() => vectorRetriever({ store: memoryVectors({ dimensions: 8 }), embedder: topicEmbedder(4) })).toThrow(
       'The embedder (test:topics@4) makes 4-dimension vectors, but the store holds 8.'
@@ -178,6 +200,32 @@ describe('hybridRetriever', () => {
     expect(chunks.map((c) => c.id)).toEqual(['refunds-de']);
     expect(query).toHaveBeenCalledWith(expect.objectContaining({ filter: { locale: 'de' } }));
     expect(keyword).toHaveBeenCalledWith(expect.objectContaining({ filter: { locale: 'de' } }));
+  });
+
+  it.each([Number.NaN, Infinity])('uses the default topK for non-finite topK: %s', async (topK) => {
+    const embedder = topicEmbedder();
+    const store = await indexed(embedder);
+    const query = vi.spyOn(store, 'query');
+    const keyword = vi.spyOn(store, 'keywordQuery' as never) as unknown as ReturnType<typeof vi.fn>;
+    const chunks = await hybridRetriever({ store, embedder }).retrieve({ text: 'refunds for my order', topK });
+
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({ topK: 20 }));
+    expect(keyword).toHaveBeenCalledWith(expect.objectContaining({ topK: 20 }));
+    expect(chunks.length).toBeGreaterThan(0);
+    expect(chunks[0].source).toBeDefined();
+  });
+
+  it('uses the default candidates for a non-finite candidates option', async () => {
+    const embedder = topicEmbedder();
+    const store = await indexed(embedder);
+    const query = vi.spyOn(store, 'query');
+    const keyword = vi.spyOn(store, 'keywordQuery' as never) as unknown as ReturnType<typeof vi.fn>;
+    const chunks = await hybridRetriever({ store, embedder, candidates: Number.NaN }).retrieve({ text: 'refunds for my order' });
+
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({ topK: 20 }));
+    expect(keyword).toHaveBeenCalledWith(expect.objectContaining({ topK: 20 }));
+    expect(chunks.length).toBeGreaterThan(0);
+    expect(chunks[0].source).toBeDefined();
   });
 
   it('needs a store with keyword search', () => {

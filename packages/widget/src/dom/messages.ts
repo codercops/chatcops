@@ -28,6 +28,7 @@ export interface MessageActions {
   copyLabel?: string;
   copySuccessLabel?: string;
   copyFailureLabel?: string;
+  newReply?: string;
 }
 
 /** How close to the bottom (px) the log has to be for new text to scroll it. */
@@ -62,23 +63,40 @@ export class Messages {
   private typingEl: HTMLDivElement | null = null;
   private suggestionsEl: HTMLDivElement | null = null;
   private disclosureEl: HTMLElement | null = null;
-  private actions?: MessageActions;
+  private actions: MessageActions;
   private announcementVersion = 0;
+  private pill: HTMLButtonElement;
 
-  constructor(parent: HTMLElement, actions?: MessageActions, options: { streamIntervalMs?: number } = {}) {
+  constructor(parent: HTMLElement, actions: MessageActions = {}, options: { streamIntervalMs?: number } = {}) {
     this.actions = actions;
     this.streamIntervalMs = options.streamIntervalMs ?? STREAM_INTERVAL_MS;
-    this.container = document.createElement('div');
-    this.container.className = 'cc-messages';
-    this.container.setAttribute('role', 'log');
-    this.container.setAttribute('aria-live', 'polite');
-    parent.appendChild(this.container);
+    const container = document.createElement('div');
+    this.container = container;
+    container.className = 'cc-messages';
+    container.setAttribute('role', 'log');
+    container.setAttribute('aria-live', 'polite');
+    parent.appendChild(container);
 
     this.announcement = document.createElement('div');
     this.announcement.className = 'cc-reply-announcement cc-sr-only';
     this.announcement.setAttribute('aria-live', 'polite');
     this.announcement.setAttribute('aria-atomic', 'true');
     parent.appendChild(this.announcement);
+
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = 'cc-pill cc-hidden';
+    pill.textContent = this.actions.newReply ?? 'New reply';
+    pill.onclick = () => {
+      const r = pill.getRootNode() as Document;
+      if (r.activeElement === pill) r.querySelector<HTMLElement>('.cc-input')?.focus();
+      this.scrollToBottom(true);
+    };
+    container.onscroll = () => {
+      if (this.nearBottom()) pill.classList.add('cc-hidden');
+    };
+    parent.appendChild(pill);
+    this.pill = pill;
   }
 
   beginReply(): void {
@@ -90,10 +108,10 @@ export class Messages {
   finishReply(msg?: MessageData): void {
     if (msg?.role === 'assistant' && (msg.status === 'complete' || msg.status === 'error')) {
       this.announcementVersion++;
-      const rendered = this.findMessage(msg.id);
-      const content = rendered?.querySelector('.cc-message-content')?.textContent?.trim() ?? '';
-      const error = rendered?.querySelector('.cc-message-error-note')?.textContent?.trim() ?? '';
-      this.announcement.textContent = [content, error && error !== content ? error : ''].filter(Boolean).join(' ');
+      const el = this.findMessage(msg.id);
+      const c = el?.querySelector('.cc-message-content')?.textContent?.trim() ?? '';
+      const e = el?.querySelector('.cc-message-error-note')?.textContent?.trim() ?? '';
+      this.announcement.textContent = c && e && e !== c ? `${c} ${e}` : e || c;
     }
     this.container.setAttribute('aria-live', 'polite');
   }
@@ -103,22 +121,18 @@ export class Messages {
     const el = this.findMessage(id);
     el?.querySelector('.cc-message-waiting')?.remove();
     if (!el || !note) return;
-    const waiting = document.createElement('div');
+    const waiting = el.appendChild(document.createElement('div'));
     waiting.className = 'cc-message-waiting';
     waiting.textContent = note;
-    el.appendChild(waiting);
     this.announcement.textContent = note;
   }
 
   addMessage(msg: MessageData): HTMLDivElement {
-    // The visitor's own message always brings the log down; a reply only
-    // when they haven't scrolled up to read.
     const follow = msg.role === 'user' || this.nearBottom();
     this.removeTyping();
     if (msg.role === 'user') this.removeSuggestions();
-    const el = this.createMessageElement(msg);
-    this.container.appendChild(el);
-    if (follow) this.scrollToBottom();
+    const el = this.container.appendChild(this.createMessageElement(msg));
+    follow ? this.scrollToBottom() : this.pill.classList.remove('cc-hidden');
     return el;
   }
 
@@ -132,7 +146,7 @@ export class Messages {
     this.endStream(msg.id);
     const follow = this.nearBottom();
     this.renderMessageElement(el, msg);
-    if (follow) this.scrollToBottom();
+    follow ? this.scrollToBottom() : this.pill.classList.remove('cc-hidden');
   }
 
   /** Takes the reply's text so far, and renders what changed on the next frame. */
@@ -142,13 +156,11 @@ export class Messages {
       this.endStream(msg.id);
       const content = el.querySelector('.cc-message-content');
       if (!content) return;
-      content.innerHTML = '';
       const tail = document.createElement('div');
       tail.className = 'cc-stream-tail';
-      content.appendChild(tail);
+      content.replaceChildren(tail);
       stream = { text: msg.content, committed: 0, tail, renderedAt: 0 };
       this.streams.set(msg.id, stream);
-      // The first text shows at once; what follows is batched per frame.
       this.renderStream(stream);
       return;
     }
@@ -177,7 +189,7 @@ export class Messages {
       stream.committed = boundary;
     }
     stream.tail.innerHTML = renderMarkdown(stream.text.slice(stream.committed));
-    if (follow) this.scrollToBottom();
+    follow ? this.scrollToBottom() : this.pill.classList.remove('cc-hidden');
   }
 
   private endStream(id: string): void {
@@ -193,37 +205,34 @@ export class Messages {
 
   showTyping(): void {
     if (this.typingEl) return;
-    this.typingEl = document.createElement('div');
+    const dot = '<div class="cc-typing-dot" aria-hidden="true"></div>';
+    this.typingEl = this.container.appendChild(document.createElement('div'));
     this.typingEl.className = 'cc-typing';
-    this.typingEl.innerHTML = `<span class="cc-sr-only">${this.escapeHtml(this.actions?.typingLabel ?? 'Typing...')}</span><div class="cc-typing-dot" aria-hidden="true"></div><div class="cc-typing-dot" aria-hidden="true"></div><div class="cc-typing-dot" aria-hidden="true"></div>`;
-    this.container.appendChild(this.typingEl);
+    this.typingEl.innerHTML = `<span class="cc-sr-only">${this.escapeHtml(this.actions.typingLabel ?? 'Typing...')}</span>${dot}${dot}${dot}`;
     this.scrollToBottom();
   }
 
   removeTyping(): void {
-    if (this.typingEl) {
-      this.typingEl.remove();
-      this.typingEl = null;
-    }
+    this.typingEl?.remove();
+    this.typingEl = null;
   }
 
   showSuggestions(suggestions: string[], label: string, onSelect: (suggestion: string) => void): void {
     this.removeSuggestions();
-    if (suggestions.length === 0) return;
+    if (!suggestions.length) return;
 
-    const group = document.createElement('div');
+    const group = this.container.appendChild(document.createElement('div'));
     group.className = 'cc-suggestions';
     group.setAttribute('role', 'group');
     group.setAttribute('aria-label', label);
-    for (const suggestion of suggestions) {
+    for (const text of suggestions) {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'cc-suggestion';
-      button.textContent = suggestion;
-      button.addEventListener('click', () => onSelect(suggestion));
+      button.textContent = text;
+      button.onclick = () => onSelect(text);
       group.appendChild(button);
     }
-    this.container.appendChild(group);
     this.suggestionsEl = group;
   }
 
@@ -234,9 +243,10 @@ export class Messages {
 
   clear(): void {
     this.announcementVersion++;
-    for (const id of [...this.streams.keys()]) this.endStream(id);
+    for (const id of this.streams.keys()) this.endStream(id);
     this.container.innerHTML = '';
     this.typingEl = null;
+    this.pill.classList.add('cc-hidden');
     // A new conversation starts with the disclosure too.
     if (this.disclosureEl) this.container.prepend(this.disclosureEl);
   }
@@ -254,12 +264,12 @@ export class Messages {
     note.setAttribute('role', 'note');
     note.textContent = text;
     if (learnMore && /^https?:\/\//i.test(learnMore.url)) {
-      const link = document.createElement('a');
-      link.href = learnMore.url;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      link.textContent = learnMore.label;
-      note.append(' ', link);
+      const a = document.createElement('a');
+      a.href = learnMore.url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = learnMore.label;
+      note.append(' ', a);
     }
     this.disclosureEl = note;
     this.container.prepend(note);
@@ -267,45 +277,47 @@ export class Messages {
 
   removeMessage(id: string): void {
     this.endStream(id);
-    const el = this.findMessage(id);
-    el?.remove();
+    this.findMessage(id)?.remove();
   }
 
   clearRegenerateButtons(): void {
-    this.container.querySelectorAll('.cc-message-regenerate').forEach((button) => {
-      button.remove();
-    });
+    for (const b of this.container.querySelectorAll('.cc-message-regenerate')) b.remove();
     this.cleanupEmptyActionContainers();
   }
 
   showRegenerateButton(messageId: string): void {
     this.clearRegenerateButtons();
-
-    if (!this.actions?.onRegenerate) return;
-
     const msgEl = this.findMessage(messageId);
-    if (!msgEl || !msgEl.classList.contains('cc-message-assistant')) return;
-
-    const actions = this.ensureActionsContainer(msgEl);
-    actions.appendChild(this.createActionButton({
-      className: 'cc-message-regenerate',
-      label: this.actions.regenerateLabel ?? 'Regenerate',
-      icon: REGENERATE_ICON,
-      onClick: () => this.actions?.onRegenerate?.(messageId),
-    }));
+    if (this.actions.onRegenerate && msgEl?.classList.contains('cc-message-assistant')) {
+      this.createActionButton(
+        this.ensureActionsContainer(msgEl),
+        'cc-message-regenerate',
+        this.actions.regenerateLabel ?? 'Regenerate',
+        REGENERATE_ICON,
+        () => this.actions.onRegenerate?.(messageId),
+      );
+    }
   }
 
   setVisible(visible: boolean): void {
     this.container.classList.toggle('cc-hidden', !visible);
+    if (!visible) this.pill.classList.add('cc-hidden');
   }
 
   private findMessage(id: string): HTMLDivElement | null {
-    const found = Array.from(this.container.children).find((el) => (el as HTMLElement).dataset.id === id);
-    return (found as HTMLDivElement | undefined) ?? null;
+    for (const el of this.container.children) {
+      if ((el as HTMLElement).dataset?.id === id) return el as HTMLDivElement;
+    }
+    return null;
   }
 
-  private scrollToBottom(): void {
-    this.container.scrollTop = this.container.scrollHeight;
+  private scrollToBottom(smooth = false): void {
+    if (smooth && !matchMedia?.('(prefers-reduced-motion: reduce)')?.matches && this.container.scrollTo) {
+      this.container.scrollTo({ top: this.container.scrollHeight, behavior: 'smooth' });
+    } else {
+      this.container.scrollTop = this.container.scrollHeight;
+    }
+    this.pill.classList.add('cc-hidden');
   }
 
   private createMessageElement(msg: MessageData): HTMLDivElement {
@@ -317,158 +329,114 @@ export class Messages {
   private renderMessageElement(el: HTMLDivElement, msg: MessageData): void {
     el.className = `cc-message cc-message-${msg.role}`;
     el.dataset.id = msg.id;
-    if (msg.role === 'assistant' && msg.id !== 'welcome') {
-      el.dataset.aiGenerated = 'true';
-    }
-
-    if (msg.status) {
-      el.dataset.status = msg.status;
-    } else {
-      delete el.dataset.status;
-    }
-
-    if (msg.status === 'streaming') {
-      el.setAttribute('aria-busy', 'true');
-    } else {
-      el.removeAttribute('aria-busy');
-    }
-
-    if (msg.errorType) {
-      el.dataset.errorType = msg.errorType;
-    } else {
-      delete el.dataset.errorType;
-    }
+    if (msg.role === 'assistant' && msg.id !== 'welcome') el.dataset.aiGenerated = 'true';
+    if (msg.status) el.dataset.status = msg.status;
+    else delete el.dataset.status;
+    if (msg.status === 'streaming') el.setAttribute('aria-busy', 'true');
+    else el.removeAttribute('aria-busy');
+    if (msg.errorType) el.dataset.errorType = msg.errorType;
+    else delete el.dataset.errorType;
 
     el.innerHTML = '';
 
-    const content = document.createElement('div');
+    const content = el.appendChild(document.createElement('div'));
     content.className = 'cc-message-content';
     content.innerHTML = msg.role === 'assistant' ? renderMarkdown(msg.content) : this.escapeHtml(msg.content);
-    el.appendChild(content);
 
-    if (msg.role === 'assistant' && Array.isArray(msg.sources) && msg.sources.length > 0) {
-      const safeUrls = msg.sources.filter((s) => typeof s.url === 'string' && (s.url.startsWith('http://') || s.url.startsWith('https://')));
-      if (safeUrls.length > 0) {
-        const nav = document.createElement('nav');
+    if (msg.role === 'assistant' && msg.sources?.length) {
+      const safe = msg.sources.filter((s) => typeof s.url === 'string' && /^https?:\/\//i.test(s.url));
+      if (safe.length) {
+        const nav = el.appendChild(document.createElement('nav'));
         nav.className = 'cc-message-sources';
-        nav.setAttribute('aria-label', this.actions?.sourcesLabel ?? 'Sources');
-        const ol = document.createElement('ol');
-        for (const source of safeUrls) {
-          const li = document.createElement('li');
-          const a = document.createElement('a');
-          a.href = source.url;
+        nav.setAttribute('aria-label', this.actions.sourcesLabel ?? 'Sources');
+        const ol = nav.appendChild(document.createElement('ol'));
+        for (const { url, title } of safe) {
+          const a = ol.appendChild(document.createElement('li')).appendChild(document.createElement('a'));
+          a.href = url;
           a.target = '_blank';
           a.rel = 'noopener noreferrer';
           try {
-            a.textContent = source.title ?? new URL(source.url).hostname;
+            a.textContent = title ?? new URL(url).hostname;
           } catch {
-            a.textContent = source.title ?? source.url;
+            a.textContent = title ?? url;
           }
-          li.appendChild(a);
-          ol.appendChild(li);
         }
-        nav.appendChild(ol);
-        el.appendChild(nav);
       }
     }
 
     if (msg.status === 'error' && msg.errorText) {
-      const note = document.createElement('div');
+      const note = el.appendChild(document.createElement('div'));
       note.className = 'cc-message-error-note';
       note.textContent = msg.errorText;
-      el.appendChild(note);
     }
 
     const actions = this.createActionsContainer(msg);
-    if (actions) {
-      el.appendChild(actions);
-    }
+    if (actions) el.appendChild(actions);
   }
 
   private createActionsContainer(msg: MessageData): HTMLDivElement | null {
-    const canCopy = msg.role === 'assistant' && msg.id !== 'welcome' && msg.status !== 'streaming' && msg.status !== 'error' && msg.content.trim() !== '';
-    const canRetry = msg.status === 'error' && this.actions?.onRetry;
-    if (!canCopy && !canRetry) {
-      return null;
-    }
+    const canCopy = msg.role === 'assistant' && msg.id !== 'welcome' && msg.status !== 'streaming' && msg.status !== 'error' && msg.content.trim();
+    const canRetry = msg.status === 'error' && this.actions.onRetry;
+    if (!canCopy && !canRetry) return null;
 
     const actions = document.createElement('div');
     actions.className = 'cc-message-actions';
     if (canCopy) {
-      actions.appendChild(this.createActionButton({
-        className: 'cc-message-copy',
-        label: this.actions?.copyLabel ?? 'Copy reply',
-        icon: COPY_ICON,
-        onClick: () => this.copyReply(msg.id),
-      }));
+      this.createActionButton(
+        actions,
+        'cc-message-copy',
+        this.actions.copyLabel ?? 'Copy reply',
+        COPY_ICON,
+        () => this.copyReply(msg.id),
+      );
     }
     if (canRetry) {
-      actions.appendChild(this.createActionButton({
-        className: 'cc-message-retry',
-        label: this.actions?.retryLabel ?? 'Retry',
-        icon: RETRY_ICON,
-        onClick: () => this.actions?.onRetry?.(msg.id),
-      }));
+      this.createActionButton(
+        actions,
+        'cc-message-retry',
+        this.actions.retryLabel ?? 'Retry',
+        RETRY_ICON,
+        () => this.actions.onRetry?.(msg.id),
+      );
     }
     return actions;
   }
 
-  /** Start the clipboard write in the click handler so it keeps user activation. */
   private copyReply(messageId: string): void {
-    const content = this.findMessage(messageId)?.querySelector<HTMLElement>('.cc-message-content');
-    const text = content?.innerText.trim() ?? '';
-    const version = this.announcementVersion;
-    const announce = (message: string) => {
-      if (version === this.announcementVersion) this.announcement.textContent = message;
+    const text = this.findMessage(messageId)?.querySelector<HTMLElement>('.cc-message-content')?.innerText.trim();
+    const v = this.announcementVersion;
+    const fail = () => {
+      if (v === this.announcementVersion) this.announcement.textContent = this.actions.copyFailureLabel ?? 'Could not copy reply.';
     };
-
-    try {
-      const clipboard = navigator.clipboard;
-      if (!clipboard?.writeText || !text) {
-        announce(this.actions?.copyFailureLabel ?? 'Could not copy reply.');
-        return;
-      }
-      Promise.resolve(clipboard.writeText(text)).then(
-        () => announce(this.actions?.copySuccessLabel ?? 'Reply copied.'),
-        () => announce(this.actions?.copyFailureLabel ?? 'Could not copy reply.'),
-      );
-    } catch {
-      announce(this.actions?.copyFailureLabel ?? 'Could not copy reply.');
-    }
+    !text || !navigator.clipboard?.writeText
+      ? fail()
+      : navigator.clipboard.writeText(text)
+          .then(() => {
+            if (v === this.announcementVersion) this.announcement.textContent = this.actions.copySuccessLabel ?? 'Reply copied.';
+          })
+          .catch(fail);
   }
 
   private ensureActionsContainer(msgEl: HTMLDivElement): HTMLDivElement {
-    const existing = msgEl.querySelector('.cc-message-actions') as HTMLDivElement | null;
-    if (existing) {
-      return existing;
+    let el = msgEl.querySelector<HTMLDivElement>('.cc-message-actions');
+    if (!el) {
+      el = msgEl.appendChild(document.createElement('div'));
+      el.className = 'cc-message-actions';
     }
-
-    const actions = document.createElement('div');
-    actions.className = 'cc-message-actions';
-    msgEl.appendChild(actions);
-    return actions;
+    return el;
   }
 
   private cleanupEmptyActionContainers(): void {
-    this.container.querySelectorAll('.cc-message-actions').forEach((container) => {
-      if (!container.hasChildNodes()) {
-        container.remove();
-      }
-    });
+    for (const el of this.container.querySelectorAll('.cc-message-actions:empty')) el.remove();
   }
 
-  private createActionButton(options: {
-    className: string;
-    label: string;
-    icon: string;
-    onClick: () => void;
-  }): HTMLButtonElement {
+  private createActionButton(parent: HTMLElement, className: string, label: string, icon: string, onClick: () => void): void {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = options.className;
-    button.innerHTML = `${options.icon}<span>${this.escapeHtml(options.label)}</span>`;
-    button.addEventListener('click', options.onClick);
-    return button;
+    button.className = className;
+    button.innerHTML = `${icon}<span>${this.escapeHtml(label)}</span>`;
+    button.onclick = onClick;
+    parent.appendChild(button);
   }
 
   private escapeHtml(text: string): string {
@@ -503,12 +471,10 @@ export function lastBlockBoundary(text: string, from: number): number {
 }
 
 /** Whether `next` is `previous` with more text after it. Checks the end only, so it stays cheap on long replies. */
-function appended(previous: string, next: string): boolean {
-  if (next.length < previous.length) return false;
-  const from = Math.max(0, previous.length - 32);
-  return next.slice(from, previous.length) === previous.slice(from);
+function appended(prev: string, next: string): boolean {
+  const from = Math.max(0, prev.length - 32);
+  return next.length >= prev.length && next.slice(from, prev.length) === prev.slice(from);
 }
 
-const nextFrame = (fn: () => void): number =>
-  typeof requestAnimationFrame === 'function' ? requestAnimationFrame(fn) : (setTimeout(fn, 16) as unknown as number);
-const cancelFrame = (id: number): void => (typeof cancelAnimationFrame === 'function' ? cancelAnimationFrame(id) : clearTimeout(id));
+const nextFrame = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn: () => void) => setTimeout(fn, 16) as unknown as number;
+const cancelFrame = typeof cancelAnimationFrame === 'function' ? cancelAnimationFrame : (id: number) => clearTimeout(id);
