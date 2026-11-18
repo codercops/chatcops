@@ -144,6 +144,10 @@ for (const look of looks) {
       await openChat(page);
       await expect(page.locator('.cc-prechat')).toBeVisible();
       await expectAccessible(page);
+      // Press Start Chat on empty form, check focus and run axe.
+      await page.locator('.cc-prechat button[type="submit"]').click();
+      await expect(page.getByRole('textbox', { name: 'Name' })).toBeFocused();
+      await expectAccessible(page);
       // A wrong email: the error shows next to the field, and is still accessible.
       await page.getByRole('textbox', { name: 'Name' }).fill('Sam');
       await page.getByRole('textbox', { name: 'Email' }).fill('not an email');
