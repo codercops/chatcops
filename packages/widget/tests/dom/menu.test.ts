@@ -82,15 +82,36 @@ describe('HeaderMenu', () => {
     menu.el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     expect(onNewConversation).toHaveBeenCalledOnce();
     expect(menu.isOpen).toBe(false);
+    expect(root.activeElement).toBe(moreBtn);
 
     menu.open();
     menu.el.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
     menu.el.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
     expect(onDownloadTranscript).toHaveBeenCalledOnce();
+    expect(root.activeElement).toBe(moreBtn);
 
     menu.open();
     const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
     menu.el.dispatchEvent(event);
+    expect(menu.isOpen).toBe(false);
+    expect(root.activeElement).toBe(moreBtn);
+  });
+
+  it('returns focus to the More options button after a click', () => {
+    const onNewConversation = vi.fn();
+    const menu = new HeaderMenu(moreBtn, {
+      moreLabel: 'More options',
+      newConversationLabel: 'New conversation',
+      downloadTranscriptLabel: 'Download transcript',
+      privacyLabel: 'Privacy',
+      onNewConversation,
+    });
+    root.appendChild(menu.el);
+    menu.open();
+
+    menu.items[0].click();
+
+    expect(onNewConversation).toHaveBeenCalledOnce();
     expect(menu.isOpen).toBe(false);
     expect(root.activeElement).toBe(moreBtn);
   });

@@ -378,6 +378,7 @@ export class Widget {
     this.panel.setBodyVisible(false);
     const notice = document.createElement('div');
     notice.className = 'cc-consent';
+    notice.setAttribute('tabindex', '-1');
     notice.textContent = this.locale.consentNotice;
     const { onConsentRequest } = this.config;
     if (onConsentRequest) {
@@ -426,6 +427,7 @@ export class Widget {
     this.hydrate();
     this.panel.show();
     if (!this.isInline) {
+      if (this.consentEl?.isConnected) this.consentEl.focus();
       this.fab?.setOpen(true);
       this.bubble?.hide();
     }
