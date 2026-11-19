@@ -5,6 +5,10 @@ import { MANGLED_PROPERTIES } from './mangle';
 
 const { version } = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf8')) as { version: string };
 
+// Node 25 turned on its own localStorage, which hides happy-dom's in the tests
+// ("localStorage.clear is not a function"). Older versions don't have it on.
+const nodeMajor = Number(process.versions.node.split('.')[0]);
+
 export default defineConfig({
   define: { __CHATCOPS_VERSION__: JSON.stringify(version) },
   build: {
@@ -37,6 +41,7 @@ export default defineConfig({
   },
   test: {
     environment: 'happy-dom',
+    execArgv: nodeMajor >= 25 ? ['--no-experimental-webstorage'] : [],
     // Type-level tests: the protocol types the widget copies from core.
     typecheck: {
       enabled: true,

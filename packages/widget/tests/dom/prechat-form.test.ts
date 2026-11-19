@@ -81,7 +81,9 @@ describe('PreChatForm', () => {
       const emailLabel = labels[1];
       const topicLabel = labels[2];
 
-      expect(nameLabel.querySelector('.cc-required')).toBeTruthy();
+      const nameReq = nameLabel.querySelector('.cc-required');
+      expect(nameReq).toBeTruthy();
+      expect(nameReq?.getAttribute('aria-hidden')).toBe('true');
       expect(emailLabel.querySelector('.cc-required')).toBeTruthy();
       expect(topicLabel.querySelector('.cc-required')).toBeNull();
     });
@@ -133,25 +135,45 @@ describe('PreChatForm', () => {
       expect(nameError.textContent).toBe('');
     });
 
-    it('disables submit when required fields are empty', () => {
-      createForm(parent);
+    it('keeps submit enabled and focuses the first invalid field on submit', () => {
+      const onSubmit = vi.fn();
+      createForm(parent, [], onSubmit);
+
       const btn = parent.querySelector('.cc-prechat-submit') as HTMLButtonElement;
-      expect(btn.disabled).toBe(true);
+      expect(btn.disabled).toBe(false);
+
+      const form = parent.querySelector('form') as HTMLFormElement;
+      form.dispatchEvent(new Event('submit', { cancelable: true }));
+
+      const errors = parent.querySelectorAll('.cc-prechat-error');
+      expect(errors[0].textContent).toBe('This field is required');
+      expect(errors[1].textContent).toBe('This field is required');
+
+      const nameInput = parent.querySelector('input[name="name"]') as HTMLInputElement;
+      expect(document.activeElement).toBe(nameInput);
+      expect(onSubmit).not.toHaveBeenCalled();
     });
 
-    it('enables submit when all required fields are filled', () => {
-      createForm(parent);
+    it('focuses the first empty required field when an earlier field is filled', () => {
+      const onSubmit = vi.fn();
+      createForm(parent, [], onSubmit);
 
       const nameInput = parent.querySelector('input[name="name"]') as HTMLInputElement;
       const emailInput = parent.querySelector('input[name="email"]') as HTMLInputElement;
 
       nameInput.value = 'Alice';
       nameInput.dispatchEvent(new Event('input'));
-      expect((parent.querySelector('.cc-prechat-submit') as HTMLButtonElement).disabled).toBe(true);
-
-      emailInput.value = 'alice@example.com';
-      emailInput.dispatchEvent(new Event('input'));
       expect((parent.querySelector('.cc-prechat-submit') as HTMLButtonElement).disabled).toBe(false);
+
+      const form = parent.querySelector('form') as HTMLFormElement;
+      form.dispatchEvent(new Event('submit', { cancelable: true }));
+
+      const errors = parent.querySelectorAll('.cc-prechat-error');
+      expect(errors[0].textContent).toBe('');
+      expect(errors[1].textContent).toBe('This field is required');
+
+      expect(document.activeElement).toBe(emailInput);
+      expect(onSubmit).not.toHaveBeenCalled();
     });
   });
 
@@ -174,6 +196,7 @@ describe('PreChatForm', () => {
       const errors = parent.querySelectorAll('.cc-prechat-error');
       const emailError = errors[1];
       expect(emailError.textContent).toBe('Please enter a valid email');
+      expect(document.activeElement).toBe(emailInput);
       expect(onSubmit).not.toHaveBeenCalled();
     });
 

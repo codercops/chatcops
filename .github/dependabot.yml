@@ -5,10 +5,15 @@
 # Merging one of these PRs: add a changeset for @chatcops/core (`pnpm changeset`)
 # so the new SDK version reaches npm, and run the live provider check if the
 # bump is a new major.
+#
+# The SDKs are dependencies of packages/core, but the directory is the repo
+# root: that's where pnpm-lock.yaml and pnpm-workspace.yaml are, and an update
+# job pointed at packages/core can't see them, so its PRs change package.json
+# without the lockfile and fail at install (#592, #621).
 version: 2
 updates:
   - package-ecosystem: npm
-    directory: /packages/core
+    directory: /
     schedule:
       interval: weekly
       day: monday
