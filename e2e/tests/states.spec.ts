@@ -144,6 +144,10 @@ for (const look of looks) {
       await openChat(page);
       await expect(page.locator('.cc-prechat')).toBeVisible();
       await expectAccessible(page);
+      // Press Start Chat on empty form, check focus and run axe.
+      await page.locator('.cc-prechat button[type="submit"]').click();
+      await expect(page.getByRole('textbox', { name: 'Name' })).toBeFocused();
+      await expectAccessible(page);
       // A wrong email: the error shows next to the field, and is still accessible.
       await page.getByRole('textbox', { name: 'Name' }).fill('Sam');
       await page.getByRole('textbox', { name: 'Email' }).fill('not an email');
@@ -271,9 +275,11 @@ for (const look of looks) {
       await openChat(page);
       await expect(page.locator('.cc-consent')).toBeVisible();
       await expect(page.locator('.cc-consent-btn')).toBeVisible();
-      await page.locator('.cc-consent-btn').focus();
-      await expect(page.locator('.cc-consent-btn')).toBeFocused();
+      await expect(page.locator('.cc-consent')).toBeFocused();
       await expectAccessible(page);
+
+      await page.keyboard.press('Escape');
+      await expect(page.locator(panel)).not.toHaveClass(/cc-visible/);
     });
 
     test('header menu with keyboard navigation and New conversation', async ({ page }) => {
@@ -297,6 +303,7 @@ for (const look of looks) {
       await page.keyboard.press('Enter');
       await expect(menu).not.toBeVisible();
       await expect(moreBtn).toHaveAttribute('aria-expanded', 'false');
+      await expect(moreBtn).toBeFocused();
 
       await expect(page.locator('.cc-message-user')).toHaveCount(0);
     });

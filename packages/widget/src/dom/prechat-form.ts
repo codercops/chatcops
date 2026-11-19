@@ -68,8 +68,6 @@ export class PreChatForm {
     parent.appendChild(this.container);
     addStyles(parent.getRootNode(), options.nonce);
 
-    this.updateSubmitState();
-
     const firstInput = this.fieldElements.values().next().value;
     if (firstInput && options.autoFocus !== false) {
       setTimeout(() => firstInput.focus(), 100);
@@ -90,6 +88,7 @@ export class PreChatForm {
     if (field.required) {
       const req = document.createElement('span');
       req.className = 'cc-required';
+      req.setAttribute('aria-hidden', 'true');
       req.textContent = '*';
       label.appendChild(req);
     }
@@ -137,12 +136,10 @@ export class PreChatForm {
     }
     input.addEventListener('input', () => {
       this.clearError(field.name);
-      this.updateSubmitState();
     });
     if (input instanceof HTMLSelectElement) {
       input.addEventListener('change', () => {
         this.clearError(field.name);
-        this.updateSubmitState();
       });
     }
     wrapper.appendChild(input);
@@ -157,18 +154,10 @@ export class PreChatForm {
     return wrapper;
   }
 
-  private updateSubmitState(): void {
-    const allRequiredFilled = this.options.fields.every((field) => {
-      if (!field.required) return true;
-      const el = this.fieldElements.get(field.name);
-      return el ? el.value.trim().length > 0 : false;
-    });
-    this.submitBtn.disabled = !allRequiredFilled;
-  }
-
   private handleSubmit(): void {
     const data: Record<string, string> = {};
     let valid = true;
+    let firstInvalid: HTMLElement | null = null;
 
     for (const field of this.options.fields) {
       const el = this.fieldElements.get(field.name);
@@ -179,18 +168,23 @@ export class PreChatForm {
       if (field.required && !value) {
         this.showError(field.name, this.options.locale.preChatRequired);
         valid = false;
+        firstInvalid ??= el;
         continue;
       }
 
       if (field.type === 'email' && value && !this.isValidEmail(value)) {
         this.showError(field.name, this.options.locale.preChatInvalidEmail);
         valid = false;
+        firstInvalid ??= el;
       }
     }
 
-    if (valid) {
-      this.options.onSubmit(data);
+    if (!valid) {
+      firstInvalid?.focus();
+      return;
     }
+
+    this.options.onSubmit(data);
   }
 
   private showError(fieldName: string, message: string): void {

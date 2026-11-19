@@ -28,7 +28,7 @@ export const CHECKED = [
   'markFailed', 'nearBottom', 'pageData', 'panelLabels', 'renderDisclosure', 'renderHeader', 'renderMessageElement',
   'renderStream', 'renderSuggestions', 'resolveContainer', 'resolveErrorType', 'restoreScroll', 'saveHistory',
   'scrollToBottom', 'sendToServer', 'sessionKey', 'setHidden', 'showChatView', 'showError',
-  'showLatestRegenerateButton', 'streams', 'submitBtn', 'ttlMs', 'updateSubmitState', 'userDataSentWith', 'userFromSite',
+  'showLatestRegenerateButton', 'streams', 'submitBtn', 'ttlMs', 'userDataSentWith', 'userFromSite',
 ];
 
 export const MANGLED_PROPERTIES = new RegExp(`^(?:${[...EARLIER, ...CHECKED].join('|')})$`);
