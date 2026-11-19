@@ -311,6 +311,37 @@ describe('Widget', () => {
       expect(bubbleOf(widget).classList.contains('cc-visible')).toBe(true);
       widget.destroy();
     });
+
+    it('shows the default text when welcomeBubble text is omitted, including translated strings', () => {
+      const { widget } = start({ welcomeBubble: {} });
+      vi.advanceTimersByTime(3001);
+      const bubble = bubbleOf(widget);
+      expect(bubble.classList.contains('cc-visible')).toBe(true);
+      expect(bubble.querySelector('.cc-bubble-trigger')?.textContent).toBe('Need help? Chat with us!');
+      widget.destroy();
+
+      localStorage.clear();
+      const translated = start({
+        welcomeBubble: {},
+        strings: { welcomeBubbleDefault: 'Brauchen Sie Hilfe? Schreiben Sie uns!' },
+      });
+      vi.advanceTimersByTime(3001);
+      const translatedBubble = bubbleOf(translated.widget);
+      expect(translatedBubble.classList.contains('cc-visible')).toBe(true);
+      expect(translatedBubble.querySelector('.cc-bubble-trigger')?.textContent).toBe(
+        'Brauchen Sie Hilfe? Schreiben Sie uns!'
+      );
+      translated.widget.destroy();
+
+      localStorage.clear();
+      const delayed = start({ welcomeBubble: { delay: 5000 } });
+      vi.advanceTimersByTime(4999);
+      expect(bubbleOf(delayed.widget).classList.contains('cc-visible')).toBe(false);
+      vi.advanceTimersByTime(2);
+      expect(bubbleOf(delayed.widget).classList.contains('cc-visible')).toBe(true);
+      expect(bubbleOf(delayed.widget).querySelector('.cc-bubble-trigger')?.textContent).toBe('Need help? Chat with us!');
+      delayed.widget.destroy();
+    });
   });
 
   it.each(['bottom-right', 'bottom-left'] as const)(

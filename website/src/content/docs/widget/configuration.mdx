@@ -307,7 +307,7 @@ interface WidgetConfig {
   };
   suggestions?: string[];     // Suggested question buttons shown in a new conversation
   welcomeBubble?: {           // Popup mode only
-    text: string;             // Text shown on hover bubble
+    text?: string;            // Text shown on bubble, default: welcomeBubbleDefault
     delay?: number;           // ms before bubble appears, 0 to 2147483647 (about 24.8 days), default: 3000. A larger number waits that long; NaN, a negative or a non-number uses the default
     showOnce?: boolean;       // Show only once (default: true): per browser with 'local' persistence, per tab with 'session', every page load with 'none'
   };
@@ -372,7 +372,7 @@ See the [pre-chat form guide](/widget/pre-chat-form) for field behavior, validat
 | `data-disclosure` | `disclosure` | `"false"` turns the AI disclosure off |
 | `data-disclosure-text` | `disclosure.text` | Wording of the AI disclosure |
 | `data-disclosure-url` | `disclosure.learnMoreUrl` | "Learn more" link in the AI disclosure |
-| `data-welcome-bubble` | `welcomeBubble.text` | Welcome bubble text |
+| `data-welcome-bubble` | `welcomeBubble.text` | Welcome bubble text; an empty value enables the bubble with default text |
 | `data-welcome-bubble-delay` | `welcomeBubble.delay` | Bubble delay in ms (0–2147483647) |
 | `data-placeholder` | `placeholder` | Input placeholder |
 | `data-auto-open` | `autoOpen` | Auto-open delay in ms (0–2147483647) or `true`; invalid values are ignored |

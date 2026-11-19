@@ -54,9 +54,9 @@ export function configFromScript(script: HTMLScriptElement): WidgetConfig | unde
       subtitle: script.dataset.brandSubtitle,
     },
     welcomeMessage: script.dataset.welcomeMessage,
-    welcomeBubble: script.dataset.welcomeBubble
+    welcomeBubble: script.dataset.welcomeBubble != null
       ? {
-          text: script.dataset.welcomeBubble,
+          text: script.dataset.welcomeBubble || undefined,
           delay: /^\d+$/.test(script.dataset.welcomeBubbleDelay ?? '') ? Number(script.dataset.welcomeBubbleDelay) : undefined,
         }
       : undefined,

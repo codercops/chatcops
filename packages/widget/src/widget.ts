@@ -83,7 +83,7 @@ export interface WidgetConfig {
   disclosure?: false | { text?: string; learnMoreUrl?: string };
   suggestions?: string[];
   welcomeBubble?: {
-    text: string;
+    text?: string;
     delay?: number;
     showOnce?: boolean;
   };
@@ -331,7 +331,7 @@ export class Widget {
   private createBubble(): void {
     if (this.isInline || this.bubble || !this.config.welcomeBubble) return;
     this.bubble = new WelcomeBubble(this.shadow, {
-      text: this.config.welcomeBubble.text,
+      text: this.config.welcomeBubble.text || this.locale.welcomeBubbleDefault,
       delay: this.config.welcomeBubble.delay,
       showOnce: this.config.welcomeBubble.showOnce ?? true,
       store: this.storage.store,

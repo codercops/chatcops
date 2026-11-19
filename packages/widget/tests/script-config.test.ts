@@ -131,6 +131,14 @@ describe('configFromScript', () => {
     expect(config).toMatchObject({ apiUrl: '/api/chat', mode: undefined, container: undefined, welcomeBubble: undefined, autoOpen: undefined });
   });
 
+  it('enables the bubble with default text when data-welcome-bubble is empty, and shows no bubble without the attribute', () => {
+    const withEmpty = configFromScript(script({ apiUrl: '/api/chat', welcomeBubble: '' }));
+    expect(withEmpty?.welcomeBubble).toEqual({ text: undefined, delay: undefined });
+
+    const without = configFromScript(script({ apiUrl: '/api/chat' }));
+    expect(without?.welcomeBubble).toBeUndefined();
+  });
+
   it('reads the nonce property from a script tag', () => {
     const tag = script({ apiUrl: '/api/chat' });
     tag.nonce = 'request-nonce';
