@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createLoader, localeUrlFor, panelUrlFor, type PanelModule } from '../src/loader/loader.js';
-import { Widget } from '../src/widget.js';
+import { Widget, type WidgetConfig } from '../src/widget.js';
 
 /** The panel chunk, as the loader would import it, with a way to hold or fail the load. */
 function panel() {
@@ -433,6 +433,28 @@ describe('translations in the loader', () => {
     loader.open();
     await settle();
     expect(welcome()).toContain('How can I help you today?');
+    loader.destroy();
+  });
+
+  it('passes the loaded translation via strings when the welcome bubble is due', async () => {
+    vi.useFakeTimers();
+    let passedConfig: WidgetConfig | undefined;
+    class SpiedWidget extends Widget {
+      constructor(config: WidgetConfig) {
+        super(config);
+        passedConfig = config;
+      }
+    }
+    const load = vi.fn(() => Promise.resolve({ Widget: SpiedWidget as unknown as typeof Widget }));
+    const loadLocale = vi.fn(() => Promise.resolve({ default: { welcomeBubbleDefault: 'Brauchen Sie Hilfe?' } }));
+    const loader = createLoader(load, loadLocale);
+    loader.init({ apiUrl: 'https://api.test/chat', locale: 'de', welcomeBubble: {} });
+
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(loadLocale).toHaveBeenCalledWith('de');
+    expect(passedConfig?.strings).toEqual(expect.objectContaining({ welcomeBubbleDefault: 'Brauchen Sie Hilfe?' }));
+    const bubble = shadow()?.querySelector('.cc-bubble');
+    expect(bubble?.querySelector('.cc-bubble-trigger')?.textContent).toBe('Brauchen Sie Hilfe?');
     loader.destroy();
   });
 });

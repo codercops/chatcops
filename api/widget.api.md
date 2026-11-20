@@ -136,7 +136,7 @@ export interface WidgetConfig {
     welcomeBubble?: {
         delay?: number;
         showOnce?: boolean;
-        text: string;
+        text?: string;
     };
     placeholder?: string;
     persistence?: Persistence;
