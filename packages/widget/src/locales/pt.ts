@@ -4,6 +4,7 @@ const pt: Partial<WidgetLocaleStrings> = {
   welcomeMessage: 'Como posso ajudar você hoje?',
   inputPlaceholder: 'Digite uma mensagem…',
   sendButton: 'Enviar',
+  stopButton: 'Parar',
   closeButton: 'Fechar',
   openChat: 'Abrir chat',
   defaultName: 'Assistente de IA',
@@ -28,6 +29,7 @@ const pt: Partial<WidgetLocaleStrings> = {
   preChatSubmit: 'Iniciar chat',
   preChatRequired: 'Este campo é obrigatório.',
   preChatInvalidEmail: 'Insira um e-mail válido.',
+  messageWaiting: 'Será enviado quando você voltar a ficar online',
   retryButton: 'Tentar novamente',
   regenerateButton: 'Gerar novamente',
   copyButton: 'Copiar resposta',
@@ -38,6 +40,12 @@ const pt: Partial<WidgetLocaleStrings> = {
   sourcesLabel: 'Fontes',
   disclosure: 'Você está conversando com um assistente de IA. Ele pode cometer erros.',
   disclosureLearnMore: 'Saiba mais',
+  consentNotice: 'O chat estará disponível depois que você aceitar os cookies funcionais.',
+  consentButton: 'Configurações de cookies',
+  moreButton: 'Mais opções',
+  downloadTranscript: 'Baixar transcrição',
+  privacy: 'Privacidade',
+  newReply: 'Nova resposta',
 };
 
 export default pt;

@@ -24,7 +24,7 @@ export function cohereReranker(options: CohereRerankerOptions): Reranker {
   return {
     async rerank(query, chunks, topN, rerankOptions = {}) {
       const limit = Math.floor(topN);
-      if (chunks.length === 0 || limit <= 0) return [];
+      if (chunks.length === 0 || !(limit > 0)) return [];
 
       const response = await postWithRetries(
         'Cohere',

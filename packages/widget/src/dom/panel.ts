@@ -180,7 +180,8 @@ export class Panel {
     const closeHadFocus = !inline && this.header.contains(active) && !moreHadFocus;
 
     this.header.replaceChildren();
-    if (!inline) this.el.setAttribute('aria-label', branding.name);
+    this.el.setAttribute('aria-label', branding.name);
+    if (inline) this.el.setAttribute('role', 'region');
 
     if (branding.avatar) {
       const img = document.createElement('img');

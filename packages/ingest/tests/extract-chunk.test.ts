@@ -93,6 +93,40 @@ describe('chunkDoc', () => {
     expect(chunks.map((c) => c.index)).toEqual([0, 1, 2, 3]);
   });
 
+  // A closing sequence of `#` is only one when a space comes before it (CommonMark), so the # of C# or F# is the title's.
+  it.each([
+    ['## Using C#', 'Using C#'],
+    ['## F#', 'F#'],
+    ['# C#', 'C#'],
+    ['### Why C# and F# matter', 'Why C# and F# matter'],
+    ['## A #B', 'A #B'],
+    ['## C##', 'C##'],
+    ['## Version 2#', 'Version 2#'],
+    ['## What is C#?', 'What is C#?'],
+    ['## Learn C# ##', 'Learn C#'],
+    ['## C# ##', 'C#'],
+    ['### Notes ###', 'Notes'],
+    ['## Title   ##   ', 'Title'],
+    ['## Issue #', 'Issue'],
+    ['## Setup #', 'Setup'],
+    ['## Setup', 'Setup'],
+    ['##   Spaced   ', 'Spaced'],
+  ])('reads the heading %j as %j', (heading, title) => {
+    const [chunk] = chunkDoc(doc(`${heading}\n\nSome text.`));
+    expect(chunk.section).toBe(title);
+    expect(chunk.text).toBe(`Guide > ${title}\n\nSome text.`);
+  });
+
+  it('keeps the # of a heading in the path of the headings under it', () => {
+    const chunks = chunkDoc(doc('## Using C#\n\nIntro.\n\n### Classes in C# ##\n\nClass text.'));
+    expect(chunks.map((c) => c.section)).toEqual(['Using C#', 'Using C# > Classes in C#']);
+    expect(chunks[1].text).toBe('Guide > Using C# > Classes in C#\n\nClass text.');
+  });
+
+  it('does not treat a # at the start of a paragraph line, or a four-level heading, as a heading', () => {
+    expect(chunkDoc(doc('Intro.\n\n#hashtag is not a heading\n\n#### Deep\n\nText.')).map((c) => c.section)).toEqual([undefined]);
+  });
+
   it('packs paragraphs up to the target, with overlap from the previous chunk', () => {
     const paragraphs = Array.from({ length: 12 }, (_, i) => `Paragraph ${i} ${'word '.repeat(40)}`.trim());
     const chunks = chunkDoc(doc(paragraphs.join('\n\n')), { targetTokens: 200, overlapTokens: 60 });

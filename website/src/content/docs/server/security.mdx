@@ -64,8 +64,10 @@ Mount it with `app.use` so `/api/chat/session` reaches it too.
 
 ### Vercel and Next.js
 
+In Next.js, export `chatcopsNext` from an optional catch-all route at `app/api/chat/[[...path]]/route.ts` (see [Fetch runtimes](/server/fetch-runtimes/#nextjs-app-router)), which handles both `/api/chat` and `/api/chat/session` from a single file. On Vercel without Next.js, export the handler from a second file at `api/chat/session.ts`.
+
 ```typescript
-// app/api/chat/route.ts, and the same two lines in app/api/chat/session/route.ts
+// Next.js: app/api/chat/[[...path]]/route.ts. Vercel: api/chat.ts (and api/chat/session.ts)
 import { chatcopsVercelHandler } from '@chatcops/server';
 import { redisStorage } from '@chatcops/store-redis';
 import { Redis } from '@upstash/redis';

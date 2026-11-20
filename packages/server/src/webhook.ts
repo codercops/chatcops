@@ -51,7 +51,8 @@ export function assertSafeWebhookUrl(rawUrl: string, allowPrivateNetwork = false
 }
 
 function isPrivateHost(hostname: string): boolean {
-  const host = hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  // A final dot is the DNS root label, so localhost. is still localhost.
+  const host = hostname.replace(/^\[|\]$/g, '').toLowerCase().replace(/\.$/, '');
   if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')) {
     return true;
   }

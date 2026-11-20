@@ -31,6 +31,6 @@ describe('the fetch option', () => {
     const fetch = spyOn('gemini');
     const text = await chatSyncViaTurn(new GeminiProvider({ type: 'gemini', apiKey: 'test-key', fetch }), params);
     expect(text.length).toBeGreaterThan(0);
-    expect(String(fetch.mock.calls[0][0])).toMatch(/streamGenerateContent/);
+    expect(String(fetch.mock.calls[0][0])).toMatch(/\/v1beta\/models\/[^/]+:streamGenerateContent/);
   });
 });

@@ -83,6 +83,7 @@ test("new text doesn't pull the log down while the visitor reads above it", asyn
   await log.evaluate((el) => {
     el.scrollTop = 0;
   });
+  await expect(page.locator('.cc-pill')).toBeVisible();
   await page.waitForTimeout(500);
   expect(await log.evaluate((el) => el.scrollTop)).toBe(0);
   await expect(page.locator('.cc-message-assistant[data-status="complete"]')).toHaveCount(1, { timeout: 45_000 });

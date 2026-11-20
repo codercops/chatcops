@@ -1,10 +1,14 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { scriptedProvider, textStep } from '@chatcops/core/testing/provider';
+import { chatcopsVercelHandler, type ChatCopsServerConfig } from '@chatcops/server';
 import { EXIT, main } from '../src/index.js';
 import { check, unknownAssertions } from '../src/test/assertions/index.js';
 import { matchesFilter } from '../src/test/load.js';
 import type { TurnResult } from '../src/test/types.js';
+import { REPORTERS } from '../src/test/reporters/index.js';
 
 const TMP = resolve(__dirname, '.tmp-test');
 
@@ -89,7 +93,193 @@ tests:
           - contains: [Hello]
 `;
 
+async function httpChatServer(
+  config: ChatCopsServerConfig,
+  onRequest?: (request: Request, body: { conversationId?: string }) => void
+): Promise<{ url: string; close: () => Promise<void> }> {
+  const chat = chatcopsVercelHandler(config);
+  const server = createServer(async (request, response) => {
+    const body = await new Promise<string>((resolve, reject) => {
+      let text = '';
+      request.setEncoding('utf8');
+      request.on('data', (chunk) => { text += chunk; });
+      request.on('end', () => resolve(text));
+      request.on('error', reject);
+    });
+    const parsed = JSON.parse(body) as { conversationId?: string };
+    const headers = new Headers();
+    for (const [name, value] of Object.entries(request.headers)) {
+      if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(', ') : value);
+    }
+    const fetchRequest = new Request(`http://${request.headers.host}${request.url}`, {
+      method: request.method,
+      headers,
+      body: body || undefined,
+    });
+    onRequest?.(fetchRequest, parsed);
+    const fetchResponse = await chat(fetchRequest);
+    response.writeHead(fetchResponse.status, Object.fromEntries(fetchResponse.headers));
+    if (fetchResponse.body) {
+      const reader = fetchResponse.body.getReader();
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        response.write(chunk.value);
+      }
+    }
+    response.end();
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('test server did not start');
+  return {
+    url: `http://127.0.0.1:${address.port}/chat`,
+    close: async () => {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    },
+  };
+}
+
 describe('chatcops test', () => {
+  it('runs multi-turn tests over HTTP without a config and keeps the conversation id', async () => {
+    const seen: string[] = [];
+    const http = await httpChatServer(
+      { allowAnonymous: true, provider: scriptedProvider([textStep('first'), textStep('second')]), systemPrompt: 'test', budgets: false },
+      (_, body) => seen.push(body.conversationId ?? '')
+    );
+    try {
+      const dir = project({
+        'evals/http.chat.yaml': `version: 1
+name: HTTP
+tests:
+  - name: keeps state
+    turns:
+      - user: first
+        expect: [{ contains: first }]
+      - user: second
+        expect: [{ contains: second }]
+`,
+      });
+
+      rmSync(join(dir, 'chatcops.config.mjs'));
+      const result = await run(['test', '--url', http.url, '--header', 'Authorization: Bearer secret', '--concurrency', '1'], dir);
+      expect(result.code).toBe(EXIT.ok);
+      expect(result.stdout).toContain('1 passed, 0 failed.');
+      expect(new Set(seen).size).toBe(1);
+    } finally {
+      await http.close();
+    }
+  });
+
+  it('mints a session token and sends configured headers on every HTTP request', async () => {
+    const seen: Array<{ path: string; authorization: string | null; origin: string | null }> = [];
+    const http = await httpChatServer(
+      {
+        sessionSecrets: ['12345678901234567890123456789012'],
+        provider: scriptedProvider([textStep('hello')]),
+        systemPrompt: 'test',
+        budgets: false,
+      },
+      (request) => seen.push({ path: new URL(request.url).pathname, authorization: request.headers.get('authorization'), origin: request.headers.get('origin') })
+    );
+    try {
+      const dir = project({
+        'evals/session.chat.yaml': `version: 1
+name: Session
+tests:
+  - name: session
+    turns:
+      - user: hi
+        expect: [{ contains: hello }]
+`,
+      });
+      const result = await run(['test', '--url', http.url, '--header', 'Origin: https://example.com'], dir);
+      expect(result.code).toBe(EXIT.ok);
+      expect(seen).toEqual([
+        { path: '/chat/session', authorization: null, origin: 'https://example.com' },
+        { path: '/chat', authorization: expect.stringMatching(/^Bearer /), origin: 'https://example.com' },
+      ]);
+    } finally {
+      await http.close();
+    }
+  });
+
+  it('rejects an Authorization header when the server mints a session token', async () => {
+    const http = await httpChatServer(
+      {
+        sessionSecrets: ['12345678901234567890123456789012'],
+        provider: scriptedProvider([textStep('hello')]),
+        systemPrompt: 'test',
+        budgets: false,
+      },
+    );
+    try {
+      const dir = project({
+        'evals/session-header.chat.yaml': `version: 1
+name: Session header
+tests:
+  - name: session header
+    turns:
+      - user: hi
+`,
+      });
+      const result = await run(['test', '--url', http.url, '--header', 'Authorization: Bearer secret'], dir);
+      expect(result.code).toBe(EXIT.problems);
+      expect(result.stdout).toContain('session token uses the Authorization header');
+    } finally {
+      await http.close();
+    }
+  });
+
+  it('keeps --url live under CI and rejects cassette flags', async () => {
+    const http = await httpChatServer({ allowAnonymous: true, provider: scriptedProvider([textStep('hello')]), systemPrompt: 'test', budgets: false });
+    try {
+      const dir = project({ 'evals/live.chat.yaml': `version: 1\nname: Live\ntests:\n  - name: live\n    turns: [{ user: hi, expect: [{ contains: hello }] }]\n` });
+      expect((await run(['test', '--url', http.url], dir, { CI: 'true' })).code).toBe(EXIT.ok);
+      expect((await run(['test', '--url', http.url, '--record'], dir)).stderr).toContain('--record and --replay cannot be used with --url.');
+    } finally {
+      await http.close();
+    }
+  });
+
+  it('records HTTP error parts and refused requests as turn failures', async () => {
+    const errorHttp = await httpChatServer({ allowAnonymous: true, provider: scriptedProvider([new Error('down')]), systemPrompt: 'test', budgets: false });
+    try {
+      const dir = project({ 'evals/http-error.chat.yaml': `version: 1\nname: HTTP Error\ntests:\n  - name: error\n    turns:\n      - user: fail\n` });
+      const result = await run(['test', '--url', errorHttp.url], dir);
+      expect(result.code).toBe(EXIT.problems);
+      expect(result.stdout).toContain('provider_error');
+    } finally {
+      await errorHttp.close();
+    }
+
+    const refusedHttp = await httpChatServer({
+      allowAnonymous: true,
+      provider: scriptedProvider([textStep('one')]),
+      systemPrompt: 'test',
+      rateLimit: { maxRequests: 1, windowMs: 60_000 },
+      clientIp: () => '127.0.0.1',
+      budgets: false,
+    });
+    try {
+      const dir = project({
+        'evals/http-refused.chat.yaml': `version: 1
+name: HTTP Refused
+tests:
+  - name: refused
+    turns:
+      - user: one
+      - user: two
+`,
+      });
+      const result = await run(['test', '--url', refusedHttp.url], dir);
+      expect(result.code).toBe(EXIT.problems);
+      expect(result.stdout).toContain('rate_limited');
+    } finally {
+      await refusedHttp.close();
+    }
+  });
+
   it('runs every eval file and exits 0 when all pass', async () => {
     const dir = project({ 'evals/pricing.chat.yaml': PRICING });
     const { code, stdout } = await run(['test'], dir);
@@ -322,9 +512,144 @@ tests:
     expect(both.stdout).toContain('  ✓ says hello');
     expect(JSON.parse(both.stdout.trim().split('\n').at(-1) ?? '')).toMatchObject({ passed: 2 });
     const unknown = await run(['test', '--reporter', 'html'], dir);
-    expect(unknown.stderr).toContain("--reporter html doesn't exist. Use one of: pretty, json.");
+    expect(unknown.stderr).toContain("--reporter html doesn't exist. Use one of: pretty, json, junit, github.");
     expect(unknown.code).toBe(EXIT.unusable);
     expect((await run(['test', '--json', '--reporter', 'json'], dir)).stderr).toContain('not both');
+  });
+
+  it('annotates the original YAML line after filtering and supports other reporter destinations', async () => {
+    const yaml = PRICING.replace('name: says hello', 'name: "refunds: 30 days, no receipt"').replace('contains: [Hello]', 'contains: [missing]');
+    const dir = project({ 'evals/pricing.chat.yaml': yaml });
+    const result = await run([
+      'test', '--filter', 'refunds', '--reporter', 'pretty', '--reporter', 'github',
+      '--reporter', 'junit=evals.xml', '--reporter', 'json=evals.json',
+    ], dir);
+    expect(result.code).toBe(EXIT.problems);
+    expect(result.stdout).toContain('0 passed, 1 failed.');
+    expect(result.stdout.match(/^::error .*$/gm)).toEqual([
+      '::error file=evals/pricing.chat.yaml,line=11,title=refunds%3A 30 days%2C no receipt::Run 1, turn 1: the reply doesn\'t contain "missing"',
+    ]);
+    expect(readFileSync(join(dir, 'evals.xml'), 'utf8')).toContain('<testsuites tests="1" failures="1"');
+    const json = JSON.parse(readFileSync(join(dir, 'evals.json'), 'utf8'));
+    expect(Object.keys(json.results[0]).sort()).toEqual(['durationMs', 'fixture', 'pass', 'passRate', 'runs', 'test']);
+  });
+
+  it('annotates a module eval execution error on stdout without a source line', async () => {
+    const dir = project({
+      'evals/module.chat.mjs': `export default { version: 1, name: 'Module', tests: [{ name: 'provider down', turns: [{ user: 'boom' }] }] };`,
+    });
+    const result = await run(['test', 'evals/*.chat.mjs', '--reporter', 'github'], dir);
+    expect(result.code).toBe(EXIT.problems);
+    expect(result.stdout).toMatch(/^::error file=evals\/module\.chat\.mjs,title=provider down::Run 1: turn 1 failed: /);
+  });
+
+  it('reports an actionable CLI error for an unwritable GitHub summary and finishes other reporters', async () => {
+    const dir = project({ 'evals/pricing.chat.yaml': PRICING });
+    const result = await run(['test', '--reporter', 'github', '--reporter', 'pretty', '--reporter', 'junit=evals.xml'], dir, { GITHUB_STEP_SUMMARY: dir });
+    expect(result.code).toBe(EXIT.unusable);
+    expect(result.stderr).toContain(`Cannot append GitHub Actions summary to "${dir}"`);
+    expect(result.stdout).toContain('2 passed, 0 failed.');
+    expect(readFileSync(join(dir, 'evals.xml'), 'utf8')).toContain('<testsuites tests="2" failures="0"');
+  });
+
+  it('writes JUnit to --output relative to io.cwd and replaces existing files without stdout duplication', async () => {
+    const dir = project({ 'evals/pricing.chat.yaml': PRICING, 'evals.xml': 'old contents' });
+    const result = await run(['test', '--reporter', 'junit', '--output', 'evals.xml'], dir);
+    expect(result).toEqual({ code: EXIT.ok, stdout: '', stderr: '' });
+    const xml = readFileSync(join(dir, 'evals.xml'), 'utf8');
+    expect(xml).toMatch(/^<\?xml version="1.0" encoding="UTF-8"\?>/);
+    expect(xml).toContain('<testsuites tests="2" failures="0" errors="0"');
+    expect(xml).toContain('name="quotes the team price"');
+    expect(xml).not.toContain('old contents');
+    expect(xml).toMatch(/<\/testsuites>\n$/);
+  });
+
+  it('routes reporters independently and splits destinations on the first equals sign', async () => {
+    const dir = project({ 'evals/pricing.chat.yaml': PRICING });
+    const mixed = await run(['test', '--reporter', 'pretty', '--reporter', 'junit=report=evals.xml'], dir);
+    expect(mixed.code).toBe(EXIT.ok);
+    expect(mixed.stdout).toContain('2 passed, 0 failed.');
+    expect(mixed.stdout).not.toContain('<testsuites');
+    expect(readFileSync(join(dir, 'report=evals.xml'), 'utf8')).toContain('<testsuites');
+    const files = await run(['test', '--reporter', 'json=evals.json', '--reporter', 'junit=evals.xml'], dir);
+    expect(files.code).toBe(EXIT.ok);
+    expect(files.stdout).toBe('');
+    expect(JSON.parse(readFileSync(join(dir, 'evals.json'), 'utf8'))).toMatchObject({ passed: 2, failed: 0 });
+    expect(readFileSync(join(dir, 'evals.xml'), 'utf8')).toContain('</testsuites>');
+  });
+
+  it('supports --output with the default reporter and --json', async () => {
+    const dir = project({ 'evals/pricing.chat.yaml': PRICING });
+    expect((await run(['test', '--output', 'pretty.txt'], dir)).stdout).toBe('');
+    expect(readFileSync(join(dir, 'pretty.txt'), 'utf8')).toContain('2 passed, 0 failed.');
+    expect((await run(['test', '--json', '--output', 'evals.json'], dir)).code).toBe(EXIT.ok);
+    expect(JSON.parse(readFileSync(join(dir, 'evals.json'), 'utf8')).passed).toBe(2);
+  });
+
+  it('buffers onResult and asynchronous onEnd output before writing the file', async () => {
+    const dir = project({ 'evals/pricing.chat.yaml': PRICING });
+    REPORTERS.set('buffer-test', (output) => ({
+      onResult(result) { output.write(`${result.test}\n`); },
+      async onEnd() { await Promise.resolve(); output.write('done\n'); },
+    }));
+    try {
+      expect((await run(['test', '--reporter', 'buffer-test=buffer.txt'], dir)).stdout).toBe('');
+      const text = readFileSync(join(dir, 'buffer.txt'), 'utf8');
+      expect(text).toContain('quotes the team price\n');
+      expect(text).toContain('says hello\n');
+      expect(text).toMatch(/done\n$/);
+    } finally {
+      REPORTERS.delete('buffer-test');
+    }
+  });
+
+  it('writes reports for failed evals and creates missing parent folders', async () => {
+    const dir = project({ 'evals/pricing.chat.yaml': PRICING.replace('contains: "$19"', 'contains: "$29"') });
+    const failed = await run(['test', '--reporter', 'junit=failed.xml'], dir);
+    expect(failed.code).toBe(EXIT.problems);
+    expect(failed.stdout).toBe('');
+    expect(readFileSync(join(dir, 'failed.xml'), 'utf8')).toContain('<failure message="Assertion failed">');
+    const nested = await run(['test', '--reporter', 'junit', '--output', 'missing/report.xml'], dir);
+    expect(nested.code).toBe(EXIT.problems);
+    expect(nested.stdout).toBe('');
+    expect(nested.stderr).toBe('');
+    expect(readFileSync(join(dir, 'missing/report.xml'), 'utf8')).toContain('</testsuites>');
+  });
+
+  it('finishes later reporters before reporting a file write error', async () => {
+    const dir = project({ 'evals/pricing.chat.yaml': PRICING });
+    const unwritable = await run(['test', '--reporter', 'junit=evals', '--reporter', 'pretty'], dir);
+    expect(unwritable.code).toBe(EXIT.unusable);
+    expect(unwritable.stdout).toContain('2 passed, 0 failed.');
+    expect(unwritable.stderr).toContain('Cannot write report to');
+  });
+
+  it.each([
+    [['--reporter', ''], 'needs a name'],
+    [['--reporter', '=report.xml'], 'needs a name'],
+    [['--reporter', 'junit='], 'must not be empty'],
+    [['--output', ''], 'must not be empty'],
+    [['--reporter', 'html=report.xml'], "doesn't exist"],
+    [['--reporter', 'junit', '--reporter', 'json', '--output', 'report.xml'], 'single reporter'],
+    [['--reporter', 'junit=a.xml', '--output', 'b.xml'], 'not both'],
+    [['--reporter', 'junit', '--reporter', 'junit=a.xml'], 'more than once'],
+    [['--reporter', 'junit=a.xml', '--reporter', 'json=./a.xml'], 'different output files'],
+    [['--reporter', 'github=annotations.txt'], 'requires stdout'],
+    [['--reporter', 'github', '--output', 'annotations.txt'], 'requires stdout'],
+    [['--reporter', 'github', '--reporter', 'github'], 'more than once'],
+  ])('rejects invalid reporter destinations %j', async (args, message) => {
+    const dir = project({ 'evals/pricing.chat.yaml': PRICING });
+    const result = await run(['test', ...args], dir);
+    expect(result.code).toBe(EXIT.unusable);
+    expect(result.stderr).toContain(message);
+    expect(result.stdout).toBe('');
+  });
+
+  it('lists JUnit and output destinations in help', async () => {
+    const help = await run(['test', '--help'], TMP);
+    expect(help.stdout).toContain('junit');
+    expect(help.stdout).toContain('--output <file>');
+    expect(help.stdout).toContain('name=file');
   });
 
   it('loads module eval files', async () => {

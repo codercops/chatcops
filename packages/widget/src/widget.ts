@@ -378,6 +378,7 @@ export class Widget {
     this.panel.setBodyVisible(false);
     const notice = document.createElement('div');
     notice.className = 'cc-consent';
+    notice.setAttribute('tabindex', '-1');
     notice.textContent = this.locale.consentNotice;
     const { onConsentRequest } = this.config;
     if (onConsentRequest) {
@@ -426,6 +427,7 @@ export class Widget {
     this.hydrate();
     this.panel.show();
     if (!this.isInline) {
+      if (this.consentEl?.isConnected) this.consentEl.focus();
       this.fab?.setOpen(true);
       this.bubble?.hide();
     }
@@ -625,6 +627,7 @@ export class Widget {
       copyLabel: l.copyButton,
       copySuccessLabel: l.copySuccess,
       copyFailureLabel: l.copyFailure,
+      newReply: l.newReply,
     };
   }
 
@@ -717,6 +720,7 @@ export class Widget {
           fields: formConfig.fields,
           submitLabel: formConfig.submitLabel ?? this.locale.preChatSubmit,
           locale: this.locale,
+          autoFocus: !this.isInline,
           nonce: this.config.nonce,
           onSubmit: (data) => this.handlePreChatSubmit(data),
         });

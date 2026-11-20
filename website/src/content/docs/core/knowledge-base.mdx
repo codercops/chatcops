@@ -144,6 +144,7 @@ Network sources respect `robots.txt` by default, using the `ChatCopsBot` group o
 | `{ type: 'sitemap', url }` | A sitemap, a sitemap index, or a gzipped one (`.xml.gz`) |
 | `{ type: 'urls', urls }` | The pages you list |
 | `{ type: 'directory', path, baseUrl }` | Local `.md`, `.mdx` and `.html` files, cited as if published under `baseUrl` |
+| `{ type: 'crawl', url, maxDepth?, maxPages? }` | Crawl a site breadth-first from `url`, following same-origin links (defaults: `maxDepth: 3`, `maxPages: 500`). `maxDepth` counts link hops from the starting URL; depth 0 means only the starting URL. `include` and `exclude` also control which crawl links are followed, including the starting URL. For example, `include: ['https://example.com/docs/**']` with `url: 'https://example.com/'` discovers nothing because the starting URL does not match `include`. |
 
 The rest of the config:
 
@@ -162,11 +163,42 @@ The rest of the config:
 | `respectRobots` | `true` | See above |
 | `dryRun` | `false` | Discover, fetch, extract and chunk, but embed and write nothing |
 | `force` | `false` | Embed every page again, changed or not |
+| `contextualize` | `false` | `{ provider }`: have a model write a short context for each chunk before it is embedded. [See below](#contextual-retrieval) |
 | `prune` | `false` | Remove pages that are in the index but weren't found this time. Skipped when the sitemap or `robots.txt` couldn't be read, since the missing pages may still be there |
 | `onEvent` | none | Progress: `{ type: 'discovered', pages, errors }` once, then `{ type: 'page', url, status }` for each page (`indexed`, `unchanged`, `skipped` or `failed`, with `chunks` or a `reason`), and `{ type: 'pruned', url }` |
 | `fetch` | global `fetch` | For tests, or to go through a proxy |
 
-`ingest()` resolves to counts: `discovered`, `indexed`, `unchanged`, `skipped`, `failed`, `pruned`, `chunks`, and `embedded` (texts sent to the embedder, 0 on a run where nothing changed), plus `errors` for discovery and `robots.txt` problems, and `pruneSkipped` with the reason when you asked for `prune` and it didn't run.
+`ingest()` resolves to counts: `discovered`, `indexed`, `unchanged`, `skipped`, `failed`, `pruned`, `chunks`, and `embedded` (texts sent to the embedder, 0 on a run where nothing changed), `contextualized` (chunks a model wrote context for) and `modelTokens` (`{ inputTokens, outputTokens }` those calls used, 0 without `contextualize`), plus `errors` for discovery and `robots.txt` problems, and `pruneSkipped` with the reason when you asked for `prune` and it didn't run.
+
+### Contextual retrieval
+
+A chunk like "It costs $20 a month" says nothing about which plan it is about, so a question about the Team plan may not find it. With `contextualize`, a model first writes a sentence or two that places each chunk in its page ("This section is from the Team plan's billing FAQ; it covers refunds after the trial"), and that context is embedded together with the chunk. It is the recipe Anthropic calls contextual retrieval.
+
+```typescript
+import { memoryStorage, memoryVectors, openaiEmbedder } from '@chatcops/core';
+import { ingest } from '@chatcops/ingest';
+
+const embedder = openaiEmbedder({ apiKey: process.env.OPENAI_API_KEY! });
+const storage = memoryStorage();
+
+const stats = await ingest({
+  sources: [{ type: 'sitemap', url: 'https://example.com/sitemap.xml' }],
+  contextualize: { provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! } },
+  embedder,
+  store: memoryVectors({ dimensions: embedder.dimensions }),
+  manifest: storage.kv!,
+});
+console.log(stats.contextualized, stats.modelTokens);
+```
+
+`provider` is a provider config (`{ type: 'claude' | 'openai' | 'gemini', apiKey, model }`) or a provider object, the same as the server takes. A small, cheap model is enough.
+
+- The text that is embedded is the context, a blank line, then the chunk. The text that is stored, shown and cited is the chunk alone, and the context is kept in the chunk's metadata as `context`.
+- The whole page goes in the model's system prompt and only the chunk in the message, so the page is the same for every chunk of a page. Chunks are asked about one at a time, in order, so a provider with prompt caching (Claude, for one) reads the page from its cache after the first chunk. A page longer than about 100,000 characters is cut there for the model, and answers are kept to a couple of sentences.
+- The model's tokens are counted in `modelTokens` and in the `--json` output, next to `embedded`. Anthropic puts the cost with prompt caching at about $1 per million tokens of documents; check your provider's prices, and note that a provider without prompt caching reads the page again for every chunk.
+- Turning `contextualize` on or off, or changing the model, embeds the pages again, even unchanged ones, because what is embedded changes. The manifest remembers what wrote each page's context.
+- A model call that fails fails that page (`failed`, with the reason). The page keeps what was indexed before, and the next run tries it again.
+- `dryRun` makes no model calls, and doesn't start the model.
 
 ### From the command line
 
@@ -186,8 +218,11 @@ export default defineConfig({
 ```bash
 npx chatcops ingest              # build or update the index
 npx chatcops ingest --dry-run    # see what would be indexed
+npx chatcops ingest --contextualize   # have a model write context for each chunk first
 npx chatcops search "how much is the Team plan?"
 ```
+
+`--contextualize` turns on contextual retrieval with the provider in `ingest.contextualize.provider` in the config, and stops with a message when the config has none. Without the flag a run never asks a model, so it never costs model tokens by surprise. Its summary line says how many chunks got a context and the tokens used, and `--json` has them in `stats`.
 
 Use a persistent store in a real config. Add `--json` in CI for one JSON object per line. The command exits with 1 when some pages failed, and 2 when it couldn't run at all.
 

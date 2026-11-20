@@ -34,8 +34,9 @@ Usage:
   chatcops test [files...] [options]        Run eval files against your bot
 
 Ingest options:
-  --source <url|path>   A sitemap (.xml, .xml.gz), a page URL, or a folder of .md/.mdx/.html
-                        files (with --base-url). Repeatable. Replaces the config's sources.
+  --source <url|path>   A sitemap (.xml, .xml.gz), crawl:<url>, a page URL, or a folder of
+                        .md/.mdx/.html files (with --base-url). Repeatable. Replaces the config's sources.
+  --crawl <url>         Crawl same-origin pages starting at url. Replaces the config's sources.
   --base-url <url>      Where a folder source is published
   --index <name>        Index name (default "default")
   --dry-run             Discover, extract and chunk; write and embed nothing
@@ -43,6 +44,8 @@ Ingest options:
   --concurrency <n>     Pages fetched at once (default 4)
   --prune               Remove pages that are gone (never after a discovery error)
   --force               Re-embed every page, even unchanged ones
+  --contextualize       Have the model in ingest.contextualize.provider write a short context for each
+                        chunk before it is embedded (costs model tokens; pages are embedded again)
   --json                One JSON object per line, for CI
 
 Search options:
@@ -56,11 +59,17 @@ Test options:
   --repeat <n>          Run each test n times
   --concurrency <n>     Tests run at once (default 4)
   --verbose             Show assertion details for every test
-  --reporter <name>     pretty (default) or json. Repeatable.
+  --reporter <name[=file]>  pretty (default), json, junit or github. Repeatable; each name once.
+                        github writes annotations to stdout and cannot use a file destination.
+  --output <file>       Write a single reporter to a file instead of stdout (replaces the file).
+                        With several reporters, use name=file; file destinations must differ.
+                        Do not combine --output with name=file. Parent folders are created.
   --json                Same as --reporter json
   --record              Call the APIs and save what they answer to __cassettes__
   --replay              Answer every API call from __cassettes__ (the default when CI is set)
   --live                Call the APIs, even when CI is set
+  --url <url>           Send test turns to an HTTP ChatCops server instead of the local config
+  --header <name: value>  Add an HTTP header (repeatable)
   --judge-model <p:m>   The judge for judge assertions, as provider:model (gemini, openai, claude)
   --max-cost <usd>      Stop starting turns once the run has spent this (needs prices in the config)
 
@@ -94,10 +103,26 @@ export async function main(argv: string[], io: Io): Promise<number> {
     if (command === 'ingest') return await runIngest(values, io);
     if (command === 'search') return await runSearch(rest.join(' '), values, io);
     if (command === 'test') {
-      const cassettes = new Cassettes(cassetteMode(values, io.env ?? process.env));
+      const url = values.url;
+      if (url && (values.record || values.replay)) throw new ConfigError('--record and --replay cannot be used with --url.');
+      const cassettes = url ? undefined : new Cassettes(cassetteMode(values, io.env ?? process.env));
       // Before the config loads, so the providers and embedders it creates use it.
-      const uninstall = cassettes.mode === 'live' ? () => {} : cassettes.install();
+      const uninstall = !cassettes || cassettes.mode === 'live' ? () => {} : cassettes.install();
       try {
+        const headers = values.header?.map(parseHeader);
+        if (url) {
+          let loaded: Awaited<ReturnType<typeof loadConfig>> | undefined;
+          try {
+            loaded = await loadConfig(io.cwd, values.config);
+          } catch (error) {
+            if (values.config || !(error instanceof ConfigError) || !error.message.startsWith('No config file found.')) throw error;
+          }
+          try {
+            return await runTests(undefined, rest, values, io, cassettes, loaded?.config ?? {}, { url, headers });
+          } finally {
+            await loaded?.close();
+          }
+        }
         const loaded = await loadConfig(io.cwd, values.config);
         try {
           return await runTests(serverConfig(loaded), rest, values, io, cassettes, loaded.config);
@@ -123,6 +148,7 @@ function parse(argv: string[]) {
     options: {
       config: { type: 'string' },
       source: { type: 'string', multiple: true },
+      crawl: { type: 'string' },
       'base-url': { type: 'string' },
       index: { type: 'string' },
       'dry-run': { type: 'boolean' },
@@ -130,12 +156,16 @@ function parse(argv: string[]) {
       concurrency: { type: 'string' },
       prune: { type: 'boolean' },
       force: { type: 'boolean' },
+      contextualize: { type: 'boolean' },
       json: { type: 'boolean' },
       'top-k': { type: 'string' },
       filter: { type: 'string' },
       repeat: { type: 'string' },
       verbose: { type: 'boolean' },
       reporter: { type: 'string', multiple: true },
+      output: { type: 'string' },
+      url: { type: 'string' },
+      header: { type: 'string', multiple: true },
       record: { type: 'boolean' },
       live: { type: 'boolean' },
       'judge-model': { type: 'string' },
@@ -147,6 +177,15 @@ function parse(argv: string[]) {
   });
 }
 
+function parseHeader(value: string): [string, string] {
+  const separator = value.indexOf(':');
+  if (separator <= 0) throw new ConfigError('--header must be in the form "Name: value".');
+  const name = value.slice(0, separator).trim();
+  const headerValue = value.slice(separator + 1).trim();
+  if (!name || !headerValue) throw new ConfigError('--header must be in the form "Name: value".');
+  return [name, headerValue];
+}
+
 export type Values = ReturnType<typeof parse>['values'];
 
 async function runIngest(values: Values, io: Io): Promise<number> {
@@ -155,12 +194,23 @@ async function runIngest(values: Values, io: Io): Promise<number> {
   const loaded = await loadConfig(io.cwd, values.config);
   try {
     const target = indexConfig(loaded);
-    const sources = values.source?.length ? values.source.map((source) => toSource(source, values['base-url'], io.cwd)) : loaded.config.ingest?.sources;
-    if (!sources?.length) throw new ConfigError('Nothing to ingest: pass --source, or set ingest.sources in the config.');
+    const cliSources: IngestSource[] = [];
+    if (values.crawl) cliSources.push({ type: 'crawl', url: values.crawl });
+    if (values.source?.length) cliSources.push(...values.source.map((source) => toSource(source, values['base-url'], io.cwd)));
+    const sources = cliSources.length ? cliSources : loaded.config.ingest?.sources;
+    if (!sources?.length) throw new ConfigError('Nothing to ingest: pass --source, --crawl, or set ingest.sources in the config.');
+
+    // A model only runs with --contextualize, so a run never spends on one by surprise: the config holds which.
+    if (values.contextualize && !loaded.config.ingest?.contextualize) {
+      throw new ConfigError(
+        "--contextualize needs a model: set ingest.contextualize.provider in the config, as a provider config such as { type: 'claude', apiKey: '...' } or a provider object."
+      );
+    }
 
     const json = !!values.json;
     const stats = await ingest({
       ...loaded.config.ingest,
+      contextualize: values.contextualize ? loaded.config.ingest?.contextualize : false,
       sources,
       ...(values.index ? { index: values.index } : {}),
       ...(maxPages !== undefined ? { maxPages } : {}),
@@ -210,6 +260,9 @@ async function runSearch(question: string, values: Values, io: Io): Promise<numb
 
 /** A `--source` value: a sitemap URL, a page URL, or a folder (with `--base-url`). */
 export function toSource(value: string, baseUrl: string | undefined, cwd: string): IngestSource {
+  if (/^crawl:https?:\/\//i.test(value)) {
+    return { type: 'crawl', url: value.slice('crawl:'.length) };
+  }
   if (/^https?:\/\//i.test(value)) {
     return /\.xml(\.gz)?(\?.*)?$/i.test(value) ? { type: 'sitemap', url: value } : { type: 'urls', urls: [value] };
   }
@@ -231,6 +284,10 @@ function summary(stats: IngestStats, dryRun: boolean): string {
     `${dryRun ? 'Would index' : 'Indexed'} ${stats.indexed} of ${stats.discovered} pages: ${stats.chunks} chunks, ${stats.embedded} embedded.`,
     `${stats.unchanged} unchanged, ${stats.skipped} skipped, ${stats.failed} failed, ${stats.pruned} ${dryRun ? 'to remove' : 'removed'}.`,
   ];
+  if (stats.contextualized) {
+    const { inputTokens, outputTokens } = stats.modelTokens;
+    lines.push(`Context written for ${stats.contextualized} chunks by the model (${inputTokens} input, ${outputTokens} output tokens).`);
+  }
   if (stats.pruneSkipped) lines.push(`Didn't remove anything: ${stats.pruneSkipped}.`);
   if (stats.errors.length) lines.push(...stats.errors.map((error) => `! ${error}`));
   return `${lines.join('\n')}\n`;

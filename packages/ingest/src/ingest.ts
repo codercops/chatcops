@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import type { VectorRecord } from '@chatcops/core';
+import type { AIProvider, VectorRecord } from '@chatcops/core';
 import { chunkDoc } from './chunk.js';
+import { contextId, contextualizeChunks, startProvider } from './contextualize.js';
 import { discover, globToRegExp } from './discover.js';
 import { extractHtml, extractMarkdown } from './extract.js';
 import { robotsFor, type Robots } from './robots.js';
@@ -14,6 +15,8 @@ export { DEFAULT_USER_AGENT } from './user-agent.js';
 interface PageRecord {
   contentHash: string;
   chunkIds: string[];
+  /** What wrote the chunks' context (`provider:model`). Absent when the page was embedded without it. */
+  contextualize?: string;
   etag?: string;
   lastModified?: string;
 }
@@ -76,17 +79,25 @@ export async function ingest(config: IngestConfig): Promise<IngestStats> {
     return pending;
   }
 
-  const send: typeof fetch = async (input, init) => {
-    const url = String(input);
-    const rules = config.respectRobots === false ? undefined : await policy(url);
-    return scheduled(url, init, rules?.crawlDelay);
-  };
+  const send: typeof fetch = Object.assign(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const rules = config.respectRobots === false ? undefined : await policy(url);
+      return scheduled(url, init, rules?.crawlDelay);
+    },
+    { policy }
+  );
 
   if (embedder.dimensions !== store.dimensions) {
     throw new Error(
       `The embedder (${embedder.id}) makes ${embedder.dimensions}-dimension vectors, but the store holds ${store.dimensions}.`
     );
   }
+  // What wrote the context, if anything: a page is embedded again when this is not what it was built with.
+  const writer = config.contextualize ? contextId(config.contextualize.provider) : undefined;
+  const contextualize = config.contextualize ? config.contextualize.provider : undefined;
+  // Started before anything is fetched, so a model that can't start fails the run and not every page.
+  const model: AIProvider | undefined = contextualize && !config.dryRun ? await startProvider(contextualize) : undefined;
   const meta = await manifest.get<IndexMeta>(keys.meta);
   if (meta && meta.embedder !== embedder.id) {
     throw new Error(
@@ -94,11 +105,22 @@ export async function ingest(config: IngestConfig): Promise<IngestStats> {
     );
   }
 
-  const found = await discover(config.sources, { fetch: send, userAgent, timeoutMs, include: config.include, exclude: config.exclude });
+  const found = await discover(config.sources, {
+    fetch: send,
+    userAgent,
+    timeoutMs,
+    include: config.include,
+    exclude: config.exclude,
+    concurrency: config.concurrency,
+    respectRobots: config.respectRobots,
+    maxPages: config.maxPages,
+  });
   if (config.maxPages !== undefined && config.maxPages >= 0 && found.pages.length > config.maxPages) {
     found.pages = found.pages.slice(0, Math.floor(config.maxPages));
     // Pages left out aren't removed pages, so pruning a partial run isn't safe either.
-    found.errors.push(`stopped at --max-pages ${config.maxPages}`);
+    if (!found.errors.includes(`stopped at --max-pages ${config.maxPages}`)) {
+      found.errors.push(`stopped at --max-pages ${config.maxPages}`);
+    }
   }
   config.onEvent?.({ type: 'discovered', pages: found.pages.length, errors: found.errors });
   errors.push(...found.errors);
@@ -112,6 +134,8 @@ export async function ingest(config: IngestConfig): Promise<IngestStats> {
     pruned: 0,
     chunks: 0,
     embedded: 0,
+    contextualized: 0,
+    modelTokens: { inputTokens: 0, outputTokens: 0 },
     errors,
   };
   if (!config.dryRun) await manifest.set(keys.meta, { embedder: embedder.id, dimensions: embedder.dimensions } satisfies IndexMeta);
@@ -123,6 +147,10 @@ export async function ingest(config: IngestConfig): Promise<IngestStats> {
     if (page.file) {
       const source = await readFile(page.file, 'utf8');
       const doc = /\.html?$/i.test(page.file) ? extractHtml(source, page.url, selectorFor(page.url)) : extractMarkdown(source, page.url);
+      return { kind: 'page', doc };
+    }
+    if (page.html !== undefined) {
+      const doc = extractHtml(page.html, page.url, selectorFor(page.url));
       return { kind: 'page', doc };
     }
     if (config.respectRobots !== false) {
@@ -153,7 +181,9 @@ export async function ingest(config: IngestConfig): Promise<IngestStats> {
     const pageKey = keys.page(page.url);
     const previous = await manifest.get<PageRecord>(pageKey);
     try {
-      const fetched = await load(page, previous);
+      // A page built with other context (or none) is fetched and embedded again, whatever the server says.
+      const reusable = previous && previous.contextualize === writer ? previous : null;
+      const fetched = await load(page, reusable);
       if (fetched.kind === 'skip') {
         stats.skipped++;
         config.onEvent?.({ type: 'page', url: page.url, status: 'skipped', reason: fetched.reason });
@@ -165,10 +195,10 @@ export async function ingest(config: IngestConfig): Promise<IngestStats> {
         return;
       }
       const contentHash = sha256(fetched.doc.markdown);
-      if (previous && previous.contentHash === contentHash && !config.force) {
+      if (reusable && reusable.contentHash === contentHash && !config.force) {
         stats.unchanged++;
-        if (!config.dryRun && (fetched.etag !== previous.etag || fetched.lastModified !== previous.lastModified)) {
-          await manifest.set(pageKey, { ...previous, etag: fetched.etag, lastModified: fetched.lastModified });
+        if (!config.dryRun && (fetched.etag !== reusable.etag || fetched.lastModified !== reusable.lastModified)) {
+          await manifest.set(pageKey, { ...reusable, etag: fetched.etag, lastModified: fetched.lastModified });
         }
         config.onEvent?.({ type: 'page', url: page.url, status: 'unchanged' });
         return;
@@ -185,7 +215,15 @@ export async function ingest(config: IngestConfig): Promise<IngestStats> {
         config.onEvent?.({ type: 'page', url: page.url, status: 'indexed', chunks: chunks.length });
         return;
       }
-      const vectors = await embedder.embed(chunks.map((chunk) => chunk.text), 'document');
+      let contexts: Array<string | undefined> = [];
+      if (model) {
+        const written = await contextualizeChunks(model, fetched.doc.markdown, chunks);
+        contexts = written.contexts;
+        stats.contextualized += contexts.filter(Boolean).length;
+        stats.modelTokens.inputTokens += written.usage.inputTokens;
+        stats.modelTokens.outputTokens += written.usage.outputTokens;
+      }
+      const vectors = await embedder.embed(chunks.map((chunk, i) => (contexts[i] ? `${contexts[i]}\n\n${chunk.text}` : chunk.text)), 'document');
       stats.embedded += chunks.length;
       const metadata = {
         ...(fetched.doc.lang ? { locale: fetched.doc.lang } : {}),
@@ -201,7 +239,7 @@ export async function ingest(config: IngestConfig): Promise<IngestStats> {
           ...(fetched.doc.title ? { title: fetched.doc.title } : {}),
           ...(chunk.section ? { section: chunk.section } : {}),
         },
-        ...(Object.keys(metadata).length ? { metadata } : {}),
+        ...(Object.keys(metadata).length || contexts[i] ? { metadata: { ...metadata, ...(contexts[i] ? { context: contexts[i] as string } : {}) } } : {}),
       }));
       // The new chunks are embedded before the old ones go, so a failed
       // embedding never leaves the page out of the index.
@@ -210,6 +248,7 @@ export async function ingest(config: IngestConfig): Promise<IngestStats> {
       await manifest.set(pageKey, {
         contentHash,
         chunkIds: records.map((record) => record.id),
+        ...(writer ? { contextualize: writer } : {}),
         ...(fetched.etag ? { etag: fetched.etag } : {}),
         ...(fetched.lastModified ? { lastModified: fetched.lastModified } : {}),
       } satisfies PageRecord);

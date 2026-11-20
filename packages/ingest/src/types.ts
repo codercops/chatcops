@@ -1,4 +1,4 @@
-import type { Embedder, KeyValueStore, MetadataValue, VectorStore } from '@chatcops/core';
+import type { AIProvider, Embedder, KeyValueStore, MetadataValue, ProviderConfig, VectorStore } from '@chatcops/core';
 
 export type IngestSource =
   /** A sitemap, a sitemap index, or a gzipped one (`.xml.gz`). */
@@ -6,7 +6,9 @@ export type IngestSource =
   /** Pages listed by hand. */
   | { type: 'urls'; urls: string[] }
   /** Local `.md`, `.mdx` and `.html` files, published under `baseUrl`. */
-  | { type: 'directory'; path: string; baseUrl: string };
+  | { type: 'directory'; path: string; baseUrl: string }
+  /** Crawl a site starting at `url`, following same-origin links. */
+  | { type: 'crawl'; url: string; maxDepth?: number; maxPages?: number };
 
 export interface IngestConfig {
   /** Names the index, so a new one can be built next to the old. Default `default`. */
@@ -35,6 +37,19 @@ export interface IngestConfig {
   manifest: KeyValueStore;
   /** Extra metadata for every chunk of a page, such as `{ collection: 'docs' }`. */
   metadata?: (doc: ExtractedDoc) => Record<string, MetadataValue>;
+  /**
+   * Contextual retrieval: before a chunk is embedded, a model writes a sentence
+   * or two that places it in its page ("This section is from the Team plan's
+   * billing FAQ; it covers refunds after the trial"), and that is embedded with
+   * the chunk, so "It costs $20 a month" still matches a question about the
+   * Team plan. The page goes in the system prompt and the chunk in the message,
+   * so a provider that caches prompts reads the page from the cache for every
+   * chunk after the first. The stored text stays the chunk alone; the context is
+   * kept in its metadata as `context`. Turning this on or off, or changing the
+   * model, embeds pages again. A model call that fails fails the page. Costs
+   * model tokens on top of embedding: see `IngestStats.modelTokens`.
+   */
+  contextualize?: false | { provider: ProviderConfig | AIProvider };
   /** Discover, fetch, extract and chunk, but write nothing and embed nothing. */
   dryRun?: boolean;
   /** Re-embed every page, even unchanged ones. */
@@ -54,6 +69,8 @@ export interface DiscoveredPage {
   url: string;
   /** For directory sources: the file to read instead of fetching. */
   file?: string;
+  /** For crawl sources: the HTML already fetched during discovery, so extraction doesn't fetch again. */
+  html?: string;
 }
 
 export interface ExtractedDoc {
@@ -89,6 +106,10 @@ export interface IngestStats {
   chunks: number;
   /** Texts sent to the embedder. 0 on a re-run where nothing changed. */
   embedded: number;
+  /** Chunks a model wrote context for (`contextualize`). 0 when it is off, in a dry run, and for unchanged pages. */
+  contextualized: number;
+  /** What those calls used, cache reads and writes included. */
+  modelTokens: { inputTokens: number; outputTokens: number };
   /** Discovery problems and unavailable robots.txt policies, once per origin. */
   errors: string[];
   /** Why pruning didn't run, when it was asked for. */

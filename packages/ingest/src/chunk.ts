@@ -69,7 +69,8 @@ function sections(markdown: string): Section[] {
 
   for (let i = 0; i < lines.length; ) {
     const line = lines[i];
-    const heading = /^(#{1,3})\s+(.+?)\s*#*\s*$/.exec(line);
+    // A closing run of # is dropped only when a space comes before it, as in CommonMark: the # of `C#` is part of the title.
+    const heading = /^(#{1,3})\s+(.+?)(?:\s+#+)?\s*$/.exec(line);
     if (heading) {
       flush();
       const level = heading[1].length;

@@ -50,7 +50,7 @@ export const OPTIONS = (req: Request) => handler(req);
 export const config = { runtime: 'edge' };
 ```
 
-Export the same handler from the `/session` route next to it (`app/api/chat/session/route.ts` for a chat at `/api/chat`), where the widget gets its session token.
+In Next.js, use an optional catch-all route at `app/api/chat/[[...path]]/route.ts` with `chatcopsNext` (from `@chatcops/server/next`) so `/api/chat` and `/api/chat/session` reach the same handler. On Vercel without Next.js, export the same handler from a second file at `api/chat/session.ts` for the session token.
 
 ### Cloudflare Workers
 

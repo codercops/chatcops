@@ -10,7 +10,7 @@
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "typecheck": "pnpm -r typecheck",
-    "lint": "biome check packages/*/src packages/*/tests website/src",
+    "lint": "node scripts/lint.mjs",
     "clean": "pnpm -r clean",
     "e2e": "playwright test -c e2e/playwright.config.ts",
     "docs:check": "node scripts/check-doc-samples.mjs",

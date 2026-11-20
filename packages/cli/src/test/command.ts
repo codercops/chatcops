@@ -1,5 +1,6 @@
 import { performance } from 'node:perf_hooks';
-import { relative } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { createProvider, isAIProvider, type AIProvider, type ProviderConfig } from '@chatcops/core';
 import type { ChatCopsServerConfig } from '@chatcops/server';
 import { ConfigError, type ChatCopsCliConfig } from '../config.js';
@@ -14,12 +15,13 @@ import { REPORTERS } from './reporters/index.js';
 
 /** `chatcops test`: finds and checks the eval files, runs them, reports. Exit 0 all passed, 1 some failed, 2 couldn't run. */
 export async function runTests(
-  server: ChatCopsServerConfig,
+  server: ChatCopsServerConfig | undefined,
   patterns: string[],
   values: Values,
   io: Io,
   cassettes?: Cassettes,
-  cli: Pick<ChatCopsCliConfig, 'judge' | 'prices'> = {}
+  cli: Pick<ChatCopsCliConfig, 'judge' | 'prices'> = {},
+  http?: { url: string; headers?: Array<[string, string]> }
 ): Promise<number> {
   const mode = cassettes?.mode ?? 'live';
   const maxCost = positiveNumber(values['max-cost'], '--max-cost');
@@ -37,7 +39,7 @@ export async function runTests(
     if (unknown.length) throw new ConfigError(`${relative(io.cwd, file)} uses assertions that don't exist: ${unknown.join(', ')}`);
     for (const test of fixture.tests) {
       try {
-        withMocks(server.tools ?? [], test.mocks?.tools);
+        if (server) withMocks(server.tools ?? [], test.mocks?.tools);
       } catch (error) {
         throw new ConfigError(`${relative(io.cwd, file)} > ${test.name}: ${(error as Error).message}`);
       }
@@ -47,20 +49,46 @@ export async function runTests(
   }
   if (!fixtures.length) throw new ConfigError(`No tests match --filter ${values.filter}.`);
 
-  const reporters = (values.reporter?.length ? values.reporter : [values.json ? 'json' : 'pretty']).map((name) => {
-    const reporter = REPORTERS.get(name);
-    if (!reporter) throw new ConfigError(`--reporter ${name} doesn't exist. Use one of: ${[...REPORTERS.keys()].join(', ')}.`);
-    return reporter(io.stdout, { verbose: values.verbose === true, env: io.env ?? process.env });
-  });
   if (values.json && values.reporter?.length) throw new ConfigError('Use --reporter json, or --json, not both.');
+  const selected = values.reporter?.length ? values.reporter : [values.json ? 'json' : 'pretty'];
+  if (values.output !== undefined && selected.length !== 1) throw new ConfigError('--output needs a single reporter. Use --reporter name=file for multiple reporters.');
+  const names = new Set<string>();
+  const destinations = new Set<string>();
+  const reporters = selected.map((selection) => {
+    const separator = selection.indexOf('=');
+    const name = separator === -1 ? selection : selection.slice(0, separator);
+    if (!name.trim()) throw new ConfigError('--reporter needs a name.');
+    const factory = REPORTERS.get(name);
+    if (!factory) throw new ConfigError(`--reporter ${name} doesn't exist. Use one of: ${[...REPORTERS.keys()].join(', ')}.`);
+    if (names.has(name)) throw new ConfigError(`--reporter ${name} was given more than once.`);
+    names.add(name);
+    if (separator !== -1 && values.output !== undefined) throw new ConfigError('Use --output or --reporter name=file, not both.');
+    const destination = separator === -1 ? values.output : selection.slice(separator + 1);
+    if (name === 'github' && destination !== undefined) {
+      throw new ConfigError('The github reporter requires stdout for GitHub Actions annotations. Omit its file destination.');
+    }
+    if (destination !== undefined && !destination.trim()) throw new ConfigError('The reporter output path must not be empty.');
+    const file = destination === undefined ? undefined : resolve(io.cwd, destination);
+    if (file !== undefined) {
+      const key = process.platform === 'win32' ? file.toLowerCase() : file;
+      if (destinations.has(key)) throw new ConfigError(`Reporters must use different output files: ${destination}.`);
+      destinations.add(key);
+    }
+    const chunks: string[] = [];
+    const output = file === undefined ? io.stdout : { write: (text: string) => chunks.push(text) };
+    return { reporter: factory(output, { cwd: io.cwd, verbose: values.verbose === true, env: io.env ?? process.env }), file, chunks };
+  });
 
   // Started here so a missing key fails now, not as provider_unavailable on
   // every turn, and so turns can be priced by the model id.
-  let bot: AIProvider;
-  try {
-    bot = isAIProvider(server.provider) ? server.provider : await createProvider((mode === 'replay' ? withoutKeys(server) : server).provider as ProviderConfig);
-  } catch (error) {
-    throw new ConfigError(`The server config's provider can't start: ${(error as Error).message}`);
+  let bot: AIProvider | undefined;
+  if (!http) {
+    if (!server) throw new ConfigError('chatcops test needs a server config, or pass --url.');
+    try {
+      bot = isAIProvider(server.provider) ? server.provider : await createProvider((mode === 'replay' ? withoutKeys(server) : server).provider as ProviderConfig);
+    } catch (error) {
+      throw new ConfigError(`The server config's provider can't start: ${(error as Error).message}`);
+    }
   }
 
   // A simulated visitor is played by the judge model too.
@@ -69,7 +97,7 @@ export async function runTests(
     ? await resolveJudge({
         ...(cli.judge ? { configured: cli.judge } : {}),
         ...(values['judge-model'] ? { flag: values['judge-model'] } : {}),
-        botProvider: isAIProvider(server.provider) ? server.provider.name : server.provider.type,
+        botProvider: server ? (isAIProvider(server.provider) ? server.provider.name : server.provider.type) : 'http',
         env: io.env ?? process.env,
         mode,
         ...(cli.prices ? { prices: cli.prices } : {}),
@@ -78,7 +106,7 @@ export async function runTests(
   if (judge) io.stderr.write(`Judge: ${judge.id}\n`);
 
   if (maxCost !== undefined && mode !== 'replay') {
-    const unpriced = [bot.model, ...(judge ? [judge.model] : [])].filter((model) => !model || !cli.prices?.[model]);
+    const unpriced = [bot?.model, ...(judge ? [judge.model] : [])].filter((model) => !model || !cli.prices?.[model]);
     if (unpriced.length) {
       throw new ConfigError(
         `--max-cost needs a price for every model the run uses, and there's none for ${unpriced.map((m) => m ?? 'a provider with no model id').join(', ')}. Add them to \`prices\` in the config, in US dollars per million tokens.`
@@ -95,15 +123,16 @@ export async function runTests(
 
   const started = performance.now();
   const results = await runFixtures(server, fixtures, {
+    ...(http ?? {}),
     ...(cassettes ? { cassettes } : {}),
     ...(judge ? { judge } : {}),
-    ...(bot.model ? { model: bot.model } : {}),
+    ...(bot?.model ? { model: bot.model } : {}),
     ...(cli.prices ? { prices: cli.prices } : {}),
     spend,
     ...(concurrency !== undefined ? { concurrency } : {}),
     ...(repeat !== undefined ? { repeat } : {}),
     onResult: (result) => {
-      for (const reporter of reporters) reporter.onResult?.(result);
+      for (const { reporter } of reporters) reporter.onResult?.(result);
     },
   });
   const elapsedMs = performance.now() - started;
@@ -119,19 +148,41 @@ export async function runTests(
     );
   const summary = {
     mode,
-    ...(bot.model ? { model: bot.model } : {}),
+    ...(bot?.model ? { model: bot.model } : {}),
     elapsedMs,
     costIncomplete,
     ...(judge ? { judge: judge.id } : {}),
     ...(priced.length ? { costUsd: priced.reduce((a, b) => a + b, 0) } : {}),
   };
-  for (const reporter of reporters) await reporter.onEnd?.(results, summary);
+  let reporterFailed = false;
+  for (const { reporter, file } of reporters) {
+    try {
+      await reporter.onEnd?.(results, summary);
+    } catch (error) {
+      if (file !== undefined || !(error instanceof ConfigError)) throw error;
+      // A summary write error must not prevent other reports or cassette saves.
+      io.stderr.write(`${error.message}\n`);
+      reporterFailed = true;
+    }
+  }
   if (cassettes?.mode === 'record') {
     const written = await cassettes.save(
       fixtures.map((job) => ({ path: job.path ?? job.file, ran: job.tests.map((t) => t.name), all: job.fixture.tests.map((t) => t.name) }))
     );
     for (const file of written) io.stderr.write(`Saved ${relative(io.cwd, file)}\n`);
   }
+  // Preserve terminal summaries and recordings even if a report file cannot be written.
+  for (const { file, chunks } of reporters) {
+    if (file !== undefined) {
+      try {
+        await mkdir(dirname(file), { recursive: true });
+        await writeFile(file, chunks.join(''), 'utf8');
+      } catch (error) {
+        throw new ConfigError(`Cannot write report to "${file}": ${(error as Error).message}`);
+      }
+    }
+  }
+  if (reporterFailed) return EXIT.unusable;
   return results.some((result) => !result.pass) ? EXIT.problems : EXIT.ok;
 }
 

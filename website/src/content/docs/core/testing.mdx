@@ -11,6 +11,8 @@ npx chatcops test
 
 It exits 0 when every test passed, 1 when some failed, and 2 when it couldn't run (a bad eval file, a missing config), so it works as a CI step.
 
+For a step-by-step walkthrough from your first eval file to a free suite in CI, see [Test Before Launch](/getting-started/test-before-launch/).
+
 ## The config
 
 `chatcops test` reads the `server` section of `chatcops.config.ts`. It's the same config you give the server: the provider, system prompt, tools and knowledge.
@@ -31,6 +33,14 @@ export default defineConfig({
 ```
 
 Tests run in process, through the same request path the server uses, so knowledge, tools, page context and locale all work as they do in production. Each test starts with fresh in-memory storage; your real conversation store is never touched.
+
+To run the evals against a deployed server instead, pass its chat URL:
+
+```bash
+npx chatcops test --url https://example.com/chat --header "Origin: https://example.com" --concurrency 1
+```
+
+`--header` is repeatable for headers such as `Origin`; headers are sent to both the session request and chat requests. When session tokens are enabled, the CLI mints a token for each test run and uses the returned conversation id for every turn. A server config is not needed with `--url`, but tool mocks cannot run over HTTP. Use `--concurrency 1` when the server's rate limit applies to the test client. `--url` is always live, even when `CI` is set, and cannot be combined with `--record` or `--replay`. A server with Turnstile enabled cannot be tested this way because minting a session token requires a Turnstile token.
 
 ## Eval files
 
@@ -231,7 +241,8 @@ export default defineConfig({
 | `--filter <text>` | Only tests whose name contains the text, or `tag:<name>` for a tag |
 | `--repeat <n>` | Run every test n times, instead of each test's own `repeat` |
 | `--concurrency <n>` | Tests run at once. Default 4. |
-| `--reporter <name>` | `pretty` (the default) or `json`, which prints one JSON object with every turn's reply, tool calls, sources and token usage. Repeatable. |
+| `--reporter <name[=file]>` | `pretty` (the default), `json` (every turn's reply, tool calls, sources and token usage), `junit` (JUnit XML for CI), or `github` (GitHub Actions annotations and job summary). Repeatable, with each name used once. Add `=file` to write a reporter other than `github` to a file. |
+| `--output <file>` | Write a single reporter's complete output to a file instead of stdout. Also works with the default reporter. The `github` reporter requires stdout. |
 | `--json` | The same as `--reporter json` |
 | `--judge-model <provider:model>` | The judge for `judge` assertions: `gemini`, `openai` or `claude`, with a model id or without one for the default |
 | `--max-cost <usd>` | Stop starting turns once the run has spent this much. Needs `prices`. |
@@ -282,7 +293,43 @@ A few things to know about recordings:
 - `repeat` records every run, and replay plays them back in the same order.
 - Replays answer at once, so `latency` in a replayed run is not the real latency.
 
+### JUnit reports for CI
+
+Write a JUnit report for a CI test report integration:
+
+```bash
+npx chatcops test --reporter junit --output evals.xml
+```
+
+To keep the readable summary in the terminal and save XML separately, give the JUnit reporter a destination:
+
+```bash
+npx chatcops test --reporter pretty --reporter junit=evals.xml
+```
+
+File paths are relative to the current folder. Parent folders are created as needed, and an existing report is replaced after reporting finishes. Paths containing `=` work: only the first `=` separates the reporter name from its destination. Each reporter name can be used once, and file destinations must differ. `--output` is a shortcut for one reporter; it cannot be combined with multiple reporters or `name=file`. A file write error exits 2, after all reporters have finished and any recordings have been saved.
+
+JUnit groups tests by eval file. Each test's time is the sum of its turns' latencies across all repeats, in seconds. The aggregate pass-rate verdict decides whether the testcase passed. A failed test with any execution error gets an `<error>`; other failed tests get a `<failure>` with the assertion reasons, turn numbers and replies.
+
+For example, GitLab CI can display the report even when an eval fails (record the API calls first so CI can replay them):
+
+```yaml
+evals:
+  image: node:22
+  script:
+    - npm ci
+    - npx chatcops test --reporter junit --output evals.xml
+  artifacts:
+    when: always
+    reports:
+      junit: evals.xml
+```
+
 ### GitHub Actions
+
+Run `npx chatcops test --reporter github` to emit one workflow error annotation per failed eval, including the source line for YAML fixtures. When GitHub Actions sets `GITHUB_STEP_SUMMARY`, the reporter appends a Markdown table with every test's outcome and pass rate. With the variable unset, it emits annotations only. If the summary cannot be written, the CLI reports its path and exits 2.
+
+GitHub Actions reads workflow commands from stdout. The CLI rejects both `--reporter github=file` and `--reporter github --output file`. You can combine `github` with `pretty` on stdout or with a separate file reporter such as `--reporter junit=evals.xml`.
 
 ```yaml
 name: Evals
@@ -295,7 +342,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: npm ci
-      - run: npx chatcops test
+      - run: npx chatcops test --reporter pretty --reporter github
 ```
 
 ## Unit tests with a scripted model

@@ -1,0 +1,233 @@
+---
+title: Test Before Launch
+description: Write conversations your bot has to get right, record the API calls into cassettes, and run a free test suite in CI before going live.
+---
+
+A change to a system prompt, an updated model version, or a new documentation page can quietly break answers that used to be accurate: quoting the wrong tier price, hallucinating unsupported features, or forgetting to capture contact details.
+
+`chatcops test` runs test conversations (called **evals**) against your bot in YAML, checks that every reply satisfies your assertions, and reports failures clearly. With `--record` and `--replay`, you record real model responses once into cassettes and replay them on every pull request for free, without spending API tokens or exposing production keys in CI.
+
+## The bot config
+
+`chatcops test` reads the `server` configuration from `chatcops.config.ts`. It runs tests in process against the exact same provider, system prompt, tools, and knowledge base you use in production. Each test starts with fresh in-memory storage, so your real conversation store is never touched.
+
+Give your bot the core facts it needs to know, such as plan prices and how to handle customer support issues:
+
+```typescript
+import { LeadCaptureTool } from '@chatcops/core';
+import { defineConfig } from '@chatcops/cli';
+
+export default defineConfig({
+  server: {
+    provider: { type: 'claude', apiKey: process.env.ANTHROPIC_API_KEY! },
+    systemPrompt:
+      'You are the helpful AI assistant for Acme. You answer questions about pricing, help visitors find the right plan, capture sales leads, and politely decline off-topic requests.\n\n' +
+      'Plans: Starter is $29 a month, and Pro is $79 a month.\n' +
+      'Support: If a customer reports a damaged order or requests a refund, apologize sincerely, ask for their name and email, and use the capture_lead tool to record their contact details for a replacement.',
+    tools: [new LeadCaptureTool()],
+  },
+});
+```
+
+You can put facts in `systemPrompt` or pass them via `knowledge`, for example with `new FAQKnowledgeSource([{ question: 'How much do plans cost?', answer: 'Starter is $29 a month and Pro is $79 a month.' }])` (imported from `@chatcops/core`).
+
+Keep your configuration loading safely when an API key is missing from the environment: during replay, `chatcops test` uses placeholder keys because no network calls are made.
+
+## 1. Write your first eval file
+
+By default, `chatcops test` looks for any `evals/**/*.chat.yaml` file. Create a file at `evals/launch.chat.yaml`.
+
+Pick three to five questions your bot must get right before going live. A good starting suite covers your pricing tiers, lead capture, and an off-topic request your bot should decline:
+
+```yaml
+version: 1
+name: Pre-launch Bot Verification
+tests:
+  - name: quotes Starter and Pro plan pricing
+    tags: [pricing]
+    turns:
+      - user: How much do your plans cost?
+        expect:
+          - contains: ["Starter", "$29", "Pro", "$79"]
+
+  - name: captures a sales lead
+    tags: [leads]
+    turns:
+      - user: I would like an enterprise demo. My name is Alex, email is alex@example.com, and we need SSO with 50 seats.
+        expect:
+          - calls-tool: capture_lead
+          - lead-captured: true
+
+  - name: politely declines off-topic requests
+    tags: [guardrails]
+    turns:
+      - user: Can you write me a poem about the ocean?
+        expect:
+          - judge: "Politely declines and steers the visitor back to Acme's products."
+```
+
+Each item under `expect` is an assertion with a single key:
+
+- `contains`: Checks that one or more strings appear in the bot's reply. Passing a list (`["Starter", "$29"]`) ensures all of them appear.
+- `calls-tool`: Confirms the bot invoked a tool during the turn (such as `capture_lead`). You can also specify arguments to check: `calls-tool: { name: capture_lead, args: { email: alex@example.com } }`.
+- `lead-captured`: Checks that the turn emitted a captured lead (from `LeadCaptureTool`). You can pass `true` to ensure any lead was captured, or an object such as `lead-captured: { email: alex@example.com }` to match specific fields.
+- `judge`: Asks a second model (the judge) to evaluate the reply against a natural-language rubric from 0 to 1. The test passes when the score reaches `threshold` (0.7 by default). This is ideal for open-ended guidelines like staying polite or refusing out-of-scope tasks.
+
+## 2. Run it live
+
+Run the test suite against your real provider:
+
+```bash
+npx chatcops test
+```
+
+The command streams each turn, checks your assertions, and outputs a summary:
+
+```text
+ChatCops evaluations
+────────────────────────────────────────
+Model: claude-haiku-5-5
+Judge: gemini:gemini-3.5-flash-lite
+Mode: live
+
+evals/launch.chat.yaml
+  ✓ quotes Starter and Pro plan pricing  1.42 s
+  ✓ captures a sales lead  1.98 s
+  ✓ politely declines off-topic requests  1.21 s
+
+Summary
+────────────────────────────────────────
+3 passed, 0 failed. Judged by gemini:gemini-3.5-flash-lite.
+Assertions: 4 passed, 0 failed
+Bot tokens: 732 input + 128 output = 860 total
+Elapsed: 2.15 s
+```
+
+`chatcops test` exits `0` when every test passes, `1` when an assertion fails, and `2` if a config error occurs (such as a typo in an assertion name).
+
+### Reading a failure
+
+When a test fails, `chatcops test` prints the failed turn number, the assertion reason, and the bot's actual response:
+
+```text
+evals/launch.chat.yaml
+  ✗ quotes Starter and Pro plan pricing  2.09 s
+      ✗ turn 1: the reply doesn't contain "Starter", "$29", "Pro", "$79"
+      reply: I'd be happy to help with pricing. I don't have Acme's plan details in front of me...
+
+2 passed, 1 failed. Judged by gemini:gemini-3.5-flash-lite.
+```
+
+Here the model had not been given the pricing details in its system prompt or knowledge base, so it declined to guess. Adding the facts to `systemPrompt` (or via a `FAQKnowledgeSource`) lets the test pass.
+
+:::note
+For `judge` assertions, choose off-topic questions that are clearly harmless (like "write me a poem"). A request the model refuses on **safety** grounds (such as writing malware) will produce a safety refusal rather than an on-topic redirect, and the judge score will reflect the wrong behaviour.
+:::
+
+## 3. Record calls into cassettes
+
+Running live tests against external model APIs consumes tokens, incurs costs, and requires network access. To run your tests in CI deterministically and for free, record the API responses once:
+
+```bash
+npx chatcops test --record
+```
+
+`--record` intercepts all outgoing HTTP calls (including model completions, embeddings, tool requests, and judge evaluations) and saves them into a cassette file alongside your eval:
+
+```text
+evals/
+├── launch.chat.yaml
+└── __cassettes__/
+    └── launch.chat.jsonl
+```
+
+### Why replays are deterministic and free
+
+Run the suite with `--replay`:
+
+```bash
+npx chatcops test --replay
+```
+
+Instead of sending requests over the Internet, `--replay` matches each call by its HTTP method, URL, and request body within the test, returning the recorded response immediately.
+
+Replays offer two critical benefits:
+
+1. **Zero cost and zero keys**: Replaying makes no outbound network requests. It spends zero tokens and requires no provider API keys.
+2. **Strict regression detection**: If someone changes a word in the system prompt, swaps the model, or alters tool schemas, the request hash changes. Rather than silently passing with stale data, the test immediately flags the mismatch:
+
+```text
+✗ evals/launch.chat.yaml > quotes Starter and Pro plan pricing
+    A call changed since it was recorded (POST https://api.anthropic.com/v1/messages, at system[0].text). Run chatcops test --record to record it again.
+```
+
+Commit `evals/__cassettes__/` to Git alongside your YAML eval files. Whenever you intentionally change your prompt or configuration, re-record with `npx chatcops test --record` and commit the updated cassette.
+
+Sensitive values like `Authorization` headers, Bearer tokens, and `?key=` query parameters are never stored in cassettes, keeping your secrets safe.
+
+## 4. Run replays in CI for free
+
+When the `CI` environment variable is set (which GitHub Actions and most CI systems set automatically), `chatcops test` replays by default. You do not need to configure any API keys or secrets in your CI environment.
+
+Add a GitHub Actions workflow at `.github/workflows/evals.yml`:
+
+```yaml
+name: Evals
+on: [pull_request]
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+      - run: npx chatcops test
+```
+
+Because `CI=true` triggers `--replay`, the entire test suite executes in milliseconds on every pull request. If a PR modifies the system prompt without updating the cassettes, CI fails, prompting the author to verify the change locally with `--record`.
+
+## 5. Add a simulated visitor
+
+Some user interactions cannot be scripted turn by turn. For example, a customer with a damaged product might only share their contact details after the bot acknowledges their frustration and apologizes.
+
+Instead of writing static `turns`, use `simulate`. A second model (the judge model) plays the visitor based on a `persona` instructions prompt:
+
+```yaml
+version: 1
+name: Customer Support
+tests:
+  - name: frustrated customer leaves email after apology
+    simulate:
+      persona: >
+        Your ordered item arrived damaged and you are frustrated. You want a replacement.
+        Only provide your email (jordan@example.com) when the assistant apologizes and asks for your contact information.
+      maxTurns: 6
+      stopWhen: lead-captured
+    expect:
+      - lead-captured: { email: jordan@example.com }
+      - judge: { rubric: "Confirms the visitor's details were passed on and says what happens next, without arguing.", threshold: 0.7 }
+```
+
+Key fields in `simulate`:
+
+- `persona`: Instructions describing who the visitor is, their emotional state, and when they should reveal information.
+- `maxTurns`: The maximum number of turns the visitor model will take (1 to 20).
+- `stopWhen: lead-captured`: Concludes the conversation as soon as the assistant successfully captures a lead.
+- `expect`: Evaluated against the conversation transcript. The judge grades only the assistant's last reply, using earlier turns as context. Because apologizing and offering a replacement happened in earlier turns, the rubric here evaluates the final response confirming that the details were recorded and explaining next steps.
+
+Simulated visitor turns are recorded by `--record` and replayed by `--replay` just like standard turns. In CI, the recorded conversation plays back identically without making model calls.
+
+## What to test before launch
+
+Before opening your bot to the public, ensure your test suite covers these essential scenarios:
+
+- **Pricing and plans**: Accurate tier names, monthly and annual prices, add-on costs, and upgrade paths.
+- **Lead capture triggers**: Asking for missing fields (name, email, requirements) and calling `capture_lead` when contact details are provided.
+- **Scope boundaries and guardrails**: Declining out-of-scope requests (e.g., writing malware, answering trivia, discussing unrelated competitors) politely.
+- **Tone and brevity**: Verifying greetings remain concise and helpful without unsolicited essays or repetitive apologies.
+- **Knowledge retrieval and citations**: Confirming questions about your documentation cite the right URLs using the `cites` assertion.
+- **Admitting unknown information**: Ensuring the bot clearly says it doesn't know when a question isn't answered in your documentation, rather than hallucinating.
+- **Multi-turn context retention**: Following up with pronouns (e.g., "Tell me more about the Pro plan" followed by "How much is it billed annually?").
+
+For the full list of assertions, custom JavaScript checks, token budgets, and pricing configurations, see the complete [Testing Your Bot](/core/testing/) reference.

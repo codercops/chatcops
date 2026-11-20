@@ -27,6 +27,7 @@ export declare function discover(sources: IngestSource[], options: DiscoverOptio
 export interface DiscoveredPage {
     url: string;
     file?: string;
+    html?: string;
 }
 
 export interface DiscoverOptions {
@@ -35,6 +36,9 @@ export interface DiscoverOptions {
     timeoutMs: number;
     include?: string[];
     exclude?: string[];
+    concurrency?: number;
+    respectRobots?: boolean;
+    maxPages?: number;
 }
 
 export interface Discovery {
@@ -79,6 +83,9 @@ export interface IngestConfig {
     store: VectorStore;
     manifest: KeyValueStore;
     metadata?: (doc: ExtractedDoc) => Record<string, MetadataValue>;
+    contextualize?: false | {
+        provider: ProviderConfig | AIProvider;
+    };
     dryRun?: boolean;
     force?: boolean;
     prune?: boolean;
@@ -111,6 +118,11 @@ export type IngestSource = {
     baseUrl: string;
     path: string;
     type: 'directory';
+} | {
+    maxDepth?: number;
+    maxPages?: number;
+    type: 'crawl';
+    url: string;
 };
 
 export interface IngestStats {
@@ -122,6 +134,11 @@ export interface IngestStats {
     pruned: number;
     chunks: number;
     embedded: number;
+    contextualized: number;
+    modelTokens: {
+        inputTokens: number;
+        outputTokens: number;
+    };
     errors: string[];
     pruneSkipped?: string;
 }

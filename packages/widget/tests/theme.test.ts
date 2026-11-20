@@ -281,3 +281,11 @@ describe('focus ring', () => {
     expect(host.style.getPropertyValue('--cc-focus-ring')).toBe('0 0 0 3px red');
   });
 });
+
+describe('user message', () => {
+  const widgetCss = readFileSync(resolve(__dirname, '../src/styles/widget.css'), 'utf8');
+
+  it('keeps the line breaks a visitor typed', () => {
+    expect(widgetCss).toMatch(/\.cc-message-user \.cc-message-content\s*\{[^}]*white-space:\s*pre-wrap;/);
+  });
+});

@@ -105,6 +105,91 @@ describe('chatcops', () => {
     expect(lines.at(-1)).toMatchObject({ type: 'done', dryRun: false, stats: { indexed: 3, failed: 1, skipped: 1 } });
   });
 
+  describe('--contextualize', () => {
+    type Shared = { embedded: string[]; model: { calls: unknown[] } };
+    const shared = (name: string) => (globalThis as unknown as Record<string, Shared>)[`__chatcops_cli_${name}`];
+
+    /** A config whose model answers "Context N." to the Nth chunk, and counts its calls on globalThis. */
+    function withModel(name: string, options: { provider?: boolean } = {}): string {
+      return project({
+        shared: name,
+        body: `import { memoryStorage, memoryVectors } from '@chatcops/core';
+import { scriptedProvider, textStep } from '@chatcops/core/testing';
+const key = '__chatcops_cli_${name}';
+globalThis[key] ??= { storage: { ...memoryStorage(), vectors: memoryVectors({ dimensions: 4 }) }, embedded: [] };
+const shared = globalThis[key];
+shared.model ??= scriptedProvider(Array.from({ length: 50 }, (_, i) => () => textStep('Context ' + (i + 1) + '.', { usage: { inputTokens: 100, outputTokens: 10 } })));
+export default {
+  storage: shared.storage,
+  embedder: { id: 'test:fake@4', dimensions: 4, async embed(texts) { shared.embedded.push(...texts); return texts.map(() => Float32Array.from([1, 0, 0, 1])); } },
+  ingest: { sources: [{ type: 'urls', urls: ['${site.url}/pricing'] }]${options.provider === false ? '' : ', contextualize: { provider: shared.model }'} },
+};
+`,
+      });
+    }
+
+    it('lists the flag in the help', async () => {
+      expect((await run(['--help'], project({ shared: 'ctx-help' }))).stdout).toContain('--contextualize');
+    });
+
+    it('has the model in ingest.contextualize.provider write context for each chunk, and reports what it used', async () => {
+      const cwd = withModel('ctx-on');
+      const { code, stdout } = await run(['ingest', '--contextualize'], cwd);
+      expect(code).toBe(EXIT.ok);
+      const { embedded, model } = shared('ctx-on');
+      expect(model.calls.length).toBeGreaterThan(0);
+      expect(embedded).toHaveLength(model.calls.length);
+      expect(embedded[0]).toMatch(/^Context 1\.\n\n/);
+      expect(stdout).toMatch(/Context written for \d+ chunks by the model \(\d+ input, \d+ output tokens\)\./);
+    });
+
+    it('puts the chunk count and the model tokens in the --json output, next to the embedded count', async () => {
+      const cwd = withModel('ctx-json');
+      const { stdout } = await run(['ingest', '--contextualize', '--json'], cwd);
+      const done = stdout.trim().split('\n').map((line) => JSON.parse(line)).at(-1);
+      const chunks = shared('ctx-json').model.calls.length;
+      expect(done).toMatchObject({ type: 'done', stats: { embedded: chunks, contextualized: chunks, modelTokens: { inputTokens: chunks * 100, outputTokens: chunks * 10 } } });
+    });
+
+    it('asks no model without the flag, even when the config has a provider', async () => {
+      const cwd = withModel('ctx-off');
+      const { code, stdout } = await run(['ingest'], cwd);
+      expect(code).toBe(EXIT.ok);
+      expect(shared('ctx-off').model.calls).toHaveLength(0);
+      expect(shared('ctx-off').embedded[0]).not.toMatch(/^Context/);
+      expect(stdout).not.toContain('Context written');
+    });
+
+    it('fails with a clear message, before embedding anything, when the config has no provider for it', async () => {
+      const cwd = withModel('ctx-none', { provider: false });
+      const { code, stderr } = await run(['ingest', '--contextualize'], cwd);
+      expect(code).toBe(EXIT.unusable);
+      expect(stderr).toContain('--contextualize needs a model: set ingest.contextualize.provider in the config');
+      expect(shared('ctx-none').embedded).toEqual([]);
+      const plain = await run(['ingest', '--contextualize'], project({ shared: 'ctx-plain' }));
+      expect(plain).toMatchObject({ code: EXIT.unusable, stderr: expect.stringContaining('--contextualize needs a model') });
+    });
+
+    it('asks no model with --dry-run', async () => {
+      const cwd = withModel('ctx-dry');
+      const { code, stdout } = await run(['ingest', '--contextualize', '--dry-run'], cwd);
+      expect(code).toBe(EXIT.ok);
+      expect(shared('ctx-dry').model.calls).toHaveLength(0);
+      expect(shared('ctx-dry').embedded).toEqual([]);
+      expect(stdout).not.toContain('Context written');
+    });
+
+    it('embeds an unchanged page again when the flag is turned on, and not on a second run with it', async () => {
+      const cwd = withModel('ctx-toggle');
+      await run(['ingest'], cwd);
+      const on = await run(['ingest', '--contextualize'], cwd);
+      expect(on.stdout).toMatch(/^Indexed 1 of 1 pages/);
+      const again = await run(['ingest', '--contextualize'], cwd);
+      expect(again.stdout).toContain('0 embedded');
+      expect(again.stdout).toContain('1 unchanged');
+    });
+  });
+
   it('writes and embeds nothing with --dry-run', async () => {
     const cwd = project({ shared: 'dry' });
     const { code, stdout } = await run(['ingest', '--dry-run'], cwd);
@@ -165,10 +250,44 @@ describe('chatcops', () => {
     const cwd = project({ shared: 'folder' });
     expect(await run(['ingest', '--source', './docs'], cwd)).toMatchObject({ code: EXIT.unusable, stderr: expect.stringContaining('needs --base-url') });
   });
+
+  it('errors when nothing to ingest without source or crawl flags', async () => {
+    const cwd = project({
+      shared: 'no-sources',
+      body: `import { memoryStorage, memoryVectors } from '@chatcops/core';
+export default {
+  storage: { ...memoryStorage(), vectors: memoryVectors({ dimensions: 4 }) },
+  embedder: { id: 'test:fake@4', dimensions: 4, async embed() { return []; } },
+  ingest: {},
+};`,
+    });
+    expect(await run(['ingest'], cwd)).toMatchObject({
+      code: EXIT.unusable,
+      stderr: expect.stringContaining('Nothing to ingest: pass --source, --crawl, or set ingest.sources in the config.'),
+    });
+  });
+
+  it('ingests with --crawl and crawl: source', async () => {
+    site.set('/crawl/cli/start', '<!doctype html><html><body><main><h1>Start</h1><p>Start with <a href="/crawl/cli/sub">Sub</a></p></main></body></html>');
+    site.set('/crawl/cli/sub', '<!doctype html><html><body><main><h1>Sub</h1><p>Sub content</p></main></body></html>');
+    const cwd = project({ shared: 'cli-crawl' });
+    try {
+      const crawlFlag = await run(['ingest', '--crawl', `${site.url}/crawl/cli/start`], cwd);
+      expect(crawlFlag.code).toBe(EXIT.ok);
+      expect(crawlFlag.stdout).toContain('Indexed 2 of 2 pages');
+
+      const crawlSource = await run(['ingest', '--source', `crawl:${site.url}/crawl/cli/start`, '--force'], cwd);
+      expect(crawlSource.code).toBe(EXIT.ok);
+      expect(crawlSource.stdout).toContain('Indexed 2 of 2 pages');
+    } finally {
+      for (const p of ['/crawl/cli/start', '/crawl/cli/sub']) site.remove(p);
+    }
+  });
 });
 
 describe('toSource', () => {
   it('tells sitemaps, pages and folders apart', () => {
+    expect(toSource('crawl:https://acme.test/start', undefined, '/x')).toEqual({ type: 'crawl', url: 'https://acme.test/start' });
     expect(toSource('https://acme.test/sitemap.xml', undefined, '/x')).toEqual({ type: 'sitemap', url: 'https://acme.test/sitemap.xml' });
     expect(toSource('https://acme.test/sitemap.xml.gz?v=2', undefined, '/x')).toEqual({ type: 'sitemap', url: 'https://acme.test/sitemap.xml.gz?v=2' });
     expect(toSource('https://acme.test/pricing', undefined, '/x')).toEqual({ type: 'urls', urls: ['https://acme.test/pricing'] });
