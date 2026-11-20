@@ -1,5 +1,38 @@
 # @chatcops/cli
 
+## 0.4.0
+
+### Minor Changes
+
+- b2ae289: `chatcops ingest --contextualize` has the model in `ingest.contextualize.provider` write a short context for each chunk before it is embedded, and stops with a message when the config has none. Without the flag a run never asks a model. The summary and `--json` report the chunks that got a context and the model tokens used.
+- 715f6a5: Add a GitHub Actions reporter with failure annotations and a Markdown job summary.
+- 7259529: Add a JUnit XML reporter and output-file support to chatcops test.
+- 8a9adef: Support crawl ingestion sources starting from a URL and following same-origin links breadth-first with maxDepth, maxPages, deduplication, robots.txt compliance, and cached HTML reuse during extraction. Add --crawl to the chatcops ingest command and crawl: URLs to --source.
+- 1ac65a2: Run evals against a remote ChatCops server with `--url` and repeatable `--header` options.
+
+### Patch Changes
+
+- 395096f: Fix GitHub annotations for tests run from a subfolder.
+- Updated dependencies [e0adbe7]
+- Updated dependencies [1a0ce80]
+- Updated dependencies [efe0064]
+- Updated dependencies [fc090e0]
+- Updated dependencies [dde7a78]
+- Updated dependencies [8a9adef]
+- Updated dependencies [b2ae289]
+- Updated dependencies [d8d6941]
+- Updated dependencies [ac269f4]
+- Updated dependencies [9759af3]
+- Updated dependencies [2223a16]
+- Updated dependencies [32c87af]
+- Updated dependencies [105bf39]
+- Updated dependencies [6c9a084]
+- Updated dependencies [bc8ed4c]
+- Updated dependencies [bc8ed4c]
+  - @chatcops/core@1.2.0
+  - @chatcops/server@1.2.0
+  - @chatcops/ingest@0.3.0
+
 ## 0.3.0
 
 ### Minor Changes
