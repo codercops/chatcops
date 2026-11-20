@@ -1291,6 +1291,157 @@ describe('Widget', () => {
 
     widget.destroy();
   });
+
+  it('sends a chat request when pre-chat form is submitted with a message, and sends nothing when message is empty', async () => {
+    // 1. Leaving message empty sends nothing
+    const widgetEmpty = new Widget({
+      apiUrl: 'https://api.test/chat',
+      preChatForm: {
+        enabled: true,
+        fields: [
+          { name: 'name', label: 'Name', type: 'text' as const },
+          { name: 'message', label: 'Message', type: 'textarea' as const },
+        ],
+      },
+    });
+    widgetEmpty.init();
+    widgetEmpty.open();
+
+    const sendEmpty = vi.fn().mockImplementation(async function* () {
+      yield { content: 'Echo' };
+      yield { done: true };
+    });
+    getInternals(widgetEmpty).client.sendMessage = sendEmpty;
+
+    getInternals(widgetEmpty).handlePreChatSubmit({ name: 'Jordan', message: '' });
+    expect(sendEmpty).not.toHaveBeenCalled();
+    widgetEmpty.destroy();
+
+    // Also verify when message field is omitted entirely
+    const widgetOmitted = new Widget({
+      apiUrl: 'https://api.test/chat',
+      preChatForm: {
+        enabled: true,
+        fields: [{ name: 'name', label: 'Name', type: 'text' as const }],
+      },
+    });
+    widgetOmitted.init();
+    widgetOmitted.open();
+
+    const sendOmitted = vi.fn().mockImplementation(async function* () {
+      yield { content: 'Echo' };
+      yield { done: true };
+    });
+    getInternals(widgetOmitted).client.sendMessage = sendOmitted;
+
+    getInternals(widgetOmitted).handlePreChatSubmit({ name: 'Jordan' });
+    expect(sendOmitted).not.toHaveBeenCalled();
+    widgetOmitted.destroy();
+
+    // 2. Submitting with a message sends a chat request containing that text
+    const onPreChatSubmit = vi.fn();
+    const preChatSubmitEvent = vi.fn();
+    const widgetWithMessage = new Widget({
+      apiUrl: 'https://api.test/chat',
+      preChatForm: {
+        enabled: true,
+        fields: [
+          { name: 'name', label: 'Name', type: 'text' as const },
+          { name: 'message', label: 'Message', type: 'textarea' as const },
+        ],
+      },
+      onPreChatSubmit,
+    });
+    widgetWithMessage.on('preChatSubmit', preChatSubmitEvent);
+    widgetWithMessage.init();
+    widgetWithMessage.open();
+
+    const sendMessage = vi.fn().mockImplementation(async function* () {
+      yield { content: 'Echo' };
+      yield { done: true };
+    });
+    getInternals(widgetWithMessage).client.sendMessage = sendMessage;
+
+    getInternals(widgetWithMessage).handlePreChatSubmit({ name: 'Jordan', message: 'Need help with billing' });
+
+    expect(onPreChatSubmit).toHaveBeenCalledWith({ name: 'Jordan', message: 'Need help with billing' });
+    expect(preChatSubmitEvent).toHaveBeenCalledWith({ name: 'Jordan', message: 'Need help with billing' });
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls[0]?.[0]).toMatchObject({
+      message: 'Need help with billing',
+    });
+
+    widgetWithMessage.destroy();
+  });
+
+  it('streams a reply with two source parts, showing links, emitting them in message event, saving to localStorage, and restoring on next open', async () => {
+    const transport = mockChatStream();
+    const messageEvent = vi.fn();
+    const widget = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget.on('message', messageEvent);
+    widget.init();
+    widget.open();
+
+    const pending = getInternals(widget).handleSend('Find docs');
+    transport.send(
+      [
+        'data: {"type":"start","protocol":1,"conversationId":"conv-sources","messageId":"msg-sources"}',
+        'data: {"type":"source","sourceId":"s1","url":"https://example.com/one","title":"Doc One"}',
+        'data: {"type":"source","sourceId":"s2","url":"https://example.com/two","title":"Doc Two"}',
+        'data: {"type":"text-delta","id":"t1","delta":"Here is the answer."}',
+        'data: {"type":"finish","reason":"stop"}',
+        'data: [DONE]',
+        '',
+      ].join('\n\n')
+    );
+    transport.close();
+    await pending;
+
+    // 1. The reply shows two links.
+    const shadow1 = getInternals(widget).shadow;
+    const links1 = shadow1.querySelectorAll<HTMLAnchorElement>('.cc-message-sources a');
+    expect(links1).toHaveLength(2);
+    expect(links1[0].getAttribute('href')).toBe('https://example.com/one');
+    expect(links1[0].textContent).toBe('Doc One');
+    expect(links1[1].getAttribute('href')).toBe('https://example.com/two');
+    expect(links1[1].textContent).toBe('Doc Two');
+
+    // 2. The message event payload contains both sources.
+    expect(messageEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: 'assistant',
+        sources: [
+          { url: 'https://example.com/one', title: 'Doc One' },
+          { url: 'https://example.com/two', title: 'Doc Two' },
+        ],
+      })
+    );
+
+    // 3. Both are saved in localStorage.
+    const stored = JSON.parse(localStorage.getItem('chatcops_conversation') ?? '{}');
+    const assistantMsg = stored.messages?.find((m: { role: string }) => m.role === 'assistant');
+    expect(assistantMsg?.sources).toEqual([
+      { url: 'https://example.com/one', title: 'Doc One' },
+      { url: 'https://example.com/two', title: 'Doc Two' },
+    ]);
+
+    widget.destroy();
+
+    // 4. A new widget shows them again when opened.
+    const widget2 = new Widget({ apiUrl: 'https://api.test/chat' });
+    widget2.init();
+    widget2.open();
+
+    const shadow2 = getInternals(widget2).shadow;
+    const links2 = shadow2.querySelectorAll<HTMLAnchorElement>('.cc-message-sources a');
+    expect(links2).toHaveLength(2);
+    expect(links2[0].getAttribute('href')).toBe('https://example.com/one');
+    expect(links2[0].textContent).toBe('Doc One');
+    expect(links2[1].getAttribute('href')).toBe('https://example.com/two');
+    expect(links2[1].textContent).toBe('Doc Two');
+
+    widget2.destroy();
+  });
 });
 
 describe('Widget streaming timeout configuration', () => {
