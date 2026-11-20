@@ -1,5 +1,27 @@
 # @chatcops/ingest
 
+## 0.3.0
+
+### Minor Changes
+
+- 8a9adef: Support crawl ingestion sources starting from a URL and following same-origin links breadth-first with maxDepth, maxPages, deduplication, robots.txt compliance, and cached HTML reuse during extraction. Add --crawl to the chatcops ingest command and crawl: URLs to --source.
+- b2ae289: `contextualize: { provider }` has a model write a short context for each chunk before it is embedded (contextual retrieval): the context is embedded with the chunk, the stored text stays the chunk, and the context is kept in its metadata. The page goes in the system prompt so a provider that caches prompts reads it once, a dry run asks no model, and turning it on or off, or changing the model, embeds pages again. `IngestStats` gains `contextualized` and `modelTokens`.
+
+### Patch Changes
+
+- d8d6941: A heading that ends in `#` keeps it when the `#` is part of the title: `## Using C#` is "Using C#" in the heading path and the chunk's `section`, no longer "Using C". A closing run of `#` is dropped only when a space comes before it (`## Notes ##`), as in CommonMark.
+- ac269f4: Ingest runs on Cloudflare Workers. Pages were converted to Markdown by turndown's browser build there, which needs a `document` a Worker doesn't have, so every page failed with "document is not defined". turndown now gets a page parsed by domino, the parser its Node build already uses, so the Markdown is the same everywhere.
+- Updated dependencies [e0adbe7]
+- Updated dependencies [1a0ce80]
+- Updated dependencies [efe0064]
+- Updated dependencies [fc090e0]
+- Updated dependencies [dde7a78]
+- Updated dependencies [9759af3]
+- Updated dependencies [32c87af]
+- Updated dependencies [105bf39]
+- Updated dependencies [bc8ed4c]
+  - @chatcops/core@1.2.0
+
 ## 0.2.0
 
 ### Patch Changes

@@ -1,5 +1,22 @@
 # @chatcops/core
 
+## 1.2.0
+
+### Minor Changes
+
+- e0adbe7: Each finished reply is saved with `metadata.answered`, and `metadata.unansweredReason` (`refusal`, `no_retrieval` or `no_citation`) when it didn't answer, for an answer rate and a list of questions the knowledge doesn't cover. `checkAnswered()` in `@chatcops/core` is the same check.
+- dde7a78: Add `redactPII()`, which takes email addresses, phone numbers, card numbers, IBANs and IP addresses out of text.
+
+### Patch Changes
+
+- 1a0ce80: Honor HTTP-date values in provider Retry-After headers.
+- efe0064: Upgrade `@google/genai` to 3.3. Gemini requests still go to the `v1beta` API, as they did on 2.x.
+- fc090e0: Update `@anthropic-ai/sdk` to 1.8 and `openai` to 7.57.
+- 9759af3: Require non-blank trimmed `name` and `projectDetails` in `capture_lead`, and name the offending field in validation errors.
+- 32c87af: Validate topN in cohereReranker and voyageReranker to immediately return an empty array for NaN.
+- 105bf39: Use safe defaults when retriever limits are not finite numbers.
+- bc8ed4c: Validate rate limiter limits and windows as finite numbers greater than 0.
+
 ## 1.1.1
 
 ### Patch Changes
