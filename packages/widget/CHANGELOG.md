@@ -1,5 +1,21 @@
 # @chatcops/widget
 
+## 1.2.0
+
+### Minor Changes
+
+- a64c9fb: Show a "New reply" pill when new messages or reply text arrive while scrolled up.
+
+### Patch Changes
+
+- 5dbb63f: A code block tagged `c++`, `c#` or `objective-c` no longer shows part of the tag as its first line, and a one-line code block keeps all of its text.
+- d569c86: Keep focus inside the popup when it opens on the consent notice and after choosing an item from the header menu.
+- 524f5e6: Keep pre-chat submit button enabled, show all field errors and focus the first invalid field on submit, and hide the required asterisk marker from screen readers.
+- 44228bf: Fill remaining widget locale strings.
+- 99701ee: Keep inline pre-chat forms from taking focus and expose inline panels as named regions.
+- 46d01e7: A visitor's message keeps the line breaks they typed with Shift+Enter instead of showing as one line.
+- a034d7a: Add missing widget translations for Urdu (`ur.ts`).
+
 ## 1.1.1
 
 ### Patch Changes

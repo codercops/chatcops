@@ -1,5 +1,27 @@
 # @chatcops/server
 
+## 1.2.0
+
+### Minor Changes
+
+- e0adbe7: Each finished reply is saved with `metadata.answered`, and `metadata.unansweredReason` (`refusal`, `no_retrieval` or `no_citation`) when it didn't answer, for an answer rate and a list of questions the knowledge doesn't cover. `checkAnswered()` in `@chatcops/core` is the same check.
+- 6c9a084: Add `chatcopsNext()`, a single catch-all route adapter for Next.js App Router that handles both chat and session requests.
+
+### Patch Changes
+
+- 2223a16: Block trailing-dot localhost and internal webhook hostnames.
+- bc8ed4c: Validate `rateLimit.maxRequests` and `rateLimit.windowMs` at startup in `createChatHandler`, rejecting values that are not finite numbers greater than 0.
+- Updated dependencies [e0adbe7]
+- Updated dependencies [1a0ce80]
+- Updated dependencies [efe0064]
+- Updated dependencies [fc090e0]
+- Updated dependencies [dde7a78]
+- Updated dependencies [9759af3]
+- Updated dependencies [32c87af]
+- Updated dependencies [105bf39]
+- Updated dependencies [bc8ed4c]
+  - @chatcops/core@1.2.0
+
 ## 1.1.1
 
 ### Patch Changes
