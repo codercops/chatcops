@@ -10,6 +10,8 @@ Universal, embeddable AI chatbot widget. Add an AI assistant to any website with
 
 Multi-provider (Claude, OpenAI, Gemini), lead capture, knowledge base, conversation persistence, analytics, and i18n.
 
+Starting a new site? [chatcops-starter](https://github.com/codercops/chatcops-starter) is a Next.js site with the widget and the server already set up. Deploy it to Vercel or Netlify in one click, or use it as a GitHub template.
+
 ## Quick Start
 
 ### 1. Add the widget to your site
@@ -164,6 +166,7 @@ Questions, or want to chat with other contributors? Join the [CODERCOPS Discord]
 ## Links
 
 - [Documentation](https://chat.codercops.com)
+- [Next.js starter](https://github.com/codercops/chatcops-starter)
 - [Contributing Guide](./CONTRIBUTING.md)
 - [Report a Bug](https://github.com/codercops/chatcops/issues/new)
 - [CoderCops](https://codercops.com)
