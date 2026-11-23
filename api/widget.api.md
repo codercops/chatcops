@@ -226,6 +226,8 @@ export interface WidgetLocaleStrings {
     consentButton: string;
     moreButton: string;
     downloadTranscript: string;
+    transcriptVisitor: string;
+    transcriptAssistant: string;
     privacy: string;
     newReply: string;
 }
