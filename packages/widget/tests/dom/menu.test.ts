@@ -257,7 +257,42 @@ describe('Widget menu actions', () => {
       expect(downloadedName).toBe('transcript.txt');
       expect(capturedBlob).toBeDefined();
       const text = await capturedBlob?.text();
-      expect(text).toBe('Visitor: Hello world\n\nAssistant: Hi there!');
+      expect(text).toBe('Assistant: How can I help you today?\n\nVisitor: Hello world\n\nAssistant: Hi there!');
+    } finally {
+      HTMLAnchorElement.prototype.click = originalClick;
+    }
+  });
+
+  it('Download transcript uses custom transcript labels', async () => {
+    widget = new Widget({
+      apiUrl: 'https://api.test/chat',
+      strings: { transcriptVisitor: 'Besucher', transcriptAssistant: 'Assistent' },
+    });
+    widget.init();
+    widget.open();
+    await vi.dynamicImportSettled();
+
+    let capturedBlob: Blob | undefined;
+    vi.spyOn(URL, 'createObjectURL').mockImplementation((blob: Blob) => {
+      capturedBlob = blob;
+      return 'blob:mock';
+    });
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+
+    const originalClick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = () => undefined;
+
+    try {
+      const intern = internals(widget);
+      intern.messages.push(
+        { id: '1', role: 'user', content: 'Hello world' },
+        { id: '2', role: 'assistant', content: 'Hi there!' }
+      );
+      intern.downloadTranscript();
+
+      const text = await capturedBlob?.text();
+      expect(text).toContain('Besucher: Hello world');
+      expect(text).toContain('Assistent: Hi there!');
     } finally {
       HTMLAnchorElement.prototype.click = originalClick;
     }
